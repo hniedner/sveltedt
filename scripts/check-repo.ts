@@ -581,8 +581,8 @@ const CLASSES: FileClass[] = [
   },
   {
     match: /\.ts$/,
-    steps: ["format", "lint"],
-    why: "dupes and types for TypeScript enter in the next commits",
+    steps: ["format", "lint", "dupes"],
+    why: "types for TypeScript enters in the next commit",
   },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
@@ -946,6 +946,9 @@ const jscpdVersion = () =>
 const at = (side: CloneSide): string =>
   `${side.name}:${side.start}-${side.end}`;
 
+/** The extensions of the dupes class; each needs a planted clone pair. */
+const DUPES_EXTENSIONS = [".mjs", ".ts"];
+
 // Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
 // starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd skips a file shorter than
 // its minimum clone, which cannot hold a clone, so only "more than 0 files analysed" is demanded of the report.
@@ -965,7 +968,12 @@ function dupes(root: string, list: Set<string>): Result {
   const inClone = new Set(
     canary.duplicates.flatMap((d) => [d.firstFile.name, d.secondFile.name]),
   );
-  const missed = planted.filter((f) => !inClone.has(f));
+  // One planted pair per extension the class claims, each reported as a clone.
+  const missed = DUPES_EXTENSIONS.flatMap((ext) => {
+    const pair = planted.filter((f) => f.endsWith(ext));
+    if (pair.length < 2) return [`no canary pair for ${ext}`];
+    return pair.filter((f) => !inClone.has(f));
+  });
   if (missed.length)
     return result(CANNOT, "jscpd missed the planted clone", missed);
   const report = jscpdReport(root, mine);

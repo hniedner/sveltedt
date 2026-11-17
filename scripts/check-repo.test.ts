@@ -652,6 +652,30 @@ test("dupes: a tracked file of no known class cannot be checked", () => {
     3,
   );
 });
+const TS_BLOCK = BLOCK.replace(
+  "(items)",
+  "(items: { price: number; count: number }[])",
+);
+test("dupes: a block repeated in two TypeScript scripts is a finding", () => {
+  const twice = (root: string): void => {
+    put(root, "scripts/a.ts", TS_BLOCK);
+    put(root, "scripts/b.ts", TS_BLOCK);
+  };
+  const out = expect("dupes", repo(twice), 1);
+  assert.match(out, /scripts\/a\.ts/);
+});
+test("dupes: a block repeated in TypeScript test files is not a finding", () => {
+  const twice = (root: string): void => {
+    put(root, "scripts/a.test.ts", TS_BLOCK);
+    put(root, "scripts/b.test.ts", TS_BLOCK);
+  };
+  expect("dupes", repo(twice), 0);
+});
+test("dupes: a canary folder without a TypeScript pair cannot be checked", () => {
+  const onlyMjs = canaryDir("dupes", { "a.mjs": BLOCK, "b.mjs": BLOCK });
+  const out = expect("dupes", repo(), 3, { canaries: onlyMjs });
+  assert.match(out, /no canary pair for \.ts/);
+});
 
 test("workflows: passes when the pinned zizmor flags its canary and finds nothing in the workflows", () => {
   expect("workflows", repo(), 0);
