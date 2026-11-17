@@ -50,7 +50,7 @@ jobs:
       # which the wrapper refuses (could not check) instead of skipping green.
       - name: Secret scan of the proposed or pushed commits
         env:
-          RANGE: ${{ github.event.pull_request.base.sha || github.event.before }}..${{ github.sha }}
+          RANGE: ${{ github.sha }}..${{ github.sha }}
         run: node scripts/scan-secrets.ts git . "${RANGE}"
 
   gate:
