@@ -257,8 +257,8 @@ const CANARY =
 const SHELL_CANARY =
   "on: push\njobs:\n  canary:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo $FOO\n";
 
-const errorCode = (e: Error | undefined): string | undefined =>
-  (e as NodeJS.ErrnoException | undefined)?.code;
+const errorCode = (e: NodeJS.ErrnoException | undefined): string | undefined =>
+  e?.code;
 
 /** The first line `bin flag` prints, or a could-not-check result when it cannot run. */
 function versionOf(bin: string, flag: string): Result | { line: string } {
@@ -418,7 +418,7 @@ function needs(json: string | undefined): Result {
 
 function readJson(root: string, f: string): PackageJson | null {
   try {
-    return JSON.parse(readFileSync(join(root, f), "utf8"));
+    return JSON.parse(readFileSync(join(root, f), "utf8")) as PackageJson;
   } catch {
     return null;
   }
@@ -575,9 +575,14 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
+    match: /\.test\.ts$/,
+    steps: ["format", "lint"],
+    why: "dupes: a test may repeat its setup so it reads on its own (method section 5); types enters next",
+  },
+  {
     match: /\.ts$/,
-    steps: ["format"],
-    why: "lint, dupes and types for TypeScript enter in the commits after this merge",
+    steps: ["format", "lint"],
+    why: "dupes and types for TypeScript enter in the next commits",
   },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
@@ -712,10 +717,11 @@ function toolRecord<T>(
   const r = spawnSync(
     process.execPath,
     ["--input-type=module", "-e", probe, url, ...extra, root, ...files],
-    { encoding: "utf8" },
+    // In the checked root: the TypeScript project service looks for tsconfig.json from there.
+    { encoding: "utf8", cwd: root, env: childEnv() },
   );
   try {
-    return JSON.parse(r.stdout);
+    return JSON.parse(r.stdout) as T;
   } catch {
     return {
       error: `the ${pkg} probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
@@ -795,13 +801,37 @@ function format(root: string, list: Set<string>): Result {
   );
 }
 
-const LINT_CANARY_RULES = [
-  "complexity",
-  "no-eval",
-  "no-implied-eval",
-  "no-new-func",
-  "no-undef",
-];
+// The rules each extension's planted canary must raise. TypeScript files get typescript-eslint's type-aware
+// twin of no-implied-eval, and no no-undef (TypeScript checks names itself).
+const LINT_CANARY_RULES: Record<string, string[]> = {
+  ".mjs": [
+    "complexity",
+    "no-eval",
+    "no-implied-eval",
+    "no-new-func",
+    "no-undef",
+  ],
+  ".ts": [
+    "complexity",
+    "no-eval",
+    "@typescript-eslint/no-implied-eval",
+    "no-new-func",
+    "@typescript-eslint/no-explicit-any",
+    "@typescript-eslint/no-floating-promises",
+  ],
+};
+
+/** The planted rules a canary record did not raise, per extension, or "no canary for <ext>". */
+function lintCanaryMisses(canary: EslintRecord): string[] {
+  return Object.entries(LINT_CANARY_RULES).flatMap(([ext, rules]) => {
+    const files = canary.files.filter((c) => c.f.endsWith(ext));
+    if (!files.length) return [`no canary for ${ext}`];
+    const raised = new Set(files.flatMap((c) => c.messages.map((m) => m.rule)));
+    return rules
+      .filter((rule) => !raised.has(rule))
+      .map((rule) => `${ext}: ${rule}`);
+  });
+}
 
 // ESLint on every file of the lint class with this repository's config and no ignore patterns. The planted canary
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
@@ -814,10 +844,7 @@ function lint(root: string, list: Set<string>): Result {
     toolRecord<EslintRecord>("eslint", ESLINT_PROBE, r, f, config);
   const canary = eslintRecord(dir, planted);
   if ("error" in canary) return result(CANNOT, canary.error);
-  const raised = new Set(
-    canary.files.flatMap((c) => c.messages.map((m) => m.rule)),
-  );
-  const missed = LINT_CANARY_RULES.filter((rule) => !raised.has(rule));
+  const missed = lintCanaryMisses(canary);
   if (missed.length)
     return result(CANNOT, "ESLint missed planted canaries", missed);
   const pin = readJson(root, "package.json")?.devDependencies?.eslint;
@@ -849,7 +876,7 @@ function lint(root: string, list: Set<string>): Result {
     );
   return result(
     PASS,
-    `ESLint ${rec.version} raised ${LINT_CANARY_RULES.length} canary rules and accepted ${mine.length} file(s)`,
+    `ESLint ${rec.version} raised every planted rule (${Object.keys(LINT_CANARY_RULES).join(", ")}) and accepted ${mine.length} file(s)`,
   );
 }
 
@@ -894,7 +921,7 @@ function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
       return { error: `jscpd exited ${r.status ?? errorCode(r.error)}` };
     const report = JSON.parse(
       readFileSync(join(out, "jscpd-report.json"), "utf8"),
-    );
+    ) as JscpdReport;
     // Absolute paths back to the relative paths given (the temp folder may sit behind a symlink).
     const given = (n: string): string =>
       files.find((f) => n.endsWith(`/${f}`)) ?? n;
@@ -1075,7 +1102,7 @@ try {
   process.exitCode = main(process.argv.slice(2));
 } catch (e) {
   console.log(
-    `USAGE check-repo: crashed: ${(e as Error | undefined)?.stack ?? e}`,
+    `USAGE check-repo: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
   );
   process.exitCode = USAGE;
 }

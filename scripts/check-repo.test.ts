@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -47,6 +48,19 @@ jobs:
       - run: echo done
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
+/** The fixture's own tsconfig, read by ESLint's type-aware rules for its TypeScript scripts (Prettier's layout). */
+const FIXTURE_TSCONFIG = `{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.ts"]
+}
+`;
 const NODE_MAJOR = process.versions.node.split(".")[0];
 /** A script long enough for jscpd to count it (a file under its 50 tokens is not a source). */
 const TOOL = `export function describe(entries) {
@@ -98,7 +112,8 @@ function repo(change: (root: string) => void = () => {}): string {
     NOTICE: "Fixture\nCopyright 2026 R. Hannes Niedner\n",
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
-    ".gitignore": "/tmp/\n",
+    ".gitignore": "/tmp/\n/node_modules\n",
+    "tsconfig.json": FIXTURE_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
     "package.json": `${JSON.stringify(PACKAGE, null, 2)}\n`,
     "pnpm-workspace.yaml": WORKSPACE,
@@ -122,6 +137,8 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/CODEOWNERS": "* @someone\n",
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
+  // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
+  symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   change(root);
   execFileSync("git", ["init", "-q", root]);
   execFileSync("git", ["-C", root, "add", "-A"]);
@@ -451,9 +468,10 @@ test("text: a tracked file of no known class cannot be checked, and names the fi
 });
 
 /** A canary folder holding `files` (name -> text), for the cases that change the canaries. */
-function canaryDir(files: Record<string, string>): string {
+/** A canary folder holding `files` (name -> text) for `step`, laid out as the steps read it: <dir>/<step>/<file>. */
+function canaryDir(step: string, files: Record<string, string>): string {
   const dir = tempDir();
-  for (const [name, t] of Object.entries(files)) put(dir, name, t);
+  for (const [name, t] of Object.entries(files)) put(dir, join(step, name), t);
   return dir;
 }
 
@@ -497,8 +515,9 @@ test("format: another Prettier version than the pin cannot be checked", () => {
   expect("format", repo(pkg((p) => (p.devDependencies.prettier = "3.0.0"))), 3);
 });
 test("format: a canary that Prettier accepts cannot be checked", () => {
-  const formatted = canaryDir({ "canary.md": "# Formatted\n" });
-  expect("format", repo(), 3, { canaries: formatted });
+  const formatted = canaryDir("format", { "canary.md": "# Formatted\n" });
+  const out = expect("format", repo(), 3, { canaries: formatted });
+  assert.match(out, /Prettier passed a planted canary/);
 });
 test("format: a missing canary folder cannot be checked", () => {
   expect("format", repo(), 3, { canaries: join(tempDir(), "absent") });
@@ -543,8 +562,12 @@ test("lint: another ESLint version than the pin cannot be checked", () => {
   expect("lint", repo(pkg((p) => (p.devDependencies.eslint = "9.0.0"))), 3);
 });
 test("lint: a canary that ESLint accepts cannot be checked", () => {
-  const clean = canaryDir({ "canary.mjs": "export const one = 1;\n" });
-  expect("lint", repo(), 3, { canaries: clean });
+  const clean = canaryDir("lint", {
+    "canary.mjs": "export const one = 1;\n",
+    "canary.ts": "export const one = 1;\n",
+  });
+  const out = expect("lint", repo(), 3, { canaries: clean });
+  assert.match(out, /ESLint missed planted canaries/);
 });
 test("lint: a tracked file of no known class cannot be checked", () => {
   expect(
@@ -552,6 +575,32 @@ test("lint: a tracked file of no known class cannot be checked", () => {
     repo((root) => put(root, "Makefile", "all:\n")),
     3,
   );
+});
+const tsScript =
+  (body: string) =>
+  (root: string): void =>
+    put(root, "scripts/y.ts", body);
+test("lint: an explicit any in a TypeScript script is a finding that names the rule", () => {
+  const out = expect("lint", repo(tsScript("export const v: any = 1;\n")), 1);
+  assert.match(out, /@typescript-eslint\/no-explicit-any/);
+});
+test("lint: a floating promise in a TypeScript script is a finding (type-aware)", () => {
+  const body =
+    "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n";
+  assert.match(expect("lint", repo(tsScript(body)), 1), /no-floating-promises/);
+});
+test("lint: eval in a TypeScript script is a finding", () => {
+  expect("lint", repo(tsScript('export const x: unknown = eval("1");\n')), 1);
+});
+test("lint: a canary folder without a TypeScript canary cannot be checked", () => {
+  const onlyMjs = canaryDir("lint", {
+    "canary.mjs": readFileSync(
+      join(here, "canaries", "lint", "canary.mjs"),
+      "utf8",
+    ),
+  });
+  const out = expect("lint", repo(), 3, { canaries: onlyMjs });
+  assert.match(out, /no canary for \.ts/);
 });
 
 /** A function of about 60 tokens, to plant as a clone. */
@@ -589,11 +638,12 @@ test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
 });
 test("dupes: a canary pair without a clone cannot be checked", () => {
-  const apart = canaryDir({
+  const apart = canaryDir("dupes", {
     "a.mjs": BLOCK,
     "b.mjs": "export const one = 1;\n",
   });
-  expect("dupes", repo(), 3, { canaries: apart });
+  const out = expect("dupes", repo(), 3, { canaries: apart });
+  assert.match(out, /jscpd missed the planted clone/);
 });
 test("dupes: a tracked file of no known class cannot be checked", () => {
   expect(
