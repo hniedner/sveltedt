@@ -20,12 +20,14 @@ import { fileURLToPath } from "node:url";
 const PASS = 0,
   FINDING = 1,
   USAGE = 2,
-  CANNOT = 3;
+  CANNOT = 3,
+  NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
 const WORD: Record<number, string> = {
   [PASS]: "PASS",
   [FINDING]: "FINDING",
   [USAGE]: "USAGE",
   [CANNOT]: "COULD NOT CHECK",
+  [NA]: "NOT APPLICABLE",
 };
 const LICENSE_SHA256 =
   "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"; // apache.org LICENSE-2.0.txt
@@ -1124,6 +1126,65 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
+/** The commits the branch adds: GATE_BASE..GATE_HEAD in CI, after the merge base with origin/main locally. */
+function commitRange(root: string): Result | { range: string } {
+  const base = process.env.GATE_BASE;
+  if (base) {
+    if (/^0+$/.test(base))
+      return result(CANNOT, "GATE_BASE is all zeros: no base commit");
+    return { range: `${base}..${process.env.GATE_HEAD || "HEAD"}` };
+  }
+  const r = spawnSync(
+    "git",
+    ["-C", root, "merge-base", "refs/remotes/origin/main", "HEAD"],
+    {
+      encoding: "utf8",
+      env: childEnv(),
+    },
+  );
+  if (r.status !== 0)
+    return result(CANNOT, "no merge base with origin/main (fetch it first)");
+  return { range: `${r.stdout.trim()}..HEAD` };
+}
+
+// The secret scan (G2) of the branch's commits, through the repository's own fail-closed wrapper, inside the one
+// gate command: locally the same range CI scans. A branch with no commit of its own is NOT APPLICABLE.
+function secrets(root: string): Result {
+  const range = commitRange(root);
+  if (isResult(range)) return range;
+  const count = spawnSync(
+    "git",
+    ["-C", root, "rev-list", "--count", range.range],
+    {
+      encoding: "utf8",
+      env: childEnv(),
+    },
+  );
+  if (count.status !== 0)
+    return result(CANNOT, `git cannot read the range ${range.range}`);
+  if (Number(count.stdout.trim()) === 0)
+    return result(NA, `no commit in ${range.range}`);
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
+    { encoding: "utf8", env: childEnv() },
+  );
+  const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
+  if (r.status === PASS)
+    return result(
+      PASS,
+      `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
+      out,
+    );
+  if (r.status === FINDING)
+    return result(FINDING, `secrets in ${range.range}`, out);
+  return result(
+    CANNOT,
+    `the secret scan exited ${r.status ?? errorCode(r.error)}`,
+    out,
+  );
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -1139,12 +1200,13 @@ const CHECKS: Record<string, Check> = {
   links,
   actionlint,
   workflows,
+  secrets,
 };
 
 function report(name: string, r: Result): number {
   for (const d of r.details) console.log(`  ${d}`);
   console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
-  return r.code;
+  return r.code === NA ? PASS : r.code;
 }
 
 function main(argv: string[]): number {

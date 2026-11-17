@@ -144,10 +144,41 @@ function repo(change: (root: string) => void = () => {}): string {
   for (const [path, text] of Object.entries(files)) put(root, path, text);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
+  execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
+  commit(root, "chore: the fixture's first commit");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   change(root);
-  execFileSync("git", ["init", "-q", root]);
-  execFileSync("git", ["-C", root, "add", "-A"]);
+  git(root, "add", "-A");
   return root;
+}
+
+/** This process's environment without git's variables: a run inside a git hook must not reach the real repo. */
+const GIT_ENV: NodeJS.ProcessEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
+);
+const git = (root: string, ...args: string[]): string =>
+  execFileSync("git", ["-C", root, ...args], {
+    env: GIT_ENV,
+    encoding: "utf8",
+  });
+
+/** Commits everything under `root` with a synthetic identity; the fixture runs no hook. */
+function commit(root: string, message: string): void {
+  git(root, "add", "-A");
+  git(
+    root,
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.org",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    message,
+  );
 }
 
 /**
@@ -210,6 +241,7 @@ interface RunOptions {
   pnpm?: string;
   zizmor?: string;
   canaries?: string;
+  extraEnv?: Record<string, string>;
 }
 
 function run(
@@ -219,15 +251,18 @@ function run(
     pnpm = fakePnpm(),
     zizmor = fakeZizmor(),
     canaries = undefined,
+    extraEnv = {},
   }: RunOptions = {},
 ): { code: number | null; out: string } {
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...GIT_ENV,
     ACTIONLINT_BIN: lint,
     PNPM_BIN: pnpm,
     ZIZMOR_BIN: zizmor,
+    ...extraEnv,
   };
-  delete env.CANARY_DIR;
+  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD"])
+    if (!(k in extraEnv)) delete env[k];
   if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
     encoding: "utf8",
@@ -713,6 +748,75 @@ test("types: a canary that tsc accepts cannot be checked", () => {
   });
   const out = expect("types", repo(), 3, { canaries: clean });
   assert.match(out, /tsc passed the planted type error/);
+});
+
+/** A fixture whose branch holds one commit per subject after origin/main. */
+function branch(...subjects: string[]): string {
+  const root = repo();
+  subjects.forEach((s, i) => {
+    put(root, `notes/${i}.md`, `# Note ${i}\n`);
+    commit(root, s);
+  });
+  return root;
+}
+/** The repository's own scan-secrets wrapper, replaced by one that prints its arguments and exits with `code`. */
+const fakeScan =
+  (code: number) =>
+  (root: string): void =>
+    put(
+      root,
+      "scripts/scan-secrets.ts",
+      `console.log("scan-secrets " + process.argv.slice(2).join(" "));\nprocess.exitCode = ${code};\n`,
+    );
+const notApplicable = (args: string[], opts?: RunOptions): void => {
+  const r = run(args, opts);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE /,
+    r.out,
+  );
+};
+function scanBranch(code: number): string {
+  const root = branch("feat: a commit to scan");
+  fakeScan(code)(root);
+  commit(root, "test: plant the fake scan wrapper");
+  return root;
+}
+
+test("secrets: passes when the wrapper passes the branch's range, and names it", () => {
+  assert.match(
+    expect("secrets", scanBranch(0), 0),
+    /scan-secrets git \S+ [0-9a-f]{40}\.\.HEAD/,
+  );
+});
+test("secrets: a finding of the wrapper is a finding", () => {
+  expect("secrets", scanBranch(1), 1);
+});
+test("secrets: a wrapper that could not check cannot be checked", () => {
+  expect("secrets", scanBranch(3), 3);
+});
+test("secrets: a branch with no commit after origin/main is not applicable", () => {
+  notApplicable(["secrets", "--root", repo()]);
+});
+test("secrets: a repository without origin/main cannot be checked", () => {
+  const root = scanBranch(0);
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  expect("secrets", root, 3);
+});
+test("secrets: CI's range from GATE_BASE and GATE_HEAD is the one scanned", () => {
+  const root = scanBranch(0);
+  const base = git(root, "rev-parse", "HEAD~1").trim();
+  const out = expect("secrets", root, 0, {
+    extraEnv: { GATE_BASE: base, GATE_HEAD: "HEAD" },
+  });
+  assert.ok(out.includes(`${base}..HEAD`), out);
+});
+test("secrets: a GATE_BASE of all zeros cannot be checked", () => {
+  const root = scanBranch(0);
+  expect("secrets", root, 3, {
+    extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
+  });
 });
 
 test("workflows: passes when the pinned zizmor flags its canary and finds nothing in the workflows", () => {
