@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       # pnpm first: setup-node's pnpm cache needs it. The version comes from package.json's packageManager.
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -26,6 +27,16 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      - name: Install the pinned gitleaks
+        run: |
+          version="$(sed -n 's/^version //p' scripts/gitleaks.version)"
+          sha="$(sed -n 's/^linux_x64_sha256 //p' scripts/gitleaks.version)"
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}"
+          echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
       - name: Install the pinned actionlint
         run: |
           version="$(sed -n 's/^version //p' scripts/actionlint.version)"
@@ -50,6 +61,11 @@ jobs:
       - name: Install the locked development dependencies
         run: pnpm install --frozen-lockfile
       - name: Gate
+        env:
+          # The secrets step scans this range: the pull request's commits, or the pushed ones on main. A missing
+          # base makes the scan answer could-not-check, never a silent pass.
+          GATE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          GATE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm gate
 
   gate:
@@ -68,4 +84,4 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: node scripts/check-repo.mjs needs "${NEEDS}"
+        run: node scripts/check-repo.ts needs "${NEEDS}"

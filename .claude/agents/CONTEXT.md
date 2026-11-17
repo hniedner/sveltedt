@@ -25,7 +25,7 @@ and `docs/engineering/gates.md` (how each check works). Where this page and the 
 
 ## The gate
 
-`node scripts/check-repo.mjs all`. Quote its last line as it is.
+`pnpm gate` (after `pnpm install --frozen-lockfile`). Quote its last line as it is.
 
 ## Rules for every brief
 

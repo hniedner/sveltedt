@@ -1,4 +1,4 @@
-// Tests for check-repo.mjs. Each case builds a small git repository in a temporary folder, plants one break
+// Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the first word of the output: 0 PASS, 1 FINDING, 3 COULD NOT CHECK.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -16,19 +16,19 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CLI = join(here, "check-repo.mjs");
+const CLI = join(here, "check-repo.ts");
 const LICENSE = readFileSync(join(here, "..", "LICENSE"));
 const SHA = "0123456789abcdef0123456789abcdef01234567";
-const made = [];
+const made: string[] = [];
 after(() => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
-function tempDir() {
+function tempDir(): string {
   const d = mkdtempSync(join(tmpdir(), "check-repo-"));
   made.push(d);
   return d;
 }
 
-function put(root, path, text) {
+function put(root: string, path: string, text: string | Buffer): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), text);
 }
@@ -58,7 +58,15 @@ const TOOL = `export function describe(entries) {
   return lines.sort().join("\\n");
 }
 `;
-const PACKAGE = {
+interface Pkg {
+  name: string;
+  license: string;
+  packageManager?: string;
+  devDependencies: Record<string, string>;
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+}
+const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
@@ -82,7 +90,7 @@ updates:
 `;
 
 /** A repository that passes every check; `change` plants the break before the files are staged. */
-function repo(change = () => {}) {
+function repo(change: (root: string) => void = () => {}): string {
   const root = tempDir();
   const files = {
     "README.md": "# Fixture\n\nSee [the method](docs/engineering/method.md).\n",
@@ -101,7 +109,11 @@ function repo(change = () => {}) {
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/zizmor.version": "version 9.9.9\nlinux_x86_64_sha256 00\n",
-    "scripts/check-repo.test.mjs": PASSING_TEST,
+    "scripts/check-repo.test.ts": PASSING_TEST,
+    "scripts/scan-secrets.ts": "// fixture\n",
+    "scripts/scan-secrets.test.ts": PASSING_TEST,
+    "scripts/gitleaks.toml": "",
+    "scripts/gitleaks.version": "version 9.9.9\n",
     "scripts/tool.mjs": TOOL,
     ".github/workflows/ci.yml": CI,
     ".github/workflows/dependency-review.yml": "on: [pull_request]\n",
@@ -116,12 +128,20 @@ function repo(change = () => {}) {
   return root;
 }
 
-/** A stand-in for actionlint: reports `version`, fails a file holding `nope` (the canary) or `bad`. */
-function fakeLint({ version = "9.9.9", canary = true } = {}) {
+/**
+ * A stand-in for actionlint: reports `version`; fails a file holding `nope` (the expression canary); reports SC2086
+ * for an unquoted `$FOO` as shellcheck would (the shell canary); fails a file holding `bad`.
+ */
+function fakeLint({
+  version = "9.9.9",
+  canary = true,
+  shell = true,
+}: { version?: string; canary?: boolean; shell?: boolean } = {}): string {
   const bin = join(tempDir(), "actionlint");
   const script = `#!/bin/sh
 if [ "$1" = "-version" ]; then echo "${version}"; exit 0; fi
 ${canary ? 'if grep -q nope "$@"; then echo "canary found"; exit 1; fi' : ""}
+${shell ? 'if grep -q "echo \\$FOO" "$@"; then echo "shellcheck reported issue in this script: SC2086:info:1:6"; exit 1; fi' : ""}
 if grep -q bad "$@"; then echo "bad workflow"; exit 1; fi
 exit 0
 `;
@@ -131,7 +151,7 @@ exit 0
 }
 
 /** A stand-in for pnpm that reports `version`. */
-function fakePnpm(version = "12.19.0") {
+function fakePnpm(version = "12.19.0"): string {
   const bin = join(tempDir(), "pnpm");
   writeFileSync(
     bin,
@@ -142,7 +162,11 @@ function fakePnpm(version = "12.19.0") {
 }
 
 /** A stand-in for zizmor: reports `version`; finds a file holding `canary` (exit 13) or `bad` (exit 12). */
-function fakeZizmor({ version = "9.9.9", canary = true, crash = false } = {}) {
+function fakeZizmor({
+  version = "9.9.9",
+  canary = true,
+  crash = false,
+}: { version?: string; canary?: boolean; crash?: boolean } = {}): string {
   const bin = join(tempDir(), "zizmor");
   writeFileSync(
     bin,
@@ -159,16 +183,23 @@ exit 0
   return bin;
 }
 
+interface RunOptions {
+  lint?: string;
+  pnpm?: string;
+  zizmor?: string;
+  canaries?: string;
+}
+
 function run(
-  args,
+  args: string[],
   {
     lint = fakeLint(),
     pnpm = fakePnpm(),
     zizmor = fakeZizmor(),
     canaries = undefined,
-  } = {},
-) {
-  const env = {
+  }: RunOptions = {},
+): { code: number | null; out: string } {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     ACTIONLINT_BIN: lint,
     PNPM_BIN: pnpm,
@@ -184,24 +215,31 @@ function run(
 }
 
 /** Runs one check on a repository and asserts its exit code and the word its last line starts with. */
-function expect(check, root, code, opts) {
+function expect(
+  check: string,
+  root: string,
+  code: number,
+  opts?: RunOptions,
+): string {
   const r = run([check, "--root", root], opts);
   const word = ["PASS", "FINDING", "", "COULD NOT CHECK"][code];
   assert.equal(r.code, code, r.out);
   assert.match(
-    r.out.trim().split("\n").at(-1),
+    r.out.trim().split("\n").at(-1)!, // split always yields at least one line
     new RegExp(`^${word} ${check}\\b`),
     r.out,
   );
   return r.out;
 }
 
-const edit = (path, from, to) => (root) => {
-  const text = readFileSync(join(root, path), "utf8");
-  assert.ok(text.includes(from), `fixture ${path} lacks ${from}`);
-  put(root, path, text.replace(from, to));
-};
-const remove = (path) => (root) => rmSync(join(root, path));
+const edit =
+  (path: string, from: string, to: string) =>
+  (root: string): void => {
+    const text = readFileSync(join(root, path), "utf8");
+    assert.ok(text.includes(from), `fixture ${path} lacks ${from}`);
+    put(root, path, text.replace(from, to));
+  };
+const remove = (path: string) => (root: string) => rmSync(join(root, path));
 
 test("files: passes on a complete repository", () => {
   expect("files", repo(), 0);
@@ -231,8 +269,14 @@ test("files: a .gitignore without /tmp/ is a finding", () => {
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
 });
+test("files: a deleted test file is a finding", () => {
+  const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));
+  rmSync(join(root, "scripts/check-repo.test.ts"));
+  execFileSync("git", ["-C", root, "add", "-A"]);
+  assert.match(expect("files", root, 1), /scripts\/check-repo\.test\.ts/);
+});
 
-const pkg = (change) => (root) => {
+const pkg = (change: (p: Pkg) => unknown) => (root: string) => {
   const p = structuredClone(PACKAGE);
   change(p);
   put(root, "package.json", `${JSON.stringify(p, null, 2)}\n`);
@@ -407,7 +451,7 @@ test("text: a tracked file of no known class cannot be checked, and names the fi
 });
 
 /** A canary folder holding `files` (name -> text), for the cases that change the canaries. */
-function canaryDir(files) {
+function canaryDir(files: Record<string, string>): string {
   const dir = tempDir();
   for (const [name, t] of Object.entries(files)) put(dir, name, t);
   return dir;
@@ -460,7 +504,8 @@ test("format: a missing canary folder cannot be checked", () => {
   expect("format", repo(), 3, { canaries: join(tempDir(), "absent") });
 });
 
-const script = (body) => (root) => put(root, "scripts/x.mjs", body);
+const script = (body: string) => (root: string) =>
+  put(root, "scripts/x.mjs", body);
 const BRANCHES = Array.from(
   { length: 21 },
   (_, i) => `  if (a === ${i}) return ${i};`,
@@ -525,7 +570,7 @@ test("dupes: passes when jscpd finds its canary clone and no clone in the script
   expect("dupes", repo(), 0);
 });
 test("dupes: a block repeated in two scripts is a finding that names both", () => {
-  const twice = (root) => {
+  const twice = (root: string) => {
     put(root, "scripts/a.mjs", BLOCK);
     put(root, "scripts/b.mjs", BLOCK);
   };
@@ -534,7 +579,7 @@ test("dupes: a block repeated in two scripts is a finding that names both", () =
   assert.match(out, /scripts\/b\.mjs/);
 });
 test("dupes: a block repeated in test files is not a finding", () => {
-  const twice = (root) => {
+  const twice = (root: string) => {
     put(root, "scripts/a.test.mjs", BLOCK);
     put(root, "scripts/b.test.mjs", BLOCK);
   };
@@ -709,7 +754,7 @@ test("links: a link to an untracked file is a finding", () => {
   expect("links", root, 1);
 });
 test("links: a repository without any relative link cannot be checked", () => {
-  const none = (root) =>
+  const none = (root: string) =>
     ["README.md", "docs/engineering/method.md"].forEach((f) =>
       put(root, f, "# No links\n"),
     );
@@ -735,6 +780,12 @@ test("actionlint: a linter that misses the canary cannot be checked", () => {
 test("actionlint: a missing binary cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: join(tempDir(), "absent") });
 });
+test("actionlint: a linter that does not run shellcheck cannot be checked", () => {
+  const out = expect("actionlint", repo(), 3, {
+    lint: fakeLint({ shell: false }),
+  });
+  assert.match(out, /shellcheck/);
+});
 
 test("selftest: passes when the repository's own tests run and pass", () => {
   expect("selftest", repo(), 0);
@@ -746,22 +797,53 @@ test("selftest: a failing test is a finding", () => {
   );
   expect(
     "selftest",
-    repo((root) => put(root, "scripts/check-repo.test.mjs", failing)),
+    repo((root) => put(root, "scripts/check-repo.test.ts", failing)),
     1,
   );
 });
 test("selftest: a test file that holds no test cannot be checked", () => {
   expect(
     "selftest",
-    repo((root) => put(root, "scripts/check-repo.test.mjs", "// empty\n")),
+    repo((root) => put(root, "scripts/check-repo.test.ts", "// empty\n")),
     3,
   );
 });
-test("selftest: a missing test file cannot be checked", () => {
-  expect("selftest", repo(remove("scripts/check-repo.test.mjs")), 3);
+test("selftest: a repository without any test file cannot be checked", () => {
+  const none = (root: string): void =>
+    ["scripts/check-repo.test.ts", "scripts/scan-secrets.test.ts"].forEach(
+      (f) => rmSync(join(root, f)),
+    );
+  expect("selftest", repo(none), 3);
+});
+test("selftest: every test file runs and is named with its count", () => {
+  const out = expect(
+    "selftest",
+    repo((root) => put(root, "scripts/other.test.mjs", PASSING_TEST)),
+    0,
+  );
+  assert.match(out, /scripts\/check-repo\.test\.ts: 1\b/);
+  assert.match(out, /scripts\/other\.test\.mjs: 1\b/);
+});
+test("selftest: a failing second test file is a finding", () => {
+  const failing = PASSING_TEST.replace(
+    "() => {}",
+    '() => { throw new Error("planted"); }',
+  );
+  expect(
+    "selftest",
+    repo((root) => put(root, "scripts/other.test.mjs", failing)),
+    1,
+  );
+});
+test("selftest: a second test file that holds no test cannot be checked", () => {
+  expect(
+    "selftest",
+    repo((root) => put(root, "scripts/other.test.mjs", "// empty\n")),
+    3,
+  );
 });
 
-const needs = (json, code) => {
+const needs = (json: string, code: number) => {
   const r = run(["needs", json]);
   assert.equal(r.code, code, r.out);
   assert.match(

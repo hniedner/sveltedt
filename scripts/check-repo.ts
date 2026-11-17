@@ -1,6 +1,6 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
-//   node scripts/check-repo.mjs <check> [--root <dir>]      check: all, selftest, files, pins, gate-needs, links, actionlint
-//   node scripts/check-repo.mjs needs '<json>'              CI only: the `needs` context of the `gate` job
+//   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
+//   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // Files are listed with `git ls-files`, so only tracked files are read.
 import { createHash } from "node:crypto";
@@ -21,7 +21,7 @@ const PASS = 0,
   FINDING = 1,
   USAGE = 2,
   CANNOT = 3;
-const WORD = {
+const WORD: Record<number, string> = {
   [PASS]: "PASS",
   [FINDING]: "FINDING",
   [USAGE]: "USAGE",
@@ -47,14 +47,42 @@ const REQUIRED = [
   ".github/workflows/scorecard.yml",
   ".github/dependabot.yml",
   ".github/CODEOWNERS",
+  "scripts/check-repo.test.ts",
+  "scripts/scan-secrets.ts",
+  "scripts/scan-secrets.test.ts",
+  "scripts/gitleaks.toml",
+  "scripts/gitleaks.version",
 ];
-const TEST_FILE = "scripts/check-repo.test.mjs";
+const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";
 const PINNED = /^["']?[\w.-]+\/[\w./-]+@[0-9a-f]{40}["']? # \S+/;
 
-const result = (code, summary, details = []) => ({ code, summary, details });
+interface Result {
+  code: number;
+  summary: string;
+  details: string[];
+}
+type Check = (root: string, list: Set<string>) => Result;
+const result = (
+  code: number,
+  summary: string,
+  details: string[] = [],
+): Result => ({
+  code,
+  summary,
+  details,
+});
+const isResult = (x: object): x is Result => "code" in x;
 
-function tracked(root) {
+/** The fields of package.json that the steps read. */
+interface PackageJson {
+  packageManager?: string;
+  devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+}
+
+function tracked(root: string): Set<string> | null {
   const r = spawnSync("git", ["-C", root, "ls-files", "-z"], {
     encoding: "utf8",
   });
@@ -63,12 +91,12 @@ function tracked(root) {
   return files.length ? new Set(files) : null;
 }
 
-function files(root, list) {
-  const details = [];
+function files(root: string, list: Set<string>): Result {
+  const details: string[] = [];
   for (const f of REQUIRED)
     if (!list.has(f) || !existsSync(join(root, f)))
       details.push(`missing: ${f}`);
-  const read = (f) =>
+  const read = (f: string) =>
     existsSync(join(root, f)) ? readFileSync(join(root, f)) : Buffer.alloc(0);
   if (
     createHash("sha256").update(read("LICENSE")).digest("hex") !==
@@ -87,11 +115,11 @@ function files(root, list) {
   );
 }
 
-function pins(root, list) {
+function pins(root: string, list: Set<string>): Result {
   const yaml = [...list].filter((f) => /^\.github\/.*\.ya?ml$/.test(f));
   if (!yaml.length) return result(CANNOT, "no YAML file under .github/");
   let uses = 0;
-  const details = [];
+  const details: string[] = [];
   for (const f of yaml) {
     readFileSync(join(root, f), "utf8")
       .split("\n")
@@ -119,25 +147,27 @@ function pins(root, list) {
   );
 }
 
-function gateNeeds(root, list) {
+function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
   const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
   if (start < 0) return result(CANNOT, `${CI_FILE}: no top-level jobs: line`);
-  const jobs = new Map();
-  let current = null;
+  const jobs = new Map<string, string[]>();
+  let current: string | null = null;
   for (const line of lines.slice(start + 1)) {
     if (/^\S/.test(line)) break;
     const id = /^ {2}([\w-]+):\s*$/.exec(line);
     if (id) jobs.set((current = id[1]), []);
-    else if (current) jobs.get(current).push(line);
+    else if (current) jobs.get(current)?.push(line);
   }
   if (!jobs.size) return result(CANNOT, `${CI_FILE}: no job found under jobs:`);
   if (!jobs.has("gate"))
     return result(FINDING, `${CI_FILE}: no job named gate`);
-  const body = jobs.get("gate");
+  const body = jobs.get("gate") ?? [];
   const needsLine = body.find((l) => /^ {4}needs\s*:/.test(l));
-  const flow = needsLine && /^ {4}needs: \[([\w\s,-]*)\]\s*$/.exec(needsLine);
+  const flow = needsLine
+    ? /^ {4}needs: \[([\w\s,-]*)\]\s*$/.exec(needsLine)
+    : null;
   if (needsLine && !flow)
     return result(
       CANNOT,
@@ -168,7 +198,7 @@ function gateNeeds(root, list) {
   );
 }
 
-function links(root, list) {
+function links(root: string, list: Set<string>): Result {
   const markdown = [...list].filter((f) => f.endsWith(".md"));
   if (!markdown.length) return result(CANNOT, "no tracked Markdown file");
   const dirs = new Set(
@@ -180,7 +210,7 @@ function links(root, list) {
     ),
   );
   let count = 0;
-  const details = [];
+  const details: string[] = [];
   for (const f of markdown) {
     readFileSync(join(root, f), "utf8")
       .split("\n")
@@ -223,25 +253,36 @@ function links(root, list) {
 const CANARY =
   "on: push\njobs:\n  nope:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ nope.value }}\n";
 
+// actionlint drops its shellcheck pass silently when shellcheck is missing; this script must draw SC2086 from it.
+const SHELL_CANARY =
+  "on: push\njobs:\n  canary:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo $FOO\n";
+
+const errorCode = (e: Error | undefined): string | undefined =>
+  (e as NodeJS.ErrnoException | undefined)?.code;
+
 /** The first line `bin flag` prints, or a could-not-check result when it cannot run. */
-function versionOf(bin, flag) {
+function versionOf(bin: string, flag: string): Result | { line: string } {
   const v = spawnSync(bin, [flag], { encoding: "utf8" });
   if (v.error || v.status !== 0)
     return result(
       CANNOT,
-      `cannot run ${bin}: ${v.error?.code ?? `exit ${v.status}`}`,
+      `cannot run ${bin}: ${errorCode(v.error) ?? `exit ${v.status}`}`,
     );
   return { line: v.stdout.split("\n")[0].trim() };
 }
 
 /** A binary pinned in `scripts/<name>.version` (<NAME>_BIN overrides the path): its path and checked version. */
-function pinnedBinary(root, name, flag) {
+function pinnedBinary(
+  root: string,
+  name: string,
+  flag: string,
+): Result | { bin: string; got: string } {
   const bin = process.env[`${name.toUpperCase()}_BIN`] || name;
   const file = `scripts/${name}.version`;
   const wanted = /^version (\S+)$/m.exec(readText(root, file));
   if (!wanted) return result(CANNOT, `${file} holds no line \`version <x>\``);
   const v = versionOf(bin, flag);
-  if ("code" in v) return v;
+  if (isResult(v)) return v;
   const got = v.line.replace(`${name} `, "");
   if (got !== wanted[1])
     return result(
@@ -251,15 +292,22 @@ function pinnedBinary(root, name, flag) {
   return { bin, got };
 }
 
-function actionlint(root, list) {
+function actionlint(root: string, list: Set<string>): Result {
   const tool = pinnedBinary(root, "actionlint", "-version");
-  if ("code" in tool) return tool;
+  if (isResult(tool)) return tool;
   const { bin, got } = tool;
   const dir = mkdtempSync(join(tmpdir(), "actionlint-canary-"));
   try {
     writeFileSync(join(dir, "canary.yml"), CANARY);
     if (spawnSync(bin, [join(dir, "canary.yml")]).status === 0)
       return result(CANNOT, "actionlint passed the planted bad workflow");
+    writeFileSync(join(dir, "shell.yml"), SHELL_CANARY);
+    const s = spawnSync(bin, [join(dir, "shell.yml")], { encoding: "utf8" });
+    if (s.status !== 1 || !`${s.stdout}${s.stderr}`.includes("SC2086"))
+      return result(
+        CANNOT,
+        "actionlint did not report SC2086 on the planted shell script: is shellcheck installed?",
+      );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -276,7 +324,7 @@ function actionlint(root, list) {
   if (r.status === 0)
     return result(
       PASS,
-      `actionlint ${got} found the canary and passed ${workflows.length} workflow(s)`,
+      `actionlint ${got} found both canaries and passed ${workflows.length} workflow(s)`,
     );
   if (r.status === 1)
     return result(
@@ -284,40 +332,78 @@ function actionlint(root, list) {
       `actionlint reported problems in ${workflows.length} workflow(s)`,
       out,
     );
-  return result(CANNOT, `actionlint exited ${r.status ?? r.error?.code}`, out);
+  return result(
+    CANNOT,
+    `actionlint exited ${r.status ?? errorCode(r.error)}`,
+    out,
+  );
 }
 
-function selftest(root, list) {
-  if (!list.has(TEST_FILE) || !existsSync(join(root, TEST_FILE)))
-    return result(CANNOT, `${TEST_FILE} is missing`);
-  const env = { ...process.env };
+/** This process's environment without git's variables: a child started inside a git hook must not reach the repo. */
+function childEnv(): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
+  );
   delete env.NODE_TEST_CONTEXT; // set when this runs inside a test run; it would change the child's reporter
+  return env;
+}
+
+function runTestFile(
+  root: string,
+  file: string,
+): { code: number; line: string } {
+  if (!existsSync(join(root, file)))
+    return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
   const r = spawnSync(
     process.execPath,
-    ["--test-reporter=tap", join(root, TEST_FILE)],
-    { cwd: root, encoding: "utf8", env },
+    ["--test-reporter=tap", join(root, file)],
+    { cwd: root, encoding: "utf8", env: childEnv() },
   );
-  const count = (name) =>
+  const count = (name: string): number =>
     Number(new RegExp(`^# ${name} (\\d+)$`, "m").exec(r.stdout)?.[1] ?? NaN);
   const [tests, pass, fail] = [count("tests"), count("pass"), count("fail")];
   if (!(tests > 0))
-    return result(CANNOT, `${TEST_FILE}: no test ran (exit ${r.status})`);
+    return { code: CANNOT, line: `${file}: no test ran (exit ${r.status})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
-    const lines = r.stdout.split("\n").filter((l) => /^\s*not ok /.test(l));
-    return result(
-      FINDING,
-      `${TEST_FILE}: ${fail} of ${tests} test(s) failed (exit ${r.status})`,
-      lines,
-    );
+    const failed = r.stdout
+      .split("\n")
+      .filter((l) => /^\s*not ok /.test(l))
+      .map((l) => `  ${l.trim()}`);
+    return {
+      code: FINDING,
+      line: [
+        `${file}: ${fail} of ${tests} failed (exit ${r.status})`,
+        ...failed,
+      ].join("\n"),
+    };
   }
-  return result(PASS, `${TEST_FILE}: ${tests} test(s) ran and passed`);
+  return { code: PASS, line: `${file}: ${tests} passed` };
 }
 
-function needs(json) {
-  let jobs;
+// Every tracked test file runs, each with its own count; a file with no test is could-not-check.
+function selftest(root: string, list: Set<string>): Result {
+  const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
+  if (!files.length)
+    return result(
+      CANNOT,
+      "no tracked test file scripts/*.test.mjs or scripts/*.test.ts",
+    );
+  const runs = files.map((f) => runTestFile(root, f));
+  const details = runs.map((r) => r.line);
+  if (runs.some((r) => r.code === FINDING))
+    return result(FINDING, "a test file failed", details);
+  if (runs.some((r) => r.code !== PASS))
+    return result(CANNOT, "a test file could not be checked", details);
+  return result(PASS, `${files.length} test file(s) ran and passed`, details);
+}
+
+function needs(json: string | undefined): Result {
+  let jobs: [string, { result?: string } | null][];
   try {
-    jobs = Object.entries(JSON.parse(json ?? ""));
+    jobs = Object.entries(
+      JSON.parse(json ?? "") as Record<string, { result?: string } | null>,
+    );
   } catch {
     return result(CANNOT, "the needs context is not JSON");
   }
@@ -330,7 +416,7 @@ function needs(json) {
   return result(PASS, `${jobs.length} needed job(s) succeeded`, lines);
 }
 
-function readJson(root, f) {
+function readJson(root: string, f: string): PackageJson | null {
   try {
     return JSON.parse(readFileSync(join(root, f), "utf8"));
   } catch {
@@ -340,7 +426,7 @@ function readJson(root, f) {
 
 // Node's major must equal .node-version's (CI runs the exact pin); pnpm must be the packageManager version, because
 // `pmOnFail: ignore` keeps pnpm itself from enforcing it (docs/decisions/001-quality-tooling.md).
-function toolchain(root) {
+function toolchain(root: string): Result {
   const pkg = readJson(root, "package.json");
   if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
   const pin = /^pnpm@(\d+\.\d+\.\d+)$/.exec(pkg.packageManager ?? "");
@@ -356,7 +442,7 @@ function toolchain(root) {
   if (wanted.split(".")[0] !== node.split(".")[0])
     return result(CANNOT, `node is ${node}, .node-version pins ${wanted}`);
   const v = versionOf(process.env.PNPM_BIN || "pnpm", "--version");
-  if ("code" in v) return v;
+  if (isResult(v)) return v;
   if (v.line !== pin[1])
     return result(CANNOT, `pnpm is ${v.line}, packageManager pins ${pin[1]}`);
   const note =
@@ -374,18 +460,18 @@ const EXACT = /^\d+\.\d+\.\d+$/;
 const ADVISORY = /#\s*GHSA(-[23456789cfghjmpqrvwx]{4}){3}\b/;
 
 /** The value of `key: <digits>` in YAML lines, or null. */
-const yamlNumber = (lines, key) =>
+const yamlNumber = (lines: string[], key: string): number =>
   Number(
     lines
       .map((l) => new RegExp(`^\\s*${key}:\\s*(\\d+)\\s*$`).exec(l)?.[1])
       .find(Boolean) ?? NaN,
   );
 
-const readText = (root, f) =>
+const readText = (root: string, f: string): string =>
   existsSync(join(root, f)) ? readFileSync(join(root, f), "utf8") : "";
 
 /** The lockfile is tracked and is one YAML document (G11). */
-function lockfileProblems(root, list) {
+function lockfileProblems(root: string, list: Set<string>): string[] {
   if (!list.has("pnpm-lock.yaml")) return ["pnpm-lock.yaml is not tracked"];
   const docs = readText(root, "pnpm-lock.yaml")
     .split(/^---\s*$/m)
@@ -396,7 +482,7 @@ function lockfileProblems(root, list) {
 }
 
 /** Exact development dependencies; nothing ships but a svelte peer (PRD-S5). */
-function packageProblems(pkg) {
+function packageProblems(pkg: PackageJson): string[] {
   const ranges = Object.entries(pkg.devDependencies ?? {})
     .filter(([, v]) => !EXACT.test(v))
     .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
@@ -410,7 +496,7 @@ function packageProblems(pkg) {
 }
 
 /** pnpm's release age equals Dependabot's shortest npm cooldown; every exception names its advisory. */
-function ageProblems(root) {
+function ageProblems(root: string): string[] {
   const workspace = readText(root, "pnpm-workspace.yaml").split("\n");
   const age = yamlNumber(workspace, "minimumReleaseAge");
   const bot = readText(root, ".github/dependabot.yml");
@@ -421,7 +507,7 @@ function ageProblems(root) {
       (m) => Number(m[1]),
     ),
   );
-  const problems = [];
+  const problems: string[] = [];
   if (!(age > 0)) problems.push("pnpm-workspace.yaml: no minimumReleaseAge");
   else if (age !== days * 1440)
     problems.push(
@@ -441,7 +527,7 @@ function ageProblems(root) {
 // What ships is Category A only (PRD-S5): no runtime dependency, no peer but svelte. Development dependencies are
 // exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's npm cooldown, and every
 // exception to it names its advisory.
-function lockfile(root, list) {
+function lockfile(root: string, list: Set<string>): Result {
   const pkg = readJson(root, "package.json");
   if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
   const details = [
@@ -461,7 +547,12 @@ function lockfile(root, list) {
 // Every tracked file belongs to the first class whose pattern matches it: the steps that check it, or none with the
 // reason. A tracked file of no class makes the steps that read this table answer could-not-check, so a new kind of
 // file is a decision, never a silent skip.
-const CLASSES = [
+interface FileClass {
+  match: RegExp;
+  steps: string[];
+  why?: string;
+}
+const CLASSES: FileClass[] = [
   {
     match: /^pnpm-lock\.yaml$/,
     steps: [],
@@ -483,18 +574,31 @@ const CLASSES = [
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
+  {
+    match: /\.ts$/,
+    steps: ["format"],
+    why: "lint, dupes and types for TypeScript enter in the commits after this merge",
+  },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
       /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
     steps: ["text"],
   },
+  {
+    match: /\.toml$/,
+    steps: ["text"],
+    why: "format: Prettier has no TOML parser",
+  },
 ];
 
 /** The tracked files a step checks, and the tracked files of no class. */
-function classified(list, step) {
-  const mine = [],
-    unknown = [];
+function classified(
+  list: Set<string>,
+  step: string,
+): { mine: string[]; unknown: string[] } {
+  const mine: string[] = [],
+    unknown: string[] = [];
   for (const f of list) {
     const c = CLASSES.find((k) => k.match.test(f));
     if (!c) unknown.push(f);
@@ -506,7 +610,7 @@ function classified(list, step) {
 const CONFLICT = /^(<{7} |={7}$|>{7} )/;
 
 // For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace, no conflict marker.
-function text(root, list) {
+function text(root: string, list: Set<string>): Result {
   const { mine, unknown } = classified(list, "text");
   if (unknown.length)
     return result(
@@ -515,7 +619,7 @@ function text(root, list) {
       unknown,
     );
   if (!mine.length) return result(CANNOT, "no file to check");
-  const details = [];
+  const details: string[] = [];
   for (const f of mine) {
     const t = readFileSync(join(root, f), "utf8");
     if (t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
@@ -536,7 +640,7 @@ function text(root, list) {
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const canaries = (step) =>
+const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 
 // Asks Prettier itself, file by file, whether it ignores the file, which parser it infers and whether the file is
@@ -573,9 +677,33 @@ console.log(JSON.stringify({ version: ESLint.version, files: results.map((r) => 
 })) }));
 `;
 
+interface ToolError {
+  error: string;
+}
+interface PrettierRecord {
+  version: string;
+  files: {
+    f: string;
+    ignored: boolean;
+    parser?: string | null;
+    formatted?: boolean;
+    error?: string;
+  }[];
+}
+interface EslintRecord {
+  version: string;
+  files: { f: string; messages: { rule: string | null; text: string }[] }[];
+}
+
 /** A tool's own record for `files` under `root`, from the copy of `pkg` installed next to this script, or an error. */
-function toolRecord(pkg, probe, root, files, extra = []) {
-  let url;
+function toolRecord<T>(
+  pkg: string,
+  probe: string,
+  root: string,
+  files: string[],
+  extra: string[] = [],
+): T | ToolError {
+  let url: string;
   try {
     url = import.meta.resolve(pkg); // the ESM entry, next to this script
   } catch {
@@ -596,7 +724,10 @@ function toolRecord(pkg, probe, root, files, extra = []) {
 }
 
 /** The files of `step`'s class and its canary folder, or a could-not-check result. */
-function toolInputs(list, step) {
+function toolInputs(
+  list: Set<string>,
+  step: string,
+): Result | { mine: string[]; dir: string; planted: string[] } {
   const { mine, unknown } = classified(list, step);
   if (unknown.length)
     return result(
@@ -613,13 +744,14 @@ function toolInputs(list, step) {
 
 // Prettier on every file of the format class, with no ignore file, so only the class table selects files. The
 // planted canaries must fail first, and Prettier's own record must name every file it was given.
-function format(root, list) {
+function format(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "format");
-  if ("code" in inputs) return inputs;
+  if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
-  const prettierRecord = (r, f) => toolRecord("prettier", PRETTIER_PROBE, r, f);
+  const prettierRecord = (r: string, f: string[]) =>
+    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f);
   const canary = prettierRecord(dir, planted);
-  if (canary.error) return result(CANNOT, canary.error);
+  if ("error" in canary) return result(CANNOT, canary.error);
   const missed = canary.files.filter(
     (c) => c.ignored || !c.parser || c.formatted !== false,
   );
@@ -631,7 +763,7 @@ function format(root, list) {
     );
   const pin = readJson(root, "package.json")?.devDependencies?.prettier;
   const rec = prettierRecord(root, mine);
-  if (rec.error) return result(CANNOT, rec.error);
+  if ("error" in rec) return result(CANNOT, rec.error);
   if (rec.version !== pin)
     return result(
       CANNOT,
@@ -673,15 +805,15 @@ const LINT_CANARY_RULES = [
 
 // ESLint on every file of the lint class with this repository's config and no ignore patterns. The planted canary
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
-function lint(root, list) {
+function lint(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "lint");
-  if ("code" in inputs) return inputs;
+  if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
   const config = [join(HERE, "..", "eslint.config.mjs")];
-  const eslintRecord = (r, f) =>
-    toolRecord("eslint", ESLINT_PROBE, r, f, config);
+  const eslintRecord = (r: string, f: string[]) =>
+    toolRecord<EslintRecord>("eslint", ESLINT_PROBE, r, f, config);
   const canary = eslintRecord(dir, planted);
-  if (canary.error) return result(CANNOT, canary.error);
+  if ("error" in canary) return result(CANNOT, canary.error);
   const raised = new Set(
     canary.files.flatMap((c) => c.messages.map((m) => m.rule)),
   );
@@ -690,7 +822,7 @@ function lint(root, list) {
     return result(CANNOT, "ESLint missed planted canaries", missed);
   const pin = readJson(root, "package.json")?.devDependencies?.eslint;
   const rec = eslintRecord(root, mine);
-  if (rec.error) return result(CANNOT, rec.error);
+  if ("error" in rec) return result(CANNOT, rec.error);
   if (rec.version !== pin)
     return result(
       CANNOT,
@@ -721,8 +853,18 @@ function lint(root, list) {
   );
 }
 
+interface CloneSide {
+  name: string;
+  start: number;
+  end: number;
+}
+interface JscpdReport {
+  duplicates: { firstFile: CloneSide; secondFile: CloneSide }[];
+  statistics: { total: { sources: number } };
+}
+
 /** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. */
-function jscpdReport(root, files) {
+function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
   const bin = join(HERE, "..", "node_modules", ".bin", "jscpd");
   const out = mkdtempSync(join(tmpdir(), "jscpd-"));
   try {
@@ -749,18 +891,19 @@ function jscpdReport(root, files) {
       { cwd: root, encoding: "utf8" },
     );
     if (r.error || r.status !== 0)
-      return { error: `jscpd exited ${r.status ?? r.error?.code}` };
+      return { error: `jscpd exited ${r.status ?? errorCode(r.error)}` };
     const report = JSON.parse(
       readFileSync(join(out, "jscpd-report.json"), "utf8"),
     );
     // Absolute paths back to the relative paths given (the temp folder may sit behind a symlink).
-    const given = (n) => files.find((f) => n.endsWith(`/${f}`)) ?? n;
+    const given = (n: string): string =>
+      files.find((f) => n.endsWith(`/${f}`)) ?? n;
     for (const d of report.duplicates)
       for (const side of [d.firstFile, d.secondFile])
         side.name = given(side.name);
     return report;
   } catch (e) {
-    return { error: `no jscpd report: ${e.message.split("\n")[0]}` };
+    return { error: `no jscpd report: ${(e as Error).message.split("\n")[0]}` };
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
@@ -773,14 +916,15 @@ const jscpdVersion = () =>
     .stdout?.trim()
     .replace(/^jscpd /, "");
 
-const at = (side) => `${side.name}:${side.start}-${side.end}`;
+const at = (side: CloneSide): string =>
+  `${side.name}:${side.start}-${side.end}`;
 
 // Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
 // starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd skips a file shorter than
 // its minimum clone, which cannot hold a clone, so only "more than 0 files analysed" is demanded of the report.
-function dupes(root, list) {
+function dupes(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "dupes");
-  if ("code" in inputs) return inputs;
+  if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
   const pin = readJson(root, "package.json")?.devDependencies?.jscpd;
   const version = jscpdVersion();
@@ -790,7 +934,7 @@ function dupes(root, list) {
       `jscpd ${version} is installed, package.json pins ${pin}`,
     );
   const canary = jscpdReport(dir, planted);
-  if (canary.error) return result(CANNOT, canary.error);
+  if ("error" in canary) return result(CANNOT, canary.error);
   const inClone = new Set(
     canary.duplicates.flatMap((d) => [d.firstFile.name, d.secondFile.name]),
   );
@@ -798,7 +942,7 @@ function dupes(root, list) {
   if (missed.length)
     return result(CANNOT, "jscpd missed the planted clone", missed);
   const report = jscpdReport(root, mine);
-  if (report.error) return result(CANNOT, report.error);
+  if ("error" in report) return result(CANNOT, report.error);
   const sources = report.statistics.total.sources;
   if (!(sources > 0))
     return result(CANNOT, `jscpd analysed 0 of ${mine.length} file(s)`);
@@ -827,11 +971,12 @@ jobs:
 // zizmor (offline, its default persona) on the workflows and the Dependabot config: template injection, dangerous
 // triggers, credentials, permissions (PRD-S5, method section 9). Exit 11-14 means findings by severity; any other
 // non-zero exit is zizmor's own error (docs.zizmor.sh, usage).
-function workflows(root, list) {
+function workflows(root: string, list: Set<string>): Result {
   const tool = pinnedBinary(root, "zizmor", "--version");
-  if ("code" in tool) return tool;
+  if (isResult(tool)) return tool;
   const { bin, got } = tool;
-  const finding = (s) => s >= 11 && s <= 14;
+  const finding = (s: number | null): boolean =>
+    s !== null && s >= 11 && s <= 14;
   const dir = mkdtempSync(join(tmpdir(), "zizmor-canary-"));
   try {
     writeFileSync(join(dir, "canary.yml"), ZIZMOR_CANARY);
@@ -867,10 +1012,10 @@ function workflows(root, list) {
       `zizmor reported findings in ${files.length} file(s)`,
       out,
     );
-  return result(CANNOT, `zizmor exited ${r.status ?? r.error?.code}`, out);
+  return result(CANNOT, `zizmor exited ${r.status ?? errorCode(r.error)}`, out);
 }
 
-const CHECKS = {
+const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
   files,
@@ -886,13 +1031,13 @@ const CHECKS = {
   workflows,
 };
 
-function report(name, r) {
+function report(name: string, r: Result): number {
   for (const d of r.details) console.log(`  ${d}`);
   console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
   return r.code;
 }
 
-function main(argv) {
+function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name !== "all" && !CHECKS[name])
@@ -929,6 +1074,8 @@ function main(argv) {
 try {
   process.exitCode = main(process.argv.slice(2));
 } catch (e) {
-  console.log(`USAGE check-repo: crashed: ${e?.stack ?? e}`);
+  console.log(
+    `USAGE check-repo: crashed: ${(e as Error | undefined)?.stack ?? e}`,
+  );
   process.exitCode = USAGE;
 }

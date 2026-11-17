@@ -13,21 +13,27 @@ pnpm install --frozen-lockfile
 pnpm gate
 ```
 
-It needs Node (the major version in `.node-version`), pnpm (the version in `package.json`'s `packageManager`) and
-actionlint (the version in `scripts/actionlint.version`). Each check ends with one line: `PASS`, `FINDING` or
-`COULD NOT CHECK`. "Could not check" blocks exactly like a finding (method section 6). CI runs the same command; its
-`gate` check is required on `main`.
+It needs Node (the major version in `.node-version`), pnpm (the version in `package.json`'s `packageManager`),
+and the pinned programs the checks run: actionlint with shellcheck, zizmor and gitleaks (each version in
+`scripts/<name>.version`). Each check ends with one line: `PASS`, `FINDING` or `COULD NOT CHECK`. "Could not
+check" blocks exactly like a finding (method section 6). CI runs the same command; its `gate` check is required on
+`main`.
 
 The checks today:
 
 - **toolchain:** Node's major version and pnpm's version are the pinned ones.
+- **selftest:** every `scripts/*.test.ts` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
   pnpm's release age equals Dependabot's shortest npm cooldown, and every exception names its advisory.
-- **text, format, lint, dupes:** every tracked file has a class in `scripts/check-repo.mjs` that names the steps
-  that check it; a file of no class blocks the gate. Prettier formats (fix with `pnpm exec prettier --write <file>`),
-  ESLint lints the scripts, jscpd finds copied code outside tests. The two method files in `docs/engineering/` are
-  never reformatted: they change only through their change log.
-- **pins, gate-needs, links, actionlint:** the workflow and documentation checks.
+- **text, format, lint, types, dupes:** every tracked file has a class in `scripts/check-repo.ts` that names the
+  steps that check it; a file of no class blocks the gate. Prettier formats (fix with
+  `pnpm exec prettier --write <file>`), ESLint lints the scripts, TypeScript type-checks them, jscpd finds copied
+  code outside tests. The two method files in `docs/engineering/` are never reformatted: they change only through
+  their change log.
+- **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
+  injection, dangerous triggers and over-broad permissions.
+- **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
+  range in CI).
 
 Every tool step first runs on planted violations in `scripts/canaries/` and must find them, so a tool that silently
 checks nothing cannot pass.
@@ -47,10 +53,10 @@ checks nothing cannot pass.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the secret scan in CI (the next pull request), and the local hooks that run checks before a commit or a push;
-  until the hooks exist, maintainers run the secret scan and the private word scan by hand before every push;
-- type checks and the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they
-  arrive with the first code that needs them).
+- the local hooks that run checks before a commit or a push; until they exist, maintainers run the private word scan
+  by hand before every push;
+- the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
+  first code that needs them).
 
 ## Known limits of the merge rules
 
