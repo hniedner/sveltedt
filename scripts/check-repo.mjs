@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -448,7 +449,17 @@ const CLASSES = [
     steps: [],
     why: "written by pnpm; read by the lockfile step",
   },
-  { match: /\.(md|ya?ml|json|mjs)$/, steps: ["text"] },
+  {
+    match: /^scripts\/canaries\//,
+    steps: [],
+    why: "planted violations, run by their own step's canary run",
+  },
+  {
+    match: /^docs\/engineering\/(method|gates)\.md$/,
+    steps: ["text"],
+    why: "owner-approved text: changes only through its change log, never by a formatter",
+  },
+  { match: /\.(md|ya?ml|json|mjs)$/, steps: ["format"] },
   {
     match:
       /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
@@ -500,12 +511,119 @@ function text(root, list) {
   );
 }
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const canaries = (step) =>
+  join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
+
+// Asks Prettier itself, file by file, whether it ignores the file, which parser it infers and whether the file is
+// formatted, with the options its CLI would use. Prints one JSON record.
+const PRETTIER_PROBE = `
+import { readFileSync } from "node:fs";
+const [url, root, ...files] = process.argv.slice(1);
+const p = await import(url);
+const out = { version: p.version, files: [] };
+for (const f of files) {
+  const path = root + "/" + f;
+  const info = await p.getFileInfo(path, { ignorePath: [] });
+  const rec = { f, ignored: info.ignored, parser: info.inferredParser };
+  if (rec.parser && !rec.ignored) {
+    const options = { ...(await p.resolveConfig(path, { editorconfig: true })), filepath: path };
+    try { rec.formatted = await p.check(readFileSync(path, "utf8"), options); }
+    catch (e) { rec.error = String(e.message).split("\\n")[0]; }
+  }
+  out.files.push(rec);
+}
+console.log(JSON.stringify(out));
+`;
+
+/** Prettier's own record for `files` under `root`, from the Prettier installed next to this script, or an error. */
+function prettierRecord(root, files) {
+  let url;
+  try {
+    url = import.meta.resolve("prettier"); // the ESM entry, next to this script
+  } catch {
+    return { error: "Prettier is not installed (run pnpm install)" };
+  }
+  const r = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", PRETTIER_PROBE, url, root, ...files],
+    { encoding: "utf8" },
+  );
+  try {
+    return JSON.parse(r.stdout);
+  } catch {
+    return {
+      error: `the Prettier probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
+    };
+  }
+}
+
+// Prettier on every file of the format class, with no ignore file, so only the class table selects files. The
+// planted canaries must fail first, and Prettier's own record must name every file it was given.
+function format(root, list) {
+  const { mine, unknown } = classified(list, "format");
+  if (unknown.length)
+    return result(
+      CANNOT,
+      `${unknown.length} tracked file(s) of no class`,
+      unknown,
+    );
+  if (!mine.length) return result(CANNOT, "no file to check");
+  const dir = canaries("format");
+  const planted = existsSync(dir) ? readdirSync(dir) : [];
+  if (!planted.length) return result(CANNOT, `no canary in ${dir}`);
+  const canary = prettierRecord(dir, planted);
+  if (canary.error) return result(CANNOT, canary.error);
+  const missed = canary.files.filter(
+    (c) => c.ignored || !c.parser || c.formatted !== false,
+  );
+  if (missed.length)
+    return result(
+      CANNOT,
+      "Prettier passed a planted canary",
+      missed.map((c) => c.f),
+    );
+  const pin = readJson(root, "package.json")?.devDependencies?.prettier;
+  const rec = prettierRecord(root, mine);
+  if (rec.error) return result(CANNOT, rec.error);
+  if (rec.version !== pin)
+    return result(
+      CANNOT,
+      `Prettier ${rec.version} is installed, package.json pins ${pin}`,
+    );
+  const skipped = rec.files.filter((r) => r.ignored || !r.parser);
+  if (rec.files.length !== mine.length || skipped.length)
+    return result(
+      CANNOT,
+      `Prettier did not check ${mine.length - rec.files.length + skipped.length} file(s)`,
+      skipped.map((r) => r.f),
+    );
+  const details = rec.files.flatMap((r) =>
+    r.error
+      ? [`${r.f}: ${r.error}`]
+      : r.formatted
+        ? []
+        : [`${r.f}: not formatted (pnpm exec prettier --write ${r.f})`],
+  );
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} of ${mine.length} file(s)`,
+      details,
+    );
+  return result(
+    PASS,
+    `Prettier ${rec.version} failed ${planted.length} canaries and accepted ${mine.length} file(s)`,
+  );
+}
+
 const CHECKS = {
   toolchain,
   selftest,
   files,
   lockfile,
   text,
+  format,
   pins,
   "gate-needs": gateNeeds,
   links,

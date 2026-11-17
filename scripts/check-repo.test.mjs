@@ -129,8 +129,13 @@ function fakePnpm(version = "12.19.0") {
   return bin;
 }
 
-function run(args, { lint = fakeLint(), pnpm = fakePnpm() } = {}) {
+function run(
+  args,
+  { lint = fakeLint(), pnpm = fakePnpm(), canaries = undefined } = {},
+) {
   const env = { ...process.env, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm };
+  delete env.CANARY_DIR;
+  if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
     encoding: "utf8",
     env,
@@ -324,11 +329,7 @@ test("text: trailing whitespace is a finding that names the line", () => {
   );
 });
 test("text: a CRLF line ending is a finding", () => {
-  expect(
-    "text",
-    repo(edit("SECURITY.md", "# Security\n", "# Security\r\n")),
-    1,
-  );
+  expect("text", repo(edit(".gitignore", "/tmp/\n", "/tmp/\r\n")), 1);
 });
 test("text: a missing final newline is a finding", () => {
   expect(
@@ -340,13 +341,7 @@ test("text: a missing final newline is a finding", () => {
 test("text: a merge-conflict marker is a finding", () => {
   expect(
     "text",
-    repo(
-      edit(
-        "CONTRIBUTING.md",
-        "# Contributing\n",
-        "<<<<<<< ours\n# Contributing\n",
-      ),
-    ),
+    repo(edit("NOTICE", "Fixture\n", "<<<<<<< ours\nFixture\n")),
     1,
   );
 });
@@ -369,6 +364,60 @@ test("text: a tracked file of no known class cannot be checked, and names the fi
     ),
     /Makefile/,
   );
+});
+
+/** A canary folder holding `files` (name -> text), for the cases that change the canaries. */
+function canaryDir(files) {
+  const dir = tempDir();
+  for (const [name, t] of Object.entries(files)) put(dir, name, t);
+  return dir;
+}
+
+test("format: passes when Prettier finds its canaries and every file of its class is formatted", () => {
+  expect("format", repo(), 0);
+});
+test("format: an unformatted Markdown file is a finding that names it", () => {
+  const bad = edit("CONTRIBUTING.md", "# Contributing\n", "#   Contributing\n");
+  assert.match(expect("format", repo(bad), 1), /CONTRIBUTING\.md/);
+});
+test("format: an unformatted JSON file is a finding", () => {
+  expect(
+    "format",
+    repo((root) => put(root, "data.json", '{"a":1}\n')),
+    1,
+  );
+});
+test("format: a YAML file Prettier cannot parse is a finding", () => {
+  const broken = "on: [pull_request\n";
+  expect(
+    "format",
+    repo((root) => put(root, ".github/workflows/scorecard.yml", broken)),
+    1,
+  );
+});
+test("format: the owner-approved method text is not reformatted", () => {
+  expect(
+    "format",
+    repo(edit("docs/engineering/gates.md", "# Gates\n", "#   Gates\n")),
+    0,
+  );
+});
+test("format: a tracked file of no known class cannot be checked", () => {
+  expect(
+    "format",
+    repo((root) => put(root, "Makefile", "all:\n")),
+    3,
+  );
+});
+test("format: another Prettier version than the pin cannot be checked", () => {
+  expect("format", repo(pkg((p) => (p.devDependencies.prettier = "3.0.0"))), 3);
+});
+test("format: a canary that Prettier accepts cannot be checked", () => {
+  const formatted = canaryDir({ "canary.md": "# Formatted\n" });
+  expect("format", repo(), 3, { canaries: formatted });
+});
+test("format: a missing canary folder cannot be checked", () => {
+  expect("format", repo(), 3, { canaries: join(tempDir(), "absent") });
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
