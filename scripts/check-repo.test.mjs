@@ -40,6 +40,29 @@ jobs:
       - run: echo done
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
+const NODE_MAJOR = process.versions.node.split(".")[0];
+const PACKAGE = {
+  name: "@hniedner/sveltedt",
+  license: "Apache-2.0",
+  packageManager: "pnpm@12.19.0",
+  devDependencies: { prettier: "3.9.10" },
+};
+const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
+const LOCK = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
+const DEPENDABOT = `version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    cooldown:
+      default-days: 7
+  - package-ecosystem: npm
+    directory: /
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+`;
 
 /** A repository that passes every check; `change` plants the break before the files are staged. */
 function repo(change = () => {}) {
@@ -51,7 +74,10 @@ function repo(change = () => {}) {
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
     ".gitignore": "/tmp/\n",
-    ".node-version": "26.0.0\n",
+    ".node-version": `${NODE_MAJOR}.0.0\n`,
+    "package.json": `${JSON.stringify(PACKAGE, null, 2)}\n`,
+    "pnpm-workspace.yaml": WORKSPACE,
+    "pnpm-lock.yaml": LOCK,
     "docs/engineering/method.md": "# Method\n\n[Companion](gates.md), [site](https://example.org/a), [top](#method).\n",
     "docs/engineering/gates.md": "# Gates\n",
     "AGENTS.md": "# Agents\n",
@@ -60,7 +86,7 @@ function repo(change = () => {}) {
     ".github/workflows/ci.yml": CI,
     ".github/workflows/dependency-review.yml": "on: [pull_request]\n",
     ".github/workflows/scorecard.yml": "on: [push]\n",
-    ".github/dependabot.yml": "version: 2\n",
+    ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
@@ -84,8 +110,17 @@ exit 0
   return bin;
 }
 
-function run(args, { lint = fakeLint() } = {}) {
-  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", env: { ...process.env, ACTIONLINT_BIN: lint } });
+/** A stand-in for pnpm that reports `version`. */
+function fakePnpm(version = "12.19.0") {
+  const bin = join(tempDir(), "pnpm");
+  writeFileSync(bin, `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\nexit 2\n`);
+  chmodSync(bin, 0o755);
+  return bin;
+}
+
+function run(args, { lint = fakeLint(), pnpm = fakePnpm() } = {}) {
+  const env = { ...process.env, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm };
+  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", env });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 
@@ -122,6 +157,69 @@ test("files: a .gitignore without /tmp/ is a finding", () => {
 });
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
+});
+
+const pkg = (change) => (root) => {
+  const p = structuredClone(PACKAGE);
+  change(p);
+  put(root, "package.json", `${JSON.stringify(p, null, 2)}\n`);
+};
+
+test("toolchain: passes when node's major and pnpm's version match the pins", () => {
+  expect("toolchain", repo(), 0);
+});
+test("toolchain: another node major than .node-version cannot be checked", () => {
+  expect("toolchain", repo((root) => put(root, ".node-version", `${Number(NODE_MAJOR) - 1}.0.0\n`)), 3);
+});
+test("toolchain: another pnpm version than packageManager cannot be checked", () => {
+  expect("toolchain", repo(), 3, { pnpm: fakePnpm("12.18.0") });
+});
+test("toolchain: a missing pnpm cannot be checked", () => {
+  expect("toolchain", repo(), 3, { pnpm: join(tempDir(), "absent") });
+});
+test("toolchain: a package.json without a pnpm packageManager pin is a finding", () => {
+  expect("toolchain", repo(pkg((p) => delete p.packageManager)), 1);
+});
+
+test("lockfile: passes on one lockfile document, exact versions, nothing shipped and one release age", () => {
+  expect("lockfile", repo(), 0);
+});
+test("lockfile: svelte as the only peer passes", () => {
+  expect("lockfile", repo(pkg((p) => (p.peerDependencies = { svelte: "^5.20.0" }))), 0);
+});
+test("lockfile: a missing lockfile is a finding", () => {
+  expect("lockfile", repo(remove("pnpm-lock.yaml")), 1);
+});
+test("lockfile: a lockfile of two YAML documents is a finding", () => {
+  expect("lockfile", repo((root) => put(root, "pnpm-lock.yaml", `---\nlockfileVersion: '9.0'\n---\n${LOCK}`)), 1);
+});
+test("lockfile: a version range in devDependencies is a finding", () => {
+  assert.match(expect("lockfile", repo(pkg((p) => (p.devDependencies.prettier = "^3.9.10"))), 1), /prettier/);
+});
+test("lockfile: a runtime dependency is a finding", () => {
+  expect("lockfile", repo(pkg((p) => (p.dependencies = { "left-pad": "1.3.0" }))), 1);
+});
+test("lockfile: a peer other than svelte is a finding", () => {
+  expect("lockfile", repo(pkg((p) => (p.peerDependencies = { svelte: "^5.20.0", react: "^19.0.0" }))), 1);
+});
+test("lockfile: a release age that differs from Dependabot's shortest npm cooldown is a finding", () => {
+  expect("lockfile", repo(edit("pnpm-workspace.yaml", "4320", "10080")), 1);
+});
+test("lockfile: a shorter Dependabot npm cooldown than the release age is a finding", () => {
+  expect("lockfile", repo(edit(".github/dependabot.yml", "semver-patch-days: 3", "semver-patch-days: 1")), 1);
+});
+test("lockfile: no release age is a finding", () => {
+  expect("lockfile", repo(edit("pnpm-workspace.yaml", "minimumReleaseAge: 4320\n", "")), 1);
+});
+test("lockfile: a release-age exception without an advisory id is a finding", () => {
+  expect("lockfile", repo(edit("pnpm-workspace.yaml", "pmOnFail", "minimumReleaseAgeExclude:\n  - prettier@3.9.11\npmOnFail")), 1);
+});
+test("lockfile: a release-age exception naming its advisory passes", () => {
+  const exclude = "minimumReleaseAgeExclude:\n  - prettier@3.9.11 # GHSA-c2f3-h4j5-m6p7\npmOnFail";
+  expect("lockfile", repo(edit("pnpm-workspace.yaml", "pmOnFail", exclude)), 0);
+});
+test("lockfile: a package.json that is not JSON cannot be checked", () => {
+  expect("lockfile", repo((root) => put(root, "package.json", "{ nope")), 3);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

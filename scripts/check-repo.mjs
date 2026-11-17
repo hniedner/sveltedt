@@ -166,7 +166,71 @@ function needs(json) {
   return result(PASS, `${jobs.length} needed job(s) succeeded`, lines);
 }
 
-const CHECKS = { selftest, files, pins, "gate-needs": gateNeeds, links, actionlint };
+function readJson(root, f) {
+  try {
+    return JSON.parse(readFileSync(join(root, f), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+// Node's major must equal .node-version's (CI runs the exact pin); pnpm must be the packageManager version, because
+// `pmOnFail: ignore` keeps pnpm itself from enforcing it (docs/decisions/001-quality-tooling.md).
+function toolchain(root) {
+  const pkg = readJson(root, "package.json");
+  if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
+  const pin = /^pnpm@(\d+\.\d+\.\d+)$/.exec(pkg.packageManager ?? "");
+  if (!pin) return result(FINDING, `package.json: packageManager is not "pnpm@<x.y.z>": ${pkg.packageManager}`);
+  const wanted = existsSync(join(root, ".node-version")) ? readFileSync(join(root, ".node-version"), "utf8").trim() : "";
+  const node = process.versions.node;
+  if (wanted.split(".")[0] !== node.split(".")[0]) return result(CANNOT, `node is ${node}, .node-version pins ${wanted}`);
+  const bin = process.env.PNPM_BIN || "pnpm";
+  const v = spawnSync(bin, ["--version"], { encoding: "utf8" });
+  if (v.error || v.status !== 0) return result(CANNOT, `cannot run ${bin}: ${v.error?.code ?? `exit ${v.status}`}`);
+  if (v.stdout.trim() !== pin[1]) return result(CANNOT, `pnpm is ${v.stdout.trim()}, packageManager pins ${pin[1]}`);
+  const note = node === wanted ? [] : [`node ${node} differs from the pin ${wanted} in the patch only`];
+  return result(PASS, `node ${node.split(".")[0]}.x and pnpm ${pin[1]} as pinned`, note);
+}
+
+const EXACT = /^\d+\.\d+\.\d+$/;
+const ADVISORY = /#\s*GHSA(-[23456789cfghjmpqrvwx]{4}){3}\b/;
+
+/** The value of `key: <digits>` in YAML lines, or null. */
+const yamlNumber = (lines, key) => Number(lines.map((l) => new RegExp(`^\\s*${key}:\\s*(\\d+)\\s*$`).exec(l)?.[1]).find(Boolean) ?? NaN);
+
+// What ships is Category A only (PRD-S5): no runtime dependency, no peer but svelte. Development dependencies are
+// exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's npm cooldown, and every
+// exception to it names its advisory.
+function lockfile(root, list) {
+  const pkg = readJson(root, "package.json");
+  if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
+  const details = [];
+  if (!list.has("pnpm-lock.yaml")) details.push("pnpm-lock.yaml is not tracked");
+  else {
+    const docs = readFileSync(join(root, "pnpm-lock.yaml"), "utf8").split(/^---\s*$/m).filter((d) => d.trim());
+    if (docs.length !== 1) details.push(`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`);
+  }
+  for (const [name, v] of Object.entries(pkg.devDependencies ?? {})) if (!EXACT.test(v)) details.push(`devDependencies: ${name} is "${v}", not an exact version`);
+  for (const name of Object.keys(pkg.dependencies ?? {})) details.push(`dependencies: ${name} would ship; only the svelte peer may`);
+  for (const name of Object.keys(pkg.peerDependencies ?? {})) if (name !== "svelte") details.push(`peerDependencies: ${name} would ship; only svelte may`);
+  const workspace = existsSync(join(root, "pnpm-workspace.yaml")) ? readFileSync(join(root, "pnpm-workspace.yaml"), "utf8").split("\n") : [];
+  const age = yamlNumber(workspace, "minimumReleaseAge");
+  const bot = existsSync(join(root, ".github/dependabot.yml")) ? readFileSync(join(root, ".github/dependabot.yml"), "utf8") : "";
+  const npm = /- package-ecosystem: npm\n([\s\S]*?)(?=\n {2}- |$)/.exec(bot);
+  // Dependabot's shortest npm cooldown must equal pnpm's age, so Dependabot never proposes what pnpm refuses.
+  const days = Math.min(...[...(npm?.[1] ?? "").matchAll(/^\s*[\w-]*days:\s*(\d+)\s*$/gm)].map((m) => Number(m[1])));
+  if (!(age > 0)) details.push("pnpm-workspace.yaml: no minimumReleaseAge");
+  else if (age !== days * 1440) details.push(`minimumReleaseAge ${age} min differs from Dependabot's shortest npm cooldown, ${days} days`);
+  const at = workspace.findIndex((l) => /^minimumReleaseAgeExclude:/.test(l));
+  for (const l of at < 0 ? [] : workspace.slice(at + 1)) {
+    if (!/^\s+-/.test(l)) break;
+    if (!ADVISORY.test(l)) details.push(`minimumReleaseAgeExclude: "${l.trim()}" names no GHSA advisory`);
+  }
+  if (details.length) return result(FINDING, `${details.length} problem(s)`, details);
+  return result(PASS, `one lockfile document, ${Object.keys(pkg.devDependencies ?? {}).length} exact dev dependencies, nothing ships, release age ${age / 1440} days`);
+}
+
+const CHECKS = { toolchain, selftest, files, lockfile, pins, "gate-needs": gateNeeds, links, actionlint };
 
 function report(name, r) {
   for (const d of r.details) console.log(`  ${d}`);

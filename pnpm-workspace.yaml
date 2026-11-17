@@ -1,0 +1,10 @@
+# pnpm settings (pnpm.io/settings). The reason for each is in docs/decisions/001-quality-tooling.md.
+# The pin in package.json's packageManager is checked by the gate; with pmOnFail left at its default, pnpm would
+# write a second YAML document into the lockfile, which hides it from GitHub's dependency graph.
+pmOnFail: ignore
+# No dependency may run an install script (PRD-S5).
+allowBuilds: {}
+strictDepBuilds: true
+# Equal to Dependabot's shortest npm cooldown (semver-patch-days: 3). A younger security fix is listed under
+# minimumReleaseAgeExclude with its GHSA id on the same line.
+minimumReleaseAge: 4320

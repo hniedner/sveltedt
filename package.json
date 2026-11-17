@@ -1,0 +1,10 @@
+{
+  "name": "@hniedner/sveltedt",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@12.19.0",
+  "scripts": {
+    "gate": "node scripts/check-repo.mjs all"
+  }
+}
