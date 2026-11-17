@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Headers "ci(deps): ...", "build(deps): ...": the gate's commits step checks every commit (taken from ontoprism).
+    commit-message:
+      prefix: ci
+      include: scope
     # GitHub Actions supports only default-days for cooldown (Dependabot options reference).
     cooldown:
       default-days: 7
@@ -19,7 +23,7 @@ updates:
     schedule:
       interval: weekly
     commit-message:
-      prefix: chore
+      prefix: build
       include: scope
     # semver-patch-days must equal pnpm's minimumReleaseAge (pnpm-workspace.yaml); the gate compares them.
     cooldown:

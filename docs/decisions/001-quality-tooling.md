@@ -97,3 +97,31 @@ Category B licences in use: none today. Expected:
 - **Decision:** the header rule, with the types `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
   `refactor`, `revert`, `style` and `test`.
 - **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule.
+
+## Reuse check against ontoprism
+
+The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was read at its `main` (`e4f05c25`):
+`frontend/eslint.config.js`, `frontend/vite.config.ts`, `frontend/vitest-setup-client.ts`,
+`frontend/playwright.config.ts`, `.github/dependabot.yml` and the `web-tests` job of `.github/workflows/ci.yml`.
+
+**Taken now:** Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
+`include: scope`. The gate's `commits` step checks every commit, so a Dependabot header must be conventional.
+
+**To take with the layer that needs it:**
+
+- with the first component test:
+  - Vitest's `expect.requireAssertions: true` (method section 4: a test without an assertion fails);
+  - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
+  - a setup file with the jest-dom matchers and `cleanup()` after each test;
+  - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
+- with the TypeScript and Svelte lint: `no-undef` off for TypeScript files, as typescript-eslint advises; the
+  Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the TypeScript parser;
+- with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
+
+**Left, with the reason:**
+
+- ESLint ignores read from `.gitignore`: here the class table alone selects files.
+- The `globals` package: a hand list is enough.
+- Cooldowns of 14 and 7 days: the companion's G11 values and the reviewer's 3-day release-age ruling stand.
+- Playwright retries in CI: a flaky test is a defect to find, not to retry.
+- Chromium only in CI: the method requires Chromium, Firefox and WebKit.
