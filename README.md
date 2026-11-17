@@ -13,3 +13,4 @@ package, so the package is published under the owner's scope.
   [how each check works](docs/engineering/gates.md).
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Reporting a vulnerability: [SECURITY.md](SECURITY.md).
 - Licence: Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+- Red proof, never merged: [a missing file](docs/does-not-exist.md).
