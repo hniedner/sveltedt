@@ -69,6 +69,11 @@ pages named, or measured with the command named.
   - Category A or CC0-1.0;
   - or a Category B licence listed here by name with its package.
 - **Category X**, or a licence on no list, stops the work.
+- **Programs the checks only run** are outside this rule, whatever their licence: they are never linked, bundled or
+  distributed, and they are not packages in the lockfile. The ASF page draws the same line: "using a GPL'ed tool
+  during the build is okay, but including GPL'ed source code is not" (https://www.apache.org/legal/resolved.html).
+  Today: git, Node, pnpm, gitleaks, actionlint and shellcheck; with later checks, zizmor and the browsers that
+  `playwright install` downloads.
 
 Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included", and "using a GPL'ed
 tool during the build is okay, but including GPL'ed source code is not".
