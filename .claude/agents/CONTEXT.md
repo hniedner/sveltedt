@@ -23,7 +23,7 @@ and `docs/engineering/gates.md` (how each check works). Where this page and the 
     (section 13).
 
 ## The gate
-`node scripts/check-repo.mjs all`. Quote its last line as it is.
+`node scripts/check-repo.ts all`. Quote its last line as it is.
 
 ## Rules for every brief
 - Before a fix, say who is hurt and what the evidence is.

@@ -9,12 +9,19 @@ works. This page is the short version.
 One command runs every check that exists today:
 
 ```sh
-node scripts/check-repo.mjs all
+node scripts/check-repo.ts all
 ```
 
-It needs Node (the version in `.node-version`) and actionlint (the version in `scripts/actionlint.version`). Each
+It needs Node (the version in `.node-version`), actionlint (the version in `scripts/actionlint.version`), shellcheck
+(actionlint uses it to check shell in workflow steps), and gitleaks (the version in `scripts/gitleaks.version`). Each
 check ends with one line: `PASS`, `FINDING` or `COULD NOT CHECK`. "Could not check" blocks exactly like a finding
 (method section 6). CI runs the same command; its `gate` check is required on `main`.
+
+CI also scans every pull request's commits, and every push to `main`, for secrets:
+
+```sh
+node scripts/scan-secrets.ts git . <base>..<head>
+```
 
 ## How a change is made
 
@@ -31,8 +38,8 @@ check ends with one line: `PASS`, `FINDING` or `COULD NOT CHECK`. "Could not che
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the secret scan in CI (the next pull request), and the local hooks that run checks before a commit or a push;
-  until the hooks exist, maintainers run the secret scan and the private word scan by hand before every push;
+- the local hooks that run checks before a commit or a push; until they exist, maintainers run the secret scan and
+  the private word scan by hand before every push;
 - formatting, lint, type and duplication checks, `trace`, `red-check`, `diff-coverage`, `mutation` and
   `release-links` (they arrive with the first code that needs them).
 

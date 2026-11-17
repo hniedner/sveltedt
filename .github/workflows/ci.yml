@@ -19,10 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
+      - name: Install the pinned gitleaks
+        run: |
+          version="$(sed -n 's/^version //p' scripts/gitleaks.version)"
+          sha="$(sed -n 's/^linux_x64_sha256 //p' scripts/gitleaks.version)"
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}"
+          echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
       - name: Install the pinned actionlint
         run: |
           version="$(sed -n 's/^version //p' scripts/actionlint.version)"
@@ -34,7 +45,13 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
       - name: Gate
-        run: node scripts/check-repo.mjs all
+        run: node scripts/check-repo.ts all
+      # One step, no step-level `if:`: on any event without a base or a before sha the range is bad or empty,
+      # which the wrapper refuses (could not check) instead of skipping green.
+      - name: Secret scan of the proposed or pushed commits
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha || github.event.before }}..${{ github.sha }}
+        run: node scripts/scan-secrets.ts git . "${RANGE}"
 
   gate:
     needs: [static]
@@ -52,4 +69,4 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: node scripts/check-repo.mjs needs "${NEEDS}"
+        run: node scripts/check-repo.ts needs "${NEEDS}"

@@ -1,6 +1,6 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
-//   node scripts/check-repo.mjs <check> [--root <dir>]      check: all, selftest, files, pins, gate-needs, links, actionlint
-//   node scripts/check-repo.mjs needs '<json>'              CI only: the `needs` context of the `gate` job
+//   node scripts/check-repo.ts <check> [--root <dir>]      check: all, selftest, files, pins, gate-needs, links, actionlint
+//   node scripts/check-repo.ts needs '<json>'              CI only: the `needs` context of the `gate` job
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // Files are listed with `git ls-files`, so only tracked files are read.
 import { createHash } from "node:crypto";
@@ -18,22 +18,25 @@ const REQUIRED = [
   "README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md", "SECURITY.md", ".gitignore", ".node-version", "AGENTS.md",
   "docs/engineering/method.md", "docs/engineering/gates.md", "scripts/actionlint.version",
   ".github/workflows/ci.yml", ".github/workflows/dependency-review.yml", ".github/workflows/scorecard.yml",
-  ".github/dependabot.yml", ".github/CODEOWNERS",
+  ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.ts",
+  "scripts/scan-secrets.ts", "scripts/scan-secrets.test.ts", "scripts/gitleaks.toml", "scripts/gitleaks.version",
 ];
-const TEST_FILE = "scripts/check-repo.test.mjs";
+const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";
 const PINNED = /^["']?[\w.-]+\/[\w./-]+@[0-9a-f]{40}["']? # \S+/;
 
-const result = (code, summary, details = []) => ({ code, summary, details });
+interface Result { code: number; summary: string; details: string[] }
+type Check = (root: string, list: Set<string>) => Result;
+const result = (code: number, summary: string, details: string[] = []): Result => ({ code, summary, details });
 
-function tracked(root) {
+function tracked(root: string): Set<string> | null {
   const r = spawnSync("git", ["-C", root, "ls-files", "-z"], { encoding: "utf8" });
   if (r.status !== 0) return null;
   const files = r.stdout.split("\0").filter(Boolean);
   return files.length ? new Set(files) : null;
 }
 
-function files(root, list) {
+function files(root: string, list: Set<string>): Result {
   const details = [];
   for (const f of REQUIRED) if (!list.has(f) || !existsSync(join(root, f))) details.push(`missing: ${f}`);
   const read = (f) => (existsSync(join(root, f)) ? readFileSync(join(root, f)) : Buffer.alloc(0));
@@ -44,7 +47,7 @@ function files(root, list) {
   return result(PASS, `${REQUIRED.length} required files present, LICENSE, NOTICE and .gitignore as required`);
 }
 
-function pins(root, list) {
+function pins(root: string, list: Set<string>): Result {
   const yaml = [...list].filter((f) => /^\.github\/.*\.ya?ml$/.test(f));
   if (!yaml.length) return result(CANNOT, "no YAML file under .github/");
   let uses = 0;
@@ -62,7 +65,7 @@ function pins(root, list) {
   return result(PASS, `${uses} uses line(s) in ${yaml.length} YAML file(s), all pinned by SHA with a tag`);
 }
 
-function gateNeeds(root, list) {
+function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
   const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
@@ -88,7 +91,7 @@ function gateNeeds(root, list) {
   return result(PASS, `gate always runs and needs all ${jobs.size - 1} other job(s)`);
 }
 
-function links(root, list) {
+function links(root: string, list: Set<string>): Result {
   const markdown = [...list].filter((f) => f.endsWith(".md"));
   if (!markdown.length) return result(CANNOT, "no tracked Markdown file");
   const dirs = new Set([...list].flatMap((f) => f.split("/").slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join("/"))));
@@ -111,8 +114,10 @@ function links(root, list) {
 }
 
 const CANARY = "on: push\njobs:\n  nope:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ nope.value }}\n";
+// actionlint drops its shellcheck pass silently when shellcheck is missing; this script must draw SC2086 from it.
+const SHELL_CANARY = "on: push\njobs:\n  canary:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo $FOO\n";
 
-function actionlint(root, list) {
+function actionlint(root: string, list: Set<string>): Result {
   const bin = process.env.ACTIONLINT_BIN || "actionlint";
   const wanted = /^version (\S+)$/m.exec(existsSync(join(root, "scripts/actionlint.version")) ? readFileSync(join(root, "scripts/actionlint.version"), "utf8") : "");
   if (!wanted) return result(CANNOT, "scripts/actionlint.version holds no line `version <x>`");
@@ -124,6 +129,11 @@ function actionlint(root, list) {
   try {
     writeFileSync(join(dir, "canary.yml"), CANARY);
     if (spawnSync(bin, [join(dir, "canary.yml")]).status === 0) return result(CANNOT, "actionlint passed the planted bad workflow");
+    writeFileSync(join(dir, "shell.yml"), SHELL_CANARY);
+    const s = spawnSync(bin, [join(dir, "shell.yml")], { encoding: "utf8" });
+    if (s.status !== 1 || !`${s.stdout}${s.stderr}`.includes("SC2086")) {
+      return result(CANNOT, "actionlint did not report SC2086 on the planted shell script: is shellcheck installed?");
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -131,28 +141,38 @@ function actionlint(root, list) {
   if (!workflows.length) return result(CANNOT, "no workflow file");
   const r = spawnSync(bin, workflows.map((f) => join(root, f)), { cwd: root, encoding: "utf8" });
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
-  if (r.status === 0) return result(PASS, `actionlint ${got} found the canary and passed ${workflows.length} workflow(s)`);
+  if (r.status === 0) return result(PASS, `actionlint ${got} found both canaries and passed ${workflows.length} workflow(s)`);
   if (r.status === 1) return result(FINDING, `actionlint reported problems in ${workflows.length} workflow(s)`, out);
   return result(CANNOT, `actionlint exited ${r.status ?? r.error?.code}`, out);
 }
 
-function selftest(root, list) {
-  if (!list.has(TEST_FILE) || !existsSync(join(root, TEST_FILE))) return result(CANNOT, `${TEST_FILE} is missing`);
+function runTestFile(root: string, file: string): { code: number; line: string } {
+  if (!existsSync(join(root, file))) return { code: CANNOT, line: `${file}: missing` };
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT; // set when this runs inside a test run; it would change the child's reporter
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
-  const r = spawnSync(process.execPath, ["--test-reporter=tap", join(root, TEST_FILE)], { cwd: root, encoding: "utf8", env });
+  const r = spawnSync(process.execPath, ["--test-reporter=tap", join(root, file)], { cwd: root, encoding: "utf8", env });
   const count = (name) => Number(new RegExp(`^# ${name} (\\d+)$`, "m").exec(r.stdout)?.[1] ?? NaN);
   const [tests, pass, fail] = [count("tests"), count("pass"), count("fail")];
-  if (!(tests > 0)) return result(CANNOT, `${TEST_FILE}: no test ran (exit ${r.status})`);
+  if (!(tests > 0)) return { code: CANNOT, line: `${file}: no test ran (exit ${r.status})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
-    const lines = r.stdout.split("\n").filter((l) => /^\s*not ok /.test(l));
-    return result(FINDING, `${TEST_FILE}: ${fail} of ${tests} test(s) failed (exit ${r.status})`, lines);
+    const failed = r.stdout.split("\n").filter((l) => /^\s*not ok /.test(l)).map((l) => `  ${l.trim()}`);
+    return { code: FINDING, line: [`${file}: ${fail} of ${tests} failed (exit ${r.status})`, ...failed].join("\n") };
   }
-  return result(PASS, `${TEST_FILE}: ${tests} test(s) ran and passed`);
+  return { code: PASS, line: `${file}: ${tests} passed` };
 }
 
-function needs(json) {
+function selftest(root: string, list: Set<string>): Result {
+  const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
+  if (!files.length) return result(CANNOT, "no tracked test file scripts/*.test.mjs or scripts/*.test.ts");
+  const runs = files.map((f) => runTestFile(root, f));
+  const details = runs.map((r) => r.line);
+  if (runs.some((r) => r.code === FINDING)) return result(FINDING, `a test file failed`, details);
+  if (runs.some((r) => r.code !== PASS)) return result(CANNOT, `a test file could not be checked`, details);
+  return result(PASS, `${files.length} test file(s) ran and passed`, details);
+}
+
+function needs(json: string | undefined): Result {
   let jobs;
   try {
     jobs = Object.entries(JSON.parse(json ?? ""));
@@ -166,15 +186,15 @@ function needs(json) {
   return result(PASS, `${jobs.length} needed job(s) succeeded`, lines);
 }
 
-const CHECKS = { selftest, files, pins, "gate-needs": gateNeeds, links, actionlint };
+const CHECKS: Record<string, Check> = { selftest, files, pins, "gate-needs": gateNeeds, links, actionlint };
 
-function report(name, r) {
+function report(name: string, r: Result): number {
   for (const d of r.details) console.log(`  ${d}`);
   console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
   return r.code;
 }
 
-function main(argv) {
+function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name !== "all" && !CHECKS[name]) return report(name ?? "", result(USAGE, `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`));
