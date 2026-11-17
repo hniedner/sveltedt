@@ -477,7 +477,12 @@ const CLASSES = [
     steps: ["text"],
     why: "owner-approved text: changes only through its change log, never by a formatter",
   },
-  { match: /\.mjs$/, steps: ["format", "lint"] },
+  {
+    match: /\.test\.mjs$/,
+    steps: ["format", "lint"],
+    why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
+  },
+  { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
@@ -716,6 +721,99 @@ function lint(root, list) {
   );
 }
 
+/** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. */
+function jscpdReport(root, files) {
+  const bin = join(HERE, "..", "node_modules", ".bin", "jscpd");
+  const out = mkdtempSync(join(tmpdir(), "jscpd-"));
+  try {
+    // Defaults written out, so an upgrade cannot change them silently.
+    const args = [
+      "--no-gitignore",
+      "--absolute",
+      "--min-tokens",
+      "50",
+      "--min-lines",
+      "5",
+    ];
+    const r = spawnSync(
+      bin,
+      [
+        ...args,
+        "--reporters",
+        "json",
+        "--output",
+        out,
+        "--exit-code",
+        "0",
+      ].concat(files),
+      { cwd: root, encoding: "utf8" },
+    );
+    if (r.error || r.status !== 0)
+      return { error: `jscpd exited ${r.status ?? r.error?.code}` };
+    const report = JSON.parse(
+      readFileSync(join(out, "jscpd-report.json"), "utf8"),
+    );
+    // Absolute paths back to the relative paths given (the temp folder may sit behind a symlink).
+    const given = (n) => files.find((f) => n.endsWith(`/${f}`)) ?? n;
+    for (const d of report.duplicates)
+      for (const side of [d.firstFile, d.secondFile])
+        side.name = given(side.name);
+    return report;
+  } catch (e) {
+    return { error: `no jscpd report: ${e.message.split("\n")[0]}` };
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
+
+const jscpdVersion = () =>
+  spawnSync(join(HERE, "..", "node_modules", ".bin", "jscpd"), ["--version"], {
+    encoding: "utf8",
+  })
+    .stdout?.trim()
+    .replace(/^jscpd /, "");
+
+const at = (side) => `${side.name}:${side.start}-${side.end}`;
+
+// Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
+// starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd skips a file shorter than
+// its minimum clone, which cannot hold a clone, so only "more than 0 files analysed" is demanded of the report.
+function dupes(root, list) {
+  const inputs = toolInputs(list, "dupes");
+  if ("code" in inputs) return inputs;
+  const { mine, dir, planted } = inputs;
+  const pin = readJson(root, "package.json")?.devDependencies?.jscpd;
+  const version = jscpdVersion();
+  if (version !== pin)
+    return result(
+      CANNOT,
+      `jscpd ${version} is installed, package.json pins ${pin}`,
+    );
+  const canary = jscpdReport(dir, planted);
+  if (canary.error) return result(CANNOT, canary.error);
+  const inClone = new Set(
+    canary.duplicates.flatMap((d) => [d.firstFile.name, d.secondFile.name]),
+  );
+  const missed = planted.filter((f) => !inClone.has(f));
+  if (missed.length)
+    return result(CANNOT, "jscpd missed the planted clone", missed);
+  const report = jscpdReport(root, mine);
+  if (report.error) return result(CANNOT, report.error);
+  const sources = report.statistics.total.sources;
+  if (!(sources > 0))
+    return result(CANNOT, `jscpd analysed 0 of ${mine.length} file(s)`);
+  const details = report.duplicates.map(
+    (d) => `${at(d.firstFile)} repeats ${at(d.secondFile)}`,
+  );
+  if (details.length)
+    return result(FINDING, `${details.length} clone(s)`, details);
+  return result(
+    PASS,
+    `jscpd ${version} found the canary clone and no clone in ${sources} of ${mine.length} file(s)` +
+      (sources < mine.length ? " (the others are under 50 tokens)" : ""),
+  );
+}
+
 const CHECKS = {
   toolchain,
   selftest,
@@ -724,6 +822,7 @@ const CHECKS = {
   text,
   format,
   lint,
+  dupes,
   pins,
   "gate-needs": gateNeeds,
   links,

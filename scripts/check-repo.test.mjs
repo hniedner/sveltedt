@@ -48,11 +48,21 @@ jobs:
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
 const NODE_MAJOR = process.versions.node.split(".")[0];
+/** A script long enough for jscpd to count it (a file under its 50 tokens is not a source). */
+const TOOL = `export function describe(entries) {
+  const lines = [];
+  for (const [key, value] of Object.entries(entries)) {
+    if (value === undefined || value === null) continue;
+    lines.push(key + " = " + String(value).trim());
+  }
+  return lines.sort().join("\\n");
+}
+`;
 const PACKAGE = {
   name: "@hniedner/sveltedt",
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
-  devDependencies: { eslint: "10.14.0", prettier: "3.9.10" },
+  devDependencies: { eslint: "10.14.0", jscpd: "5.4.3", prettier: "3.9.10" },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
 const LOCK = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
@@ -91,6 +101,7 @@ function repo(change = () => {}) {
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/check-repo.test.mjs": PASSING_TEST,
+    "scripts/tool.mjs": TOOL,
     ".github/workflows/ci.yml": CI,
     ".github/workflows/dependency-review.yml": "on: [pull_request]\n",
     ".github/workflows/scorecard.yml": "on: [push]\n",
@@ -464,6 +475,55 @@ test("lint: a canary that ESLint accepts cannot be checked", () => {
 test("lint: a tracked file of no known class cannot be checked", () => {
   expect(
     "lint",
+    repo((root) => put(root, "Makefile", "all:\n")),
+    3,
+  );
+});
+
+/** A function of about 60 tokens, to plant as a clone. */
+const BLOCK = `export function total(items) {
+  let sum = 0;
+  for (const item of items) {
+    if (item.price > 0 && item.count > 0) {
+      sum += item.price * item.count;
+    }
+  }
+  return Math.round(sum * 100) / 100;
+}
+`;
+
+test("dupes: passes when jscpd finds its canary clone and no clone in the scripts", () => {
+  expect("dupes", repo(), 0);
+});
+test("dupes: a block repeated in two scripts is a finding that names both", () => {
+  const twice = (root) => {
+    put(root, "scripts/a.mjs", BLOCK);
+    put(root, "scripts/b.mjs", BLOCK);
+  };
+  const out = expect("dupes", repo(twice), 1);
+  assert.match(out, /scripts\/a\.mjs/);
+  assert.match(out, /scripts\/b\.mjs/);
+});
+test("dupes: a block repeated in test files is not a finding", () => {
+  const twice = (root) => {
+    put(root, "scripts/a.test.mjs", BLOCK);
+    put(root, "scripts/b.test.mjs", BLOCK);
+  };
+  expect("dupes", repo(twice), 0);
+});
+test("dupes: another jscpd version than the pin cannot be checked", () => {
+  expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
+});
+test("dupes: a canary pair without a clone cannot be checked", () => {
+  const apart = canaryDir({
+    "a.mjs": BLOCK,
+    "b.mjs": "export const one = 1;\n",
+  });
+  expect("dupes", repo(), 3, { canaries: apart });
+});
+test("dupes: a tracked file of no known class cannot be checked", () => {
+  expect(
+    "dupes",
     repo((root) => put(root, "Makefile", "all:\n")),
     3,
   );
