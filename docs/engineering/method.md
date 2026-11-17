@@ -30,7 +30,10 @@ Cost is measured (section 12) only to plan; it is never a reason to skip a check
    statement is ONE observable behaviour, in one sentence a user or caller can see, using MUST or MUST NOT, with the
    reason and one example, or an example table when it is a rule over many cases (the test runs every row). A
    statement holding more than one behaviour is split. It says what happens, never how.
-   Specs are written in our own words. No code, names or text are copied from any other system.
+   Specs are written in our own words. The owner's own earlier work (code, tests, project set-up, workflows) may be
+   ported instead of rebuilt where it fits; it enters like new work, through its tests first and every gate and scan,
+   and loses every private name, host and path. Code from anyone else enters only through a library-first decision
+   (section 8) and keeps its licence notice.
 2. **Mark the unknown.** If we are not sure a behaviour is wanted, write an `OPEN:` line for the owner. It names the
    test layer its statement would use.
 3. **Review the spec** before any test. The reviewer checks that each statement:
@@ -154,12 +157,13 @@ Every check runs behind a small wrapper (G1). The wrapper:
 
 ## 8. Library first: the one-page evaluation
 
-Before building anything reusable, fill this in as `docs/decisions/NNN-<need>.md`:
+Before building anything reusable, fill this in as `docs/decisions/NNN-<need>.md`. Every plan also states a reuse
+check: what the owner's earlier work already holds for the step, whether it is taken, and why or why not.
 
 ```
 Need:         the spec statement ids it must satisfy
 Constraints:  runtime, our licence, content-security policy, accessibility level, size budget
-Candidates:   two or more existing libraries, plus "build it ourselves"; for each, docs URL fetched on <date>, version, and:
+Candidates:   two or more existing libraries, the owner's earlier work where it has one, plus "build it ourselves"; for each, docs URL fetched on <date>, version, and:
   Licence        OSI-approved, compatible with ours, no commercial-only parts
   Maintenance    last release, releases in 12 months, maintainers, open security issues, response time
   Size           install or bundle size (min+gz), number of transitive dependencies
@@ -183,6 +187,7 @@ language.
   - A private word list kept outside the repo is checked before the push only (`scan-words`, G3). It holds names,
     hosts and former project names, and it is never put into CI.
 - **No back-references** to any system a spec was derived from, or to any organisation: no links, names, ticket numbers or hosts.
+  A decision record may name a public source it ports from.
   Commits use the address the owner chose for the project; no other personal, employer or institutional address appears.
 - **A pushed leak counts as published.** Rotate the secret, because rewriting history does not recall forks or caches.
 - **The supply chain is locked down** (G11):
@@ -255,3 +260,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-17 | Public edition: file names and wording made generic (sections 2, 3, 9; companion headers and G12 row); no rule changed | Public-repo hygiene, method §9 |
 | 2026-11-17 | npm package name `@hniedner/sveltedt` (section 7; companion G10 and G12) | npm refused the bare name; owner decision |
 | 2026-11-17 | Companion G10: CodeQL merge protection does not cover Dependabot pull requests analysed by default setup; default setup does not scan pull requests from forks; it does scan other pull requests | Fact correction, read from docs.github.com 2026-11-17 |
+| 2026-11-17 | Reuse: the owner's own earlier work (code, tests, set-up, workflows) is ported through the method instead of rebuilt where it fits; third-party code only through section 8; every plan states a reuse check; a decision record may name a public source (sections 2, 8, 9; companion G12) | Owner decision, 2026-11-17 |
