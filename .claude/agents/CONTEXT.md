@@ -4,6 +4,7 @@ Read this first, then the brief you were given. The binding rules are in `docs/e
 and `docs/engineering/gates.md` (how each check works). Where this page and the method differ, the method wins.
 
 ## The method in ten lines
+
 1. Quality first: architectural and engineering quality win over pace (preamble).
 2. Product requirements first, then specs: numbered statements, one observable behaviour each, MUST or MUST NOT,
    a reason and an example; every statement traces to a requirement (section 2, steps 0-3).
@@ -23,9 +24,11 @@ and `docs/engineering/gates.md` (how each check works). Where this page and the 
     (section 13).
 
 ## The gate
+
 `node scripts/check-repo.mjs all`. Quote its last line as it is.
 
 ## Rules for every brief
+
 - Before a fix, say who is hurt and what the evidence is.
 - Measure, do not estimate: run the command, quote its output, mark anything else as inferred.
 - Stay inside the size cap your brief names; measure added lines with `git diff --numstat` after each write and stop

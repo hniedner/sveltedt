@@ -2,7 +2,14 @@
 // and asserts the exit code and the first word of the output: 0 PASS, 1 FINDING, 3 COULD NOT CHECK.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -78,7 +85,8 @@ function repo(change = () => {}) {
     "package.json": `${JSON.stringify(PACKAGE, null, 2)}\n`,
     "pnpm-workspace.yaml": WORKSPACE,
     "pnpm-lock.yaml": LOCK,
-    "docs/engineering/method.md": "# Method\n\n[Companion](gates.md), [site](https://example.org/a), [top](#method).\n",
+    "docs/engineering/method.md":
+      "# Method\n\n[Companion](gates.md), [site](https://example.org/a), [top](#method).\n",
     "docs/engineering/gates.md": "# Gates\n",
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
@@ -113,14 +121,20 @@ exit 0
 /** A stand-in for pnpm that reports `version`. */
 function fakePnpm(version = "12.19.0") {
   const bin = join(tempDir(), "pnpm");
-  writeFileSync(bin, `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\nexit 2\n`);
+  writeFileSync(
+    bin,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\nexit 2\n`,
+  );
   chmodSync(bin, 0o755);
   return bin;
 }
 
 function run(args, { lint = fakeLint(), pnpm = fakePnpm() } = {}) {
   const env = { ...process.env, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm };
-  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", env });
+  const r = spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+    env,
+  });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 
@@ -129,7 +143,11 @@ function expect(check, root, code, opts) {
   const r = run([check, "--root", root], opts);
   const word = ["PASS", "FINDING", "", "COULD NOT CHECK"][code];
   assert.equal(r.code, code, r.out);
-  assert.match(r.out.trim().split("\n").at(-1), new RegExp(`^${word} ${check}\\b`), r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1),
+    new RegExp(`^${word} ${check}\\b`),
+    r.out,
+  );
   return r.out;
 }
 
@@ -147,10 +165,20 @@ test("files: a missing required file is a finding", () => {
   assert.match(expect("files", repo(remove("SECURITY.md")), 1), /SECURITY\.md/);
 });
 test("files: a LICENSE that differs by one byte is a finding", () => {
-  expect("files", repo((root) => put(root, "LICENSE", LICENSE.toString().replace("Apache", "Apachf"))), 1);
+  expect(
+    "files",
+    repo((root) =>
+      put(root, "LICENSE", LICENSE.toString().replace("Apache", "Apachf")),
+    ),
+    1,
+  );
 });
 test("files: a NOTICE without the copyright line is a finding", () => {
-  expect("files", repo(edit("NOTICE", "Copyright 2026 R. Hannes Niedner", "Copyright")), 1);
+  expect(
+    "files",
+    repo(edit("NOTICE", "Copyright 2026 R. Hannes Niedner", "Copyright")),
+    1,
+  );
 });
 test("files: a .gitignore without /tmp/ is a finding", () => {
   expect("files", repo(edit(".gitignore", "/tmp/", "/other/")), 1);
@@ -169,7 +197,13 @@ test("toolchain: passes when node's major and pnpm's version match the pins", ()
   expect("toolchain", repo(), 0);
 });
 test("toolchain: another node major than .node-version cannot be checked", () => {
-  expect("toolchain", repo((root) => put(root, ".node-version", `${Number(NODE_MAJOR) - 1}.0.0\n`)), 3);
+  expect(
+    "toolchain",
+    repo((root) =>
+      put(root, ".node-version", `${Number(NODE_MAJOR) - 1}.0.0\n`),
+    ),
+    3,
+  );
 });
 test("toolchain: another pnpm version than packageManager cannot be checked", () => {
   expect("toolchain", repo(), 3, { pnpm: fakePnpm("12.18.0") });
@@ -185,115 +219,277 @@ test("lockfile: passes on one lockfile document, exact versions, nothing shipped
   expect("lockfile", repo(), 0);
 });
 test("lockfile: svelte as the only peer passes", () => {
-  expect("lockfile", repo(pkg((p) => (p.peerDependencies = { svelte: "^5.20.0" }))), 0);
+  expect(
+    "lockfile",
+    repo(pkg((p) => (p.peerDependencies = { svelte: "^5.20.0" }))),
+    0,
+  );
 });
 test("lockfile: a missing lockfile is a finding", () => {
   expect("lockfile", repo(remove("pnpm-lock.yaml")), 1);
 });
 test("lockfile: a lockfile of two YAML documents is a finding", () => {
-  expect("lockfile", repo((root) => put(root, "pnpm-lock.yaml", `---\nlockfileVersion: '9.0'\n---\n${LOCK}`)), 1);
+  expect(
+    "lockfile",
+    repo((root) =>
+      put(root, "pnpm-lock.yaml", `---\nlockfileVersion: '9.0'\n---\n${LOCK}`),
+    ),
+    1,
+  );
 });
 test("lockfile: a version range in devDependencies is a finding", () => {
-  assert.match(expect("lockfile", repo(pkg((p) => (p.devDependencies.prettier = "^3.9.10"))), 1), /prettier/);
+  assert.match(
+    expect(
+      "lockfile",
+      repo(pkg((p) => (p.devDependencies.prettier = "^3.9.10"))),
+      1,
+    ),
+    /prettier/,
+  );
 });
 test("lockfile: a runtime dependency is a finding", () => {
-  expect("lockfile", repo(pkg((p) => (p.dependencies = { "left-pad": "1.3.0" }))), 1);
+  expect(
+    "lockfile",
+    repo(pkg((p) => (p.dependencies = { "left-pad": "1.3.0" }))),
+    1,
+  );
 });
 test("lockfile: a peer other than svelte is a finding", () => {
-  expect("lockfile", repo(pkg((p) => (p.peerDependencies = { svelte: "^5.20.0", react: "^19.0.0" }))), 1);
+  expect(
+    "lockfile",
+    repo(
+      pkg(
+        (p) => (p.peerDependencies = { svelte: "^5.20.0", react: "^19.0.0" }),
+      ),
+    ),
+    1,
+  );
 });
 test("lockfile: a release age that differs from Dependabot's shortest npm cooldown is a finding", () => {
   expect("lockfile", repo(edit("pnpm-workspace.yaml", "4320", "10080")), 1);
 });
 test("lockfile: a shorter Dependabot npm cooldown than the release age is a finding", () => {
-  expect("lockfile", repo(edit(".github/dependabot.yml", "semver-patch-days: 3", "semver-patch-days: 1")), 1);
+  expect(
+    "lockfile",
+    repo(
+      edit(
+        ".github/dependabot.yml",
+        "semver-patch-days: 3",
+        "semver-patch-days: 1",
+      ),
+    ),
+    1,
+  );
 });
 test("lockfile: no release age is a finding", () => {
-  expect("lockfile", repo(edit("pnpm-workspace.yaml", "minimumReleaseAge: 4320\n", "")), 1);
+  expect(
+    "lockfile",
+    repo(edit("pnpm-workspace.yaml", "minimumReleaseAge: 4320\n", "")),
+    1,
+  );
 });
 test("lockfile: a release-age exception without an advisory id is a finding", () => {
-  expect("lockfile", repo(edit("pnpm-workspace.yaml", "pmOnFail", "minimumReleaseAgeExclude:\n  - prettier@3.9.11\npmOnFail")), 1);
+  expect(
+    "lockfile",
+    repo(
+      edit(
+        "pnpm-workspace.yaml",
+        "pmOnFail",
+        "minimumReleaseAgeExclude:\n  - prettier@3.9.11\npmOnFail",
+      ),
+    ),
+    1,
+  );
 });
 test("lockfile: a release-age exception naming its advisory passes", () => {
-  const exclude = "minimumReleaseAgeExclude:\n  - prettier@3.9.11 # GHSA-c2f3-h4j5-m6p7\npmOnFail";
+  const exclude =
+    "minimumReleaseAgeExclude:\n  - prettier@3.9.11 # GHSA-c2f3-h4j5-m6p7\npmOnFail";
   expect("lockfile", repo(edit("pnpm-workspace.yaml", "pmOnFail", exclude)), 0);
 });
 test("lockfile: a package.json that is not JSON cannot be checked", () => {
-  expect("lockfile", repo((root) => put(root, "package.json", "{ nope")), 3);
+  expect(
+    "lockfile",
+    repo((root) => put(root, "package.json", "{ nope")),
+    3,
+  );
 });
 
 test("text: passes when every classified file has LF endings, a final newline and no trailing whitespace", () => {
   expect("text", repo(), 0);
 });
 test("text: trailing whitespace is a finding that names the line", () => {
-  assert.match(expect("text", repo(edit("NOTICE", "Fixture\n", "Fixture \n")), 1), /NOTICE:1/);
+  assert.match(
+    expect("text", repo(edit("NOTICE", "Fixture\n", "Fixture \n")), 1),
+    /NOTICE:1/,
+  );
 });
 test("text: a CRLF line ending is a finding", () => {
-  expect("text", repo(edit("SECURITY.md", "# Security\n", "# Security\r\n")), 1);
+  expect(
+    "text",
+    repo(edit("SECURITY.md", "# Security\n", "# Security\r\n")),
+    1,
+  );
 });
 test("text: a missing final newline is a finding", () => {
-  expect("text", repo((root) => put(root, ".node-version", `${NODE_MAJOR}.0.0`)), 1);
+  expect(
+    "text",
+    repo((root) => put(root, ".node-version", `${NODE_MAJOR}.0.0`)),
+    1,
+  );
 });
 test("text: a merge-conflict marker is a finding", () => {
-  expect("text", repo(edit("CONTRIBUTING.md", "# Contributing\n", "<<<<<<< ours\n# Contributing\n")), 1);
+  expect(
+    "text",
+    repo(
+      edit(
+        "CONTRIBUTING.md",
+        "# Contributing\n",
+        "<<<<<<< ours\n# Contributing\n",
+      ),
+    ),
+    1,
+  );
 });
 test("text: the owner-approved method text is still checked", () => {
-  expect("text", repo(edit("docs/engineering/gates.md", "# Gates\n", "# Gates \n")), 1);
+  expect(
+    "text",
+    repo(edit("docs/engineering/gates.md", "# Gates\n", "# Gates \n")),
+    1,
+  );
 });
 test("text: the generated lockfile is classified as not checked", () => {
   expect("text", repo(edit("pnpm-lock.yaml", "  .: {}\n", "  .: {} \n")), 0);
 });
 test("text: a tracked file of no known class cannot be checked, and names the file", () => {
-  assert.match(expect("text", repo((root) => put(root, "Makefile", "all:\n")), 3), /Makefile/);
+  assert.match(
+    expect(
+      "text",
+      repo((root) => put(root, "Makefile", "all:\n")),
+      3,
+    ),
+    /Makefile/,
+  );
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
 test("pins: a tag instead of a SHA is a finding", () => {
-  assert.match(expect("pins", repo(edit(".github/workflows/ci.yml", `@${SHA} # v1.0.0`, "@v4")), 1), /ci\.yml:6/);
+  assert.match(
+    expect(
+      "pins",
+      repo(edit(".github/workflows/ci.yml", `@${SHA} # v1.0.0`, "@v4")),
+      1,
+    ),
+    /ci\.yml:6/,
+  );
 });
 test("pins: a shortened commit hash is a finding", () => {
-  expect("pins", repo(edit(".github/workflows/ci.yml", `@${SHA}`, `@${SHA.slice(0, 7)}`)), 1);
+  expect(
+    "pins",
+    repo(edit(".github/workflows/ci.yml", `@${SHA}`, `@${SHA.slice(0, 7)}`)),
+    1,
+  );
 });
 test("pins: a SHA without its tag comment is a finding", () => {
   expect("pins", repo(edit(".github/workflows/ci.yml", " # v1.0.0", "")), 1);
 });
 test("pins: a .yaml file outside the workflows folder is read too", () => {
-  expect("pins", repo((root) => put(root, ".github/actions/x/action.yaml", "steps:\n  - uses: a/b@v1\n")), 1);
+  expect(
+    "pins",
+    repo((root) =>
+      put(root, ".github/actions/x/action.yaml", "steps:\n  - uses: a/b@v1\n"),
+    ),
+    1,
+  );
 });
 test("pins: a local or docker action is a finding", () => {
-  expect("pins", repo(edit(".github/workflows/ci.yml", `actions/checkout@${SHA} # v1.0.0`, "./local")), 1);
+  expect(
+    "pins",
+    repo(
+      edit(
+        ".github/workflows/ci.yml",
+        `actions/checkout@${SHA} # v1.0.0`,
+        "./local",
+      ),
+    ),
+    1,
+  );
 });
 test("pins: a workflow whose only uses line is a comment cannot be checked", () => {
-  expect("pins", repo(edit(".github/workflows/ci.yml", "- uses:", "# - uses:")), 3);
+  expect(
+    "pins",
+    repo(edit(".github/workflows/ci.yml", "- uses:", "# - uses:")),
+    3,
+  );
 });
 test("pins: a repository without workflow files cannot be checked", () => {
-  expect("pins", repo((root) => rmSync(join(root, ".github/workflows"), { recursive: true })), 3);
+  expect(
+    "pins",
+    repo((root) =>
+      rmSync(join(root, ".github/workflows"), { recursive: true }),
+    ),
+    3,
+  );
 });
 
 test("gate-needs: passes when gate always runs and needs every other job", () => {
   expect("gate-needs", repo(), 0);
 });
 test("gate-needs: a job missing from gate's needs is a finding", () => {
-  const more = CI.replace("  gate:", "  extra:\n    runs-on: ubuntu-latest\n  gate:");
-  assert.match(expect("gate-needs", repo((root) => put(root, ".github/workflows/ci.yml", more)), 1), /extra/);
+  const more = CI.replace(
+    "  gate:",
+    "  extra:\n    runs-on: ubuntu-latest\n  gate:",
+  );
+  assert.match(
+    expect(
+      "gate-needs",
+      repo((root) => put(root, ".github/workflows/ci.yml", more)),
+      1,
+    ),
+    /extra/,
+  );
 });
 test("gate-needs: a gate without `if: always()` is a finding", () => {
-  expect("gate-needs", repo(edit(".github/workflows/ci.yml", "    if: always()\n", "")), 1);
+  expect(
+    "gate-needs",
+    repo(edit(".github/workflows/ci.yml", "    if: always()\n", "")),
+    1,
+  );
 });
 test("gate-needs: a workflow without a gate job is a finding", () => {
-  expect("gate-needs", repo(edit(".github/workflows/ci.yml", "  gate:", "  other:")), 1);
+  expect(
+    "gate-needs",
+    repo(edit(".github/workflows/ci.yml", "  gate:", "  other:")),
+    1,
+  );
 });
 test("gate-needs: needs written as a block list cannot be checked", () => {
-  expect("gate-needs", repo(edit(".github/workflows/ci.yml", "needs: [static]", "needs:\n      - static")), 3);
+  expect(
+    "gate-needs",
+    repo(
+      edit(
+        ".github/workflows/ci.yml",
+        "needs: [static]",
+        "needs:\n      - static",
+      ),
+    ),
+    3,
+  );
 });
 
 test("links: passes when every relative link resolves", () => {
   expect("links", repo(), 0);
 });
 test("links: a link to a missing file is a finding", () => {
-  assert.match(expect("links", repo(edit("README.md", "docs/engineering/method.md", "docs/missing.md")), 1), /README\.md:3/);
+  assert.match(
+    expect(
+      "links",
+      repo(edit("README.md", "docs/engineering/method.md", "docs/missing.md")),
+      1,
+    ),
+    /README\.md:3/,
+  );
 });
 test("links: a link to an untracked file is a finding", () => {
   const root = repo();
@@ -303,7 +499,10 @@ test("links: a link to an untracked file is a finding", () => {
   expect("links", root, 1);
 });
 test("links: a repository without any relative link cannot be checked", () => {
-  const none = (root) => ["README.md", "docs/engineering/method.md"].forEach((f) => put(root, f, "# No links\n"));
+  const none = (root) =>
+    ["README.md", "docs/engineering/method.md"].forEach((f) =>
+      put(root, f, "# No links\n"),
+    );
   expect("links", repo(none), 3);
 });
 
@@ -311,7 +510,11 @@ test("actionlint: passes when the pinned binary finds the canary and accepts the
   expect("actionlint", repo(), 0);
 });
 test("actionlint: a workflow the linter rejects is a finding", () => {
-  expect("actionlint", repo(edit(".github/workflows/ci.yml", "echo done", "echo bad")), 1);
+  expect(
+    "actionlint",
+    repo(edit(".github/workflows/ci.yml", "echo done", "echo bad")),
+    1,
+  );
 });
 test("actionlint: another version than the pinned one cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: fakeLint({ version: "1.0.0" }) });
@@ -327,11 +530,22 @@ test("selftest: passes when the repository's own tests run and pass", () => {
   expect("selftest", repo(), 0);
 });
 test("selftest: a failing test is a finding", () => {
-  const failing = PASSING_TEST.replace("() => {}", '() => { throw new Error("planted"); }');
-  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.mjs", failing)), 1);
+  const failing = PASSING_TEST.replace(
+    "() => {}",
+    '() => { throw new Error("planted"); }',
+  );
+  expect(
+    "selftest",
+    repo((root) => put(root, "scripts/check-repo.test.mjs", failing)),
+    1,
+  );
 });
 test("selftest: a test file that holds no test cannot be checked", () => {
-  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.mjs", "// empty\n")), 3);
+  expect(
+    "selftest",
+    repo((root) => put(root, "scripts/check-repo.test.mjs", "// empty\n")),
+    3,
+  );
 });
 test("selftest: a missing test file cannot be checked", () => {
   expect("selftest", repo(remove("scripts/check-repo.test.mjs")), 3);
@@ -340,7 +554,13 @@ test("selftest: a missing test file cannot be checked", () => {
 const needs = (json, code) => {
   const r = run(["needs", json]);
   assert.equal(r.code, code, r.out);
-  assert.match(r.out, new RegExp(`^${["PASS", "FINDING", "", "COULD NOT CHECK"][code]} needs\\b`, "m"));
+  assert.match(
+    r.out,
+    new RegExp(
+      `^${["PASS", "FINDING", "", "COULD NOT CHECK"][code]} needs\\b`,
+      "m",
+    ),
+  );
 };
 test("needs: passes when every job succeeded", () => {
   needs('{"static":{"result":"success"},"test":{"result":"success"}}', 0);
@@ -361,11 +581,17 @@ test("all: passes when every step passes", () => {
   expect("all", repo(), 0);
 });
 test("all: returns the failing step's finding and names the step", () => {
-  const out = expect("all", repo(edit("README.md", "docs/engineering/method.md", "docs/missing.md")), 1);
+  const out = expect(
+    "all",
+    repo(edit("README.md", "docs/engineering/method.md", "docs/missing.md")),
+    1,
+  );
   assert.match(out, /^FINDING links\b/m);
 });
 test("all: returns could-not-check from a step that could not check", () => {
-  const out = expect("all", repo(), 3, { lint: fakeLint({ version: "1.0.0" }) });
+  const out = expect("all", repo(), 3, {
+    lint: fakeLint({ version: "1.0.0" }),
+  });
   assert.match(out, /^COULD NOT CHECK actionlint\b/m);
 });
 test("an unknown check is a usage error", () => {
