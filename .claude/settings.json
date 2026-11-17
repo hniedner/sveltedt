@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node scripts/check-repo.mjs *)",
-      "Bash(node --test scripts/check-repo.test.mjs)",
+      "Bash(node scripts/check-repo.ts *)",
+      "Bash(node --test scripts/check-repo.test.ts)",
       "Bash(actionlint *)",
       "Bash(git ls-remote *)",
       "Bash(git check-ignore *)",

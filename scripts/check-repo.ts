@@ -1,6 +1,6 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
-//   node scripts/check-repo.mjs <check> [--root <dir>]      check: all, selftest, files, pins, gate-needs, links, actionlint
-//   node scripts/check-repo.mjs needs '<json>'              CI only: the `needs` context of the `gate` job
+//   node scripts/check-repo.ts <check> [--root <dir>]      check: all, selftest, files, pins, gate-needs, links, actionlint
+//   node scripts/check-repo.ts needs '<json>'              CI only: the `needs` context of the `gate` job
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // Files are listed with `git ls-files`, so only tracked files are read.
 import { createHash } from "node:crypto";
@@ -18,23 +18,25 @@ const REQUIRED = [
   "README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md", "SECURITY.md", ".gitignore", ".node-version", "AGENTS.md",
   "docs/engineering/method.md", "docs/engineering/gates.md", "scripts/actionlint.version",
   ".github/workflows/ci.yml", ".github/workflows/dependency-review.yml", ".github/workflows/scorecard.yml",
-  ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.mjs",
+  ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.ts",
   "scripts/scan-secrets.ts", "scripts/scan-secrets.test.ts", "scripts/gitleaks.toml", "scripts/gitleaks.version",
 ];
 const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";
 const PINNED = /^["']?[\w.-]+\/[\w./-]+@[0-9a-f]{40}["']? # \S+/;
 
-const result = (code, summary, details = []) => ({ code, summary, details });
+interface Result { code: number; summary: string; details: string[] }
+type Check = (root: string, list: Set<string>) => Result;
+const result = (code: number, summary: string, details: string[] = []): Result => ({ code, summary, details });
 
-function tracked(root) {
+function tracked(root: string): Set<string> | null {
   const r = spawnSync("git", ["-C", root, "ls-files", "-z"], { encoding: "utf8" });
   if (r.status !== 0) return null;
   const files = r.stdout.split("\0").filter(Boolean);
   return files.length ? new Set(files) : null;
 }
 
-function files(root, list) {
+function files(root: string, list: Set<string>): Result {
   const details = [];
   for (const f of REQUIRED) if (!list.has(f) || !existsSync(join(root, f))) details.push(`missing: ${f}`);
   const read = (f) => (existsSync(join(root, f)) ? readFileSync(join(root, f)) : Buffer.alloc(0));
@@ -45,7 +47,7 @@ function files(root, list) {
   return result(PASS, `${REQUIRED.length} required files present, LICENSE, NOTICE and .gitignore as required`);
 }
 
-function pins(root, list) {
+function pins(root: string, list: Set<string>): Result {
   const yaml = [...list].filter((f) => /^\.github\/.*\.ya?ml$/.test(f));
   if (!yaml.length) return result(CANNOT, "no YAML file under .github/");
   let uses = 0;
@@ -63,7 +65,7 @@ function pins(root, list) {
   return result(PASS, `${uses} uses line(s) in ${yaml.length} YAML file(s), all pinned by SHA with a tag`);
 }
 
-function gateNeeds(root, list) {
+function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
   const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
@@ -89,7 +91,7 @@ function gateNeeds(root, list) {
   return result(PASS, `gate always runs and needs all ${jobs.size - 1} other job(s)`);
 }
 
-function links(root, list) {
+function links(root: string, list: Set<string>): Result {
   const markdown = [...list].filter((f) => f.endsWith(".md"));
   if (!markdown.length) return result(CANNOT, "no tracked Markdown file");
   const dirs = new Set([...list].flatMap((f) => f.split("/").slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join("/"))));
@@ -115,7 +117,7 @@ const CANARY = "on: push\njobs:\n  nope:\n    runs-on: ubuntu-latest\n    steps:
 // actionlint drops its shellcheck pass silently when shellcheck is missing; this script must draw SC2086 from it.
 const SHELL_CANARY = "on: push\njobs:\n  canary:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo $FOO\n";
 
-function actionlint(root, list) {
+function actionlint(root: string, list: Set<string>): Result {
   const bin = process.env.ACTIONLINT_BIN || "actionlint";
   const wanted = /^version (\S+)$/m.exec(existsSync(join(root, "scripts/actionlint.version")) ? readFileSync(join(root, "scripts/actionlint.version"), "utf8") : "");
   if (!wanted) return result(CANNOT, "scripts/actionlint.version holds no line `version <x>`");
@@ -144,7 +146,7 @@ function actionlint(root, list) {
   return result(CANNOT, `actionlint exited ${r.status ?? r.error?.code}`, out);
 }
 
-function runTestFile(root, file) {
+function runTestFile(root: string, file: string): { code: number; line: string } {
   if (!existsSync(join(root, file))) return { code: CANNOT, line: `${file}: missing` };
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT; // set when this runs inside a test run; it would change the child's reporter
@@ -160,7 +162,7 @@ function runTestFile(root, file) {
   return { code: PASS, line: `${file}: ${tests} passed` };
 }
 
-function selftest(root, list) {
+function selftest(root: string, list: Set<string>): Result {
   const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
   if (!files.length) return result(CANNOT, "no tracked test file scripts/*.test.mjs or scripts/*.test.ts");
   const runs = files.map((f) => runTestFile(root, f));
@@ -170,7 +172,7 @@ function selftest(root, list) {
   return result(PASS, `${files.length} test file(s) ran and passed`, details);
 }
 
-function needs(json) {
+function needs(json: string | undefined): Result {
   let jobs;
   try {
     jobs = Object.entries(JSON.parse(json ?? ""));
@@ -184,15 +186,15 @@ function needs(json) {
   return result(PASS, `${jobs.length} needed job(s) succeeded`, lines);
 }
 
-const CHECKS = { selftest, files, pins, "gate-needs": gateNeeds, links, actionlint };
+const CHECKS: Record<string, Check> = { selftest, files, pins, "gate-needs": gateNeeds, links, actionlint };
 
-function report(name, r) {
+function report(name: string, r: Result): number {
   for (const d of r.details) console.log(`  ${d}`);
   console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
   return r.code;
 }
 
-function main(argv) {
+function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name !== "all" && !CHECKS[name]) return report(name ?? "", result(USAGE, `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`));

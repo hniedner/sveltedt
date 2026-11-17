@@ -45,7 +45,7 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
       - name: Gate
-        run: node scripts/check-repo.mjs all
+        run: node scripts/check-repo.ts all
       # One step, no step-level `if:`: on any event without a base or a before sha the range is bad or empty,
       # which the wrapper refuses (could not check) instead of skipping green.
       - name: Secret scan of the proposed or pushed commits
@@ -69,4 +69,4 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: node scripts/check-repo.mjs needs "${NEEDS}"
+        run: node scripts/check-repo.ts needs "${NEEDS}"

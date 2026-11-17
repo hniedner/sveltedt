@@ -1,4 +1,4 @@
-// Tests for check-repo.mjs. Each case builds a small git repository in a temporary folder, plants one break
+// Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the first word of the output: 0 PASS, 1 FINDING, 3 COULD NOT CHECK.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -9,19 +9,19 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CLI = join(here, "check-repo.mjs");
+const CLI = join(here, "check-repo.ts");
 const LICENSE = readFileSync(join(here, "..", "LICENSE"));
 const SHA = "0123456789abcdef0123456789abcdef01234567";
-const made = [];
+const made: string[] = [];
 after(() => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
-function tempDir() {
+function tempDir(): string {
   const d = mkdtempSync(join(tmpdir(), "check-repo-"));
   made.push(d);
   return d;
 }
 
-function put(root, path, text) {
+function put(root: string, path: string, text: string | Buffer): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), text);
 }
@@ -42,7 +42,7 @@ jobs:
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
 
 /** A repository that passes every check; `change` plants the break before the files are staged. */
-function repo(change = () => {}) {
+function repo(change: (root: string) => void = () => {}): string {
   const root = tempDir();
   const files = {
     "README.md": "# Fixture\n\nSee [the method](docs/engineering/method.md).\n",
@@ -56,7 +56,7 @@ function repo(change = () => {}) {
     "docs/engineering/gates.md": "# Gates\n",
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
-    "scripts/check-repo.test.mjs": PASSING_TEST,
+    "scripts/check-repo.test.ts": PASSING_TEST,
     "scripts/scan-secrets.ts": "// fixture\n",
     "scripts/scan-secrets.test.ts": PASSING_TEST,
     "scripts/gitleaks.toml": "",
@@ -78,7 +78,7 @@ function repo(change = () => {}) {
  * A stand-in for actionlint: reports `version`; fails a file holding `nope` (the expression canary); reports SC2086
  * for an unquoted `$FOO` as shellcheck would (the shell canary); fails a file holding `bad`.
  */
-function fakeLint({ version = "9.9.9", canary = true, shell = true } = {}) {
+function fakeLint({ version = "9.9.9", canary = true, shell = true } = {}): string {
   const bin = join(tempDir(), "actionlint");
   const script = `#!/bin/sh
 if [ "$1" = "-version" ]; then echo "${version}"; exit 0; fi
@@ -92,13 +92,13 @@ exit 0
   return bin;
 }
 
-function run(args, { lint = fakeLint() } = {}) {
+function run(args: string[], { lint = fakeLint() } = {}): { code: number | null; out: string } {
   const r = spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", env: { ...process.env, ACTIONLINT_BIN: lint } });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 
 /** Runs one check on a repository and asserts its exit code and the word its last line starts with. */
-function expect(check, root, code, opts) {
+function expect(check: string, root: string, code: number, opts?: { lint: string }): string {
   const r = run([check, "--root", root], opts);
   const word = ["PASS", "FINDING", "", "COULD NOT CHECK"][code];
   assert.equal(r.code, code, r.out);
@@ -106,12 +106,12 @@ function expect(check, root, code, opts) {
   return r.out;
 }
 
-const edit = (path, from, to) => (root) => {
+const edit = (path: string, from: string, to: string) => (root: string): void => {
   const text = readFileSync(join(root, path), "utf8");
   assert.ok(text.includes(from), `fixture ${path} lacks ${from}`);
   put(root, path, text.replace(from, to));
 };
-const remove = (path) => (root) => rmSync(join(root, path));
+const remove = (path: string) => (root: string): void => rmSync(join(root, path));
 
 test("files: passes on a complete repository", () => {
   expect("files", repo(), 0);
@@ -217,18 +217,18 @@ test("selftest: passes when the repository's own tests run and pass", () => {
 });
 test("selftest: a failing test is a finding", () => {
   const failing = PASSING_TEST.replace("() => {}", '() => { throw new Error("planted"); }');
-  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.mjs", failing)), 1);
+  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.ts", failing)), 1);
 });
 test("selftest: a test file that holds no test cannot be checked", () => {
-  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.mjs", "// empty\n")), 3);
+  expect("selftest", repo((root) => put(root, "scripts/check-repo.test.ts", "// empty\n")), 3);
 });
 test("selftest: a repository without any test file cannot be checked", () => {
-  const none = (root) => ["scripts/check-repo.test.mjs", "scripts/scan-secrets.test.ts"].forEach((f) => rmSync(join(root, f)));
+  const none = (root) => ["scripts/check-repo.test.ts", "scripts/scan-secrets.test.ts"].forEach((f) => rmSync(join(root, f)));
   expect("selftest", repo(none), 3);
 });
 test("selftest: every test file runs and is named with its count", () => {
   const out = expect("selftest", repo((root) => put(root, "scripts/other.test.mjs", PASSING_TEST)), 0);
-  assert.match(out, /scripts\/check-repo\.test\.mjs: 1\b/);
+  assert.match(out, /scripts\/check-repo\.test\.ts: 1\b/);
   assert.match(out, /scripts\/other\.test\.mjs: 1\b/);
 });
 test("selftest: a failing second test file is a finding", () => {
@@ -240,12 +240,12 @@ test("selftest: a second test file that holds no test cannot be checked", () => 
 });
 test("files: a deleted test file is a finding", () => {
   const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));
-  rmSync(join(root, "scripts/check-repo.test.mjs"));
+  rmSync(join(root, "scripts/check-repo.test.ts"));
   execFileSync("git", ["-C", root, "add", "-A"]);
-  assert.match(expect("files", root, 1), /scripts\/check-repo\.test\.mjs/);
+  assert.match(expect("files", root, 1), /scripts\/check-repo\.test\.ts/);
 });
 
-const needs = (json, code) => {
+const needs = (json: string, code: number): void => {
   const r = run(["needs", json]);
   assert.equal(r.code, code, r.out);
   assert.match(r.out, new RegExp(`^${["PASS", "FINDING", "", "COULD NOT CHECK"][code]} needs\\b`, "m"));

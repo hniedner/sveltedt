@@ -9,7 +9,7 @@ works. This page is the short version.
 One command runs every check that exists today:
 
 ```sh
-node scripts/check-repo.mjs all
+node scripts/check-repo.ts all
 ```
 
 It needs Node (the version in `.node-version`), actionlint (the version in `scripts/actionlint.version`), shellcheck
