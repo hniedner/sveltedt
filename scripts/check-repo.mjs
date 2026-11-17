@@ -18,9 +18,9 @@ const REQUIRED = [
   "README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md", "SECURITY.md", ".gitignore", ".node-version", "AGENTS.md",
   "docs/engineering/method.md", "docs/engineering/gates.md", "scripts/actionlint.version",
   ".github/workflows/ci.yml", ".github/workflows/dependency-review.yml", ".github/workflows/scorecard.yml",
-  ".github/dependabot.yml", ".github/CODEOWNERS",
+  ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.mjs",
 ];
-const TEST_FILE = "scripts/check-repo.test.mjs";
+const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";
 const PINNED = /^["']?[\w.-]+\/[\w./-]+@[0-9a-f]{40}["']? # \S+/;
 
@@ -136,20 +136,30 @@ function actionlint(root, list) {
   return result(CANNOT, `actionlint exited ${r.status ?? r.error?.code}`, out);
 }
 
-function selftest(root, list) {
-  if (!list.has(TEST_FILE) || !existsSync(join(root, TEST_FILE))) return result(CANNOT, `${TEST_FILE} is missing`);
+function runTestFile(root, file) {
+  if (!existsSync(join(root, file))) return { code: CANNOT, line: `${file}: missing` };
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT; // set when this runs inside a test run; it would change the child's reporter
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
-  const r = spawnSync(process.execPath, ["--test-reporter=tap", join(root, TEST_FILE)], { cwd: root, encoding: "utf8", env });
+  const r = spawnSync(process.execPath, ["--test-reporter=tap", join(root, file)], { cwd: root, encoding: "utf8", env });
   const count = (name) => Number(new RegExp(`^# ${name} (\\d+)$`, "m").exec(r.stdout)?.[1] ?? NaN);
   const [tests, pass, fail] = [count("tests"), count("pass"), count("fail")];
-  if (!(tests > 0)) return result(CANNOT, `${TEST_FILE}: no test ran (exit ${r.status})`);
+  if (!(tests > 0)) return { code: CANNOT, line: `${file}: no test ran (exit ${r.status})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
-    const lines = r.stdout.split("\n").filter((l) => /^\s*not ok /.test(l));
-    return result(FINDING, `${TEST_FILE}: ${fail} of ${tests} test(s) failed (exit ${r.status})`, lines);
+    const failed = r.stdout.split("\n").filter((l) => /^\s*not ok /.test(l)).map((l) => `  ${l.trim()}`);
+    return { code: FINDING, line: [`${file}: ${fail} of ${tests} failed (exit ${r.status})`, ...failed].join("\n") };
   }
-  return result(PASS, `${TEST_FILE}: ${tests} test(s) ran and passed`);
+  return { code: PASS, line: `${file}: ${tests} passed` };
+}
+
+function selftest(root, list) {
+  const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
+  if (!files.length) return result(CANNOT, "no tracked test file scripts/*.test.mjs or scripts/*.test.ts");
+  const runs = files.map((f) => runTestFile(root, f));
+  const details = runs.map((r) => r.line);
+  if (runs.some((r) => r.code === FINDING)) return result(FINDING, `a test file failed`, details);
+  if (runs.some((r) => r.code !== PASS)) return result(CANNOT, `a test file could not be checked`, details);
+  return result(PASS, `${files.length} test file(s) ran and passed`, details);
 }
 
 function needs(json) {

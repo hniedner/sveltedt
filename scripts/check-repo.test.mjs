@@ -213,6 +213,24 @@ test("selftest: a test file that holds no test cannot be checked", () => {
 test("selftest: a missing test file cannot be checked", () => {
   expect("selftest", repo(remove("scripts/check-repo.test.mjs")), 3);
 });
+test("selftest: every test file runs and is named with its count", () => {
+  const out = expect("selftest", repo((root) => put(root, "scripts/other.test.mjs", PASSING_TEST)), 0);
+  assert.match(out, /scripts\/check-repo\.test\.mjs: 1\b/);
+  assert.match(out, /scripts\/other\.test\.mjs: 1\b/);
+});
+test("selftest: a failing second test file is a finding", () => {
+  const failing = PASSING_TEST.replace("() => {}", '() => { throw new Error("planted"); }');
+  expect("selftest", repo((root) => put(root, "scripts/other.test.mjs", failing)), 1);
+});
+test("selftest: a second test file that holds no test cannot be checked", () => {
+  expect("selftest", repo((root) => put(root, "scripts/other.test.mjs", "// empty\n")), 3);
+});
+test("files: a deleted test file is a finding", () => {
+  const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));
+  rmSync(join(root, "scripts/check-repo.test.mjs"));
+  execFileSync("git", ["-C", root, "add", "-A"]);
+  assert.match(expect("files", root, 1), /scripts\/check-repo\.test\.mjs/);
+});
 
 const needs = (json, code) => {
   const r = run(["needs", json]);
