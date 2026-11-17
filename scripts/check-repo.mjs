@@ -230,7 +230,48 @@ function lockfile(root, list) {
   return result(PASS, `one lockfile document, ${Object.keys(pkg.devDependencies ?? {}).length} exact dev dependencies, nothing ships, release age ${age / 1440} days`);
 }
 
-const CHECKS = { toolchain, selftest, files, lockfile, pins, "gate-needs": gateNeeds, links, actionlint };
+// Every tracked file belongs to the first class whose pattern matches it: the steps that check it, or none with the
+// reason. A tracked file of no class makes the steps that read this table answer could-not-check, so a new kind of
+// file is a decision, never a silent skip.
+const CLASSES = [
+  { match: /^pnpm-lock\.yaml$/, steps: [], why: "written by pnpm; read by the lockfile step" },
+  { match: /\.(md|ya?ml|json|mjs)$/, steps: ["text"] },
+  { match: /^(LICENSE|NOTICE|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/, steps: ["text"] },
+];
+
+/** The tracked files a step checks, and the tracked files of no class. */
+function classified(list, step) {
+  const mine = [], unknown = [];
+  for (const f of list) {
+    const c = CLASSES.find((k) => k.match.test(f));
+    if (!c) unknown.push(f);
+    else if (c.steps.includes(step)) mine.push(f);
+  }
+  return { mine, unknown };
+}
+
+const CONFLICT = /^(<{7} |={7}$|>{7} )/;
+
+// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace, no conflict marker.
+function text(root, list) {
+  const { mine, unknown } = classified(list, "text");
+  if (unknown.length) return result(CANNOT, `${unknown.length} tracked file(s) of no class`, unknown);
+  if (!mine.length) return result(CANNOT, "no file to check");
+  const details = [];
+  for (const f of mine) {
+    const t = readFileSync(join(root, f), "utf8");
+    if (t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
+    t.split("\n").forEach((line, i) => {
+      if (line.endsWith("\r")) details.push(`${f}:${i + 1}: CRLF line ending`);
+      else if (/[ \t]$/.test(line)) details.push(`${f}:${i + 1}: trailing whitespace`);
+      if (CONFLICT.test(line)) details.push(`${f}:${i + 1}: merge-conflict marker`);
+    });
+  }
+  if (details.length) return result(FINDING, `${details.length} problem(s)`, details);
+  return result(PASS, `${mine.length} file(s): LF, final newline, no trailing whitespace, no conflict marker`);
+}
+
+const CHECKS = { toolchain, selftest, files, lockfile, text, pins, "gate-needs": gateNeeds, links, actionlint };
 
 function report(name, r) {
   for (const d of r.details) console.log(`  ${d}`);

@@ -222,6 +222,31 @@ test("lockfile: a package.json that is not JSON cannot be checked", () => {
   expect("lockfile", repo((root) => put(root, "package.json", "{ nope")), 3);
 });
 
+test("text: passes when every classified file has LF endings, a final newline and no trailing whitespace", () => {
+  expect("text", repo(), 0);
+});
+test("text: trailing whitespace is a finding that names the line", () => {
+  assert.match(expect("text", repo(edit("NOTICE", "Fixture\n", "Fixture \n")), 1), /NOTICE:1/);
+});
+test("text: a CRLF line ending is a finding", () => {
+  expect("text", repo(edit("SECURITY.md", "# Security\n", "# Security\r\n")), 1);
+});
+test("text: a missing final newline is a finding", () => {
+  expect("text", repo((root) => put(root, ".node-version", `${NODE_MAJOR}.0.0`)), 1);
+});
+test("text: a merge-conflict marker is a finding", () => {
+  expect("text", repo(edit("CONTRIBUTING.md", "# Contributing\n", "<<<<<<< ours\n# Contributing\n")), 1);
+});
+test("text: the owner-approved method text is still checked", () => {
+  expect("text", repo(edit("docs/engineering/gates.md", "# Gates\n", "# Gates \n")), 1);
+});
+test("text: the generated lockfile is classified as not checked", () => {
+  expect("text", repo(edit("pnpm-lock.yaml", "  .: {}\n", "  .: {} \n")), 0);
+});
+test("text: a tracked file of no known class cannot be checked, and names the file", () => {
+  assert.match(expect("text", repo((root) => put(root, "Makefile", "all:\n")), 3), /Makefile/);
+});
+
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
