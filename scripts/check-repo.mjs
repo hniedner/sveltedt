@@ -111,6 +111,8 @@ function links(root, list) {
 }
 
 const CANARY = "on: push\njobs:\n  nope:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ nope.value }}\n";
+// actionlint drops its shellcheck pass silently when shellcheck is missing; this script must draw SC2086 from it.
+const SHELL_CANARY = "on: push\njobs:\n  canary:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo $FOO\n";
 
 function actionlint(root, list) {
   const bin = process.env.ACTIONLINT_BIN || "actionlint";
@@ -124,6 +126,11 @@ function actionlint(root, list) {
   try {
     writeFileSync(join(dir, "canary.yml"), CANARY);
     if (spawnSync(bin, [join(dir, "canary.yml")]).status === 0) return result(CANNOT, "actionlint passed the planted bad workflow");
+    writeFileSync(join(dir, "shell.yml"), SHELL_CANARY);
+    const s = spawnSync(bin, [join(dir, "shell.yml")], { encoding: "utf8" });
+    if (s.status !== 1 || !`${s.stdout}${s.stderr}`.includes("SC2086")) {
+      return result(CANNOT, "actionlint did not report SC2086 on the planted shell script: is shellcheck installed?");
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -131,7 +138,7 @@ function actionlint(root, list) {
   if (!workflows.length) return result(CANNOT, "no workflow file");
   const r = spawnSync(bin, workflows.map((f) => join(root, f)), { cwd: root, encoding: "utf8" });
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
-  if (r.status === 0) return result(PASS, `actionlint ${got} found the canary and passed ${workflows.length} workflow(s)`);
+  if (r.status === 0) return result(PASS, `actionlint ${got} found both canaries and passed ${workflows.length} workflow(s)`);
   if (r.status === 1) return result(FINDING, `actionlint reported problems in ${workflows.length} workflow(s)`, out);
   return result(CANNOT, `actionlint exited ${r.status ?? r.error?.code}`, out);
 }

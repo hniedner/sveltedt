@@ -70,12 +70,16 @@ function repo(change = () => {}) {
   return root;
 }
 
-/** A stand-in for actionlint: reports `version`, fails a file holding `nope` (the canary) or `bad`. */
-function fakeLint({ version = "9.9.9", canary = true } = {}) {
+/**
+ * A stand-in for actionlint: reports `version`; fails a file holding `nope` (the expression canary); reports SC2086
+ * for an unquoted `$FOO` as shellcheck would (the shell canary); fails a file holding `bad`.
+ */
+function fakeLint({ version = "9.9.9", canary = true, shell = true } = {}) {
   const bin = join(tempDir(), "actionlint");
   const script = `#!/bin/sh
 if [ "$1" = "-version" ]; then echo "${version}"; exit 0; fi
 ${canary ? 'if grep -q nope "$@"; then echo "canary found"; exit 1; fi' : ""}
+${shell ? 'if grep -q "echo \\$FOO" "$@"; then echo "shellcheck reported issue in this script: SC2086:info:1:6"; exit 1; fi' : ""}
 if grep -q bad "$@"; then echo "bad workflow"; exit 1; fi
 exit 0
 `;
@@ -192,6 +196,10 @@ test("actionlint: a workflow the linter rejects is a finding", () => {
 });
 test("actionlint: another version than the pinned one cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: fakeLint({ version: "1.0.0" }) });
+});
+test("actionlint: a linter that does not run shellcheck cannot be checked", () => {
+  const out = expect("actionlint", repo(), 3, { lint: fakeLint({ shell: false }) });
+  assert.match(out, /shellcheck/);
 });
 test("actionlint: a linter that misses the canary cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: fakeLint({ canary: false }) });
