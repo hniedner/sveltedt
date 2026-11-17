@@ -9,6 +9,7 @@ requirements are written first; code follows them, test first.
 The npm package will be `@hniedner/sveltedt`. npm refused the bare name `sveltedt` as too similar to an existing
 package, so the package is published under the owner's scope.
 
+- What it must do: [the product requirements](docs/PRD.md), approved by the owner.
 - How this project is built: [the engineering method](docs/engineering/method.md) and
   [how each check works](docs/engineering/gates.md).
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Reporting a vulnerability: [SECURITY.md](SECURITY.md).
