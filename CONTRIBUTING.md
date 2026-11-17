@@ -9,12 +9,28 @@ works. This page is the short version.
 One command runs every check that exists today:
 
 ```sh
-node scripts/check-repo.mjs all
+pnpm install --frozen-lockfile
+pnpm gate
 ```
 
-It needs Node (the version in `.node-version`) and actionlint (the version in `scripts/actionlint.version`). Each
-check ends with one line: `PASS`, `FINDING` or `COULD NOT CHECK`. "Could not check" blocks exactly like a finding
-(method section 6). CI runs the same command; its `gate` check is required on `main`.
+It needs Node (the major version in `.node-version`), pnpm (the version in `package.json`'s `packageManager`) and
+actionlint (the version in `scripts/actionlint.version`). Each check ends with one line: `PASS`, `FINDING` or
+`COULD NOT CHECK`. "Could not check" blocks exactly like a finding (method section 6). CI runs the same command; its
+`gate` check is required on `main`.
+
+The checks today:
+
+- **toolchain:** Node's major version and pnpm's version are the pinned ones.
+- **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
+  pnpm's release age equals Dependabot's shortest npm cooldown, and every exception names its advisory.
+- **text, format, lint, dupes:** every tracked file has a class in `scripts/check-repo.mjs` that names the steps
+  that check it; a file of no class blocks the gate. Prettier formats (fix with `pnpm exec prettier --write <file>`),
+  ESLint lints the scripts, jscpd finds copied code outside tests. The two method files in `docs/engineering/` are
+  never reformatted: they change only through their change log.
+- **pins, gate-needs, links, actionlint:** the workflow and documentation checks.
+
+Every tool step first runs on planted violations in `scripts/canaries/` and must find them, so a tool that silently
+checks nothing cannot pass.
 
 ## How a change is made
 
@@ -33,8 +49,8 @@ These checks are part of the method but do not exist in this repository yet:
 
 - the secret scan in CI (the next pull request), and the local hooks that run checks before a commit or a push;
   until the hooks exist, maintainers run the secret scan and the private word scan by hand before every push;
-- formatting, lint, type and duplication checks, `trace`, `red-check`, `diff-coverage`, `mutation` and
-  `release-links` (they arrive with the first code that needs them).
+- type checks and the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they
+  arrive with the first code that needs them).
 
 ## Known limits of the merge rules
 
