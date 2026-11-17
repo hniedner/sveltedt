@@ -36,6 +36,17 @@ jobs:
           echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+      - name: Install the pinned zizmor
+        run: |
+          version="$(sed -n 's/^version //p' scripts/zizmor.version)"
+          sha="$(sed -n 's/^linux_x86_64_sha256 //p' scripts/zizmor.version)"
+          archive="zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/zizmorcore/zizmor/releases/download/v${version}/${archive}"
+          echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          mkdir "${RUNNER_TEMP}/zizmor-unpacked"
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}/zizmor-unpacked"
+          install -m 755 "$(find "${RUNNER_TEMP}/zizmor-unpacked" -type f -name zizmor)" "${RUNNER_TEMP}/zizmor"
       - name: Install the locked development dependencies
         run: pnpm install --frozen-lockfile
       - name: Gate

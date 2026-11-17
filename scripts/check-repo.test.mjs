@@ -100,6 +100,7 @@ function repo(change = () => {}) {
     "docs/engineering/gates.md": "# Gates\n",
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
+    "scripts/zizmor.version": "version 9.9.9\nlinux_x86_64_sha256 00\n",
     "scripts/check-repo.test.mjs": PASSING_TEST,
     "scripts/tool.mjs": TOOL,
     ".github/workflows/ci.yml": CI,
@@ -140,11 +141,39 @@ function fakePnpm(version = "12.19.0") {
   return bin;
 }
 
+/** A stand-in for zizmor: reports `version`; finds a file holding `canary` (exit 13) or `bad` (exit 12). */
+function fakeZizmor({ version = "9.9.9", canary = true, crash = false } = {}) {
+  const bin = join(tempDir(), "zizmor");
+  writeFileSync(
+    bin,
+    `#!/bin/sh
+if [ "$1" = "--version" ]; then echo "zizmor ${version}"; exit 0; fi
+${crash ? 'echo "error: broken"; exit 1' : ""}
+files=""; for a in "$@"; do case "$a" in -*|plain) ;; *) files="$files $a";; esac; done
+${canary ? 'if grep -q canary $files; then echo "error[dangerous-triggers]"; exit 13; fi' : ""}
+if grep -q bad $files; then echo "warning[template-injection]"; exit 12; fi
+exit 0
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+
 function run(
   args,
-  { lint = fakeLint(), pnpm = fakePnpm(), canaries = undefined } = {},
+  {
+    lint = fakeLint(),
+    pnpm = fakePnpm(),
+    zizmor = fakeZizmor(),
+    canaries = undefined,
+  } = {},
 ) {
-  const env = { ...process.env, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm };
+  const env = {
+    ...process.env,
+    ACTIONLINT_BIN: lint,
+    PNPM_BIN: pnpm,
+    ZIZMOR_BIN: zizmor,
+  };
   delete env.CANARY_DIR;
   if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
@@ -527,6 +556,29 @@ test("dupes: a tracked file of no known class cannot be checked", () => {
     repo((root) => put(root, "Makefile", "all:\n")),
     3,
   );
+});
+
+test("workflows: passes when the pinned zizmor flags its canary and finds nothing in the workflows", () => {
+  expect("workflows", repo(), 0);
+});
+test("workflows: a workflow zizmor reports is a finding", () => {
+  expect(
+    "workflows",
+    repo(edit(".github/workflows/ci.yml", "echo done", "echo bad")),
+    1,
+  );
+});
+test("workflows: another zizmor version than the pinned one cannot be checked", () => {
+  expect("workflows", repo(), 3, { zizmor: fakeZizmor({ version: "1.0.0" }) });
+});
+test("workflows: a zizmor that misses the canary cannot be checked", () => {
+  expect("workflows", repo(), 3, { zizmor: fakeZizmor({ canary: false }) });
+});
+test("workflows: a zizmor that fails with an error cannot be checked", () => {
+  expect("workflows", repo(), 3, { zizmor: fakeZizmor({ crash: true }) });
+});
+test("workflows: a missing zizmor cannot be checked", () => {
+  expect("workflows", repo(), 3, { zizmor: join(tempDir(), "absent") });
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

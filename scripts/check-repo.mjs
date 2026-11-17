@@ -223,30 +223,38 @@ function links(root, list) {
 const CANARY =
   "on: push\njobs:\n  nope:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ${{ nope.value }}\n";
 
-function actionlint(root, list) {
-  const bin = process.env.ACTIONLINT_BIN || "actionlint";
-  const wanted = /^version (\S+)$/m.exec(
-    existsSync(join(root, "scripts/actionlint.version"))
-      ? readFileSync(join(root, "scripts/actionlint.version"), "utf8")
-      : "",
-  );
-  if (!wanted)
-    return result(
-      CANNOT,
-      "scripts/actionlint.version holds no line `version <x>`",
-    );
-  const v = spawnSync(bin, ["-version"], { encoding: "utf8" });
+/** The first line `bin flag` prints, or a could-not-check result when it cannot run. */
+function versionOf(bin, flag) {
+  const v = spawnSync(bin, [flag], { encoding: "utf8" });
   if (v.error || v.status !== 0)
     return result(
       CANNOT,
       `cannot run ${bin}: ${v.error?.code ?? `exit ${v.status}`}`,
     );
-  const got = v.stdout.split("\n")[0].trim();
+  return { line: v.stdout.split("\n")[0].trim() };
+}
+
+/** A binary pinned in `scripts/<name>.version` (<NAME>_BIN overrides the path): its path and checked version. */
+function pinnedBinary(root, name, flag) {
+  const bin = process.env[`${name.toUpperCase()}_BIN`] || name;
+  const file = `scripts/${name}.version`;
+  const wanted = /^version (\S+)$/m.exec(readText(root, file));
+  if (!wanted) return result(CANNOT, `${file} holds no line \`version <x>\``);
+  const v = versionOf(bin, flag);
+  if ("code" in v) return v;
+  const got = v.line.replace(`${name} `, "");
   if (got !== wanted[1])
     return result(
       CANNOT,
-      `actionlint is ${got}, the pinned version is ${wanted[1]}`,
+      `${name} is ${got}, the pinned version is ${wanted[1]}`,
     );
+  return { bin, got };
+}
+
+function actionlint(root, list) {
+  const tool = pinnedBinary(root, "actionlint", "-version");
+  if ("code" in tool) return tool;
+  const { bin, got } = tool;
   const dir = mkdtempSync(join(tmpdir(), "actionlint-canary-"));
   try {
     writeFileSync(join(dir, "canary.yml"), CANARY);
@@ -347,18 +355,10 @@ function toolchain(root) {
   const node = process.versions.node;
   if (wanted.split(".")[0] !== node.split(".")[0])
     return result(CANNOT, `node is ${node}, .node-version pins ${wanted}`);
-  const bin = process.env.PNPM_BIN || "pnpm";
-  const v = spawnSync(bin, ["--version"], { encoding: "utf8" });
-  if (v.error || v.status !== 0)
-    return result(
-      CANNOT,
-      `cannot run ${bin}: ${v.error?.code ?? `exit ${v.status}`}`,
-    );
-  if (v.stdout.trim() !== pin[1])
-    return result(
-      CANNOT,
-      `pnpm is ${v.stdout.trim()}, packageManager pins ${pin[1]}`,
-    );
+  const v = versionOf(process.env.PNPM_BIN || "pnpm", "--version");
+  if ("code" in v) return v;
+  if (v.line !== pin[1])
+    return result(CANNOT, `pnpm is ${v.line}, packageManager pins ${pin[1]}`);
   const note =
     node === wanted
       ? []
@@ -814,6 +814,62 @@ function dupes(root, list) {
   );
 }
 
+// A workflow that triggers on pull_request_target, uses an unpinned action and puts a branch name into a shell.
+const ZIZMOR_CANARY = `on: pull_request_target
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "\${{ github.head_ref }}"
+`;
+
+// zizmor (offline, its default persona) on the workflows and the Dependabot config: template injection, dangerous
+// triggers, credentials, permissions (PRD-S5, method section 9). Exit 11-14 means findings by severity; any other
+// non-zero exit is zizmor's own error (docs.zizmor.sh, usage).
+function workflows(root, list) {
+  const tool = pinnedBinary(root, "zizmor", "--version");
+  if ("code" in tool) return tool;
+  const { bin, got } = tool;
+  const finding = (s) => s >= 11 && s <= 14;
+  const dir = mkdtempSync(join(tmpdir(), "zizmor-canary-"));
+  try {
+    writeFileSync(join(dir, "canary.yml"), ZIZMOR_CANARY);
+    const c = spawnSync(bin, ["--offline", join(dir, "canary.yml")]);
+    if (!finding(c.status))
+      return result(
+        CANNOT,
+        `zizmor did not report the planted workflow (exit ${c.status})`,
+      );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const files = [...list].filter(
+    (f) =>
+      /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f) ||
+      f === ".github/dependabot.yml",
+  );
+  if (!files.some((f) => f.startsWith(".github/workflows/")))
+    return result(CANNOT, "no workflow file");
+  const r = spawnSync(bin, ["--offline", "--format", "plain", ...files], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  const out = `${r.stdout}`.trim().split("\n").filter(Boolean);
+  if (r.status === 0)
+    return result(
+      PASS,
+      `zizmor ${got} reported the canary and passed ${files.length} file(s)`,
+    );
+  if (finding(r.status))
+    return result(
+      FINDING,
+      `zizmor reported findings in ${files.length} file(s)`,
+      out,
+    );
+  return result(CANNOT, `zizmor exited ${r.status ?? r.error?.code}`, out);
+}
+
 const CHECKS = {
   toolchain,
   selftest,
@@ -827,6 +883,7 @@ const CHECKS = {
   "gate-needs": gateNeeds,
   links,
   actionlint,
+  workflows,
 };
 
 function report(name, r) {
