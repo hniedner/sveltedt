@@ -20,12 +20,14 @@ import { fileURLToPath } from "node:url";
 const PASS = 0,
   FINDING = 1,
   USAGE = 2,
-  CANNOT = 3;
+  CANNOT = 3,
+  NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
 const WORD = {
   [PASS]: "PASS",
   [FINDING]: "FINDING",
   [USAGE]: "USAGE",
   [CANNOT]: "COULD NOT CHECK",
+  [NA]: "NOT APPLICABLE",
 };
 const LICENSE_SHA256 =
   "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"; // apache.org LICENSE-2.0.txt
@@ -814,6 +816,95 @@ function dupes(root, list) {
   );
 }
 
+// The commit header the changelog is generated from (method section 7; docs/decisions/001-quality-tooling.md).
+const TYPES = [
+  "build",
+  "chore",
+  "ci",
+  "docs",
+  "feat",
+  "fix",
+  "perf",
+  "refactor",
+  "revert",
+  "style",
+  "test",
+];
+const HEADER = new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: \\S`);
+const MAX_HEADER = 100;
+const headerProblem = (h) =>
+  !HEADER.test(h)
+    ? `"${h}": not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`
+    : h.length > MAX_HEADER
+      ? `"${h}": ${h.length} characters, more than ${MAX_HEADER}`
+      : null;
+
+/** The range to check: CI passes GATE_BASE and GATE_HEAD; locally it is the branch after origin/main. */
+function commitRange(root) {
+  const run = (...a) =>
+    spawnSync("git", ["-C", root, ...a], { encoding: "utf8" });
+  if (process.env.GATE_BASE) {
+    if (/^0+$/.test(process.env.GATE_BASE))
+      return { error: "GATE_BASE is all zeros: no base commit" };
+    return {
+      range: `${process.env.GATE_BASE}..${process.env.GATE_HEAD || "HEAD"}`,
+    };
+  }
+  const base = run("merge-base", "refs/remotes/origin/main", "HEAD");
+  if (base.status !== 0)
+    return { error: "no merge base with origin/main (fetch it first)" };
+  return { range: `${base.stdout.trim()}..HEAD` };
+}
+
+// Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
+function commits(root) {
+  const { range, error } = commitRange(root);
+  if (error) return result(CANNOT, error);
+  const r = spawnSync(
+    "git",
+    ["-C", root, "log", "--no-merges", "--format=%h %s", range],
+    { encoding: "utf8" },
+  );
+  if (r.status !== 0)
+    return result(CANNOT, `git log ${range} failed: ${r.stderr.trim()}`);
+  const lines = r.stdout.split("\n").filter(Boolean);
+  if (!lines.length) return result(NA, `no commit in ${range}`);
+  const details = lines.flatMap((l) => {
+    const problem = headerProblem(l.slice(l.indexOf(" ") + 1));
+    return problem ? [`${l.split(" ")[0]} ${problem}`] : [];
+  });
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} of ${lines.length} commit(s)`,
+      details,
+    );
+  return result(
+    PASS,
+    `${lines.length} commit(s) in ${range}, every header conventional`,
+  );
+}
+
+// The commit-msg hook's check of one message file. git's own merge header passes; the gate's range check, which
+// leaves real merges out, still catches a non-merge commit that only looks like one.
+function commitMsg(file) {
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return result(USAGE, `cannot read the message file ${file}`);
+  }
+  const header =
+    text
+      .split("\n")
+      .find((l) => l.trim() && !l.startsWith("#"))
+      ?.trim() ?? "";
+  if (!header) return result(FINDING, "the message is empty");
+  if (/^Merge /.test(header)) return result(PASS, "a merge header");
+  const problem = headerProblem(header);
+  return problem ? result(FINDING, problem) : result(PASS, `"${header}"`);
+}
+
 const CHECKS = {
   toolchain,
   selftest,
@@ -823,6 +914,7 @@ const CHECKS = {
   format,
   lint,
   dupes,
+  commits,
   pins,
   "gate-needs": gateNeeds,
   links,
@@ -832,12 +924,13 @@ const CHECKS = {
 function report(name, r) {
   for (const d of r.details) console.log(`  ${d}`);
   console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
-  return r.code;
+  return r.code === NA ? PASS : r.code;
 }
 
 function main(argv) {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
+  if (name === "commit-msg") return report(name, commitMsg(rest[0]));
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",

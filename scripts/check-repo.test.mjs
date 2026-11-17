@@ -109,10 +109,41 @@ function repo(change = () => {}) {
     ".github/CODEOWNERS": "* @someone\n",
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
+  execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
+  commit(root, "chore: the fixture's first commit");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   change(root);
-  execFileSync("git", ["init", "-q", root]);
-  execFileSync("git", ["-C", root, "add", "-A"]);
+  git(root, "add", "-A");
   return root;
+}
+
+/** This process's environment without git's variables: a run inside a git hook must not reach the real repo. */
+const GIT_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
+);
+const git = (root, ...args) =>
+  execFileSync("git", ["-C", root, ...args], {
+    env: GIT_ENV,
+    encoding: "utf8",
+  });
+
+/** Commits everything under `root` with a synthetic identity; the fixture runs no hook. */
+function commit(root, message) {
+  git(root, "add", "-A");
+  git(
+    root,
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.org",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    message,
+  );
 }
 
 /** A stand-in for actionlint: reports `version`, fails a file holding `nope` (the canary) or `bad`. */
@@ -142,10 +173,16 @@ function fakePnpm(version = "12.19.0") {
 
 function run(
   args,
-  { lint = fakeLint(), pnpm = fakePnpm(), canaries = undefined } = {},
+  {
+    lint = fakeLint(),
+    pnpm = fakePnpm(),
+    canaries = undefined,
+    extraEnv = {},
+  } = {},
 ) {
-  const env = { ...process.env, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm };
-  delete env.CANARY_DIR;
+  const env = { ...GIT_ENV, ACTIONLINT_BIN: lint, PNPM_BIN: pnpm, ...extraEnv };
+  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD"])
+    if (!(k in extraEnv)) delete env[k];
   if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
     encoding: "utf8",
@@ -529,6 +566,105 @@ test("dupes: a tracked file of no known class cannot be checked", () => {
   );
 });
 
+/** A fixture whose branch holds one commit per subject after origin/main. */
+function branch(...subjects) {
+  const root = repo();
+  subjects.forEach((s, i) => {
+    put(root, `notes/${i}.md`, `# Note ${i}\n`);
+    commit(root, s);
+  });
+  return root;
+}
+const notApplicable = (args, opts) => {
+  const r = run(args, opts);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out.trim().split("\n").at(-1), /^NOT APPLICABLE /, r.out);
+};
+
+test("commits: passes when every commit after origin/main has a conventional header", () => {
+  expect(
+    "commits",
+    branch("feat: add a thing", "fix(table)!: change a thing"),
+    0,
+  );
+});
+test("commits: a header without a type is a finding that names it", () => {
+  const out = expect("commits", branch("feat: fine", "Add the thing"), 1);
+  assert.match(out, /Add the thing/);
+});
+test("commits: a type outside the list is a finding", () => {
+  expect("commits", branch("feature: add a thing"), 1);
+});
+test("commits: a header over 100 characters is a finding", () => {
+  expect("commits", branch(`feat: ${"x".repeat(95)}`), 1);
+});
+test("commits: a merge commit is not checked", () => {
+  const root = branch("feat: on the branch");
+  git(root, "checkout", "-q", "-b", "side", "HEAD~1");
+  commit(root, "fix: on the side");
+  git(root, "checkout", "-q", "-");
+  git(
+    root,
+    "-c",
+    "user.name=F",
+    "-c",
+    "user.email=f@example.org",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "merge",
+    "-q",
+    "--no-ff",
+    "-m",
+    "Merge branch 'side'",
+    "side",
+  );
+  expect("commits", root, 0);
+});
+test("commits: a branch with no commit after origin/main is not applicable", () => {
+  notApplicable(["commits", "--root", repo()]);
+});
+test("commits: a repository without origin/main cannot be checked", () => {
+  const root = branch("feat: x");
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  expect("commits", root, 3);
+});
+test("commits: CI's range from GATE_BASE and GATE_HEAD is the one checked", () => {
+  const root = branch("Add a thing", "feat: fine");
+  const base = git(root, "rev-parse", "HEAD~1").trim();
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: base, GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a GATE_BASE of all zeros cannot be checked", () => {
+  const root = branch("feat: fine");
+  expect("commits", root, 3, {
+    extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
+  });
+});
+
+const message = (text) => {
+  const f = join(tempDir(), "COMMIT_EDITMSG");
+  writeFileSync(f, text);
+  return f;
+};
+const commitMsg = (text, code) => {
+  const r = run(["commit-msg", message(text)]);
+  assert.equal(r.code, code, r.out);
+  return r.out;
+};
+test("commit-msg: a conventional header passes", () => {
+  commitMsg("# a comment git adds\nfeat: add a thing\n\nThe body.\n", 0);
+});
+test("commit-msg: a header without a type is a finding", () => {
+  assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg/m);
+});
+test("commit-msg: git's merge header passes", () => {
+  commitMsg("Merge branch 'main' into chore/hooks\n", 0);
+});
+test("commit-msg: an empty message is a finding", () => {
+  commitMsg("# only a comment\n", 1);
+});
+
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
@@ -653,7 +789,7 @@ test("links: a link to an untracked file is a finding", () => {
   const root = repo();
   put(root, "local-note.md", "# Local\n");
   put(root, "README.md", "See [a note](local-note.md).\n");
-  execFileSync("git", ["-C", root, "add", "README.md"]);
+  git(root, "add", "README.md");
   expect("links", root, 1);
 });
 test("links: a repository without any relative link cannot be checked", () => {
