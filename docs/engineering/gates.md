@@ -314,7 +314,7 @@ Sources (2026-11-17): *dbot-ecosystems* docs.github.com/en/code-security/dependa
 | Rule | Lives in |
 |---|---|
 | Roles: owner decides, reviewer reviews and rules, coordinators plan and run, implementers write | method §1 |
-| Spec: numbered MUST statements with an example and a reason; what, never how; nothing copied | method §2 |
+| Spec: numbered MUST statements with an example and a reason; what, never how; own earlier work ported through the method, third-party code only through §8 | method §2 |
 | `OPEN:` lines go to the owner | method §2 |
 | Spec review before tests (testable, no implementation, no conflict, reason) | method §2 |
 | One test layer per statement (six layers incl. real-browser component and static check); example tables; one behaviour per statement | method §2; mutation split and failure proof §4, G8 |
