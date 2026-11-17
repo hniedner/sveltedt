@@ -261,7 +261,7 @@ function run(
     ZIZMOR_BIN: zizmor,
     ...extraEnv,
   };
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD"])
+  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
     if (!(k in extraEnv)) delete env[k];
   if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
@@ -816,6 +816,18 @@ test("secrets: a GATE_BASE of all zeros cannot be checked", () => {
   const root = scanBranch(0);
   expect("secrets", root, 3, {
     extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
+  });
+});
+test("secrets: in CI, a missing GATE_BASE cannot be checked (no fallback to the local range)", () => {
+  const out = expect("secrets", scanBranch(0), 3, {
+    extraEnv: { GITHUB_ACTIONS: "true" },
+  });
+  assert.match(out, /GATE_BASE/);
+});
+test("secrets: in CI, an empty range cannot be checked, never NOT APPLICABLE", () => {
+  const root = scanBranch(0);
+  expect("secrets", root, 3, {
+    extraEnv: { GITHUB_ACTIONS: "true", GATE_BASE: "HEAD", GATE_HEAD: "HEAD" },
   });
 });
 

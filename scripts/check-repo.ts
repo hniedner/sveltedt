@@ -1126,9 +1126,15 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
+function inCI(): boolean {
+  return process.env.GITHUB_ACTIONS === "true";
+}
+
 /** The commits the branch adds: GATE_BASE..GATE_HEAD in CI, after the merge base with origin/main locally. */
 function commitRange(root: string): Result | { range: string } {
   const base = process.env.GATE_BASE;
+  // In CI the range must come from the event; the local fallback would scan other commits than the event brought.
+  if (inCI() && !base) return result(CANNOT, "GATE_BASE is not set in CI");
   if (base) {
     if (/^0+$/.test(base))
       return result(CANNOT, "GATE_BASE is all zeros: no base commit");
@@ -1162,8 +1168,11 @@ function secrets(root: string): Result {
   );
   if (count.status !== 0)
     return result(CANNOT, `git cannot read the range ${range.range}`);
-  if (Number(count.stdout.trim()) === 0)
+  if (Number(count.stdout.trim()) === 0) {
+    // Every CI event that runs the gate brings a commit: an empty range there is a wrong range, not "nothing to do".
+    if (inCI()) return result(CANNOT, `no commit in ${range.range} in CI`);
     return result(NA, `no commit in ${range.range}`);
+  }
   const r = spawnSync(
     process.execPath,
     [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
