@@ -8,6 +8,8 @@
     "gate": "node scripts/check-repo.mjs all"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
     "prettier": "3.9.10"
   }
 }

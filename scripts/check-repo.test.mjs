@@ -52,7 +52,7 @@ const PACKAGE = {
   name: "@hniedner/sveltedt",
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
-  devDependencies: { prettier: "3.9.10" },
+  devDependencies: { eslint: "10.14.0", prettier: "3.9.10" },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
 const LOCK = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
@@ -418,6 +418,55 @@ test("format: a canary that Prettier accepts cannot be checked", () => {
 });
 test("format: a missing canary folder cannot be checked", () => {
   expect("format", repo(), 3, { canaries: join(tempDir(), "absent") });
+});
+
+const script = (body) => (root) => put(root, "scripts/x.mjs", body);
+const BRANCHES = Array.from(
+  { length: 21 },
+  (_, i) => `  if (a === ${i}) return ${i};`,
+).join("\n");
+
+test("lint: passes when ESLint fails its canaries and accepts every script", () => {
+  expect("lint", repo(script("export const one = 1;\n")), 0);
+});
+test("lint: eval is a finding that names the rule", () => {
+  assert.match(
+    expect("lint", repo(script('export const x = eval("1");\n')), 1),
+    /no-eval/,
+  );
+});
+test("lint: an undefined global is a finding", () => {
+  assert.match(
+    expect("lint", repo(script("export const x = nope;\n")), 1),
+    /no-undef/,
+  );
+});
+test("lint: a function over the complexity limit is a finding", () => {
+  const body = `export function f(a) {\n${BRANCHES}\n  return -1;\n}\n`;
+  assert.match(expect("lint", repo(script(body)), 1), /complexity/);
+});
+test("lint: an unused disable directive is a finding", () => {
+  expect(
+    "lint",
+    repo(
+      script("// eslint-disable-next-line no-eval\nexport const one = 1;\n"),
+    ),
+    1,
+  );
+});
+test("lint: another ESLint version than the pin cannot be checked", () => {
+  expect("lint", repo(pkg((p) => (p.devDependencies.eslint = "9.0.0"))), 3);
+});
+test("lint: a canary that ESLint accepts cannot be checked", () => {
+  const clean = canaryDir({ "canary.mjs": "export const one = 1;\n" });
+  expect("lint", repo(), 3, { canaries: clean });
+});
+test("lint: a tracked file of no known class cannot be checked", () => {
+  expect(
+    "lint",
+    repo((root) => put(root, "Makefile", "all:\n")),
+    3,
+  );
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

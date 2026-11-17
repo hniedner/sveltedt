@@ -381,62 +381,80 @@ const yamlNumber = (lines, key) =>
       .find(Boolean) ?? NaN,
   );
 
+const readText = (root, f) =>
+  existsSync(join(root, f)) ? readFileSync(join(root, f), "utf8") : "";
+
+/** The lockfile is tracked and is one YAML document (G11). */
+function lockfileProblems(root, list) {
+  if (!list.has("pnpm-lock.yaml")) return ["pnpm-lock.yaml is not tracked"];
+  const docs = readText(root, "pnpm-lock.yaml")
+    .split(/^---\s*$/m)
+    .filter((d) => d.trim());
+  return docs.length === 1
+    ? []
+    : [`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`];
+}
+
+/** Exact development dependencies; nothing ships but a svelte peer (PRD-S5). */
+function packageProblems(pkg) {
+  const ranges = Object.entries(pkg.devDependencies ?? {})
+    .filter(([, v]) => !EXACT.test(v))
+    .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+  const runtime = Object.keys(pkg.dependencies ?? {}).map(
+    (n) => `dependencies: ${n} would ship; only the svelte peer may`,
+  );
+  const peers = Object.keys(pkg.peerDependencies ?? {})
+    .filter((n) => n !== "svelte")
+    .map((n) => `peerDependencies: ${n} would ship; only svelte may`);
+  return [...ranges, ...runtime, ...peers];
+}
+
+/** pnpm's release age equals Dependabot's shortest npm cooldown; every exception names its advisory. */
+function ageProblems(root) {
+  const workspace = readText(root, "pnpm-workspace.yaml").split("\n");
+  const age = yamlNumber(workspace, "minimumReleaseAge");
+  const bot = readText(root, ".github/dependabot.yml");
+  const npm = /- package-ecosystem: npm\n([\s\S]*?)(?=\n {2}- |$)/.exec(bot);
+  // So Dependabot never proposes a version pnpm would refuse to install.
+  const days = Math.min(
+    ...[...(npm?.[1] ?? "").matchAll(/^\s*[\w-]*days:\s*(\d+)\s*$/gm)].map(
+      (m) => Number(m[1]),
+    ),
+  );
+  const problems = [];
+  if (!(age > 0)) problems.push("pnpm-workspace.yaml: no minimumReleaseAge");
+  else if (age !== days * 1440)
+    problems.push(
+      `minimumReleaseAge ${age} min differs from Dependabot's shortest npm cooldown, ${days} days`,
+    );
+  const at = workspace.findIndex((l) => /^minimumReleaseAgeExclude:/.test(l));
+  const entries = at < 0 ? [] : workspace.slice(at + 1);
+  const end = entries.findIndex((l) => !/^\s+-/.test(l));
+  for (const l of end < 0 ? entries : entries.slice(0, end))
+    if (!ADVISORY.test(l))
+      problems.push(
+        `minimumReleaseAgeExclude: "${l.trim()}" names no GHSA advisory`,
+      );
+  return problems;
+}
+
 // What ships is Category A only (PRD-S5): no runtime dependency, no peer but svelte. Development dependencies are
 // exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root, list) {
   const pkg = readJson(root, "package.json");
   if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
-  const details = [];
-  if (!list.has("pnpm-lock.yaml"))
-    details.push("pnpm-lock.yaml is not tracked");
-  else {
-    const docs = readFileSync(join(root, "pnpm-lock.yaml"), "utf8")
-      .split(/^---\s*$/m)
-      .filter((d) => d.trim());
-    if (docs.length !== 1)
-      details.push(`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`);
-  }
-  for (const [name, v] of Object.entries(pkg.devDependencies ?? {}))
-    if (!EXACT.test(v))
-      details.push(`devDependencies: ${name} is "${v}", not an exact version`);
-  for (const name of Object.keys(pkg.dependencies ?? {}))
-    details.push(`dependencies: ${name} would ship; only the svelte peer may`);
-  for (const name of Object.keys(pkg.peerDependencies ?? {}))
-    if (name !== "svelte")
-      details.push(`peerDependencies: ${name} would ship; only svelte may`);
-  const workspace = existsSync(join(root, "pnpm-workspace.yaml"))
-    ? readFileSync(join(root, "pnpm-workspace.yaml"), "utf8").split("\n")
-    : [];
-  const age = yamlNumber(workspace, "minimumReleaseAge");
-  const bot = existsSync(join(root, ".github/dependabot.yml"))
-    ? readFileSync(join(root, ".github/dependabot.yml"), "utf8")
-    : "";
-  const npm = /- package-ecosystem: npm\n([\s\S]*?)(?=\n {2}- |$)/.exec(bot);
-  // Dependabot's shortest npm cooldown must equal pnpm's age, so Dependabot never proposes what pnpm refuses.
-  const days = Math.min(
-    ...[...(npm?.[1] ?? "").matchAll(/^\s*[\w-]*days:\s*(\d+)\s*$/gm)].map(
-      (m) => Number(m[1]),
-    ),
-  );
-  if (!(age > 0)) details.push("pnpm-workspace.yaml: no minimumReleaseAge");
-  else if (age !== days * 1440)
-    details.push(
-      `minimumReleaseAge ${age} min differs from Dependabot's shortest npm cooldown, ${days} days`,
-    );
-  const at = workspace.findIndex((l) => /^minimumReleaseAgeExclude:/.test(l));
-  for (const l of at < 0 ? [] : workspace.slice(at + 1)) {
-    if (!/^\s+-/.test(l)) break;
-    if (!ADVISORY.test(l))
-      details.push(
-        `minimumReleaseAgeExclude: "${l.trim()}" names no GHSA advisory`,
-      );
-  }
+  const details = [
+    ...lockfileProblems(root, list),
+    ...packageProblems(pkg),
+    ...ageProblems(root),
+  ];
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
+  const devs = Object.keys(pkg.devDependencies ?? {}).length;
   return result(
     PASS,
-    `one lockfile document, ${Object.keys(pkg.devDependencies ?? {}).length} exact dev dependencies, nothing ships, release age ${age / 1440} days`,
+    `one lockfile document, ${devs} exact dev dependencies, nothing ships, release age equals the shortest cooldown`,
   );
 }
 
@@ -459,7 +477,8 @@ const CLASSES = [
     steps: ["text"],
     why: "owner-approved text: changes only through its change log, never by a formatter",
   },
-  { match: /\.(md|ya?ml|json|mjs)$/, steps: ["format"] },
+  { match: /\.mjs$/, steps: ["format", "lint"] },
+  { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
       /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
@@ -536,32 +555,44 @@ for (const f of files) {
 console.log(JSON.stringify(out));
 `;
 
-/** Prettier's own record for `files` under `root`, from the Prettier installed next to this script, or an error. */
-function prettierRecord(root, files) {
+// Asks ESLint itself for its result on each file, with this repository's config and no ignore patterns. Prints one
+// JSON record; a file ESLint did not lint shows as a message without a rule.
+const ESLINT_PROBE = `
+const [url, config, root, ...files] = process.argv.slice(1);
+const { ESLint } = await import(url);
+const eslint = new ESLint({ cwd: root, overrideConfigFile: config, ignore: false, warnIgnored: true });
+const results = await eslint.lintFiles(files);
+console.log(JSON.stringify({ version: ESLint.version, files: results.map((r) => ({
+  f: r.filePath.slice(root.length + 1),
+  messages: r.messages.map((m) => ({ rule: m.ruleId, text: m.line + ":" + m.column + " " + (m.ruleId ?? "") + " " + m.message })),
+})) }));
+`;
+
+/** A tool's own record for `files` under `root`, from the copy of `pkg` installed next to this script, or an error. */
+function toolRecord(pkg, probe, root, files, extra = []) {
   let url;
   try {
-    url = import.meta.resolve("prettier"); // the ESM entry, next to this script
+    url = import.meta.resolve(pkg); // the ESM entry, next to this script
   } catch {
-    return { error: "Prettier is not installed (run pnpm install)" };
+    return { error: `${pkg} is not installed (run pnpm install)` };
   }
   const r = spawnSync(
     process.execPath,
-    ["--input-type=module", "-e", PRETTIER_PROBE, url, root, ...files],
+    ["--input-type=module", "-e", probe, url, ...extra, root, ...files],
     { encoding: "utf8" },
   );
   try {
     return JSON.parse(r.stdout);
   } catch {
     return {
-      error: `the Prettier probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
+      error: `the ${pkg} probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
     };
   }
 }
 
-// Prettier on every file of the format class, with no ignore file, so only the class table selects files. The
-// planted canaries must fail first, and Prettier's own record must name every file it was given.
-function format(root, list) {
-  const { mine, unknown } = classified(list, "format");
+/** The files of `step`'s class and its canary folder, or a could-not-check result. */
+function toolInputs(list, step) {
+  const { mine, unknown } = classified(list, step);
   if (unknown.length)
     return result(
       CANNOT,
@@ -569,9 +600,19 @@ function format(root, list) {
       unknown,
     );
   if (!mine.length) return result(CANNOT, "no file to check");
-  const dir = canaries("format");
+  const dir = canaries(step);
   const planted = existsSync(dir) ? readdirSync(dir) : [];
   if (!planted.length) return result(CANNOT, `no canary in ${dir}`);
+  return { mine, dir, planted };
+}
+
+// Prettier on every file of the format class, with no ignore file, so only the class table selects files. The
+// planted canaries must fail first, and Prettier's own record must name every file it was given.
+function format(root, list) {
+  const inputs = toolInputs(list, "format");
+  if ("code" in inputs) return inputs;
+  const { mine, dir, planted } = inputs;
+  const prettierRecord = (r, f) => toolRecord("prettier", PRETTIER_PROBE, r, f);
   const canary = prettierRecord(dir, planted);
   if (canary.error) return result(CANNOT, canary.error);
   const missed = canary.files.filter(
@@ -617,6 +658,64 @@ function format(root, list) {
   );
 }
 
+const LINT_CANARY_RULES = [
+  "complexity",
+  "no-eval",
+  "no-implied-eval",
+  "no-new-func",
+  "no-undef",
+];
+
+// ESLint on every file of the lint class with this repository's config and no ignore patterns. The planted canary
+// must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
+function lint(root, list) {
+  const inputs = toolInputs(list, "lint");
+  if ("code" in inputs) return inputs;
+  const { mine, dir, planted } = inputs;
+  const config = [join(HERE, "..", "eslint.config.mjs")];
+  const eslintRecord = (r, f) =>
+    toolRecord("eslint", ESLINT_PROBE, r, f, config);
+  const canary = eslintRecord(dir, planted);
+  if (canary.error) return result(CANNOT, canary.error);
+  const raised = new Set(
+    canary.files.flatMap((c) => c.messages.map((m) => m.rule)),
+  );
+  const missed = LINT_CANARY_RULES.filter((rule) => !raised.has(rule));
+  if (missed.length)
+    return result(CANNOT, "ESLint missed planted canaries", missed);
+  const pin = readJson(root, "package.json")?.devDependencies?.eslint;
+  const rec = eslintRecord(root, mine);
+  if (rec.error) return result(CANNOT, rec.error);
+  if (rec.version !== pin)
+    return result(
+      CANNOT,
+      `ESLint ${rec.version} is installed, package.json pins ${pin}`,
+    );
+  const linted = new Set(rec.files.map((r) => r.f));
+  const notLinted = mine.filter((f) => !linted.has(f));
+  const ignored = rec.files.filter((r) =>
+    r.messages.some((m) => !m.rule && /ignored/i.test(m.text)),
+  );
+  if (notLinted.length || ignored.length)
+    return result(CANNOT, "ESLint did not lint every file", [
+      ...notLinted,
+      ...ignored.map((r) => r.f),
+    ]);
+  const details = rec.files.flatMap((r) =>
+    r.messages.map((m) => `${r.f}:${m.text}`),
+  );
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} message(s) in ${mine.length} file(s)`,
+      details,
+    );
+  return result(
+    PASS,
+    `ESLint ${rec.version} raised ${LINT_CANARY_RULES.length} canary rules and accepted ${mine.length} file(s)`,
+  );
+}
+
 const CHECKS = {
   toolchain,
   selftest,
@@ -624,6 +723,7 @@ const CHECKS = {
   lockfile,
   text,
   format,
+  lint,
   pins,
   "gate-needs": gateNeeds,
   links,
