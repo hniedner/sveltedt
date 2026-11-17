@@ -19,6 +19,7 @@ const REQUIRED = [
   "docs/engineering/method.md", "docs/engineering/gates.md", "scripts/actionlint.version",
   ".github/workflows/ci.yml", ".github/workflows/dependency-review.yml", ".github/workflows/scorecard.yml",
   ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.mjs",
+  "scripts/scan-secrets.ts", "scripts/scan-secrets.test.ts", "scripts/gitleaks.toml", "scripts/gitleaks.version",
 ];
 const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";

@@ -57,6 +57,10 @@ function repo(change = () => {}) {
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/check-repo.test.mjs": PASSING_TEST,
+    "scripts/scan-secrets.ts": "// fixture\n",
+    "scripts/scan-secrets.test.ts": PASSING_TEST,
+    "scripts/gitleaks.toml": "",
+    "scripts/gitleaks.version": "version 9.9.9\n",
     ".github/workflows/ci.yml": CI,
     ".github/workflows/dependency-review.yml": "on: [pull_request]\n",
     ".github/workflows/scorecard.yml": "on: [push]\n",
@@ -218,8 +222,9 @@ test("selftest: a failing test is a finding", () => {
 test("selftest: a test file that holds no test cannot be checked", () => {
   expect("selftest", repo((root) => put(root, "scripts/check-repo.test.mjs", "// empty\n")), 3);
 });
-test("selftest: a missing test file cannot be checked", () => {
-  expect("selftest", repo(remove("scripts/check-repo.test.mjs")), 3);
+test("selftest: a repository without any test file cannot be checked", () => {
+  const none = (root) => ["scripts/check-repo.test.mjs", "scripts/scan-secrets.test.ts"].forEach((f) => rmSync(join(root, f)));
+  expect("selftest", repo(none), 3);
 });
 test("selftest: every test file runs and is named with its count", () => {
   const out = expect("selftest", repo((root) => put(root, "scripts/other.test.mjs", PASSING_TEST)), 0);
