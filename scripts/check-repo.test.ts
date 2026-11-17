@@ -84,7 +84,12 @@ const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
-  devDependencies: { eslint: "10.14.0", jscpd: "5.4.3", prettier: "3.9.10" },
+  devDependencies: {
+    eslint: "10.14.0",
+    jscpd: "5.4.3",
+    prettier: "3.9.10",
+    typescript: "6.0.3",
+  },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
 const LOCK = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
@@ -675,6 +680,39 @@ test("dupes: a canary folder without a TypeScript pair cannot be checked", () =>
   const onlyMjs = canaryDir("dupes", { "a.mjs": BLOCK, "b.mjs": BLOCK });
   const out = expect("dupes", repo(), 3, { canaries: onlyMjs });
   assert.match(out, /no canary pair for \.ts/);
+});
+
+test("types: passes when tsc fails its canary and the scripts type-check", () => {
+  expect("types", repo(), 0);
+});
+test("types: a type error in a script is a finding that names the file", () => {
+  const bad = (root: string): void =>
+    put(root, "scripts/y.ts", 'export const n: number = "one";\n');
+  assert.match(expect("types", repo(bad), 1), /scripts\/y\.ts/);
+});
+test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
+  const outside = (root: string): void =>
+    put(root, "tools/z.ts", "export const one = 1;\n");
+  assert.match(expect("types", repo(outside), 3), /tools\/z\.ts/);
+});
+test("types: a repository without tsconfig.json cannot be checked", () => {
+  expect("types", repo(remove("tsconfig.json")), 3);
+});
+test("types: another TypeScript version than the pin cannot be checked", () => {
+  expect(
+    "types",
+    repo(pkg((p) => (p.devDependencies.typescript = "5.0.0"))),
+    3,
+  );
+});
+test("types: a canary that tsc accepts cannot be checked", () => {
+  const clean = canaryDir("types", {
+    "canary.ts": "export const one = 1;\n",
+    "tsconfig.json":
+      '{ "compilerOptions": { "strict": true, "noEmit": true } }\n',
+  });
+  const out = expect("types", repo(), 3, { canaries: clean });
+  assert.match(out, /tsc passed the planted type error/);
 });
 
 test("workflows: passes when the pinned zizmor flags its canary and finds nothing in the workflows", () => {

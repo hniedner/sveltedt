@@ -576,14 +576,10 @@ const CLASSES: FileClass[] = [
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
     match: /\.test\.ts$/,
-    steps: ["format", "lint"],
-    why: "dupes: a test may repeat its setup so it reads on its own (method section 5); types enters next",
+    steps: ["format", "lint", "types"],
+    why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
-  {
-    match: /\.ts$/,
-    steps: ["format", "lint", "dupes"],
-    why: "types for TypeScript enters in the next commit",
-  },
+  { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
@@ -1050,6 +1046,84 @@ function workflows(root: string, list: Set<string>): Result {
   return result(CANNOT, `zizmor exited ${r.status ?? errorCode(r.error)}`, out);
 }
 
+const tscBin = (): string => join(HERE, "..", "node_modules", ".bin", "tsc");
+
+/** The files `tsc -p <dir>/tsconfig.json` puts in its program, or a could-not-check result. */
+function tscProgram(dir: string): Result | string[] {
+  const r = spawnSync(
+    tscBin(),
+    ["-p", join(dir, "tsconfig.json"), "--listFilesOnly"],
+    {
+      encoding: "utf8",
+    },
+  );
+  if (r.error || r.status !== 0)
+    return result(
+      CANNOT,
+      `tsc could not read ${dir}/tsconfig.json`,
+      r.stdout.trim().split("\n").slice(0, 5),
+    );
+  return r.stdout.split("\n").filter(Boolean);
+}
+
+/** `tsc -p <dir>/tsconfig.json`'s exit code and its error lines. */
+function tscRun(dir: string): { status: number | null; lines: string[] } {
+  const r = spawnSync(
+    tscBin(),
+    ["-p", join(dir, "tsconfig.json"), "--pretty", "false"],
+    {
+      encoding: "utf8",
+    },
+  );
+  return {
+    status: r.status,
+    lines: r.stdout.trim().split("\n").filter(Boolean),
+  };
+}
+
+// The pinned TypeScript, strict, over the project tsconfig.json declares (PRD-K1, PRD-G3). Every file of the types
+// class must be in tsc's own list of the program, so a script outside `include` cannot go unchecked. A planted type
+// error must fail first.
+function types(root: string, list: Set<string>): Result {
+  const { mine, unknown } = classified(list, "types");
+  if (unknown.length)
+    return result(
+      CANNOT,
+      `${unknown.length} tracked file(s) of no class`,
+      unknown,
+    );
+  if (!mine.length) return result(CANNOT, "no file to check");
+  const pin = readJson(root, "package.json")?.devDependencies?.typescript;
+  const v = versionOf(tscBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.replace("Version ", "");
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `TypeScript ${got} is installed, package.json pins ${pin}`,
+    );
+  if (tscRun(canaries("types")).status === 0)
+    return result(CANNOT, "tsc passed the planted type error");
+  const program = tscProgram(root);
+  if (isResult(program)) return program;
+  const outside = mine.filter((f) => !program.some((p) => p.endsWith(`/${f}`)));
+  if (outside.length)
+    return result(
+      CANNOT,
+      "tsc's program leaves out tracked TypeScript",
+      outside,
+    );
+  const run = tscRun(root);
+  if (run.status === 0)
+    return result(
+      PASS,
+      `TypeScript ${got} failed the canary and accepted ${mine.length} file(s)`,
+    );
+  if (run.lines.some((l) => /error TS\d+/.test(l)))
+    return result(FINDING, `${run.lines.length} type error line(s)`, run.lines);
+  return result(CANNOT, `tsc exited ${run.status}`, run.lines);
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -1058,6 +1132,7 @@ const CHECKS: Record<string, Check> = {
   text,
   format,
   lint,
+  types,
   dupes,
   pins,
   "gate-needs": gateNeeds,
