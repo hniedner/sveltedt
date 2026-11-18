@@ -702,7 +702,7 @@ const CLASSES: FileClass[] = [
     steps: ["format", "lint", "svelte"],
     why: "dupes: jscpd 5 counts a component as several sources and lists none, so no file can be proven analysed (#7)",
   },
-  { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
+  { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
       /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,

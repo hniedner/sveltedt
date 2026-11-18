@@ -848,6 +848,23 @@ test("lint and format: a .js file is linted and formatted like a script", () => 
     1,
   );
 });
+test("format: an .html or a .css file is formatted", () => {
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p>a</p>\n")),
+    0,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p >a</p>\n")),
+    1,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.css", "a{color:red}\n")),
+    1,
+  );
+});
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
     expect("lint", repo(script('export const x = eval("1");\n')), 1),
