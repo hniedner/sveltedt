@@ -58,7 +58,9 @@ export function validateTable<Row>(
   for (const row of rows) {
     try {
       const id: unknown = getRowId(row);
-      if (typeof id === "string") rowIds.push(id);
+      // Compared by text form, so the number 1 and the string "1" are one id
+      if (typeof id === "string" || Number.isFinite(id))
+        rowIds.push(String(id));
       else unreadable = true;
     } catch {
       unreadable = true;

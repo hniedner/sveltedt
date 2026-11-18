@@ -229,7 +229,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "021bc70e")
+// @spec("RND-05", "911d467c")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -298,13 +298,28 @@ describe("RND-05", () => {
       "Two rows share an id.",
     ],
     [
+      'two rows share an id in its text form, 1 and "1"',
+      { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
+      "Two rows share an id.",
+    ],
+    [
       "getRowId throws",
       { getRowId: unreadable },
       "A row id could not be read.",
     ],
     [
-      "getRowId returns a value that is not a string",
-      { getRowId: () => 7 as unknown as string },
+      "getRowId returns NaN",
+      { getRowId: () => Number.NaN },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns Infinity",
+      { getRowId: () => Number.POSITIVE_INFINITY },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns null",
+      { getRowId: () => null as unknown as string },
       "A row id could not be read.",
     ],
     [
@@ -385,6 +400,12 @@ describe("RND-05", () => {
       screen.getAllByRole("alert").map((alert) => alert.textContent),
     ).toEqual([message]);
     expect(component.querySelector("table")).toBeNull();
+  });
+
+  it("takes finite numbers as row ids: the table and no alert", () => {
+    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : 2) });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(firstCells()).toEqual(["Alpha", "Beta"]);
   });
 
   it("follows the props: the alert gives way to the table and comes back", async () => {

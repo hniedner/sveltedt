@@ -19,7 +19,8 @@ export type DataTableColumn<Row> = {
 export interface DataTableProps<Row> {
   rows: readonly Row[];
   columns: readonly DataTableColumn<Row>[];
-  getRowId: (row: Row) => string;
+  // A string or a finite number; 1 and "1" are the same id (RND-05)
+  getRowId: (row: Row) => string | number;
   caption: string;
   regionLabel: string;
   heading?: Snippet;
