@@ -571,7 +571,7 @@ function ageProblems(root: string): string[] {
 }
 
 // Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
-// exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's npm cooldown, and every
+// exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root: string, list: Set<string>): Result {
   const pkg = readJson(root, "package.json");

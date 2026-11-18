@@ -4,7 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Headers "ci(deps): ...", "build(deps-dev): ...": conventional, as the commit-message check requires from the next
+    # Headers "ci(deps): ..." here and "build(deps-dev): ..." for npm: conventional, as the commit-message check requires from the next
     # pull request (issue #6). Origin: docs/decisions/001-quality-tooling.md.
     commit-message:
       prefix: ci

@@ -1,5 +1,5 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
-// and asserts the exit code and the word the last line starts with: PASS, FINDING, USAGE, COULD NOT CHECK.
+// and asserts the exit code and the word its last line starts with; usage errors, exit 2 and their message.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
@@ -269,15 +269,19 @@ function fakeVersion(name: string, version: string): string {
 function fakeZizmor({
   version = "9.9.9",
   canary = true,
-  crash = false,
-}: { version?: string; canary?: boolean; crash?: boolean } = {}): string {
+  crash = "",
+}: {
+  version?: string;
+  canary?: boolean;
+  crash?: "" | "canary" | ".github";
+} = {}): string {
   const bin = join(tempDir(), "zizmor");
   writeFileSync(
     bin,
     `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "zizmor ${version}"; exit 0; fi
 case " $* " in *" --offline "*) ;; *) echo "online audits need a token"; exit 2;; esac
-${crash ? 'echo "error: broken" >&2; exit 1' : ""}
+${crash ? `case "$*" in *${crash}*) echo "error: broken" >&2; exit 1;; esac` : ""}
 files=""; for a in "$@"; do case "$a" in -*|plain) ;; *) files="$files $a";; esac; done
 ${canary ? 'if grep -q canary $files; then echo "error[dangerous-triggers]"; exit 13; fi' : ""}
 if grep -q bad $files; then echo "warning[template-injection]"; exit 12; fi
@@ -1136,10 +1140,11 @@ test("workflows: a zizmor that misses the canary cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: fakeZizmor({ canary: false }) });
 });
 test("workflows: a zizmor that fails with an error cannot be checked", () => {
-  const out = expect("workflows", repo(), 3, {
-    zizmor: fakeZizmor({ crash: true }),
-  });
-  assert.match(out, /error: broken/);
+  for (const crash of ["canary", ".github"] as const)
+    assert.match(
+      expect("workflows", repo(), 3, { zizmor: fakeZizmor({ crash }) }),
+      /error: broken/,
+    );
 });
 test("workflows: a repository without a workflow file cannot be checked", () => {
   const out = expect(
@@ -1573,6 +1578,8 @@ test("secrets: a wrapper that crashes cannot be checked, never a finding", () =>
 test("lockfile: bundleDependencies, npm's own spelling, would ship", () => {
   const bundled = pkg((p) => Object.assign(p, { bundleDependencies: ["c"] }));
   assert.match(expect("lockfile", repo(bundled), 1), /bundleDependencies: c/);
+  const all = pkg((p) => Object.assign(p, { bundleDependencies: true }));
+  assert.match(expect("lockfile", repo(all), 1), /bundleDependencies: all/);
 });
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
