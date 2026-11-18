@@ -17,14 +17,14 @@
   a hash of the statement text.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
-- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and the ARIA
-  and HTML attributes of an element so found, never a test id or a class.
+- **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
+  attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
+  element of a named tag or selector; never a test id or a class.
 - **Test layers.**
   - **HTTP**: the site server started in the test's own process and sent real requests through `node:http`, with
     each request path written to the wire exactly as the example gives it (a URL parser would remove `..` before
     sending); read as status, headers and body; no browser.
-  - **component**: a site page component mounted in a simulated DOM, queried through roles, accessible names and
-    visible text only. No test ids and no internals.
+  - **component**: a site page component mounted in a simulated DOM.
   - **real browser**: a site page opened in a real engine, in Chromium, Firefox and WebKit unless the statement names
     fewer and says why.
   - **static check**: a scan of the site's source, run in the gate, behind a wrapper that must find a planted canary.
