@@ -15,8 +15,10 @@
   (or an example table: the test runs every row), the reason, the test layer and a `Traces:` line naming the
   requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
   a hash of the statement text.
-- **Before its test.** A statement may land before its test; until then the trace check lists it as not yet tested,
-  which never counts as a pass.
+- **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
+  the method's rule (section 2, step 7).
+- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and attributes
+  of an element so found.
 - **Test layers.**
   - **HTTP**: the site server started in the test's own process and sent real requests through `node:http`, with
     each request path written to the wire exactly as the example gives it (a URL parser would remove `..` before
