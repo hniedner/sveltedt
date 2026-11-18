@@ -102,3 +102,22 @@ describe(spec("SRV-01", "a3f33248"), () => {
     ).toEqual([]);
   });
 });
+
+describe(spec("SRV-03", "65a24eb7"), () => {
+  const kinds = [
+    ["index.html", "text/html; charset=utf-8"],
+    ["assets/app.js", "text/javascript; charset=utf-8"],
+    ["assets/app.css", "text/css; charset=utf-8"],
+    ["assets/notes.xyz", "application/octet-stream"],
+  ] as const;
+  let server: Server;
+  beforeAll(async () => {
+    server = (
+      await serve(Object.fromEntries(kinds.map(([path]) => [path, path])))
+    ).server;
+  });
+
+  it.each(kinds)("answers %s with the content type %s", async (path, type) => {
+    expect((await get(server, `/${path}`)).type).toBe(type);
+  });
+});

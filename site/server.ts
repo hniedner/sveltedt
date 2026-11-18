@@ -3,10 +3,21 @@
 // file path. Start it after the site's build with: node site/server.ts
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { join, relative, sep } from "node:path";
+import { extname, join, relative, sep } from "node:path";
+
+const TYPES: Readonly<Record<string, string>> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+};
+
+interface BuiltFile {
+  body: Buffer;
+  type: string;
+}
 
 export function siteServer(buildFolder: string): Server {
-  const files = new Map<string, Buffer>();
+  const files = new Map<string, BuiltFile>();
   // withFileTypes reports a symbolic link as a link, not a file, so no link leads out of the folder
   for (const entry of readdirSync(buildFolder, {
     recursive: true,
@@ -14,10 +25,10 @@ export function siteServer(buildFolder: string): Server {
   })) {
     if (!entry.isFile()) continue;
     const path = join(entry.parentPath, entry.name);
-    files.set(
-      `/${relative(buildFolder, path).split(sep).join("/")}`,
-      readFileSync(path),
-    );
+    files.set(`/${relative(buildFolder, path).split(sep).join("/")}`, {
+      body: readFileSync(path),
+      type: TYPES[extname(path)] ?? "application/octet-stream",
+    });
   }
   const index = files.get("/index.html");
   if (index) files.set("/", index);
@@ -29,7 +40,7 @@ export function siteServer(buildFolder: string): Server {
       response.writeHead(404).end();
       return;
     }
-    response.writeHead(200).end(file);
+    response.writeHead(200, { "Content-Type": file.type }).end(file.body);
   });
 }
 
