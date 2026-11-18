@@ -1743,7 +1743,8 @@ const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, "g");
 /** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
 function tail(text: string): string[] {
   const lines = text
-    .replace(COLOUR, "") // colour codes the children print
+    // Colour codes: the config loader prints them even with NO_COLOR set (measured), so they are cut here
+    .replace(COLOUR, "")
     .split("\n")
     .filter(
       (l) => l.trim() && !/^\s+(?:at |❯ |\d+\||\|)|JSON report written/.test(l),
