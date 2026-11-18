@@ -36,13 +36,13 @@ pages named, or measured with the command named.
 - **Candidates:**
   - jscpd 5 (native, MIT, no install script: `npm view jscpd` shows only optional platform packages);
   - fallow 3 (native, MIT; duplication plus complexity and dead code; its diff mode needs a base ref).
-- **Decision:** jscpd over the whole repository, any clone fails.
-  - The repository starts at zero clones, so "no clone anywhere" equals "no new block repeats an existing one"
+- **Decision:** jscpd over every non-test script (the dupes class), any clone fails.
+  - The scripts start at zero clones, so "no clone in them" equals "no new block repeats an existing one"
     without a base ref.
   - fallow's complexity check would repeat ESLint's (method section 5, one source).
 - **Measured on jscpd 5.4.3:**
   - a file shorter than the 50-token minimum is not counted as a source; such a file cannot hold a clone;
-  - `--fail-on-empty` exits 1 when no file is analysed;
+  - `--fail-on-empty` exits 1 when no file is analysed (not used: the step demands every file in the report);
   - reported paths are basenames unless `--absolute` is given.
 - **Reopens when:** the repository must accept a known clone.
 
@@ -58,7 +58,7 @@ pages named, or measured with the command named.
   - pnpm re-applies the age to every lockfile entry on each install (pnpm.io, settings, `trustLockfile`). It
     therefore equals Dependabot's shortest npm cooldown, so Dependabot never proposes a version pnpm refuses.
   - A security fix younger than that is listed under `minimumReleaseAgeExclude` with its GHSA id on the same line,
-    and the gate checks it. Reviewer ruling: the cooldown guards against a poisoned release, and a security fix is
+    and the gate checks it. Decided in the review of this change: the cooldown guards against a poisoned release, and a security fix is
     not held back by policy.
 
 ## Licences
@@ -72,7 +72,7 @@ pages named, or measured with the command named.
 - **Programs the checks only run** are outside this rule, whatever their licence: they are never linked, bundled or
   distributed, and they are not packages in the lockfile. The ASF page draws the same line: "using a GPL'ed tool
   during the build is okay, but including GPL'ed source code is not" (https://www.apache.org/legal/resolved.html).
-  Today: git, Node, pnpm, gitleaks, actionlint and shellcheck; with later checks, zizmor and the browsers that
+  Today: git, Node, pnpm, gitleaks, actionlint, shellcheck and zizmor; with later checks, the browsers that
   `playwright install` downloads.
 
 Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included", and "using a GPL'ed
@@ -135,6 +135,6 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - ESLint ignores read from `.gitignore`: here the class table alone selects files.
 - The `globals` package: a hand list is enough.
-- Cooldowns of 14 and 7 days: the companion's G11 values and the reviewer's 3-day release-age ruling stand.
+- Cooldowns of 14 and 7 days: the companion's G11 values and the 3-day release age decided in the review of this change stand.
 - Playwright retries in CI: a flaky test is a defect to find, not to retry.
 - Chromium only in CI: the method requires Chromium, Firefox and WebKit.

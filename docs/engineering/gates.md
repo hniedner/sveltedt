@@ -199,9 +199,10 @@ first one.
   caching)*); `astral-sh/setup-uv` with `enable-cache: true` *(fetched, setup-uv)*; Cargo through `actions/cache`
   keyed on `hashFiles('Cargo.lock')` *(inferred)*. Entries unused for 7 days are evicted *(fetched, caching)*. The
   release workflow restores no cache, so nothing a pull request wrote can reach a published package *(inferred)*.
-- Concurrency in `ci.yml` and `dependency-review.yml`: group `${{ github.workflow }}-${{ github.head_ref ||
-  github.run_id }}` with `cancel-in-progress: true`. Only superseded pull-request runs are cancelled; each push to main
-  keeps its own run *(fetched, concurrency)*. A cancelled run leaves `gate` at *could not check*. `release.yml`:
+- Concurrency in `ci.yml` and `dependency-review.yml`: group `${{ github.workflow }}-${{
+  github.event.pull_request.number || github.run_id }}` with `cancel-in-progress: true`. Only superseded runs of the
+  same pull request are cancelled (a branch name would join pull requests from forks whose branches share a name);
+  each push to main keeps its own run *(fetched, concurrency)*. A cancelled run leaves `gate` at *could not check*. `release.yml`:
   group `release`, `cancel-in-progress: false`, so a publish is never cut off halfway.
 - Artifacts: every job uploads its reports with `actions/upload-artifact` under `if: ${{ !cancelled() }}`, so a
   failed run keeps them *(fetched pattern, playwright-ci)*: JUnit XML, coverage, the trace report, browser reports
