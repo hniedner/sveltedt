@@ -1162,6 +1162,21 @@ test("lint: a class: directive in a component is a finding that names the ban", 
   );
   assert.match(out, /no-restricted-syntax class: directive/);
 });
+test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "</script>",
+          "  const share = new PaymentRequest([], { total: { label: 'x', amount: { currency: 'EUR', value: '1' } } });\n</script>",
+        ).replace("{count}</p>", "{count}{String(share)}</p>"),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /compat\/compat/);
+});
 test("lint: an HTML disable comment does not switch a rule off in a component", () => {
   const out = expect(
     "lint",

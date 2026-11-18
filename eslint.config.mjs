@@ -1,6 +1,7 @@
 // ESLint for the repository's own scripts. The reasons are in docs/decisions/001-quality-tooling.md or beside the rule.
 // This file stays JavaScript: ESLint would need a further dependency (jiti) to load a TypeScript config.
 import js from "@eslint/js";
+import compat from "eslint-plugin-compat";
 import svelte from "eslint-plugin-svelte";
 import ts from "typescript-eslint";
 
@@ -105,6 +106,20 @@ export default [
       // An HTML comment (<!-- eslint-disable -->) would switch rules off despite noInlineConfig (measured).
       "svelte/comment-directive": "off",
       "no-restricted-syntax": ["error", ...markupBans],
+    },
+  },
+  // PRD-E1: browser APIs above the support floor, in TypeScript and components (the Node scripts use none). It flags only part of
+  // them (docs/decisions/001-quality-tooling.md, Browser floor).
+  {
+    ...compat.configs["flat/recommended"],
+    files: ["**/*.ts", "**/*.svelte"],
+    settings: {
+      browsers: [
+        "chrome >= 111",
+        "edge >= 111",
+        "firefox >= 128",
+        "safari >= 16.4",
+      ],
     },
   },
 ];

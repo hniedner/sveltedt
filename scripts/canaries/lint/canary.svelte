@@ -8,6 +8,8 @@
   const attach = (node: HTMLElement) => node;
   const style = "color: red";
   let el: HTMLElement | undefined = $state();
+  // Above the browser floor (PRD-E1): IdleDetector is in no floor browser.
+  const idle = new IdleDetector();
 </script>
 
 <!-- eslint-disable -->
@@ -26,3 +28,4 @@
 >
 <p bind:this={el}>bind:this is allowed</p>
 {@html rest.html}
+<p>{String(idle)}</p>

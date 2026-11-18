@@ -945,11 +945,13 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-new-func",
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
+    "compat/compat",
   ],
   // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [
     "@typescript-eslint/no-explicit-any",
     "svelte/no-at-html-tags",
+    "compat/compat",
     "no-restricted-syntax|class: directive",
     "no-restricted-syntax|use: action",
     "no-restricted-syntax|bind: other than bind:this",

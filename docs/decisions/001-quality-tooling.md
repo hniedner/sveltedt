@@ -30,6 +30,17 @@ pages named, or measured with the command named.
   - ESLint's `complexity` stays at its documented default of 20 (eslint.org, rules/complexity) and is an error.
 - **Reopens when:** Biome's Svelte support is stable and has the rules the Svelte checks need.
 
+## Browser floor
+
+- **Need:** PRD-E1: JavaScript APIs above the support floor (Chrome and Edge 111, Firefox 128, Safari 16.4) are
+  flagged, and the support statement says the floor is covered by that check only.
+- **Decision:** eslint-plugin-compat 7.0.2, recommended, with the floor in `settings.browsers` (no browserslist file
+  to classify), on every `.ts` and `.svelte` file; the Node scripts use no browser API, and the lint step proves it.
+- **Measured limit** (2026-11-17, the plan's adversarial read): it flags `new IdleDetector()` and
+  `new PaymentRequest()` in `.ts`, `.mjs` and `.svelte`, but not `navigator.share`, `showOpenFilePicker`,
+  `new CloseWatcher()`, `Promise.withResolvers()` or `[].toSorted()`, even with `lintAllEsApis`. The support
+  statement says so; the real-browser tests of PRD-E1 are the proof for the floor browsers.
+
 ## Duplication
 
 - **Need:** copy detection, a new block repeating an existing one fails (method section 5).
