@@ -807,7 +807,8 @@ listed for it below, the computed value that the literal table of its test state
 - Examples (the test loads each host page in its own browser context and first asserts the order of
   `document.styleSheets`; then it runs every row on both hosts, with a table of `caption` "Orders", `regionLabel`
   "Orders table", 2 columns, the first sortable with an `onsort`, and 2 rows, `status 'ready'`, then again with 0
-  rows; beside the table each page holds a `Pagination` with `offset 0, limit 10, total 25` and `sizes [10, 25]`):
+  rows; beside the table each page holds a `Pagination` with `label` "Pages", `offset 0, limit 10, total 25` and
+  `sizes [10, 25]`):
 
   | Host page | Its stylesheets, in this order, each a static file linked unbundled |
   |---|---|
@@ -832,7 +833,8 @@ listed for it below, the computed value that the literal table of its test state
   (no `row-border` variant, `docs/departures.md`) is in these rows: each body data row but the last has a block-end
   border on its cells; the last row and the empty message's cell have none. The caption also measures at most 1 by 1 CSS
   px on both hosts, as A11Y-13 measures. The test lands with the first stylesheet commit (PRD-T11), so that commit comes
-  with or after the real-browser step of the first milestone; until then this statement is not yet tested.
+  with or after the first commit that makes the gate's `browser` script run a test; until then this statement is not
+  yet tested.
 - Reason: the table must look the same whatever the application loaded first (PRD-T11 (a)); a literal table makes the
   "none" host able to fail, where a comparison with it could not. Bootstrap's reboot changed caption padding, `th`
   alignment and the dividers of a seed table (MEASURED 2026-11-18 in an earlier probe). Loaded in the reverse order (the
@@ -850,7 +852,7 @@ stylesheet's padding.
   `.app td { padding: 4px }`, and the table of THEME-10 inside an element with class `app`: every body cell's
   `padding-top`, `padding-right`, `padding-bottom` and `padding-left` compute to `4px`. A second table outside
   `.app`, `regionLabel` "Other table", on the same page keeps the stylesheet's padding. These are their own pages:
-  THEME-10's pages hold no application file. Not yet tested until the real-browser step, as THEME-10.
+  THEME-10's pages hold no application file. Not yet tested until then, as THEME-10.
 - Reason: an application restyles the table with an ordinary rule, without `!important` (PRD-T11 (b), PRD-D9); the
   stylesheet's one-class selectors (THEME-12) make that hold in this load order.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -1878,7 +1880,7 @@ state in their own statements.
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
-| PRD-T11 | THEME-10, THEME-11 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`; the sort controls, the pager and later parts add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
+| PRD-T11 | THEME-10, THEME-11 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
