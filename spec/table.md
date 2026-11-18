@@ -322,6 +322,7 @@ otherwise.
   | 30 columns at least 120 px wide in a 600 px wide viewport (the table overflows) | yes |
   | the 30-column table, then the viewport widened to 4000 px without a remount | no |
   | the 3-column table in a 600 px viewport, then rerendered with 30 columns | yes |
+  | the 30-column table with an `actions` snippet holding "Export" and a cell link "Open Beta" in its first column | yes: Tab from "Export" lands on the region, the next Tab on "Open Beta" |
 
   (The sticky group adds the row for `stickyHeader`, where the region is no scroll container and so never a stop.)
 - Reason: a keyboard user needs a focus stop to scroll a wide table, and a stop that scrolls nothing is noise.
@@ -356,9 +357,9 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
   start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
-  this order.) Second example: the same with a `heading` snippet holding a link "All orders" and 30 rows in a
-  region 200 px high, so the region is a stop: Tab reaches "All orders", "Export", the region, "Open Beta", "Edit
-  Beta", and so on.
+  this order.) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
+  orders", "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". Where the region is a stop needs layout,
+  so A11Y-12 proves its place between the actions and the cells.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3.
