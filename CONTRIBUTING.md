@@ -16,7 +16,7 @@ pnpm gate
 It needs Node (the major version in `.node-version`), pnpm (the version in `package.json`'s `packageManager`),
 and the pinned programs the checks run: actionlint with shellcheck, zizmor and gitleaks (each version in
 `scripts/<name>.version`). On macOS: `brew install actionlint shellcheck zizmor gitleaks`; on Linux, the release
-archives that `.github/workflows/ci.yml` installs, checked against the sha256 in the same file, and shellcheck from
+archives that `.github/workflows/ci.yml` installs, checked against the sha256 lines in `scripts/<name>.version`, and shellcheck from
 the package manager (CI uses the runner's copy). Any other version than the pin, older or newer, makes the gate
 answer `COULD NOT CHECK` until the pin moves; Prettier, ESLint, TypeScript and jscpd are pinned by `package.json`.
 The gate reads tracked files: a new file counts once it is added with `git add`.
@@ -28,12 +28,12 @@ section 6). CI runs the same command; its `gate` check is required on
 
 The checks today:
 
-- **toolchain:** Node's major version and pnpm's version are the pinned ones.
+- **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
-- **selftest:** every `scripts/*.test.ts` file runs and must pass, each with its own count.
+- **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
   every package from the registry by hash; pnpm's release age equals Dependabot's shortest npm cooldown, and every
-  exception names one version and its advisory.
+  exception names exact versions and its advisory.
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
   detect is a finding.
 - **text, format, lint, types, dupes:** every tracked file has a class in `scripts/check-repo.ts` that names the
@@ -65,7 +65,7 @@ find it, so a tool that silently checks nothing cannot pass.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the local hooks that run checks before a commit or a push; until they exist, maintainers run the private word scan
+- the commit-message check and the local hooks that run checks before a commit or a push (issue #6); until they exist, maintainers run the private word scan
   by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).

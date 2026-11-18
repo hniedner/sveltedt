@@ -2,7 +2,7 @@
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
-// Files are listed with `git ls-files`, so only tracked files are read.
+// The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
@@ -570,7 +570,7 @@ function ageProblems(root: string): string[] {
   return problems;
 }
 
-// What ships is Category A only (PRD-S5): no runtime dependency, no peer but svelte. Development dependencies are
+// Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
 // exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root: string, list: Set<string>): Result {
@@ -1187,7 +1187,7 @@ function tscRun(dir: string): { status: number | null; lines: string[] } {
   };
 }
 
-// The pinned TypeScript, strict, over the project tsconfig.json declares (PRD-K1, PRD-G3). Every file of the types
+// The pinned TypeScript, strict, over the project tsconfig.json declares (PRD-G3). Every file of the types
 // class must be in tsc's own list of the program, so a script outside `include` cannot go unchecked. A planted type
 // error must fail first.
 function types(root: string, list: Set<string>): Result {

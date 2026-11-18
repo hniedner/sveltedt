@@ -75,12 +75,13 @@ pages named, or measured with the command named.
   Today: git, Node, pnpm, gitleaks, actionlint, shellcheck and zizmor; with later checks, the browsers that
   `playwright install` downloads.
 
-Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included", and "using a GPL'ed
-tool during the build is okay, but including GPL'ed source code is not".
+Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included".
 
 **The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: Apache-2.0,
 BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT. Another Category A licence or a listed Category B one
 joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
+The gate's licences step reads the list there and fails a licence pnpm cannot detect. Known limit: a licence written
+as an SPDX expression (`MIT OR CC0-1.0`) fails its exact match, though dependency-review accepts it (issue #7).
 
 Category B licences in use: none today. Expected:
 

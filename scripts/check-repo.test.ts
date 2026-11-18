@@ -1,5 +1,5 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
-// and asserts the exit code and the first word of the output: 0 PASS, 1 FINDING, 3 COULD NOT CHECK.
+// and asserts the exit code and the word the last line starts with: PASS, FINDING, USAGE, COULD NOT CHECK.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
@@ -691,7 +691,6 @@ test("text: a tracked file of no known class cannot be checked, and names the fi
   );
 });
 
-/** A canary folder holding `files` (name -> text), for the cases that change the canaries. */
 /** A canary folder holding `files` (name -> text) for `step`, laid out as the steps read it: <dir>/<step>/<file>. */
 function canaryDir(step: string, files: Record<string, string>): string {
   const dir = tempDir();

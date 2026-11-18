@@ -1,4 +1,4 @@
-// ESLint for the repository's own scripts. The reason for each rule is in docs/decisions/001-quality-tooling.md.
+// ESLint for the repository's own scripts. The reasons are in docs/decisions/001-quality-tooling.md or beside the rule.
 // This file stays JavaScript: ESLint would need a further dependency (jiti) to load a TypeScript config.
 import js from "@eslint/js";
 import ts from "typescript-eslint";
@@ -14,6 +14,7 @@ const node = {
 };
 
 // Method section 5 (complexity) and PRD-S1 (no eval, new Function or string timers), for every script.
+// For .ts the preset brings @typescript-eslint/no-implied-eval, which knows types, in place of the core rule.
 const shared = {
   complexity: ["error", 20],
   "no-eval": "error",
@@ -64,7 +65,6 @@ export default [
           ],
         },
       ],
-      // The preset replaces core no-implied-eval with @typescript-eslint/no-implied-eval, which knows types.
       // TypeScript checks undefined names itself; typescript-eslint advises turning this rule off (origin: docs/decisions/001).
       "no-undef": "off",
     },
