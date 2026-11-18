@@ -314,8 +314,15 @@ test("dir: a .gitleaksignore where the scan runs does not hide a token", () => {
   const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
   writeFileSync(join(d, ".gitleaksignore"), `${d}/k.txt:github-pat:1\n`);
   const r = run(["dir", d], {}, WRAPPER, d);
-  assert.notEqual(r.code, 0, r.out); // a finding, or could-not-check naming the file
-  assert.match(r.out, /leak|\.gitleaksignore would silence/);
+  assert.equal(r.code, 3, r.out);
+  assert.match(r.out, /\.gitleaksignore would silence/);
+});
+test("dir: a .gitleaksignore in the working folder only does not hide a token", () => {
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  const cwd = tree(tempDir(), {
+    ".gitleaksignore": `${d}/k.txt:github-pat:1\n`,
+  });
+  assert.equal(run(["dir", d], {}, WRAPPER, cwd).code, 1);
 });
 test("git: a range holding a delete-only and an empty commit passes", () => {
   const r = repoWith({ "a.txt": "x\n", "b.txt": "y\n" });

@@ -550,14 +550,22 @@ test("lockfile: release-age exceptions in flow style are a finding", () => {
   const flow = workspace(`minimumReleaseAgeExclude: [prettier@3.9.11] ${GHSA}`);
   expect("lockfile", repo(flow), 1);
 });
-test("lockfile: a package resolved from anywhere but the registry is a finding", () => {
-  const tarball = (root: string) =>
-    put(
-      root,
-      "pnpm-lock.yaml",
-      `${LOCK}\npackages:\n\n  x@1.0.0:\n    resolution: {tarball: https://example.org/x.tgz, integrity: sha512-AA==}\n`,
-    );
-  assert.match(expect("lockfile", repo(tarball), 1), /x@1\.0\.0|resolution/);
+/** The fixture's lockfile with one package resolved by `resolution`. */
+const lockWith = (resolution: string) => (root: string) =>
+  put(
+    root,
+    "pnpm-lock.yaml",
+    `${LOCK}\npackages:\n\n  x@1.0.0:\n    resolution: ${resolution}\n`,
+  );
+test("lockfile: a package resolved from the registry by hash passes, from anywhere else is a finding", () => {
+  expect("lockfile", repo(lockWith("{integrity: sha512-AA==}")), 0);
+  const tarball = lockWith(
+    "{tarball: https://example.org/x.tgz, integrity: sha512-AA==}",
+  );
+  assert.match(
+    expect("lockfile", repo(tarball), 1),
+    /not a registry package by hash/,
+  );
 });
 test("lockfile: a Dependabot config without an npm cooldown is a finding that says so", () => {
   const none = (root: string) =>
@@ -615,12 +623,13 @@ test("text: a missing final newline is a finding", () => {
     1,
   );
 });
-test("text: a merge-conflict marker is a finding", () => {
-  expect(
-    "text",
-    repo(edit("NOTICE", "Fixture\n", "<<<<<<< ours\nFixture\n")),
-    1,
-  );
+test("text: an opening or a closing merge-conflict marker is a finding", () => {
+  for (const marker of ["<<<<<<< ours", ">>>>>>> theirs"])
+    expect(
+      "text",
+      repo(edit("NOTICE", "Fixture\n", `${marker}\nFixture\n`)),
+      1,
+    );
 });
 test("format: the owner-approved requirements are never reformatted", () => {
   // The PRD changes only through its owner; the text step checks it instead.
@@ -1495,6 +1504,33 @@ test("gate-needs: a comment line between jobs does not hide the jobs after it", 
     "# the checks\n  lint:\n    runs-on: ubuntu-latest\n  gate:\n",
   );
   assert.match(expect("gate-needs", repo(commented), 1), /lint/);
+});
+test("files: each pinned config every step reads is required", () => {
+  for (const f of ["package.json", "pnpm-workspace.yaml", "tsconfig.json"])
+    assert.match(
+      expect("files", repo(remove(f)), 1),
+      new RegExp(`missing: ${f}`),
+    );
+});
+test("gate-needs: a job id with a trailing comment is still a job", () => {
+  const commented = edit(
+    ".github/workflows/ci.yml",
+    "  gate:\n",
+    "  lint:  # fast\n    runs-on: ubuntu-latest\n  gate:\n",
+  );
+  assert.match(expect("gate-needs", repo(commented), 1), /lint/);
+});
+test("types: a canary whose wrong type tsc does not report cannot be checked", () => {
+  const strictOnly = canaryDir("types", {
+    "canary.ts": "export function same(x) {\n  return x;\n}\n",
+    "tsconfig.json":
+      '{ "compilerOptions": { "strict": true, "noEmit": true } }\n',
+  });
+  expect("types", repo(), 3, { canaries: strictOnly });
+});
+test("an unknown first argument or a --root without a folder is a usage error", () => {
+  assert.equal(run(["text", "--rot", "x"]).code, 2);
+  assert.match(run(["text", "--root"]).out, /--root needs a folder/);
 });
 test("an unknown argument is a usage error", () => {
   const r = run(["text", "--root", repo(), "--rot", "x"]);
