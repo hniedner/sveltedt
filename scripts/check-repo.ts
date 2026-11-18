@@ -1,6 +1,7 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
+//   node scripts/check-repo.ts commit-msg <file>        the commit-msg hook (.githooks/), run by git
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
@@ -723,7 +724,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
     steps: ["text"],
   },
   {
@@ -1731,6 +1732,12 @@ function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
 
+/** A range without commits: nothing to check locally; in CI, where every event brings a commit, a wrong range. */
+function emptyRange(range: string): Result {
+  if (inCI()) return result(CANNOT, `no commit in ${range} in CI`);
+  return result(NA, `no commit in ${range}`);
+}
+
 /** The commits the branch adds: GATE_BASE..GATE_HEAD in CI, after the merge base with origin/main locally. */
 function commitRange(root: string): Result | { range: string } {
   const base = process.env.GATE_BASE;
@@ -1769,11 +1776,7 @@ function secrets(root: string): Result {
   );
   if (count.status !== 0)
     return result(CANNOT, `git cannot read the range ${range.range}`);
-  if (Number(count.stdout.trim()) === 0) {
-    // Every CI event that runs the gate brings a commit: an empty range there is a wrong range, not "nothing to do".
-    if (inCI()) return result(CANNOT, `no commit in ${range.range} in CI`);
-    return result(NA, `no commit in ${range.range}`);
-  }
+  if (Number(count.stdout.trim()) === 0) return emptyRange(range.range);
   const r = spawnSync(
     process.execPath,
     [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
@@ -1801,6 +1804,79 @@ function secrets(root: string): Result {
   );
 }
 
+// The commit header the changelog is generated from (method section 7; docs/decisions/001-quality-tooling.md).
+const TYPES = [
+  "build",
+  "chore",
+  "ci",
+  "docs",
+  "feat",
+  "fix",
+  "perf",
+  "refactor",
+  "revert",
+  "style",
+  "test",
+];
+const HEADER = new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: \\S`);
+const MAX_HEADER = 100;
+function headerProblem(h: string): string | null {
+  if (!HEADER.test(h))
+    return `"${h}": not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
+  if (h.length > MAX_HEADER)
+    return `"${h}": ${h.length} characters, more than ${MAX_HEADER}`;
+  return null;
+}
+
+// Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
+function commits(root: string): Result {
+  const range = commitRange(root);
+  if (isResult(range)) return range;
+  const r = spawnSync(
+    "git",
+    ["-C", root, "log", "--no-merges", "--format=%h %s", range.range],
+    { encoding: "utf8", env: childEnv() },
+  );
+  if (r.status !== 0)
+    return result(CANNOT, `git log ${range.range} failed: ${r.stderr.trim()}`);
+  const lines = r.stdout.split("\n").filter(Boolean);
+  if (!lines.length) return emptyRange(range.range);
+  const details = lines.flatMap((l) => {
+    const problem = headerProblem(l.slice(l.indexOf(" ") + 1));
+    return problem ? [`${l.split(" ")[0]} ${problem}`] : [];
+  });
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} of ${lines.length} commit(s)`,
+      details,
+    );
+  return result(
+    PASS,
+    `${lines.length} commit(s) in ${range.range}, every header conventional`,
+  );
+}
+
+// The commit-msg hook's check of one message file. git's own merge header passes; the gate's range check, which
+// leaves real merges out, still catches a non-merge commit that only looks like one.
+function commitMsg(file: string | undefined): Result {
+  let text: string;
+  try {
+    text = readFileSync(file ?? "", "utf8");
+  } catch {
+    return result(USAGE, `cannot read the message file ${file ?? ""}`);
+  }
+  const header =
+    text
+      .split("\n")
+      .find((l) => l.trim() && !l.startsWith("#"))
+      ?.trim() ?? "";
+  if (!header) return result(FINDING, "the message is empty");
+  if (/^Merge /.test(header)) return result(PASS, "a merge header");
+  const problem = headerProblem(header);
+  return problem ? result(FINDING, problem) : result(PASS, `"${header}"`);
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -1813,6 +1889,7 @@ const CHECKS: Record<string, Check> = {
   types,
   svelte,
   dupes,
+  commits,
   pins,
   "gate-needs": gateNeeds,
   links,
@@ -1830,12 +1907,13 @@ function report(name: string, r: Result): number {
 function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
+  if (name === "commit-msg") return report(name, commitMsg(rest[0]));
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",
       result(
         USAGE,
-        `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`,
+        `unknown check; use one of all, needs, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
   const [flag, given, ...extra] = rest;

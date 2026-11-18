@@ -184,8 +184,11 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
     "svelte.config.js": "export default {};\n",
+    ".githooks/commit-msg":
+      '#!/bin/sh\nexec node scripts/check-repo.ts commit-msg "$@"\n',
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
+  chmodSync(join(root, ".githooks/commit-msg"), 0o755);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
@@ -706,6 +709,7 @@ test("text: a repository without a file of its class cannot be checked", () => {
         "node_modules", // the link .gitignore kept untracked
         ".node-version",
         ".github/CODEOWNERS",
+        ".githooks/commit-msg",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
         "docs/PRD.md",
@@ -2376,6 +2380,148 @@ test("workflows: a missing zizmor cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: join(tempDir(), "absent") });
 });
 
+test("commits: passes when every commit after origin/main has a conventional header", () => {
+  expect(
+    "commits",
+    branch("feat: add a thing", "fix(table)!: change a thing"),
+    0,
+  );
+});
+test("commits: a header without a type is a finding that names it", () => {
+  const out = expect("commits", branch("feat: fine", "Add the thing"), 1);
+  assert.match(out, /Add the thing/);
+});
+test("commits: a type outside the list is a finding", () => {
+  expect("commits", branch("feature: add a thing"), 1);
+});
+test("commits: a header over 100 characters is a finding", () => {
+  expect("commits", branch(`feat: ${"x".repeat(95)}`), 1);
+});
+/** Makes `side` from `from` with one commit `subject`, then merges it into the branch with git's own header. */
+function mergeSide(root: string, from: string, subject: string): void {
+  git(root, "checkout", "-q", "-b", "side", from);
+  commit(root, subject);
+  git(root, "checkout", "-q", "-");
+  git(
+    root,
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.org",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "merge",
+    "-q",
+    "--no-ff",
+    "-m",
+    "Merge branch 'side'",
+    "side",
+  );
+}
+test("commits: a merge commit is not checked", () => {
+  const root = branch("feat: on the branch");
+  mergeSide(root, "HEAD~1", "fix: on the side");
+  expect("commits", root, 0);
+});
+test("commits: a branch that merged main is not judged by main's plain subjects", () => {
+  // Older main history has plain subjects. Only commits after the merge base with main count; not first-parent,
+  // because a branch merged into this one (not main) lands on main too and is checked.
+  const root = branch("feat: on the branch");
+  mergeSide(root, "refs/remotes/origin/main", "Add a plain subject on main");
+  git(root, "update-ref", "refs/remotes/origin/main", "side");
+  const main = git(root, "rev-parse", "side").trim();
+  assert.match(expect("commits", root, 0), /^PASS commits: 1 commit\(s\)/m);
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: main, GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a branch with no commit after origin/main is not applicable", () => {
+  notApplicable(["commits", "--root", repo()]);
+});
+test("commits: in CI, an empty range cannot be checked, never NOT APPLICABLE", () => {
+  expect("commits", repo(), 3, {
+    extraEnv: { GITHUB_ACTIONS: "true", GATE_BASE: "HEAD", GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a repository without origin/main cannot be checked", () => {
+  const root = branch("feat: x");
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  expect("commits", root, 3);
+});
+test("commits: CI's range from GATE_BASE and GATE_HEAD is the one checked", () => {
+  const root = branch("Add a thing", "feat: fine");
+  const base = git(root, "rev-parse", "HEAD~1").trim();
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: base, GATE_HEAD: "HEAD" },
+  });
+});
+
+/** Runs the commit-msg entry on a message file holding `text`. */
+function commitMsg(text: string, code: number): string {
+  const file = join(tempDir(), "COMMIT_EDITMSG");
+  writeFileSync(file, text);
+  const r = run(["commit-msg", file]);
+  assert.equal(r.code, code, r.out);
+  return r.out;
+}
+test("commit-msg: a conventional header passes", () => {
+  commitMsg("# a comment git adds\nfeat: add a thing\n\nThe body.\n", 0);
+});
+test("commit-msg: a header without a type is a finding", () => {
+  assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg/m);
+});
+test("commit-msg: git's merge header passes", () => {
+  commitMsg("Merge branch 'main' into chore/hooks\n", 0);
+});
+test("commit-msg: an empty message is a finding", () => {
+  commitMsg("# only a comment\n", 1);
+});
+test("commit-msg: a message file that cannot be read is a usage error", () => {
+  const r = run(["commit-msg", join(tempDir(), "absent")]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /^USAGE commit-msg: cannot read the message file /m);
+});
+
+test("commit-msg: git runs the hook and refuses a header that is not conventional", () => {
+  const root = repo((r) => {
+    for (const f of ["check-repo.ts", "pinned.ts"])
+      put(r, `scripts/${f}`, readFileSync(join(here, f)));
+  });
+  commit(root, "chore: add the runner");
+  git(root, "config", "core.hooksPath", ".githooks");
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const gitCommit = (message: string) => {
+    const r = spawnSync(
+      "git",
+      [
+        "-C",
+        root,
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.org",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-q",
+        "-m",
+        message,
+      ],
+      { encoding: "utf8", env: GIT_ENV },
+    );
+    return { code: r.status, out: r.stdout + r.stderr };
+  };
+  const head = () => git(root, "log", "-1", "--format=%s").trim();
+  const refused = gitCommit("Add a note");
+  assert.notEqual(refused.code, 0, refused.out);
+  assert.match(refused.out, /^FINDING commit-msg: /m);
+  assert.equal(head(), "chore: add the runner");
+  const taken = gitCommit("docs: add a note");
+  assert.equal(taken.code, 0, taken.out);
+  assert.equal(head(), "docs: add a note");
+});
+
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
@@ -2671,11 +2817,11 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
+  // The fixture has no commit after origin/main, so the commits and secrets steps have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 2 not applicable: svelte, secrets$/m,
+    /^PASS all: 15 checks passed, 3 not applicable: svelte, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

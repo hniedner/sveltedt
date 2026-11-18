@@ -10,6 +10,7 @@ One command runs every check that exists today, in order, stopping at the first 
 
 ```sh
 pnpm install --frozen-lockfile
+git config core.hooksPath .githooks   # once per clone: the hooks below
 pnpm gate
 ```
 
@@ -86,11 +87,24 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
+- **commits:** every commit of the branch, merges left out, has a conventional header (see Hooks).
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI).
 
 Every tool step first runs on a planted violation (files in `scripts/canaries/`, or one the step builds) and must
 find it, so a tool that silently checks nothing cannot pass.
+
+## Hooks
+
+git runs them from `.githooks/` once `core.hooksPath` is set. They read files and change none.
+
+- **commit-msg:** the header is `<type>(<scope>): <subject>` (scope optional, `!` before the colon for a breaking
+  change), at most 100 characters. The types are the list `TYPES` in `scripts/check-repo.ts`; a refused header
+  prints them. The changelog is generated from these headers.
+
+A hook that refuses is answered by fixing the change or rewording the message, never by `--no-verify` (method
+section 10). A bad message on a pushed branch is not rewritten: the work moves to a new branch from `main` with a
+correct message.
 
 ## How a change is made
 
@@ -107,8 +121,8 @@ find it, so a tool that silently checks nothing cannot pass.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the commit-message check and the local hooks that run checks before a commit or a push (issue #6); until they exist, maintainers run the private word scan
-  by hand before every push;
+- the local hooks that run checks before a commit or a push (issue #6); until they exist, maintainers run the
+  private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

@@ -63,7 +63,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Gate
         env:
-          # The secrets step scans this range: the pull request's commits, or the pushed ones on main. A missing
+          # The secrets and commits steps check this range: the pull request's commits, or the pushed ones on main. A missing
           # base makes the scan answer could-not-check, never a silent pass.
           GATE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           GATE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
