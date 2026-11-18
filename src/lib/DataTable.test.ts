@@ -34,6 +34,18 @@ function firstCells(): string[] {
     .map((row) => within(row).getAllByRole("cell")[0]?.textContent ?? "");
 }
 
+// The text of every cell of each body row, top to bottom
+function cellTexts(): string[][] {
+  return screen
+    .getAllByRole("row")
+    .map((row) =>
+      within(row)
+        .queryAllByRole("cell")
+        .map((cell) => cell.textContent.trim()),
+    )
+    .filter((cells) => cells.length > 0);
+}
+
 // Mounts the table with the given props over a one-row base; returns the element that holds the component
 function show(props: Partial<DataTableProps<Item>> = {}): HTMLElement {
   const base: DataTableProps<Item> = {
@@ -87,8 +99,10 @@ describe("A11Y-02", () => {
 // @spec("RND-08", "e3e4bdfc")
 describe("RND-08", () => {
   it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
-    show();
+    show({ columns: [idColumn, nameColumn] });
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
+    // Each column's own value: the id cell holds r1, not the first column's value repeated
+    expect(cellTexts()).toEqual([["r1", "Beta"]]);
   });
 });
 
