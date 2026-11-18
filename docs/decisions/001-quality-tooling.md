@@ -188,9 +188,10 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - with the first component test (taken in build 1a): Vitest's `expect.requireAssertions: true` (method section 4: a
   test without an assertion fails), `resolve.conditions: ['browser']`, and a setup file with `cleanup()` after each
-  test. Left there: the split into a Node and a jsdom project (one jsdom project runs the site server's tests too;
-  measured in 1a), the jest-dom matchers (the tests assert with Vitest's own `expect`), and a Dependabot group for
-  `vitest` and `@vitest/*` (the only direct `@vitest/*` package, the ESLint plugin, is versioned on its own);
+  test. Left there: the split into a Node and a jsdom project (the site server's test file names the Node
+  environment in its first line, `// @vitest-environment node`), the jest-dom matchers (the tests assert with
+  Vitest's own `expect`), and a Dependabot group for `vitest` and `@vitest/*` (the only direct `@vitest/*` package,
+  the ESLint plugin, is versioned on its own);
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**
