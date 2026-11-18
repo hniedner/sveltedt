@@ -423,7 +423,7 @@ an open question.
 | R13 | A StrykerJS move to Svelte's modern AST, or Svelte 6, changes what is mutated. | Pinned version; the recorded per-file mutant counts of G2 fail an upgrade that drops mutants. |
 | R14 | The DataTables server-side protocol changes in a new major. | W11's fixtures name the major they record; the connection helper's spec names the major it covers; a new major is a new recording and a new spec part. |
 | R15 | Client-side processing of 100,000 rows blocks the main thread or holds too much memory on a modest device. | P4 budgets the time of a new sort or filter at 10,000 rows (500 ms) and bounds what the local data source adds per row (integer arrays only, no text cache, tested); 100,000 rows are measured and published (P4); the documentation publishes a table by data size (the rows' own and JSON megabytes beside the source's added megabytes) and advises server-side processing beyond the recommended size. |
-| R16 | A backend answers differently from the recorded fixtures (W11). | The helper reports what it cannot map as a failure (`onerror`) instead of showing wrong rows; a new backend is a new recording. |
+| R16 | A backend answers differently from the recorded fixtures (W11). | The helper reports what it cannot map as a failure (`onerror`) instead of showing wrong rows; a new backend is a new recording, and a backend upgrade is a new recording. |
 
 ## 10. Trace
 
