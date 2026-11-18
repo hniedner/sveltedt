@@ -54,6 +54,7 @@ function repo(change: (root: string) => void = () => {}): string {
     ".node-version": "26.0.0\n",
     "docs/engineering/method.md": "# Method\n\n[Companion](gates.md), [site](https://example.org/a), [top](#method).\n",
     "docs/engineering/gates.md": "# Gates\n",
+    "docs/PRD.md": "# Requirements\n",
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/check-repo.test.ts": PASSING_TEST,
@@ -115,6 +116,9 @@ const remove = (path: string) => (root: string): void => rmSync(join(root, path)
 
 test("files: passes on a complete repository", () => {
   expect("files", repo(), 0);
+});
+test("files: a missing requirements document is a finding", () => {
+  assert.match(expect("files", repo(remove("docs/PRD.md")), 1), /docs\/PRD\.md/);
 });
 test("files: a missing required file is a finding", () => {
   assert.match(expect("files", repo(remove("SECURITY.md")), 1), /SECURITY\.md/);

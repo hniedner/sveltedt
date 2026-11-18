@@ -16,7 +16,7 @@ const LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417
 const COPYRIGHT = "Copyright 2026 R. Hannes Niedner";
 const REQUIRED = [
   "README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md", "SECURITY.md", ".gitignore", ".node-version", "AGENTS.md",
-  "docs/engineering/method.md", "docs/engineering/gates.md", "scripts/actionlint.version",
+  "docs/engineering/method.md", "docs/engineering/gates.md", "docs/PRD.md", "scripts/actionlint.version",
   ".github/workflows/ci.yml", ".github/workflows/dependency-review.yml", ".github/workflows/scorecard.yml",
   ".github/dependabot.yml", ".github/CODEOWNERS", "scripts/check-repo.test.ts",
   "scripts/scan-secrets.ts", "scripts/scan-secrets.test.ts", "scripts/gitleaks.toml", "scripts/gitleaks.version",
