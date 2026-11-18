@@ -74,7 +74,12 @@ const FIXTURE_TSCONFIG = `{
   "include": ["src", "site", "test"]
 }
 `;
-const SCRIPTS_TSCONFIG = `{ "extends": "../tsconfig.json", "include": ["**/*.ts"] }\n`;
+const SCRIPTS_TSCONFIG = `{
+  "extends": "../tsconfig.json",
+  "include": ["**/*.ts"],
+  "exclude": ["canaries/**"]
+}
+`;
 const NODE_MAJOR = process.versions.node.split(".")[0];
 /** A script long enough for jscpd to count it (a file under its 50 tokens is not a source). */
 const TOOL = `export function describe(entries) {
@@ -842,12 +847,12 @@ test("lint: passes when ESLint fails its canaries and accepts every script", () 
 test("lint and format: a .js file is linted and formatted like a script", () => {
   expect(
     "lint",
-    repo((root) => put(root, "tools/x.js", 'export const a = eval("1");\n')),
+    repo((root) => put(root, "x.js", 'export const a = eval("1");\n')),
     1,
   );
   expect(
     "format",
-    repo((root) => put(root, "tools/x.js", "export const a = 1\n")),
+    repo((root) => put(root, "x.js", "export const a = 1\n")),
     1,
   );
 });
@@ -973,9 +978,10 @@ test("dupes: a jscpd that fails on the repository cannot be checked", () => {
     /jscpd exited|no jscpd report/,
   );
 });
-// A component project has small files: an index of two lines, a Vite config of 35 tokens. jscpd leaves out a file
-// under its 50 tokens; one that small cannot hold a clone of 50 tokens, so it is set aside by name with jscpd's own
-// count. mid.mjs (65 tokens) must be analysed: it pins one minimum for jscpd and for the comparison.
+// A component project has small files: an index of two lines, a Vite config of 35 tokens, a barrel of four lines.
+// jscpd leaves out a file under its 50 tokens or 5 lines; such a file cannot hold a clone, so it is set aside by name
+// with jscpd's own count. mid.mjs (65 tokens, 7 lines) and five.mjs (5 lines) must be analysed: they pin one minimum
+// each for jscpd and for the comparison.
 const SMALL = {
   "scripts/index.mjs":
     'export { one } from "./one.mjs";\nexport const two = 2;\n',
@@ -983,6 +989,10 @@ const SMALL = {
     'import { defineConfig } from "vite";\nexport default defineConfig({\n  root: "site",\n  build: { outDir: "dist" },\n  server: { port: 5173 },\n});\n',
   "scripts/mid.mjs":
     'export const settings = {\n  name: "table",\n  rows: [1, 2, 3, 4, 5, 6, 7, 8],\n  columns: ["id", "name", "price"],\n  page: { size: 20, index: 0 },\n  sort: { by: "name", up: true },\n};\n',
+  "scripts/barrel.mjs":
+    'export { alpha, beta, gamma, delta, epsilon, zeta } from "./greek.mjs";\nexport { one, two, three, four, five, six } from "./numbers.mjs";\nexport { red, green, blue, cyan, magenta, yellow } from "./colors.mjs";\nexport { north, south, east, west, up, down } from "./ways.mjs";\n',
+  "scripts/five.mjs":
+    'export const sizes = [10, 20, 50, 100];\nexport const orders = ["asc", "desc", "none"];\nexport const labels = { next: "Next", previous: "Previous" };\nexport const page = { index: 0, size: 20, count: 1 };\nexport const sort = { by: "id", order: "asc", stable: true };\n',
   "scripts/empty.mjs": "",
   "scripts/blank.mjs": "\n\n",
 };
@@ -992,14 +1002,15 @@ const small = (root: string) => {
 test("dupes: a file too small to hold a clone is set aside by name with jscpd's token count", () => {
   const out = expect("dupes", repo(small), 0);
   for (const line of [
-    "scripts/index.mjs: 13 tokens",
-    "scripts/vite.config.mjs: 35 tokens",
-    "scripts/empty.mjs: 0 tokens",
-    "scripts/blank.mjs: 0 tokens",
+    "scripts/index.mjs: 13 tokens in 2 line(s)",
+    "scripts/vite.config.mjs: 35 tokens in 6 line(s)",
+    "scripts/barrel.mjs: 68 tokens in 4 line(s)",
+    "scripts/empty.mjs: blank",
+    "scripts/blank.mjs: blank",
   ])
     assert.ok(out.includes(line), `${line}: ${out}`);
-  assert.doesNotMatch(out, /mid\.mjs/);
-  assert.match(out, /set aside 4 file\(s\) under 50 tokens/);
+  assert.doesNotMatch(out, /mid\.mjs|five\.mjs/);
+  assert.match(out, /set aside 5 file\(s\) under 50 tokens or 5 lines/);
 });
 test("dupes: a clone is still a finding beside the files set aside", () => {
   const out = expect(
@@ -1018,8 +1029,36 @@ test("dupes: a file jscpd leaves out that could hold a clone cannot be checked, 
   const big = (root: string) =>
     put(root, "scripts/big.mjs", "export const one = 1;\n".repeat(60000));
   const out = expect("dupes", repo(big), 3);
-  assert.match(out, /scripts\/big\.mjs/);
+  assert.match(out, /scripts\/big\.mjs: not counted/);
   assert.match(out, /could hold a clone/);
+});
+test("dupes: a summary that names fewer files than jscpd analysed cannot pass: each is measured again and blocks", () => {
+  // jscpd caps its summary list at --summary-top. An analysed file cut from the list is measured like a file left out,
+  // and an analysed file holds a clone's worth of tokens and lines, so it blocks. The fake caps the first run's list.
+  const bin = join(tempDir(), "jscpd");
+  const real = join(here, "..", "node_modules", ".bin", "jscpd");
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const { readFileSync, writeFileSync } = require("node:fs");
+const args = process.argv.slice(2);
+const r = spawnSync(${JSON.stringify(real)}, args, { stdio: "inherit" });
+if (args.includes("--output") && args[args.indexOf("--min-tokens") + 1] !== "1") {
+  const f = args[args.indexOf("--output") + 1] + "/jscpd-report.json";
+  const report = JSON.parse(readFileSync(f, "utf8"));
+  report.summary.files = report.summary.files.slice(0, 1);
+  writeFileSync(f, JSON.stringify(report));
+}
+process.exit(r.status ?? 1);
+`,
+  );
+  chmodSync(bin, 0o755);
+  const out = expect("dupes", repo(), 3, { extraEnv: { JSCPD_BIN: bin } });
+  assert.match(
+    out,
+    /left out 1 file\(s\) that could hold a clone of 50 tokens and 5 lines/,
+  );
 });
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
@@ -1162,8 +1201,9 @@ test("svelte: TypeScript that mounts a generic component is checked against its 
   };
   const ok = expect("svelte", repo(project('{ id: 1, name: "a" }')), 0);
   assert.match(ok, /accepted 2 file\(s\)/);
-  const out = expect("svelte", repo(project('{ id: "x", name: "a" }')), 1);
-  assert.match(out, /src\/show\.ts:\d+ 2322 /);
+  // Item's own field is missing: only the explicit Item can say so (TS2741).
+  const out = expect("svelte", repo(project("{ id: 1 }")), 1);
+  assert.match(out, /src\/show\.ts:\d+ 2741 /);
 });
 test("svelte: TypeScript in neither program cannot be checked, and is named", () => {
   const out = expect(
@@ -1171,6 +1211,7 @@ test("svelte: TypeScript in neither program cannot be checked, and is named", ()
     repo((root) => put(root, "tools/z.ts", "export const one = 1;\n")),
     3,
   );
+  assert.match(out, /leaves out/);
   assert.match(out, /tools\/z\.ts/);
 });
 test("svelte: a script in the component program as well as in tsc's cannot be checked, and is named", () => {
@@ -1187,6 +1228,53 @@ test("svelte: a script in the component program as well as in tsc's cannot be ch
     3,
   );
   assert.match(out, /scripts\/scan-secrets\.ts/);
+});
+test("svelte: a test and a rune module beside the components are svelte-check's, their errors found", () => {
+  const COUNTER =
+    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
+  const beside = (file: string, text: string) => (r: string) => {
+    component(COMPONENT)(r);
+    put(r, file, text);
+  };
+  expect("svelte", repo(beside("src/count.svelte.ts", COUNTER)), 0);
+  for (const [file, text, code] of [
+    ["test/x.test.ts", 'export const n: number = "one";\n', 2322],
+    [
+      "src/count.svelte.ts",
+      COUNTER.replace("$state(0)", '$state<number>("zero")'),
+      2345,
+    ],
+  ] as const) {
+    const out = expect("svelte", repo(beside(file, text)), 1);
+    assert.match(out, new RegExp(`${file.replace(".", "\\.")}:\\d+ ${code} `));
+  }
+});
+test("svelte: TypeScript outside scripts/ with no component cannot be checked: svelte-check needs one", () => {
+  // Measured: svelte-check reports error 100001, no Svelte input, on a program of TypeScript alone.
+  const out = expect(
+    "svelte",
+    repo((r) => put(r, "src/index.ts", "export const one = 1;\n")),
+    3,
+  );
+  assert.match(out, /no component is tracked/);
+  assert.match(out, /src\/index\.ts/);
+});
+test("svelte: a component without a TypeScript script is a finding: svelte-check would check none of it", () => {
+  // Measured: svelte-check reports no error in the markup of a component without a script, nor in a script without
+  // lang="ts"; only a TypeScript file that imports one gets TS7016.
+  for (const body of [
+    "<p>{1}</p>\n",
+    "<script>\n  const n = 1;\n</script>\n\n<p>{n}</p>\n",
+    `<script module>\n  export const k = 1;\n</script>\n\n${COMPONENT}`,
+    '<!-- <script lang="ts"></script> -->\n<p>{1}</p>\n',
+  ]) {
+    const out = expect("svelte", repo(component(body)), 1);
+    assert.match(
+      out,
+      /src\/Count\.svelte: a script that is not lang="ts", or none/,
+      body,
+    );
+  }
 });
 test("svelte: a canary that svelte-check accepts cannot be checked", () => {
   const dir = canaryDir("svelte", {
@@ -1494,21 +1582,16 @@ test("svelte: another svelte-check version than the pin cannot be checked", () =
     3,
   );
 });
-test("types: a rune module (.svelte.ts) type-checks under the repository's tsconfig.json, its errors found", () => {
-  const runes = (body: string) => (root: string) => {
+test("types: scripts/ name their own types: the component side's ambient types are not theirs", () => {
+  // The root tsconfig.json declares the component side's types (svelte here; Vite's client in a component project);
+  // scripts/tsconfig.json names its own, so a rune, which only Svelte's types declare, is a type error in a script.
+  const root = repo((r) => {
     for (const f of ["tsconfig.json", "scripts/tsconfig.json"])
-      put(root, f, readFileSync(join(here, "..", f)));
-    put(root, "scripts/count.svelte.ts", body);
-  };
-  const COUNTER =
-    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
-  expect("types", repo(runes(COUNTER)), 0);
-  const out = expect(
-    "types",
-    repo(runes(COUNTER.replace("$state(0)", '$state<number>("zero")'))),
-    1,
-  );
-  assert.match(out, /count\.svelte\.ts/);
+      put(r, f, readFileSync(join(here, "..", f)));
+    put(r, "scripts/count.ts", "export const n: number = $state(0);\n");
+  });
+  const out = expect("types", root, 1);
+  assert.match(out, /scripts\/count\.ts.*TS2304/);
 });
 test("types: a script scripts/tsconfig.json leaves out cannot be checked", () => {
   const outside = (root: string): void => {
@@ -1516,7 +1599,7 @@ test("types: a script scripts/tsconfig.json leaves out cannot be checked", () =>
     put(
       root,
       "scripts/tsconfig.json",
-      SCRIPTS_TSCONFIG.replace("] }", '], "exclude": ["z.ts"] }'),
+      SCRIPTS_TSCONFIG.replace('"canaries/**"]', '"canaries/**", "z.ts"]'),
     );
   };
   assert.match(expect("types", repo(outside), 3), /scripts\/z\.ts/);
@@ -1524,6 +1607,38 @@ test("types: a script scripts/tsconfig.json leaves out cannot be checked", () =>
 test("types: a repository without scripts/tsconfig.json cannot be checked", () => {
   const out = expect("types", repo(remove("scripts/tsconfig.json")), 3);
   assert.match(out, /tsc could not read/);
+});
+test("types: a scripts/tsconfig.json that turns checking off cannot be checked: the canary runs under it", () => {
+  const root = repo((r) => {
+    put(
+      r,
+      "scripts/tsconfig.json",
+      SCRIPTS_TSCONFIG.replace(
+        "{\n",
+        '{\n  "compilerOptions": { "noCheck": true },\n',
+      ),
+    );
+    for (const f of ["canary.ts", "tsconfig.json"])
+      put(
+        r,
+        `scripts/canaries/types/${f}`,
+        readFileSync(join(here, "canaries", "types", f), "utf8"),
+      );
+  });
+  const out = expect("types", root, 3, {
+    canaries: join(root, "scripts", "canaries"),
+  });
+  assert.match(out, /tsc did not report the planted type errors/);
+});
+test("types: a declaration file or a .js file outside the root has no class until one is decided", () => {
+  for (const file of ["src/app.d.ts", "scripts/x.d.ts", "src/x.js"]) {
+    const out = expect(
+      "types",
+      repo((r) => put(r, file, "export {};\n")),
+      3,
+    );
+    assert.ok(out.includes(file), `${file}: ${out}`);
+  }
 });
 test("types: TypeScript outside scripts/ is not tsc's: an error there is svelte-check's to find", () => {
   // tsc sees a component only through svelte's ambient module, so it is not asked about the component side.

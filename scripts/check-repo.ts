@@ -686,9 +686,11 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
-    match: /\.js$/,
+    match: /^[^/]+\.js$/,
     steps: ["format", "lint"],
-    why: "dupes: configuration that tools read (svelte.config.js), no logic to copy",
+    // The project is TypeScript: the one .js file is the Svelte config at the root, so a .js file elsewhere has no
+    // class and blocks until one is decided.
+    why: "dupes: configuration that tools read at the root (svelte.config.js), no logic to copy",
   },
   // TypeScript has one checker by path: tsc through scripts/tsconfig.json for scripts/ (types); svelte-check through
   // the root tsconfig.json for the rest (svelte), which may import a component that tsc sees only as an ambient module.
@@ -697,14 +699,18 @@ const CLASSES: FileClass[] = [
     steps: ["format", "lint", "types"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
-  { match: /^scripts\/.*\.ts$/, steps: ["format", "lint", "types", "dupes"] },
+  {
+    match: /^scripts\/.*(?<!\.d)\.ts$/,
+    steps: ["format", "lint", "types", "dupes"],
+  },
   {
     match: /\.test\.ts$/,
     steps: ["format", "lint", "svelte"],
     why: "dupes: as for scripts; types: svelte-check's, since it may import a component",
   },
   {
-    match: /\.ts$/,
+    // A declaration file (.d.ts) has no class: skipLibCheck skips it, so a new one is a decision.
+    match: /(?<!\.d)\.ts$/,
     steps: ["format", "lint", "svelte", "dupes"],
     why: "types: svelte-check's, since it may import a component",
   },
@@ -791,8 +797,8 @@ function text(root: string, list: Set<string>): Result {
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts) and
-// SVELTE_CHECK_BIN.
+// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
+// SVELTE_CHECK_BIN and JSCPD_BIN.
 // An empty value counts as unset in both.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -1055,20 +1061,25 @@ interface CloneSide {
 interface JscpdReport {
   duplicates: { firstFile: CloneSide; secondFile: CloneSide }[];
   statistics: { total: { sources: number } };
-  summary: { files: { path: string; tokens: number }[] };
+  summary: { files: { path: string; tokens: number; lines: number }[] };
 }
 
 /** The smallest clone jscpd reports, in tokens: its --min-tokens, and the size a file needs to hold a clone. */
 const MIN_TOKENS = 50;
+/** ... and in lines: its --min-lines, and the length a file needs to hold a clone. */
+const MIN_LINES = 5;
+
+const jscpdBin = (): string =>
+  process.env.JSCPD_BIN || join(HERE, "..", "node_modules", ".bin", "jscpd");
 
 /** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. Its
- * summary names every file analysed with its token count; `minTokens` 1 measures files too small for a clone. */
+ * summary names every file analysed with its tokens and lines; `measure` counts files too small for a clone. */
 function jscpdReport(
   root: string,
   files: string[],
-  minTokens = MIN_TOKENS,
+  measure = false,
 ): JscpdReport | ToolError {
-  const bin = join(HERE, "..", "node_modules", ".bin", "jscpd");
+  const bin = jscpdBin();
   const out = mkdtempSync(join(tmpdir(), "jscpd-"));
   try {
     // Defaults written out, so an upgrade cannot change them silently.
@@ -1076,9 +1087,9 @@ function jscpdReport(
       "--no-gitignore",
       "--absolute",
       "--min-tokens",
-      String(minTokens),
+      measure ? "1" : String(MIN_TOKENS),
       "--min-lines",
-      minTokens === MIN_TOKENS ? "5" : "1",
+      measure ? "1" : String(MIN_LINES),
       "--max-size",
       "1mb",
       "--summary",
@@ -1119,7 +1130,7 @@ function jscpdReport(
 }
 
 const jscpdVersion = () =>
-  spawnSync(join(HERE, "..", "node_modules", ".bin", "jscpd"), ["--version"], {
+  spawnSync(jscpdBin(), ["--version"], {
     encoding: "utf8",
   })
     .stdout?.trim()
@@ -1165,34 +1176,38 @@ function dupes(root: string, list: Set<string>): Result {
   const report = jscpdReport(root, mine);
   if ("error" in report) return result(CANNOT, report.error);
   const sources = report.statistics.total.sources;
+  // A file the summary does not name, left out or cut from a capped list alike, is measured by a second run. Under
+  // MIN_TOKENS or MIN_LINES it cannot hold a clone; an analysed file can, so a capped list blocks here.
   const analysed = new Set(report.summary.files.map((f) => f.path));
-  if (analysed.size !== sources)
-    return result(
-      CANNOT,
-      `jscpd named ${analysed.size} of the ${sources} file(s) it analysed`,
-    );
   const left = mine.filter((f) => !analysed.has(f));
-  const small = left.length ? jscpdReport(root, left, 1) : null;
+  const small = left.length ? jscpdReport(root, left, true) : null;
   if (small && "error" in small) return result(CANNOT, small.error);
-  const tokens = new Map(small?.summary.files.map((f) => [f.path, f.tokens]));
-  const count = (f: string): number | undefined =>
-    tokens.get(f) ??
-    (readFileSync(join(root, f), "utf8").trim() ? undefined : 0);
-  const blocked = left.filter((f) => (count(f) ?? MIN_TOKENS) >= MIN_TOKENS);
+  const sizes = new Map(small?.summary.files.map((f) => [f.path, f]));
+  const blank = (f: string) => !readFileSync(join(root, f), "utf8").trim();
+  const fits = (f: string): boolean => {
+    const s = sizes.get(f);
+    return s ? s.tokens >= MIN_TOKENS && s.lines >= MIN_LINES : !blank(f);
+  };
+  const size = (f: string): string => {
+    const s = sizes.get(f);
+    if (s) return `${f}: ${s.tokens} tokens in ${s.lines} line(s)`;
+    return `${f}: ${blank(f) ? "blank" : "not counted"}`;
+  };
+  const blocked = left.filter(fits);
   if (blocked.length)
     return result(
       CANNOT,
-      `jscpd left out ${blocked.length} file(s) that could hold a clone of ${MIN_TOKENS} tokens`,
-      blocked.map((f) => `${f}: ${count(f) ?? "no"} tokens counted`),
+      `jscpd left out ${blocked.length} file(s) that could hold a clone of ${MIN_TOKENS} tokens and ${MIN_LINES} lines`,
+      blocked.map(size),
     );
-  const aside = left.map((f) => `${f}: ${count(f)} tokens`);
+  const aside = left.map(size);
   const details = report.duplicates.map(
     (d) => `${at(d.firstFile)} repeats ${at(d.secondFile)}`,
   );
   if (details.length)
     return result(FINDING, `${details.length} clone(s)`, details);
   const asideNote = aside.length
-    ? `; set aside ${aside.length} file(s) under ${MIN_TOKENS} tokens`
+    ? `; set aside ${aside.length} file(s) under ${MIN_TOKENS} tokens or ${MIN_LINES} lines`
     : "";
   return result(
     PASS,
@@ -1434,6 +1449,77 @@ function projectFiles(root: string): Result | Set<string> {
   return new Set(parsed.fileNames.map((f) => relative(root, f)));
 }
 
+/** Whether the component at `path` has a script, and lang="ts" on each, as Svelte's compiler parses it. */
+function typedScripts(path: string): boolean {
+  const { parse } = createRequire(join(HERE, "..", "package.json"))(
+    "svelte/compiler",
+  ) as typeof import("svelte/compiler");
+  try {
+    const ast = parse(readFileSync(path, "utf8"), { modern: true });
+    const scripts = [ast.instance, ast.module].filter(
+      (s) => s !== null && s !== undefined,
+    );
+    return (
+      scripts.length > 0 &&
+      scripts.every((s) =>
+        s.attributes.some(
+          (a) =>
+            a.name === "lang" &&
+            Array.isArray(a.value) &&
+            a.value[0]?.type === "Text" &&
+            a.value[0].data === "ts",
+        ),
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Why svelte-check cannot check `mine` as they are, or null: each must be in the root program, no script of tsc's
+ * (`theirs`) may be, a component must be among them, and each component's scripts must be TypeScript. */
+function svelteInputs(
+  root: string,
+  mine: string[],
+  theirs: string[],
+): Result | null {
+  const program = projectFiles(root);
+  if (isResult(program)) return program;
+  const outside = mine.filter((f) => !program.has(f));
+  if (outside.length)
+    return result(
+      CANNOT,
+      "tsconfig.json leaves out tracked components or TypeScript",
+      outside,
+    );
+  const both = theirs.filter((f) => program.has(f));
+  if (both.length)
+    return result(
+      CANNOT,
+      "tsconfig.json also holds scripts that types checks with tsc",
+      both,
+    );
+  // svelte-check refuses a program with no component (its error 100001, measured), so TypeScript waits for one.
+  if (!mine.some((f) => f.endsWith(".svelte")))
+    return result(
+      CANNOT,
+      "svelte-check checks TypeScript only beside a component, and no component is tracked",
+      mine,
+    );
+  // svelte-check checks neither the markup of a component without a script nor a script without lang="ts" (measured):
+  // each component needs a script, and each of its scripts TypeScript. Svelte's own parser reads them.
+  const untyped = mine.filter(
+    (f) => f.endsWith(".svelte") && !typedScripts(join(root, f)),
+  );
+  if (untyped.length)
+    return result(
+      FINDING,
+      `${untyped.length} component(s) without TypeScript`,
+      untyped.map((f) => `${f}: a script that is not lang="ts", or none`),
+    );
+  return null;
+}
+
 // svelte-check, strict, over every tracked component and the TypeScript outside scripts/ (PRD-G3); `types` keeps tsc
 // for scripts/. svelte-check lists no checked file and silently skips one tsconfig.json leaves out, so each file must
 // be in the program, and no file of `types` may be (two checkers, two answers). With none tracked the step is not
@@ -1482,22 +1568,8 @@ function svelte(root: string, list: Set<string>): Result {
       NA,
       `svelte-check ${got} failed the canary; no component and no TypeScript outside scripts/ is tracked`,
     );
-  const program = projectFiles(root);
-  if (isResult(program)) return program;
-  const outside = mine.filter((f) => !program.has(f));
-  if (outside.length)
-    return result(
-      CANNOT,
-      "tsconfig.json leaves out tracked components or TypeScript",
-      outside,
-    );
-  const both = checkedBy("types").filter((f) => program.has(f));
-  if (both.length)
-    return result(
-      CANNOT,
-      "tsconfig.json also holds scripts that types checks with tsc",
-      both,
-    );
+  const unfit = svelteInputs(root, mine, checkedBy("types"));
+  if (unfit) return unfit;
   const run = svelteCheck(root, join(root, "tsconfig.json"), config);
   if (run.broken.length)
     return result(
