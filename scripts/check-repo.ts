@@ -92,7 +92,8 @@ interface PackageJson {
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
-  bundledDependencies?: string[];
+  bundledDependencies?: string[] | boolean;
+  bundleDependencies?: string[] | boolean;
   private?: boolean;
 }
 
@@ -523,7 +524,9 @@ function packageProblems(pkg: PackageJson): string[] {
     ...Object.keys(pkg.optionalDependencies ?? {}).map(
       (n) => `optionalDependencies: ${n}`,
     ),
-    ...(pkg.bundledDependencies ?? []).map((n) => `bundledDependencies: ${n}`),
+    ...(["bundleDependencies", "bundledDependencies"] as const).flatMap((k) =>
+      pkg[k] === true ? [`${k}: all`] : (pkg[k] || []).map((n) => `${k}: ${n}`),
+    ),
   ].map((d) => `${d} would ship; only the svelte peer may`);
   const peers = Object.keys(pkg.peerDependencies ?? {})
     .filter((n) => n !== "svelte")
@@ -614,11 +617,15 @@ function licences(root: string): Result {
       CANNOT,
       "the allow list passed a planted unknown or GPL licence",
     );
-  const r = spawnSync(binaryOf("pnpm"), ["licenses", "list", "--json"], {
-    cwd: root,
-    encoding: "utf8",
-    env: childEnv(),
-  });
+  const r = spawnSync(
+    binaryOf("pnpm"),
+    ["licenses", "list", "--json", "--recursive"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: childEnv(),
+    },
+  );
   let record: Record<string, { name: string }[]>;
   try {
     if (r.status !== 0) throw new Error();
@@ -636,7 +643,9 @@ function licences(root: string): Result {
       `${details.length} package(s) outside the allow list`,
       details,
     );
+  // Not compared with the lockfile: packages for other platforms are locked but not installed.
   const count = Object.values(record).flat().length;
+  if (!count) return result(CANNOT, "pnpm listed no installed package");
   return result(PASS, `${count} package(s), every licence on the allow list`);
 }
 
@@ -1111,11 +1120,14 @@ function workflows(root: string, list: Set<string>): Result {
   const dir = mkdtempSync(join(tmpdir(), "zizmor-canary-"));
   try {
     writeFileSync(join(dir, "canary.yml"), ZIZMOR_CANARY);
-    const c = spawnSync(bin, ["--offline", join(dir, "canary.yml")]);
+    const c = spawnSync(bin, ["--offline", join(dir, "canary.yml")], {
+      encoding: "utf8",
+    });
     if (!finding(c.status))
       return result(
         CANNOT,
         `zizmor did not report the planted workflow (exit ${c.status})`,
+        `${c.stdout}${c.stderr}`.trim().split("\n").filter(Boolean),
       );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1131,7 +1143,7 @@ function workflows(root: string, list: Set<string>): Result {
     cwd: root,
     encoding: "utf8",
   });
-  const out = `${r.stdout}`.trim().split("\n").filter(Boolean);
+  const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
   if (r.status === 0)
     return result(
       PASS,
@@ -1282,6 +1294,12 @@ function secrets(root: string): Result {
       `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
       out,
     );
+  // node also exits 1 on an uncaught error: only the wrapper's own line makes it a finding.
+  if (
+    r.status === FINDING &&
+    !out.some((l) => l.startsWith("FINDING scan-secrets:"))
+  )
+    return result(CANNOT, "the secret scan exited 1 with no FINDING line", out);
   if (r.status === FINDING)
     return result(FINDING, `secrets in ${range.range}`, out);
   return result(

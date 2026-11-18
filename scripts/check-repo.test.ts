@@ -238,7 +238,7 @@ exit 0
   return bin;
 }
 
-/** A stand-in for pnpm: reports `version`; `licenses list --json` prints `licences` and exits `listExit`. */
+/** A stand-in for pnpm: reports `version`; `licenses list --json --recursive` prints `licences`, exits `listExit`. */
 function fakePnpm(
   version = "12.19.0",
   licences = '{"MIT":[{"name":"a"}],"ISC":[{"name":"b"}]}',
@@ -249,7 +249,7 @@ function fakePnpm(
     bin,
     `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi
-if [ "$1" = "licenses" ]; then echo '${licences}'; exit ${listExit}; fi
+if [ "$1" = "licenses" ]; then case " $* " in *" --recursive "*) ;; *) exit 2;; esac; echo '${licences}'; exit ${listExit}; fi
 exit 2
 `,
   );
@@ -277,7 +277,7 @@ function fakeZizmor({
     `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "zizmor ${version}"; exit 0; fi
 case " $* " in *" --offline "*) ;; *) echo "online audits need a token"; exit 2;; esac
-${crash ? 'echo "error: broken"; exit 1' : ""}
+${crash ? 'echo "error: broken" >&2; exit 1' : ""}
 files=""; for a in "$@"; do case "$a" in -*|plain) ;; *) files="$files $a";; esac; done
 ${canary ? 'if grep -q canary $files; then echo "error[dangerous-triggers]"; exit 13; fi' : ""}
 if grep -q bad $files; then echo "warning[template-injection]"; exit 12; fi
@@ -1038,7 +1038,7 @@ const fakeScan =
     put(
       root,
       "scripts/scan-secrets.ts",
-      `console.log("scan-secrets " + process.argv.slice(2).join(" "));\nprocess.exitCode = ${code};\n`,
+      `console.log("scan-secrets " + process.argv.slice(2).join(" "));\n${code === 1 ? 'console.log("FINDING scan-secrets: 1 leak(s)");\n' : ""}process.exitCode = ${code};\n`,
     );
 const notApplicable = (args: string[], opts?: RunOptions): void => {
   const r = run(args, opts);
@@ -1128,7 +1128,10 @@ test("workflows: a zizmor that misses the canary cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: fakeZizmor({ canary: false }) });
 });
 test("workflows: a zizmor that fails with an error cannot be checked", () => {
-  expect("workflows", repo(), 3, { zizmor: fakeZizmor({ crash: true }) });
+  const out = expect("workflows", repo(), 3, {
+    zizmor: fakeZizmor({ crash: true }),
+  });
+  assert.match(out, /error: broken/);
 });
 test("workflows: a repository without a workflow file cannot be checked", () => {
   const out = expect(
@@ -1521,6 +1524,20 @@ test("licences: a dependency-review workflow without an allow list cannot be che
 test("licences: a pnpm that cannot list the licences cannot be checked", () => {
   const broken = fakePnpm("12.19.0", "not json", 1);
   expect("licences", repo(), 3, { pnpm: broken });
+});
+test("licences: an empty licence record cannot be checked", () => {
+  expect("licences", repo(), 3, { pnpm: fakePnpm("12.19.0", "{}") });
+});
+test("secrets: a wrapper that crashes cannot be checked, never a finding", () => {
+  // node exits 1 on an uncaught error, the wrapper's own code for leaks
+  const root = branch("feat: a commit to scan");
+  put(root, "scripts/scan-secrets.ts", 'throw new Error("crash");\n');
+  commit(root, "test: plant a crashing wrapper");
+  assert.match(expect("secrets", root, 3), /no FINDING line/);
+});
+test("lockfile: bundleDependencies, npm's own spelling, would ship", () => {
+  const bundled = pkg((p) => Object.assign(p, { bundleDependencies: ["c"] }));
+  assert.match(expect("lockfile", repo(bundled), 1), /bundleDependencies: c/);
 });
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
