@@ -77,8 +77,9 @@ pages named, or measured with the command named.
 
 Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included".
 
-**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: Apache-2.0,
-BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC0-1.0, ISC, MIT. Another Category A licence or a listed Category B one
+**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: 0BSD, Apache-2.0,
+BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC-BY-4.0, CC0-1.0, ISC, MIT, MPL-2.0. Another
+Category A licence or a listed Category B one
 joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
 The gate's licences step reads the list there and fails a licence pnpm cannot detect. Known limit: a licence written
 as an SPDX expression (`MIT OR CC0-1.0`) fails its exact match, though dependency-review accepts it (issue #7).
@@ -87,11 +88,17 @@ BSD-2-Clause-Views joined the list by the owner's decision, 2026-11-17, for uri-
 development only). It is BSD-2-Clause plus a disclaimer that the views are the authors' own. Category A as a variant
 of "BSD (without advertising clause)" (INFERRED: the ASF page names that family's variants but not this one).
 
-Category B licences in use: none today. Expected:
+Three more joined the list by the owner's decision, 2026-11-17, all development only:
 
-- MPL-2.0 (lightningcss, under Tailwind 4 and Vite 8);
-- CC-BY-4.0 (caniuse-lite, under the browser-floor check).
-  Both are development-only and listed here when they enter.
+- CC-BY-4.0 (Category B, READ): caniuse-lite, through browserslist under eslint-plugin-compat; needed from the
+  pull request that brings the Svelte checks on.
+- MPL-2.0 (Category B, READ): lightningcss, through Vite and @tailwindcss/node; needed from the first build of the
+  component on.
+- 0BSD (Category A, READ: "Zero-Clause BSD"): tslib, through an optional WebAssembly part of Vite's bundler; needed
+  from the first build of the component on.
+
+A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
+package is the gate's rule that nothing ships but a `svelte` peer.
 
 ## Accepted advisories
 
