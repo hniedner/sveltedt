@@ -68,8 +68,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   was tested there and is untested now fails, so a deleted test fails. On main and locally there is no base, and
   only the list is printed.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
-  recorded in the closing comment) exits 1 while any of them is untested; an empty list or an id no spec holds is
-  exit 2. `trace --release` runs in the release build: from 1.0 on it exits 1 while any statement is untested;
+  recorded in the closing comment, which no check enforces) exits 1 while any of them is untested; an empty list or
+  an id no spec holds is exit 2. `trace --release` runs in the release build: from 1.0 on (a 1.0 release candidate
+  counts as 1.0; the 0.1.0 rehearsal prerelease does not) it exits 1 while any statement is untested;
   before 1.0 it exits 0 and prints the untested count for the release notes (closed milestones were checked by
   `--close`).
 - Skip, xfail, `.only` and `todo` fail the check.
