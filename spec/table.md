@@ -32,7 +32,11 @@ to the consumer as one callback (stated with the statements that add user action
   `messages` (the words); the snippets `heading` and `actions`. Later groups add their own props.
 - **The region** is the element with `role="region"` that holds the table (A11Y-09). **The alert** is the alert of
   RND-05. **The failed notice** is the element of A11Y-15 that holds the failed message (it also has
-  `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05.
+  `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
+  an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
+  A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
+  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component: the
+  one query without a role these statements allow, because the count has no role of its own.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
@@ -115,8 +119,8 @@ its cells.
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
-  | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
+  | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
@@ -155,15 +159,16 @@ its cells.
   |---|---|---|
   | `loading` | false | "Loading data…" |
   | `failed` | false | "The rows could not be loaded." |
-  | `ready` | false | "No records." and a live count |
-  | `ready` | true | a live count |
+  | `ready` | false | "No records." and any count text |
+  | `ready` | true | any count text |
 
 - Reason: a state message beside the alert would describe a table that is not there, and two alerts compete for the
   screen reader.
 - Layer: component.
 - Traces: PRD-B16, PRD-B15.
 
-**RND-14** The `heading` snippet MUST render before the region in every state.
+**RND-14** The `heading` snippet MUST render before the region, or before the alert where there is no region, in
+every state.
 - Examples (the test runs every row; a `heading` snippet holding the heading "Orders"; the heading comes before the
   region in document order, and before the alert where there is no region):
 
@@ -214,8 +219,8 @@ its cells.
 - Traces: PRD-B3.
 
 **RND-12** The "Reset table" button MUST NOT be shown while no column is sortable or has a filter.
-- Example: two columns with neither: no button "Reset table" exists, in any state of STATE-01..05. (The filter group
-  adds the positive half.)
+- Example: two columns with neither: no button "Reset table" exists, in every state (STATE-01 to STATE-07 and the
+  alert). (The filter group adds the positive half.)
 - Reason: read-only tables are a common use and should carry no dead controls.
 - Layer: component.
 - Traces: PRD-B3, PRD-B8.
@@ -259,7 +264,7 @@ otherwise.
 - Layer: component.
 - Traces: PRD-B15.
 
-**STATE-05** While `busy` is true, the table MUST keep showing the rows it was given.
+**STATE-05** While `status` is `ready` and `busy` is true, the table MUST keep showing the rows it was given.
 - Example: 25 rows with `status 'ready'` and `busy true`: 25 body rows are shown.
 - Reason: the user keeps their context while the next page loads.
 - Layer: component.
@@ -267,9 +272,17 @@ otherwise.
 
 **STATE-06** With `status 'loading'`, the table MUST show only the loading message and none of the rows it is given.
 - Example: `status 'loading'` with three rows Beta, Gamma, Delta: "Loading data…" is shown, and no body cell holds
-  "Beta", "Gamma" or "Delta".
+  "Beta", "Gamma" or "Delta"; the same with `busy true`.
 - Reason: `loading` means there is no answer yet, so any rows shown are not the answer; a refetch that keeps the
   rows on screen is `busy`, not `loading` (STATE-05).
+- Layer: component.
+- Traces: PRD-B15.
+
+**STATE-07** With `status 'failed'`, the table MUST show none of the rows it is given.
+- Example: `status 'failed'` with three rows Beta, Gamma, Delta: "The rows could not be loaded." is shown, and no
+  body cell holds "Beta", "Gamma" or "Delta".
+- Reason: `failed` means the answer did not arrive, and PRD-B15 gives the failed state no count; a consumer that wants
+  to keep the last rows after a failed refetch keeps `status 'ready'` and reports the failure itself.
 - Layer: component.
 - Traces: PRD-B15.
 
@@ -343,14 +356,16 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
   start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
-  this order.)
+  this order.) Second example: the same with a `heading` snippet holding a link "All orders" and 30 rows in a
+  region 200 px high, so the region is a stop: Tab reaches "All orders", "Export", the region, "Open Beta", "Edit
+  Beta", and so on.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3.
 
 **A11Y-05** A polite live region MUST state the row count exactly when `status` is `ready` and `busy` is false.
 - Examples (the test runs every row; in every row the live region is in the document, so a later count is
-  announced):
+  announced; a `failed` row is also the "no count" of PRD-B15):
 
   | `status` | `busy` | Rows | Live count |
   |---|---|---|---|
@@ -363,17 +378,18 @@ snippet's controls, then the region while it is a stop, then the controls in the
 
 - Reason: a count announced while the next answer is on its way, or after a failure, would be wrong.
 - Layer: component.
-- Traces: PRD-A4.
+- Traces: PRD-A4, PRD-B15.
 
 **A11Y-14** The loading message MUST be inside a polite live region that was in the document before `status` became
 `loading`.
 - Example: rerender from `status 'ready'` to `status 'loading'`: "Loading data…" appears inside an element with
-  `role="status"` (a polite live region), and that element was in the document before the rerender.
+  `role="status"` (a polite live region), and that element was in the document before the rerender. Mounted with
+  `status 'loading'`: the same element holds "Loading data…".
 - Reason: a live region only announces changes to content it already held, so the user hears that loading started.
 - Layer: component.
 - Traces: PRD-A4.
 
-**A11Y-15** The failed message MUST be inside an element with `role="alert"`.
+**A11Y-15** The failed message MUST be inside an element with `role="alert"` (the failed notice).
 - Example: rerender from `status 'loading'` to `status 'failed'`: `getByRole('alert')` holds "The rows could not be
   loaded.".
 - Reason: a failure must be announced at once, not only when the user reaches the table.
@@ -464,9 +480,10 @@ unchanged.
 **FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
-  and unmount a control component (a `button` with `onclick` and an `input` with `onkeydown` and `oninput`) to
-  measure the listeners Svelte itself delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is mounted, the listeners added minus
-  those removed, per target and event type, are none; after unmount, likewise none.
+  and unmount a control component that handles every event type the table's own elements handle (so far `click`,
+  `keydown` and `input`; a group that adds a handler adds its type here) to measure the listeners Svelte itself
+  delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is
+  mounted, the listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener outlives the component or fights the app's own handlers.
 - Layer: component.
 - Traces: PRD-B19.
@@ -502,9 +519,12 @@ custom property with a CSS system-colour fallback.
   | `bg-[var(--sdt-surface,Canvas)]` | pass |
 
   A colour class is one with the utility prefix `bg-`, `text-`, `border-`, `outline-`, `ring-`, `divide-`,
-  `decoration-`, `accent-`, `caret-`, `fill-`, `stroke-`, `from-`, `via-`, `to-` or `shadow-` whose value is a colour
-  (not a size, a width or a style keyword). The scan reads the component source and, once the package is built
-  (PRD-K2), the built package; it finds no finding, and it reports how many class literals it read (more than 0).
+  `decoration-`, `accent-`, `caret-`, `fill-`, `stroke-`, `from-`, `via-`, `to-`, `shadow-`, `inset-shadow-`,
+  `inset-ring-`, `drop-shadow-` or `text-shadow-` whose value is a colour (not a size, a width or a style keyword).
+  The values `transparent`, `current` and `inherit` name no colour of their own and pass. A system colour is one of
+  the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`).
+  The scan reads the component source and, once the package is built (PRD-K2), the built package; it finds no
+  finding, and it reports how many class literals it read (more than 0).
 - Reason: prefixed names cannot collide with an application's tokens, and Tailwind only generates classes it finds as
   complete literals in the source; a palette class would ignore the consumer's theme.
 - Layer: static check.
@@ -579,6 +599,7 @@ table.
 | STATE-04 | PRD-B15 |
 | STATE-05 | PRD-B2, PRD-B1 |
 | STATE-06 | PRD-B15 |
+| STATE-07 | PRD-B15 |
 | A11Y-01 | PRD-A2 |
 | A11Y-13 | PRD-A2 |
 | A11Y-09 | PRD-A2 |
@@ -587,7 +608,7 @@ table.
 | A11Y-02 | PRD-A2 |
 | A11Y-04 | PRD-A2 |
 | A11Y-10 | PRD-A3 |
-| A11Y-05 | PRD-A4 |
+| A11Y-05 | PRD-A4, PRD-B15 |
 | A11Y-14 | PRD-A4 |
 | A11Y-15 | PRD-A4, PRD-B15 |
 | A11Y-16 | PRD-A10, PRD-A1 |
@@ -616,7 +637,7 @@ table.
 | PRD-B2 | STATE-05 | in part: one callback per action and the internal-state list arrive with the groups that add actions |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12 | in part: the sort and filter groups add the positive halves (a configured control appears) |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
-| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, A11Y-15, RND-13 | in full ("no count" while failed is A11Y-05) |
+| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, A11Y-15, RND-13, A11Y-05 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02 | in full for the props so far; later groups add their rows to RND-05 |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
