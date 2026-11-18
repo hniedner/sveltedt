@@ -1,0 +1,199 @@
+# Release path: release spec
+
+- **Name:** the path from a merged pull request to a published package: the workflows, the repository files they
+  depend on (`package.json`, the lockfile and package-manager settings, the Dependabot configuration), the release
+  workflow and the release record.
+- **Status:** part 1a of the release spec. Later parts add their statements to this file; the trace at the end says
+  which requirements the statements so far cover.
+- Field names: no
+- **Scope:** part 1a: the supply-chain rules for the repository's files (PRD-S5). The release workflow, the publishing
+  path and the release record (PRD-S7, the rest of PRD-S5) come with part 1b.
+
+## Conventions
+
+- **Statement form.** Each statement is one observable behaviour: an id, one MUST or MUST NOT sentence, an example
+  (or an example table: the test runs every row), the reason, the test layer and a `Traces:` line naming the
+  requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
+  a hash of the statement text.
+- **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
+  the method's rule (section 2, step 7).
+- **Test layers.**
+  - **static check**: a scan of the repository's files, run in the gate, behind a wrapper that must find a planted
+    canary. Each scan reports how many files it read; when it reads none, or a file it needs is missing, it reports
+    "could not check", which blocks like a finding (rule 4.0).
+- **The workflows** are the files under `.github/workflows/`; the actions of this repository are those under
+  `.github/actions/`.
+- **Jobs named in examples.** The release workflow (`.github/workflows/release.yml`, written with part 1b) has three
+  jobs: **the tag job** creates the version tag and the GitHub release; **the publish job** runs `npm publish`;
+  **the deploy job** deploys the public site to GitHub Pages. **The scorecard job** is the job of
+  `.github/workflows/scorecard.yml`.
+- **Data.** Example values are synthetic.
+- **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
+  A requirement id from `docs/PRD.md` is written `PRD-S5`.
+
+## 1. Supply chain (SUP)
+
+**SUP-01** Every action a workflow uses MUST be pinned by a full 40-character commit SHA, and every container image
+by its `sha256` digest.
+- Examples (the scan reads the workflows and the actions of this repository; the test runs every row as a canary in a
+  workflow file):
+
+  | `uses:` value | Result |
+  |---|---|
+  | `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1` | passes |
+  | `./.github/actions/setup` (an action in this repository) | passes |
+  | `actions/checkout@v4` | finding |
+  | `actions/checkout@main` | finding |
+  | `actions/checkout@3d3c42e` (a short SHA) | finding |
+  | `docker://node:22` | finding |
+  | `docker://node@sha256:` followed by 64 hex characters | passes |
+
+- Reason: a tag or branch can be moved to new code after review; a full SHA or digest cannot.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-02** Every workflow MUST grant its token no write scope at the top level.
+- Examples (the test runs every row as the top-level `permissions` of a canary workflow):
+
+  | Top-level `permissions` | Result |
+  |---|---|
+  | `contents: read` | passes |
+  | `{}` | passes |
+  | `read-all` | passes |
+  | missing | finding |
+  | `write-all` | finding |
+  | `contents: write` | finding |
+
+  A job may widen its own permissions; SUP-03 limits where.
+- Reason: a job that needs a write scope names it, so every other job runs read-only even if the repository default
+  changes.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-03** A write scope MUST appear only in the jobs this table names.
+- Examples (the scan lists every job-level write scope in every workflow and compares it with this table; the test
+  plants each canary in turn):
+
+  | Scope | Allowed only in |
+  |---|---|
+  | `contents: write` | the tag job |
+  | `id-token: write` | the publish job, the deploy job (GitHub Pages needs it) and the scorecard job |
+  | `pages: write` | the deploy job |
+  | `security-events: write` | the scorecard job |
+
+  The scorecard job as it is on `main` (`security-events: write`, `id-token: write`) passes. Canaries:
+  `contents: write` in the CI workflow's job is a finding; `id-token: write` in the tag job is a finding;
+  `pages: write` in the publish job is a finding; `packages: write` anywhere is a finding.
+- Reason: the token that can create a tag cannot publish, and the token that can publish cannot write to the
+  repository; a leak in one job costs only that job's power.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-04** The package MUST have no runtime dependency, and `svelte` MUST be its only peer dependency.
+- Examples (the scan reads the repository's root `package.json`; the test runs every row as a canary):
+
+  | `package.json` | Result |
+  |---|---|
+  | no `dependencies`, `peerDependencies` `{ "svelte": "^5.20.0" }` | passes |
+  | `dependencies` `{}`, the same peer | passes |
+  | `dependencies` `{ "clsx": "^2.0.0" }` | finding |
+  | `peerDependencies` `{ "svelte": "^5.20.0", "tailwindcss": "^4.0.0" }` | finding |
+  | `optionalDependencies` `{ "x": "1.0.0" }` | finding |
+  | no `peerDependencies` | finding |
+
+- Reason: every runtime dependency is code every consumer runs; the PRD allows the Svelte peer only.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-05** Every dependency install in a workflow MUST use the committed lockfile unchanged.
+- Examples (the test runs every row as a step of a canary workflow; with no lockfile in the repository the scan
+  reports "could not check"):
+
+  | Step | Result |
+  |---|---|
+  | `pnpm install --frozen-lockfile` | passes |
+  | `pnpm install` | finding |
+  | `pnpm i` | finding |
+  | `pnpm add left-pad` | finding |
+  | `npm install` | finding |
+  | `npm ci` | finding (the repository's lockfile is pnpm's) |
+  | `yarn install` | finding |
+  | `npm install --global npm@11.6.2` (a tool at a pinned version, not a dependency) | passes |
+  | `npm install --global npm@latest` | finding |
+  | `npm publish` | passes (not an install) |
+
+- Reason: an install that may rewrite the lockfile, or a tool at a floating version, can pull code nobody reviewed.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-06** Dependency install scripts MUST NOT run, except for the packages of the reviewed allow-list.
+- Examples (the scan reads the package manager's settings in the repository; the test runs every row as a canary):
+
+  | Setting | Result |
+  |---|---|
+  | no package allowed, and an unlisted package with a script fails the install | passes |
+  | `esbuild` allowed, with the reason its script must run beside it | passes |
+  | `esbuild` allowed with no reason | finding |
+  | every package allowed | finding |
+  | an unlisted package with a script only warned about, the install going on | finding |
+
+  The allow-list lives in the package manager's settings in the repository; each entry carries its reason in a
+  comment on the same or the line above.
+- Reason: an install script runs with the developer's and the runner's rights before any test or review.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-07** The Dependabot configuration MUST cover npm for the repository root and GitHub Actions, each with a
+cooldown and grouped version updates.
+- Examples (the scan reads `.github/dependabot.yml`; the test runs every row as a canary):
+
+  | Configuration | Result |
+  |---|---|
+  | `npm` for directory `/` and `github-actions`, each with `cooldown` and a `groups` entry for version updates | passes |
+  | the `npm` entry missing | finding |
+  | the `npm` entry for another directory only | finding |
+  | the `github-actions` entry without `cooldown` | finding |
+  | the `npm` entry without a group for version updates | finding |
+
+- Reason: grouped, delayed updates keep the review load small and let a bad release be withdrawn before it lands.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-08** At least one workflow MUST run the dependency review on every pull request.
+- Examples (the test runs every row as a canary):
+
+  | Workflows | Result |
+  |---|---|
+  | one workflow on `pull_request`, with no filter, whose job runs a step using `actions/dependency-review-action` | passes |
+  | that workflow with a `paths` filter on its `pull_request` trigger | finding (it would skip some pull requests) |
+  | that workflow with a `branches` filter on its `pull_request` trigger | finding |
+  | that job with an `if:` condition | finding |
+  | no workflow using `actions/dependency-review-action` | finding |
+  | the step only in a workflow on `push` | finding |
+
+- Reason: a new or changed dependency is reviewed before it can merge.
+- Layer: static check.
+- Traces: PRD-S5.
+
+## Trace
+
+### Statement -> PRD
+
+| Statement | PRD ids |
+|---|---|
+| SUP-01 | PRD-S5 |
+| SUP-02 | PRD-S5 |
+| SUP-03 | PRD-S5 |
+| SUP-04 | PRD-S5 |
+| SUP-05 | PRD-S5 |
+| SUP-06 | PRD-S5 |
+| SUP-07 | PRD-S5 |
+| SUP-08 | PRD-S5 |
+
+### PRD must -> statements
+
+| PRD id | Statements | Coverage |
+|---|---|---|
+| PRD-S5 | SUP-01, SUP-02, SUP-03, SUP-04, SUP-05, SUP-06, SUP-07, SUP-08 | in part: the repository-settings readings in the release record come with part 1b; secret scanning with push protection is a repository setting, recorded there |
+
+PRD musts of the release path left to later parts: PRD-S7, and PRD-K3's changelog and version rules.
