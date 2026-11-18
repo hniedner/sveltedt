@@ -2,8 +2,8 @@
 
 - **Name:** `DataTable`, the table component of SvelteDT (`@hniedner/sveltedt`). The pager, `Pagination`, gets its
   statements in a later group.
-- **Status:** group 1 of the component spec. Later groups add sort, filter, pager, column chooser, selection, sticky
-  layout, the strict-policy proofs, large pages and theming to this file.
+- **Status:** the first group of statements of the component spec. Later groups add their statements to this file;
+  the trace at the end says which requirements the statements so far cover.
 - Field names: no
 - **Scope:** the statements a read-only table needs: rows in the given order with text or snippet cells, the
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
@@ -11,7 +11,7 @@
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
-to the consumer as one callback (from group 2 on).
+to the consumer as one callback (stated with the statements that add user actions).
 
 ## Conventions
 
@@ -27,14 +27,16 @@ to the consumer as one callback (from group 2 on).
     indicators, hover, axe.
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
-- **Props used in this group.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
+- **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
   (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`); `busy`;
   `messages` (the words); the snippets `heading` and `actions`. Later groups add their own props.
 - **The region** is the element with `role="region"` that holds the table (A11Y-09). **The alert** is the alert of
-  RND-05. **The live count** is the polite live region of A11Y-05.
-- **Shown columns.** In this group every given column is shown; column hiding arrives with the column group.
-- **"Emits X once"** (used from group 2 on) means the callback prop `X` is called exactly once for that user action
+  RND-05. **The failed notice** is the element of A11Y-15 that holds the failed message (it also has
+  `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05.
+- **Shown columns.** Every given column is shown until the column statements add hiding.
+- **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
+- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -93,8 +95,9 @@ its cells.
 - Traces: PRD-S2.
 
 **RND-04** The component source MUST NOT contain a raw-HTML path.
-- Example: a scan of `src/lib` for `{@html`, `innerHTML`, `outerHTML` and `insertAdjacentHTML` finds none; a canary
-  file holding `{@html x}` is found.
+- Example: a scan of `src/lib` for `{@html`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`,
+  `createContextualFragment`, `DOMParser` and `srcdoc` finds none; canary files holding `{@html x}` and
+  `el.insertAdjacentHTML("beforeend", x)` are both found.
 - Reason: RND-03 sweeps the props that exist; the scan also covers every prop added later.
 - Layer: static check.
 - Traces: PRD-S2.
@@ -105,18 +108,20 @@ its cells.
 
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
-  | `caption` is empty or blank | `captionEmpty` | "Table caption must not be empty." |
-  | `regionLabel` is empty or blank | `regionLabelEmpty` | "Table region label must not be empty." |
+  | `caption` is empty | `captionEmpty` | "Table caption must not be empty." |
+  | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
-  | a row id is empty or blank | `rowIdEmpty` | "A row id is empty." |
+  | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
 
-  Later groups add the rows for their own props (sort, filters, hidden columns).
+  With several faults at once, the alert shows the message of the first row of this table that applies (for example
+  an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups add the rows for
+  their own props (sort, filters, hidden columns).
 - Reason: a wrong table is worse than none; the user would read, and later select or export, the wrong rows.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3.
@@ -142,6 +147,38 @@ its cells.
 - Layer: component.
 - Traces: PRD-B16.
 
+**RND-13** While the input is invalid, the alert MUST be the only state the table shows, whatever `status` is.
+- Examples (the test runs every row, each with `columns []`; in every row exactly one element has `role="alert"` and
+  it holds "Table has no columns."):
+
+  | `status` | `busy` | Not shown |
+  |---|---|---|
+  | `loading` | false | "Loading data…" |
+  | `failed` | false | "The rows could not be loaded." |
+  | `ready` | false | "No records." and a live count |
+  | `ready` | true | a live count |
+
+- Reason: a state message beside the alert would describe a table that is not there, and two alerts compete for the
+  screen reader.
+- Layer: component.
+- Traces: PRD-B16, PRD-B15.
+
+**RND-14** The `heading` snippet MUST render before the region in every state.
+- Examples (the test runs every row; a `heading` snippet holding the heading "Orders"; the heading comes before the
+  region in document order, and before the alert where there is no region):
+
+  | State |
+  |---|
+  | `status 'loading'` |
+  | `status 'failed'` |
+  | `status 'ready'`, no rows |
+  | `status 'ready'`, with rows |
+  | the alert of RND-05 |
+
+- Reason: the heading names what follows; read or tabbed after the table it would name nothing.
+- Layer: component.
+- Traces: PRD-A3, PRD-B16.
+
 **RND-06** Every fixed word the table shows or announces MUST come from a prop with an English default.
 - Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
   replacement appears where the row says and that no English default is left on the page, in an accessible name or
@@ -159,7 +196,7 @@ its cells.
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups add their words to this table.
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
-- Traces: PRD-I1.
+- Traces: PRD-I1, PRD-I2.
 
 **RND-07** A column that is not sortable MUST NOT show a sort button.
 - Example: the columns Name and Note, neither configured as sortable: no button whose name starts with "Sort by"
@@ -181,7 +218,7 @@ its cells.
   adds the positive half.)
 - Reason: read-only tables are a common use and should carry no dead controls.
 - Layer: component.
-- Traces: PRD-B3.
+- Traces: PRD-B3, PRD-B8.
 
 ## 2. States (STATE)
 
@@ -199,8 +236,9 @@ its cells.
 
 **STATE-03** With `status 'ready'` and no rows, the body MUST show the empty message in one cell that spans every
 shown column.
-- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records.". (The selection group
-  adds the row where the selection column is counted too.)
+- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records."; the same with
+  `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements add the row
+  where the selection column is counted too.)
 - Reason: a message squeezed into one column reads as a value in that column.
 - Layer: component.
 - Traces: PRD-B15.
@@ -227,6 +265,14 @@ otherwise.
 - Layer: component.
 - Traces: PRD-B2, PRD-B1.
 
+**STATE-06** With `status 'loading'`, the table MUST show only the loading message and none of the rows it is given.
+- Example: `status 'loading'` with three rows Beta, Gamma, Delta: "Loading data…" is shown, and no body cell holds
+  "Beta", "Gamma" or "Delta".
+- Reason: `loading` means there is no answer yet, so any rows shown are not the answer; a refetch that keeps the
+  rows on screen is `busy`, not `loading` (STATE-05).
+- Layer: component.
+- Traces: PRD-B15.
+
 ## 3. Keyboard and screen reader: the APG table pattern (A11Y)
 
 **A11Y-01** The table MUST be a native `table` element named by a `caption` element holding the `caption` prop.
@@ -240,6 +286,8 @@ otherwise.
 - Example: `caption="Orders"`: the caption's bounding box is at most 1 by 1 CSS px, and the table's accessible name
   is still "Orders".
 - Reason: the consumer's `heading` snippet is the visible title; a second visible title would repeat it.
+- Decided at spec review (2026-11-17): the caption is hidden visually. The consumer's heading is the visible title,
+  and a visually hidden caption is the standard way to name a table that already has a visible heading.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A2.
 
@@ -290,8 +338,8 @@ role `grid`, `treegrid` or `gridcell`, and no row, header cell or cell is focusa
 - Layer: component.
 - Traces: PRD-A2.
 
-**A11Y-10** The Tab order MUST follow the reading order: the `heading` and `actions` snippets' controls, then the
-region while it is a stop, then the controls in the cells row by row, each row from its first column to its last.
+**A11Y-10** The Tab order MUST follow the reading order: the `heading` snippet's controls, then the `actions`
+snippet's controls, then the region while it is a stop, then the controls in the cells row by row, each row from its first column to its last.
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
   start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
@@ -301,15 +349,17 @@ region while it is a stop, then the controls in the cells row by row, each row f
 - Traces: PRD-A3.
 
 **A11Y-05** A polite live region MUST state the row count exactly when `status` is `ready` and `busy` is false.
-- Examples (the test runs every row; two rows; in every row the live region is in the document, so a later count is
+- Examples (the test runs every row; in every row the live region is in the document, so a later count is
   announced):
 
-  | `status` | `busy` | Live count |
-  |---|---|---|
-  | `ready` | false | "2 rows displayed" |
-  | `ready` | true | empty |
-  | `loading` | false | empty |
-  | `failed` | false | empty |
+  | `status` | `busy` | Rows | Live count |
+  |---|---|---|---|
+  | `ready` | false | 2 | "2 rows displayed" |
+  | `ready` | false | 0 | "0 rows displayed" |
+  | `ready` | true | 2 | empty |
+  | `ready` | true | 0 | empty |
+  | `loading` | false | 2 | empty |
+  | `failed` | false | 0 | empty |
 
 - Reason: a count announced while the next answer is on its way, or after a failure, would be wrong.
 - Layer: component.
@@ -318,7 +368,7 @@ region while it is a stop, then the controls in the cells row by row, each row f
 **A11Y-14** The loading message MUST be inside a polite live region that was in the document before `status` became
 `loading`.
 - Example: rerender from `status 'ready'` to `status 'loading'`: "Loading data…" appears inside an element with
-  `role="status"` or `aria-live="polite"`, and that element was in the document before the rerender.
+  `role="status"` (a polite live region), and that element was in the document before the rerender.
 - Reason: a live region only announces changes to content it already held, so the user hears that loading started.
 - Layer: component.
 - Traces: PRD-A4.
@@ -334,7 +384,8 @@ region while it is a stop, then the controls in the cells row by row, each row f
 own focus indicator.
 - Example: the 30-column, 25-row table with a link in one column: hover every header cell and every body cell in turn,
   and focus the region and each link; after each step the page's visible text and the set of visible elements equal
-  those before the step. (The skip-link group adds its exception: the skip link becomes visible on focus.)
+  those before the step. Visible means rendered and not hidden by CSS (`display`, `visibility`, `opacity`, `hidden`),
+  whatever the scroll position, so a region that scrolls a focused link into view changes nothing. (The skip-link group adds its exception: the skip link becomes visible on focus.)
 - Reason: content that appears on hover or focus can cover what the user reads and must be dismissable; showing none
   meets WCAG 1.4.13 by design.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -383,13 +434,20 @@ own focus indicator.
 - Layer: component.
 - Traces: PRD-B17, PRD-B16.
 
-**EXP-01** The component MUST offer no built-in export and MUST NOT start a download.
-- Example: during mount, a rerender through every state of EXP-02, and a Tab through the table, `URL.createObjectURL`
-  is not called and no `a[download]` element appears.
+**EXP-01** The component MUST offer no export control of its own.
+- Example: in every state of EXP-02, with an `actions` snippet that holds no control, no button, link or menu item
+  whose accessible name contains "export" or "download" (any case) exists.
 - Reason: file formats, formula-injection guards and file names are the consumer's policy; the consumer already holds
   the rows it needs.
 - Layer: component.
-- Traces: PRD-B17, PRD-S3.
+- Traces: PRD-B17.
+
+**EXP-03** The component MUST NOT start a download.
+- Example: `URL.createObjectURL` is replaced by a spy (the simulated DOM has none); during mount, a rerender through
+  every state of EXP-02 and a Tab through the table, the spy is not called and no `a[download]` element appears.
+- Reason: downloads are the consumer's; a component that writes files works around the consumer's policy.
+- Layer: component.
+- Traces: PRD-S3, PRD-B17.
 
 ## 5. No global footprint (FOOT)
 
@@ -406,8 +464,8 @@ unchanged.
 **FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
-  and unmount an empty Svelte component with the same event types to measure Svelte's own delegated listeners, which
-  are excluded. Then mount the table through the states of FOOT-01: while it is mounted, the listeners added minus
+  and unmount a control component (a `button` with `onclick` and an `input` with `onkeydown` and `oninput`) to
+  measure the listeners Svelte itself delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is mounted, the listeners added minus
   those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener outlives the component or fights the app's own handlers.
 - Layer: component.
@@ -430,17 +488,23 @@ those Svelte adds for any component.
 The component's look comes from prefixed custom properties the consumer may define. Without them it falls back to
 the browser's system colours and stays usable.
 
-**THEME-01** Every colour, border-colour and surface class in the component source MUST be a complete literal class
-whose value reads a `--sdt-*` custom property with a CSS system-colour fallback.
-- Examples (the scan runs every row against a canary file holding it; the first two are refused, the third passes):
+**THEME-01** Every colour class in the component MUST be a complete literal class whose value reads a `--sdt-*`
+custom property with a CSS system-colour fallback.
+- Examples (the scan runs every row against a canary file holding it; only the last row passes):
 
   | Class in a canary file | Result |
   |---|---|
   | `bg-blue-500` (a palette class) | finding |
   | `` bg-[${tone}] `` (a class built at run time) | finding |
+  | `bg-[var(--sdt-surface,#fff)]` (fallback is not a system colour) | finding |
+  | `bg-[var(--sdt-surface)]` (no fallback) | finding |
+  | `bg-[var(--app-surface,Canvas)]` (not the `--sdt-` prefix) | finding |
   | `bg-[var(--sdt-surface,Canvas)]` | pass |
 
-  The scan over `src/lib` finds no finding, and it reports how many class literals it read (more than 0).
+  A colour class is one with the utility prefix `bg-`, `text-`, `border-`, `outline-`, `ring-`, `divide-`,
+  `decoration-`, `accent-`, `caret-`, `fill-`, `stroke-`, `from-`, `via-`, `to-` or `shadow-` whose value is a colour
+  (not a size, a width or a style keyword). The scan reads the component source and, once the package is built
+  (PRD-K2), the built package; it finds no finding, and it reports how many class literals it read (more than 0).
 - Reason: prefixed names cannot collide with an application's tokens, and Tailwind only generates classes it finds as
   complete literals in the source; a palette class would ignore the consumer's theme.
 - Layer: static check.
@@ -449,18 +513,26 @@ whose value reads a `--sdt-*` custom property with a CSS system-colour fallback.
 **THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the component's class literals
 use.
 - Example: a class literal reading `--sdt-border` with no `--sdt-border` row in the table is a finding; a table row
-  `--sdt-unused` that no class reads is a finding.
+  `--sdt-unused` that no class reads is a finding. The class literals are read as in THEME-01 (source, and the built
+  package once it exists).
 - Reason: the token names are public interface; a list kept by hand drifts from the code unless a check compares
   them.
 - Layer: static check.
 - Traces: PRD-T1.
 
-**THEME-03** With no `--sdt-*` property defined, the table MUST stay usable: its text readable, every focus indicator
-visible, and axe finding no serious or critical violation.
-- Example: the list page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
-  critical violations, and a keyboard-focused control's outline is not `none`.
+**THEME-03** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
+table.
+- Example: a site page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
+  critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
   get a plain table, not a broken one.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
+**THEME-06** With no `--sdt-*` property defined, a keyboard-focused control MUST show a visible focus indicator.
+- Example: the same page: Tab to the region of the 30-column table of A11Y-12; its computed outline is not `none` and
+  differs from its unfocused outline.
+- Reason: the focus indicator must not depend on a token the consumer may not define.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
@@ -474,13 +546,14 @@ visible, and axe finding no serious or critical violation.
 
 **THEME-05** The component's class literals MUST use only Tailwind's built-in variants.
 - Example: `hover:`, `focus-visible:`, `dark:` and `forced-colors:` pass; a canary class `app-dense:p-1` is a
-  finding.
+  finding. The list of built-in variants is read from the pinned Tailwind package, not kept by hand; the scan reads
+  the component source and, once it exists, the built package.
 - Reason: a custom variant needs a matching definition in the consumer's stylesheet, which a consumer would have to
   know about and copy.
 - Layer: static check.
 - Traces: PRD-T3.
 
-## Trace for group 1
+## Trace
 
 ### Statement -> PRD
 
@@ -494,15 +567,18 @@ visible, and axe finding no serious or critical violation.
 | RND-05 | PRD-B16, PRD-B3 |
 | RND-09 | PRD-S4, PRD-B16 |
 | RND-10 | PRD-B16 |
-| RND-06 | PRD-I1 |
+| RND-13 | PRD-B16, PRD-B15 |
+| RND-14 | PRD-A3, PRD-B16 |
+| RND-06 | PRD-I1, PRD-I2 |
 | RND-07 | PRD-B3 |
 | RND-11 | PRD-B3 |
-| RND-12 | PRD-B3 |
+| RND-12 | PRD-B3, PRD-B8 |
 | STATE-01 | PRD-B15 |
 | STATE-02 | PRD-B15 |
 | STATE-03 | PRD-B15 |
 | STATE-04 | PRD-B15 |
 | STATE-05 | PRD-B2, PRD-B1 |
+| STATE-06 | PRD-B15 |
 | A11Y-01 | PRD-A2 |
 | A11Y-13 | PRD-A2 |
 | A11Y-09 | PRD-A2 |
@@ -518,46 +594,50 @@ visible, and axe finding no serious or critical violation.
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
 | EXP-02 | PRD-B17, PRD-B16 |
-| EXP-01 | PRD-B17, PRD-S3 |
+| EXP-01 | PRD-B17 |
+| EXP-03 | PRD-S3, PRD-B17 |
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
+| THEME-06 | PRD-T2, PRD-A1 |
 | THEME-04 | PRD-T3 |
 | THEME-05 | PRD-T3 |
 
-### PRD must -> statements (the musts group 1 touches)
+### PRD must -> statements (the musts the statements so far touch)
 
-"In full" means group 1 holds every statement the requirement needs; "in part" names what later groups add.
+"In full" means the statements so far are every statement the requirement needs; "in part" names what later groups add.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05 | in part: the sort group adds the row where a `sort` prop is given and the order is still kept |
 | PRD-B2 | STATE-05 | in part: one callback per action and the internal-state list arrive with the groups that add actions |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12 | in part: the sort and filter groups add the positive halves (a configured control appears) |
-| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, A11Y-15 | in full ("no count" while failed is A11Y-05) |
-| PRD-B16 | RND-05, RND-09, RND-10, EXP-02 | in full for the props of group 1; later groups add their rows to RND-05 |
-| PRD-B17 | EXP-02, EXP-01 | in full |
+| PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
+| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, A11Y-15, RND-13 | in full ("no count" while failed is A11Y-05) |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02 | in full for the props so far; later groups add their rows to RND-05 |
+| PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16 | in part: the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, THEME-03, THEME-06 | in part: "with none" (no tokens) is THEME-03 and THEME-06; "with the example tokens" arrives with PRD-T4; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04 | in part: the sort group adds `aria-sort` on the lead column; the sticky group adds the `stickyHeader` row of A11Y-12 |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03 | in part: focus after an intent and the no-scroll rule for intents arrive with the intents |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14 | in part: focus after an intent and the no-scroll rule for intents arrive with the intents |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group adds the column-move announcement |
 | PRD-A10 | A11Y-16 | in part: the skip-link and dialog groups add their rows |
 | PRD-I1 | RND-06 | in part: later groups add their words to the RND-06 table |
+| PRD-I2 | RND-06 | in part: the count function is replaceable here (`rowCount`); the number-format function arrives with the pager statements |
 | PRD-S2 | RND-03, RND-04 | in part: later groups add their props to the RND-03 table |
-| PRD-S3 | EXP-01 | in part: no network request, cookie or web storage arrive with the strict-policy group |
+| PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09 | in part: the filter group's refusal messages and the pager's alert add rows |
-| PRD-T1 | THEME-01, THEME-02 | in full |
-| PRD-T2 | THEME-03 | in part: the sticky group adds "the header is opaque over rows" |
-| PRD-T3 | THEME-04, THEME-05 | in full ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
+| PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
+| PRD-T2 | THEME-03, THEME-06 | in part: the sticky group adds "the header is opaque over rows" |
+| PRD-T3 | THEME-04, THEME-05 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
 
-### PRD musts group 1 leaves to later groups
+### PRD musts not yet traced
 
 - Sort: PRD-B4, PRD-B5.
-- Filter and criteria: PRD-B6, PRD-B7, PRD-B8.
+- Filter and criteria: PRD-B6, PRD-B7.
 - Pager: PRD-B9.
 - Columns (chooser, reorder, resize): PRD-B10, PRD-B11, PRD-B12.
 - Selection: PRD-B13.
@@ -566,7 +646,7 @@ visible, and axe finding no serious or critical violation.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
 - Strict policy and side effects: PRD-S1.
 - Theming: PRD-T4 (the example token set, light and dark).
-- Internationalisation: PRD-I2, PRD-I3.
+- Internationalisation: PRD-I3.
 - Large pages and size: PRD-P1, PRD-P2, PRD-P3.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2, PRD-K3, PRD-K4.
