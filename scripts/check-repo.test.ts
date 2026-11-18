@@ -1139,6 +1139,39 @@ test("test: a canary that vitest passes cannot be checked", () => {
   });
   assert.match(out, /did not report the planted failing test/);
 });
+test("theme: with no component under src/lib the step is not applicable", () => {
+  const r = run(["theme", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE theme: no component is tracked under src\/lib$/m,
+  );
+});
+test("theme: a token class with a system-colour fallback passes", () => {
+  const good = '<div class="bg-[var(--sdt-surface,Canvas)]"></div>\n';
+  expect(
+    "theme",
+    repo((root) => put(root, "src/lib/T.svelte", good)),
+    0,
+  );
+});
+test("theme: a palette class in a component is a finding that names it", () => {
+  const bad = '<div class="bg-blue-500"></div>\n';
+  const out = expect(
+    "theme",
+    repo((root) => put(root, "src/lib/T.svelte", bad)),
+    1,
+  );
+  assert.match(out, /src\/lib\/T\.svelte:1: bg-blue-500/);
+});
+test("theme: a component with no colour class cannot be checked", () => {
+  const none = '<div class="p-2"></div>\n';
+  expect(
+    "theme",
+    repo((root) => put(root, "src/lib/T.svelte", none)),
+    3,
+  );
+});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -1998,7 +2031,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
+    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, theme, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

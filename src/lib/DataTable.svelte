@@ -8,14 +8,16 @@
 <div role="region" aria-label={regionLabel}>
   <table>
     <caption>{caption}</caption>
-    <thead>
+    <thead
+      class="bg-[var(--sdt-header-surface,ButtonFace)] text-[var(--sdt-header-text,ButtonText)]"
+    >
       <tr>
         {#each columns as column (column.id)}
           <th scope="col">{column.label}</th>
         {/each}
       </tr>
     </thead>
-    <tbody>
+    <tbody class="divide-y divide-[var(--sdt-border,GrayText)]">
       {#each rows as row (getRowId(row))}
         <tr>
           {#each columns as column (column.id)}
