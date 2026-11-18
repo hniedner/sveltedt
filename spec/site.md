@@ -136,53 +136,70 @@ the strict policy.
 - Layer: HTTP.
 - Traces: PRD-W5.
 
-**SRV-05** Started as `node site/server.ts` starts it, the site server MUST listen at `http://127.0.0.1:4173/`, on the
-loopback address only, and print that address once it listens.
-- Examples (the test runs every row; the server is started for a build folder holding `index.html`, the way the
-  server file's entry starts it for its own `dist` folder, in the test's own process, and stays running while the
-  test reads; it is closed afterwards):
+**SRV-05** The site server, started for a build folder that holds a file, MUST listen on `127.0.0.1` port 4173 and on
+no other address.
+- Examples (the test runs every row; it starts the server in its own process for a build folder holding
+  `index.html`, as SRV-06 describes the start, and closes it afterwards; before the start it checks that
+  127.0.0.1:4173 is free and otherwise fails as "could not check: 127.0.0.1:4173 is held by another process"):
 
   | Check | Result |
   |---|---|
-  | standard output | exactly one line, "The site: http://127.0.0.1:4173/", written once the server accepts connections |
+  | the address the listening server reports | address `127.0.0.1`, family IPv4, port 4173 |
   | `GET http://127.0.0.1:4173/` | 200, the bytes of `index.html` |
-  | a TCP connection to port 4173 on each IPv4 and IPv6 address of the machine that is not a loopback address | refused; the test fails as "could not check" when the machine has no such address |
-  | the process's exit code | unchanged |
 
-  Break that turns it red: the server listens on all addresses (`0.0.0.0` or `::`).
-- Reason: the tests and the maintainer find the site at one known address, and a test site that serves the build
-  with test switches must never be reachable from the network. Vite's `preview` listens on `localhost` by default and
-  on all addresses only when asked (FETCHED https://vite.dev/config/server-options, 2026-11-18); SvelteKit's
-  adapter-node listens on `0.0.0.0` by default (FETCHED https://svelte.dev/docs/kit/adapter-node, 2026-11-18), which
-  suits a production server, not a test site. The port is fixed, 4173 as Vite's `preview` uses: no requirement asks
-  for a setting.
+  Break that turns it red: the server listens on all addresses (`0.0.0.0` or `::`) or on `localhost`.
+- Reason: the tests and the maintainer find the site at one known address, and a test site that will serve test
+  switches (PRD-W2) must not be reachable from the network. Vite's `preview` listens on `localhost` by default and on
+  all addresses only when asked, on port 4173 (FETCHED https://vite.dev/config/preview-options and
+  https://vite.dev/config/server-options, 2026-11-18); SvelteKit's adapter-node listens on `0.0.0.0` by default
+  (FETCHED https://svelte.dev/docs/kit/adapter-node, 2026-11-18), which suits a production server, not a test site.
+  The port is fixed: no requirement asks for a setting.
 - Layer: HTTP.
-- Traces: PRD-W9, PRD-W5.
+- Traces: PRD-W9.
 
-**SRV-06** Started as `node site/server.ts` starts it, the site server MUST NOT serve when its build folder is
-missing or holds no file or its port is taken: it MUST write one line naming the cause to standard error, set the
-process's exit code to 1 and listen on nothing.
-- Examples (the test runs every row, starting the server in the test's own process as SRV-05 does; `<build folder>`
-  is the absolute path of the folder it is started for; the rows that use port 4173 run one at a time; the test
-  restores the exit code afterwards):
+**SRV-06** The site server MUST refuse to start when its build folder is missing or holds no file, or when
+127.0.0.1:4173 is in use, naming the cause.
+- Examples (the test runs every row; "the start" is `node site/server.ts`, which starts the server for the folder
+  `dist` beside the server file, and which a test may perform in its own process by starting the server for a
+  folder it names; there the test reads the process's exit code where a child process would end, captures what is
+  written to standard output and standard error through the streams and the console, and restores the exit code
+  afterwards; `<build folder>` is the absolute path of the folder; every row but the last first checks that
+  127.0.0.1:4173 is free, as SRV-05 does; "refused" means: exactly the one line named on standard error, nothing on
+  standard output, nothing listening on 127.0.0.1:4173 afterwards, and status 1):
 
-  | Before the start | Standard error | Afterwards |
+  | Before the start | Started | The line on standard error |
   |---|---|---|
-  | no folder at `<build folder>` | exactly one line, "The site: no build folder at <build folder>; build the site first." | exit code 1; a connection to 127.0.0.1:4173 is refused |
-  | an empty folder at `<build folder>` | exactly one line, "The site: the build folder <build folder> holds no file; build the site first." | exit code 1; a connection to 127.0.0.1:4173 is refused |
-  | a folder holding only an empty folder `assets` | the same line as the row above | the same |
-  | the build folder of SRV-05, and the test itself listening on 127.0.0.1:4173 | exactly one line, "The site: 127.0.0.1:4173 is in use." | exit code 1; the test's own listener still holds the port and answers |
+  | no folder at `<build folder>` | in the test's process | "The site: no build folder at <build folder>; build the site first." |
+  | an empty folder at `<build folder>` | in the test's process | "The site: the build folder <build folder> holds no file; build the site first." |
+  | a folder holding only an empty folder `assets` | in the test's process | the same line as the row above |
+  | a folder holding only a symbolic link `index.html` to a file outside it (not a file, SRV-04) | in the test's process | the same line as the row above |
+  | a copy of the server file in a new folder with no `dist` beside it | `node` on that copy, as a child process | "The site: no build folder at <the copy's folder>/dist; build the site first." |
+  | no folder at `<build folder>`, and the test itself listening on 127.0.0.1:4173 | in the test's process | the no-folder line: the build folder is checked before the port |
+  | the build folder of SRV-05, and the test itself listening on 127.0.0.1:4173 | in the test's process | "The site: 127.0.0.1:4173 is in use." (the test's own listener still holds the port: the control that the port was taken) |
 
-  In every row standard output stays empty. Break that turns it red: the server tries the next free port when 4173
-  is taken.
+  Break that turns it red: the server tries the next free port when 4173 is in use; or the entry starts the server
+  for another folder than `dist` beside the server file (the child-process row).
 - Reason: a site with no files answers 404 to every page, and the real-browser tests would chase a missing page
   instead of a missing build; a server that moved to another port would leave the tests talking to whatever holds
-  4173. Ending at once with the cause is the stricter of the practices: Vite's `preview` refuses a missing output
-  folder from its command line and tries the next port unless `strictPort` is set (FETCHED
-  https://vite.dev/config/preview-options and Vite's `preview.ts` source, 2026-11-18); adapter-node documents
-  neither case (FETCHED, 2026-11-18).
+  4173. Refusing at once with the cause follows the stricter practice: Vite's `preview` refuses a missing output
+  folder from its command line ("The directory … does not exist. Did you build your project?") and tries the next
+  port unless `strictPort` is set (FETCHED https://vite.dev/config/preview-options and Vite's `preview.ts` on its main
+  branch, https://github.com/vitejs/vite/blob/main/packages/vite/src/node/preview.ts, 2026-11-18); adapter-node
+  documents neither case (FETCHED https://svelte.dev/docs/kit/adapter-node, 2026-11-18). Refusing a folder that
+  holds no file is this site's own rule. The child-process row runs the real entry, which a test in its own process
+  cannot reach.
 - Layer: HTTP.
-- Traces: PRD-W9, PRD-W5.
+- Traces: PRD-W9.
+
+**SRV-07** The site server, once it listens, MUST write exactly one line to standard output: "The site:
+http://127.0.0.1:4173/".
+- Examples (the test runs every row; capture, start and the free-port check as SRV-06): the build folder of SRV-05,
+  started in the test's process: standard output holds exactly that line and standard error nothing; every refused
+  row of SRV-06: standard output holds nothing.
+- Reason: the maintainer starts the site and needs its address; a line printed by a server that then fails would
+  send the maintainer to an address where nothing answers.
+- Layer: HTTP.
+- Traces: PRD-W9.
 
 ## 2. Imports (IMP)
 
@@ -344,8 +361,9 @@ time it has loaded and its table has rendered.
 | SRV-02 | PRD-W4 |
 | SRV-03 | PRD-W5 |
 | SRV-04 | PRD-W5 |
-| SRV-05 | PRD-W9, PRD-W5 |
-| SRV-06 | PRD-W9, PRD-W5 |
+| SRV-05 | PRD-W9 |
+| SRV-06 | PRD-W9 |
+| SRV-07 | PRD-W9 |
 | IMP-01 | PRD-W1 |
 | LIST-01 | PRD-W5 |
 | LIST-02 | PRD-W5 |
@@ -360,9 +378,9 @@ time it has loaded and its table has rendered.
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
 | PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
-| PRD-W5 | SRV-01, SRV-03, SRV-04, SRV-05, SRV-06, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
+| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
-| PRD-W9 | SRV-05, SRV-06 | in part: the site starts at one known address or refuses with its cause; the real-browser runs in three engines in CI and the consumer project's journeys come with later parts |
+| PRD-W9 | SRV-05, SRV-06, SRV-07 | in part: the site starts at one known address or refuses with its cause; the real-browser runs in three engines in CI, the consumer project's journeys and P2 come with later parts |
 
 PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W7 (no statement yet; first with the part
-that brings the PRD-T4 token set), PRD-W8, PRD-W10.
+that brings the PRD-T4 token set), PRD-W8, PRD-W9 (its start only: SRV-05 to SRV-07), PRD-W10.
