@@ -806,9 +806,8 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
 listed for it below, the computed value that the literal table of its test states.
 - Examples (the test loads each host page in its own browser context and first asserts the order of
   `document.styleSheets`; then it runs every row on both hosts, with a table of `caption` "Orders", `regionLabel`
-  "Orders table", 2 columns, the first sortable with an `onsort`, and 2 rows, `status 'ready'`, then again with 0
-  rows; beside the table each page holds a `Pagination` with `label` "Pages", `offset 0, limit 10, total 25` and
-  `sizes [10, 25]`):
+  "Orders table", 2 columns, none sortable, and 2 rows, `status 'ready'`, then again with 0 rows; the page holds no
+  `Pagination`):
 
   | Host page | Its stylesheets, in this order, each a static file linked unbundled |
   |---|---|
@@ -822,9 +821,6 @@ listed for it below, the computed value that the literal table of its test state
   | `caption` | the region's, `caption-side`, `text-align`, `clip`, `clip-path`, `overflow`, `white-space`, `width`, `height` |
   | the header row and each body row (the empty message's row included) | the region's |
   | each header cell, each body cell, the empty message's cell (STATE-03) | the region's, and `text-align` |
-  | each sort button (SORT-10) | the region's, `appearance` and `text-align` |
-  | the pager's `nav` | the region's |
-  | each button of the pager and its page-size `select` | the region's, and `appearance` |
   | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
 
   The builder writes each expected value literally: the computed form of the stylesheet's declaration for that element
@@ -1227,6 +1223,21 @@ or `window` beyond those Svelte adds for any component.
   handlers.
 - Layer: component.
 - Traces: PRD-B19.
+
+**SORT-25** On each host page of THEME-10, each sort button MUST have, for each property listed for it below, the
+computed value that the literal table of its test states.
+- Example (as THEME-10, for the sort buttons: its host pages, its order check and its rule for the expected values;
+  the table's first column sortable with an `onsort`):
+
+  | Element | Properties |
+  |---|---|
+  | each sort button (SORT-10) | THEME-10's properties of the region, `appearance` and `text-align` |
+  | each sort button | `font-family`, `font-size` and `line-height` equal those of its parent element |
+
+- Reason: the sort controls must look the same whatever the application loaded first, as THEME-10 states for the
+  table (PRD-T11 (a)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11.
 
 ## 8. The pager (PAGE)
 
@@ -1660,6 +1671,22 @@ indicator.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
+**PAGE-36** On each host page of THEME-10, the pager's elements MUST have, for each property listed for them below,
+the computed value that the literal table of its test states.
+- Example (as THEME-10, for the pager: its host pages, its order check and its rule for the expected values; beside
+  the table each page holds a `Pagination` with `label` "Pages", `offset 0, limit 10, total 25` and `sizes [10, 25]`):
+
+  | Element | Properties |
+  |---|---|
+  | the pager's `nav` | THEME-10's properties of the region |
+  | each button of the pager and its page-size `select` | THEME-10's properties of the region, and `appearance` |
+  | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
+
+- Reason: the pager must look the same whatever the application loaded first, as THEME-10 states for the table
+  (PRD-T11 (a)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11.
+
 ## 9. Ids across instances and server rendering (ID)
 
 The examples of this section use four instances: two `DataTable`s with the same sortable columns, both sorted
@@ -1801,6 +1828,7 @@ receives that number.
 | SORT-22 | PRD-T2, PRD-A1 |
 | SORT-23 | PRD-S2 |
 | SORT-24 | PRD-B19 |
+| SORT-25 | PRD-T11 |
 | PAGE-09 | PRD-B9, PRD-A1 |
 | PAGE-10 | PRD-B9, PRD-A3 |
 | PAGE-01 | PRD-B9, PRD-B2 |
@@ -1833,6 +1861,7 @@ receives that number.
 | PAGE-33 | PRD-B19, PRD-A3 |
 | PAGE-34 | PRD-T2, PRD-A1 |
 | PAGE-35 | PRD-T2, PRD-A1 |
+| PAGE-36 | PRD-T11 |
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
@@ -1880,7 +1909,7 @@ state in their own statements.
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
-| PRD-T11 | THEME-10, THEME-11 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
+| PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
