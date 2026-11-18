@@ -7,9 +7,9 @@
 - Field names: no
 - **Scope:** the statements a read-only table needs: rows in the given order with text or snippet cells, the
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
-  props, the APG table pattern, no global footprint, and theming by prefixed tokens; the strict-policy rules for the
-  component source (no raw-HTML path, no injected style, link or script, no inline style). Then server-driven multi-column
-  sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable functions,
+  props, the APG table pattern, no global footprint, and theming by prefixed tokens; the strict-policy rules for
+  the component source (no raw-HTML path, no injected style, link or script, no inline style). Then server-driven
+  multi-column sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable functions,
   and focus and window scroll after a sort or pager intent.
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
@@ -617,7 +617,7 @@ anything to the document head.
   | `<svelte:head><title>x</title></svelte:head>` |
   | `<link rel="stylesheet" href={x} />` |
   | `<div><script src={x}></script></div>` |
-  | `<div><style>{x}</style></div>` |
+  | `<div><style></style></div>` |
   | `<svelte:element this="style"></svelte:element>` |
   | `<svelte:element this={"script"}></svelte:element>` |
   | `document.createElement("style")` |
@@ -628,7 +628,7 @@ anything to the document head.
   | `sheet.insertRule(rule)` |
 
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
-  cast, an alias (`const d = document; d.write(x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  cast, an alias (`const d = document; d.createElement("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
 - Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 that no CSS ships: an injected
   inline style or script is refused under the strict policy, so a consumer would have to loosen its policy, and a
@@ -730,9 +730,9 @@ table.
   Setting one property of an element's `style` object (`el.style.width = w`, `el.style.setProperty("width", w)`)
   stays allowed: the policy does not refuse it.
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
-  cast, an alias (`const d = document; d.write(x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  cast, an alias (`const e = el; e.setAttribute("style", x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
-- Reason: server rendering writes each markup form as a `style="..."` attribute (MEASURED, Svelte 5.57.3), which the
+- Reason: server rendering writes each markup form as a `style="..."` attribute (MEASURED 2026-11-18, Svelte 5.57.3), which the
   strict policy refuses (PRD-S1), and `setAttribute("style", ...)` is refused in the browser; a `style:` directive is
   also a form the mutation tool does not mutate (PRD-G2).
 - Layer: static check.
