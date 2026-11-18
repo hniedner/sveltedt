@@ -7,7 +7,7 @@
 - Field names: no
 - **Scope:** the statements a read-only table needs: rows in the given order with text or snippet cells, the
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
-  props, the APG table pattern, and no global footprint.
+  props, the APG table pattern, no global footprint, and theming by prefixed tokens.
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
@@ -39,6 +39,9 @@ to the consumer as one callback (from group 2 on).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group. A requirement id from `docs/PRD.md` is written `PRD-B1`.
+- **Before its test.** A statement may land before the test that proves it. Until that test runs and passes, the
+  trace check lists the statement as "not yet tested", never as a pass; an untested statement blocks the close of its
+  milestone and every release.
 
 ---
 
@@ -422,6 +425,61 @@ those Svelte adds for any component.
 
 ---
 
+## 6. Theming (THEME)
+
+The component's look comes from prefixed custom properties the consumer may define. Without them it falls back to
+the browser's system colours and stays usable.
+
+**THEME-01** Every colour, border-colour and surface class in the component source MUST be a complete literal class
+whose value reads a `--sdt-*` custom property with a CSS system-colour fallback.
+- Examples (the scan runs every row against a canary file holding it; the first two are refused, the third passes):
+
+  | Class in a canary file | Result |
+  |---|---|
+  | `bg-blue-500` (a palette class) | finding |
+  | `` bg-[${tone}] `` (a class built at run time) | finding |
+  | `bg-[var(--sdt-surface,Canvas)]` | pass |
+
+  The scan over `src/lib` finds no finding, and it reports how many class literals it read (more than 0).
+- Reason: prefixed names cannot collide with an application's tokens, and Tailwind only generates classes it finds as
+  complete literals in the source; a palette class would ignore the consumer's theme.
+- Layer: static check.
+- Traces: PRD-T1.
+
+**THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the component's class literals
+use.
+- Example: a class literal reading `--sdt-border` with no `--sdt-border` row in the table is a finding; a table row
+  `--sdt-unused` that no class reads is a finding.
+- Reason: the token names are public interface; a list kept by hand drifts from the code unless a check compares
+  them.
+- Layer: static check.
+- Traces: PRD-T1.
+
+**THEME-03** With no `--sdt-*` property defined, the table MUST stay usable: its text readable, every focus indicator
+visible, and axe finding no serious or critical violation.
+- Example: the list page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
+  critical violations, and a keyboard-focused control's outline is not `none`.
+- Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
+  get a plain table, not a broken one.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
+**THEME-04** The package MUST ship no CSS file and no `<style>` block.
+- Example: the packed package holds no `.css` file and no `.svelte` file with a `<style>` block; a canary `.svelte`
+  file with a `<style>` block is found.
+- Reason: there is one stylesheet build per application (the consumer's Tailwind, which adds the package as an
+  `@source`), and a shipped stylesheet could not follow the consumer's tokens.
+- Layer: static check.
+- Traces: PRD-T3.
+
+**THEME-05** The component's class literals MUST use only Tailwind's built-in variants.
+- Example: `hover:`, `focus-visible:`, `dark:` and `forced-colors:` pass; a canary class `app-dense:p-1` is a
+  finding.
+- Reason: a custom variant needs a matching definition in the consumer's stylesheet, which a consumer would have to
+  know about and copy.
+- Layer: static check.
+- Traces: PRD-T3.
+
 ## Trace for group 1
 
 ### Statement -> PRD
@@ -464,6 +522,11 @@ those Svelte adds for any component.
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
+| THEME-01 | PRD-T1 |
+| THEME-02 | PRD-T1 |
+| THEME-03 | PRD-T2, PRD-A1 |
+| THEME-04 | PRD-T3 |
+| THEME-05 | PRD-T3 |
 
 ### PRD must -> statements (the musts group 1 touches)
 
@@ -487,6 +550,9 @@ those Svelte adds for any component.
 | PRD-S2 | RND-03, RND-04 | in part: later groups add their props to the RND-03 table |
 | PRD-S3 | EXP-01 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09 | in part: the filter group's refusal messages and the pager's alert add rows |
+| PRD-T1 | THEME-01, THEME-02 | in full |
+| PRD-T2 | THEME-03 | in part: the sticky group adds "the header is opaque over rows" |
+| PRD-T3 | THEME-04, THEME-05 | in full ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
 
 ### PRD musts group 1 leaves to later groups
 
@@ -499,7 +565,7 @@ those Svelte adds for any component.
 - Ids across instances and hydration: PRD-B18.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
 - Strict policy and side effects: PRD-S1.
-- Theming: PRD-T1, PRD-T2, PRD-T3, PRD-T4.
+- Theming: PRD-T4 (the example token set, light and dark).
 - Internationalisation: PRD-I2, PRD-I3.
 - Large pages and size: PRD-P1, PRD-P2, PRD-P3.
 - Browsers: PRD-E1.
