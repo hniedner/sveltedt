@@ -46,4 +46,6 @@ export function inject(el: HTMLElement, html: string): void {
   new DOMParser().parseFromString(html, "text/html");
   Document.parseHTMLUnsafe(html);
   Object.assign(el, { innerHTML: html });
+  el.setHTML(html);
+  document.adoptedStyleSheets = [new CSSStyleSheet()];
 }

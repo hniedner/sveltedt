@@ -1222,25 +1222,30 @@ test("lint: a <style> block in a component is a finding that names the ban", () 
   assert.match(out, /no-restricted-syntax <style> block/);
 });
 test("lint: markup and code beside the injection bans pass in a component", () => {
-  // Near misses: another element through svelte:element, an iframe without srcdoc, reading innerHTML, a string
-  // holding its name, a write that is not document's.
+  // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
+  // innerHTML; a string holding its name; setAttribute and createElement of other names; a write that is not a
+  // document's; a name that only contains a sink's name.
   expect(
     "lint",
     repo(
       component(
         COMPONENT.replace(
           "</script>",
-          '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n</script>',
+          '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n' +
+            '  const tag = "p";\n  const text = document.body.innerHTML;\n  const box = document.createElement("div");\n' +
+            '  box.setAttribute("title", text);\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n</script>',
         ).replace(
           "<p>{count}</p>",
-          '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>',
+          '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>\n' +
+            "<svelte:element this={tag}>{myDOMParserName}{box.title}</svelte:element>",
         ),
       ),
     ),
     0,
   );
 });
-// RND-04 (spec/table.md): every raw-HTML form its example names is a finding, in a component and in a script.
+// RND-04 (spec/table.md): every raw-HTML form its example names is a finding: {@html and srcdoc in a component, the
+// script forms in a script (the script bans run in components too: canary.svelte plants two of them).
 const SINK = (body: string) =>
   `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
 test("lint: each raw-HTML form RND-04 names is a finding that names its ban", () => {
@@ -1253,12 +1258,12 @@ test("lint: each raw-HTML form RND-04 names is a finding that names its ban", ()
     [
       "innerHTML",
       (r: string) => put(r, "scripts/x.ts", SINK("el.innerHTML = html;")),
-      "assigning innerHTML",
+      "no-restricted-syntax assigning innerHTML",
     ],
     [
       "outerHTML",
       (r: string) => put(r, "scripts/x.ts", SINK("el.outerHTML = html;")),
-      "assigning innerHTML, outerHTML",
+      "no-restricted-syntax assigning innerHTML, outerHTML",
     ],
     [
       "insertAdjacentHTML",
@@ -1268,12 +1273,12 @@ test("lint: each raw-HTML form RND-04 names is a finding that names its ban", ()
           "scripts/x.ts",
           SINK('el.insertAdjacentHTML("beforeend", html);'),
         ),
-      "insertAdjacentHTML",
+      "no-restricted-syntax insertAdjacentHTML",
     ],
     [
       "document.write",
       (r: string) => put(r, "scripts/x.ts", SINK("document.write(html);")),
-      "document.write",
+      "no-restricted-syntax document.write",
     ],
     [
       "createContextualFragment",
@@ -1283,7 +1288,7 @@ test("lint: each raw-HTML form RND-04 names is a finding that names its ban", ()
           "scripts/x.ts",
           SINK("document.createRange().createContextualFragment(html);"),
         ),
-      "createContextualFragment",
+      "no-restricted-syntax setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
     ],
     [
       "DOMParser",
@@ -1293,7 +1298,7 @@ test("lint: each raw-HTML form RND-04 names is a finding that names its ban", ()
           "scripts/x.ts",
           SINK('new DOMParser().parseFromString(html, "text/html");'),
         ),
-      "DOMParser",
+      "no-restricted-syntax DOMParser",
     ],
     [
       "srcdoc",
@@ -1303,12 +1308,99 @@ test("lint: each raw-HTML form RND-04 names is a finding that names its ban", ()
           '<iframe title="t" srcdoc={String(count)}></iframe>',
         ),
       ),
-      "srcdoc attribute",
+      "no-restricted-syntax srcdoc attribute",
     ],
   ] as const) {
     const out = expect("lint", repo(change), 1);
     assert.ok(out.includes(ban), `${form}: ${out}`);
   }
+});
+test("lint: every name a ban lists is a finding of that ban", () => {
+  const scripts = [
+    ['document.createElement("style");', "createElement of style"],
+    ['document.createElement("link");', "createElement of style"],
+    ['document.createElement("script");', "createElement of style"],
+    ['el.setAttribute("SRCDOC", html);', "setAttribute srcdoc"],
+    ["el.setHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+    ["Document.parseHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+    ["el.setHTML(html);", "setHTML or createRawSnippet"],
+    ["void createRawSnippet;", "setHTML or createRawSnippet"],
+    [
+      "(el as HTMLIFrameElement).srcdoc = html;",
+      "assigning innerHTML, outerHTML or srcdoc",
+    ],
+    ['el["innerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      'Object.assign(el, { "outerHTML": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      "Object.assign(el, { srcdoc: html });",
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    ["document.writeln(html);", "document.write"],
+    ["window.document.write(html);", "document.write"],
+    ["el.ownerDocument.write(html);", "document.write"],
+    ["void new CSSStyleSheet();", "constructed or inserted style sheet"],
+    [
+      "void document.adoptedStyleSheets;",
+      "constructed or inserted style sheet",
+    ],
+    [
+      'document.styleSheets[0]?.insertRule("p {}");',
+      "constructed or inserted style sheet",
+    ],
+  ].map(([body, ban], i) => [`scripts/s${i}.ts`, SINK(body), ban]);
+  const markup = [
+    ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
+    ["<div><script>alert(1)</script></div>", "style, link or script element"],
+    ["<div><style></style></div>", "style, link or script element"],
+    [
+      '<svelte:element this="script"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this="link"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this="SCRIPT"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this={"style"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    [
+      '<svelte:element this={"link"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
+  ].map(([tag, ban], i) => [
+    `src/C${i}.svelte`,
+    COMPONENT.replace("$props();", '$props();\n  const srcdoc = "";').replace(
+      "<p>{count}</p>",
+      `<p>{count}{srcdoc}</p>\n${tag}`,
+    ),
+    ban,
+  ]);
+  const out = expect(
+    "lint",
+    repo((root) => {
+      component(COMPONENT)(root);
+      for (const [file, text] of [...scripts, ...markup]) put(root, file, text);
+    }),
+    1,
+  );
+  const lines = out.split("\n").map((l) => l.trim());
+  for (const [file, , ban] of [...scripts, ...markup])
+    assert.ok(
+      lines.some(
+        (l) =>
+          l.startsWith(`${file}:`) && l.includes(`no-restricted-syntax ${ban}`),
+      ),
+      `${file} ${ban}: ${out}`,
+    );
 });
 test("lint: a raw-HTML sink named without being called or assigned is a finding", () => {
   for (const [body, ban] of [
@@ -1454,7 +1546,8 @@ test("lint: no PostCSS config is loaded for a component, not even one above the 
     "postcss.config.cjs",
     `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran");\nmodule.exports = {};\n`,
   );
-  run(["lint", "--root", root]);
+  const out = expect("lint", root, 1);
+  assert.match(out, /no-restricted-syntax <style> block/);
   assert.ok(
     !existsSync(marker),
     "the PostCSS config above the root was loaded",

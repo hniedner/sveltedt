@@ -964,6 +964,8 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|parseHTMLUnsafe or createContextualFragment",
     "no-restricted-syntax|DOMParser",
     "no-restricted-syntax|document.write",
+    "no-restricted-syntax|setHTML or createRawSnippet",
+    "no-restricted-syntax|constructed or inserted style sheet",
   ],
   // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [

@@ -44,8 +44,11 @@ The checks today:
   (PRD-T3) or a `style`, `link` or `script` element, written or through `svelte:element` with a literal `this`; no
   style or `srcdoc` set by `setAttribute`, no created `style`, `link` or `script` element, no `innerHTML`,
   `outerHTML` or `srcdoc` assigned or in an object literal, no `srcdoc` attribute, no `insertAdjacentHTML`,
-  `setHTMLUnsafe`, `parseHTMLUnsafe`, `createContextualFragment`, `DOMParser` or `document.write`: PRD-G2, PRD-S1 and PRD-S2; a `svelte:element`
-  whose `this` is computed is not checked; no browser
+  `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `createContextualFragment`, `createRawSnippet`, `DOMParser` or
+  `document.write`, no constructed or inserted style sheet: PRD-G2, PRD-S1, PRD-S2 and PRD-T3. The bans match
+  literal names and plain string literals only: a name built at run time, a template literal, a cast, an alias
+  (`const d = document; d.write`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element` `this` is not
+  caught, and review is the guard; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:

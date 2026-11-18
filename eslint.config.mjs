@@ -30,8 +30,9 @@ const linterOptions = {
   reportUnusedDisableDirectives: "error",
 };
 
-// Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: a lowercase style
-// attribute on any element (svelte/no-inline-styles checks plain HTML elements only) and the {style} shorthand.
+// Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: a style attribute
+// in any case on any element (svelte/no-inline-styles checks plain HTML elements only), the {style} shorthand,
+// svelte:head and style, link or script elements. PRD-T3: no <style> block. PRD-S2: no srcdoc.
 const markupBans = [
   [
     "SvelteDirective[kind='Class']",
@@ -75,7 +76,7 @@ const markupBans = [
     "srcdoc attribute (PRD-S2)",
   ],
 ].map(([selector, message]) => ({ selector, message }));
-// Code a component may not run, in TypeScript and in components. PRD-S1: no injected style, link or script.
+// Code a component may not run: in TypeScript, JavaScript and components. PRD-S1: no injected style, link or script.
 // PRD-S2: no raw HTML, through a property, an object literal, an attribute or a parsing call.
 const scriptBans = [
   [
@@ -104,7 +105,15 @@ const scriptBans = [
   ],
   ["Identifier[name='DOMParser']", "DOMParser (PRD-S2)"],
   [
-    "MemberExpression[property.name=/^(write|writeln)$/]:matches([object.name=/document$/i], [object.property.name=/document$/i])",
+    "Identifier[name=/^(setHTML|createRawSnippet)$/]",
+    "setHTML or createRawSnippet (PRD-S2): markup from a value",
+  ],
+  [
+    "Identifier[name=/^(CSSStyleSheet|adoptedStyleSheets|insertRule)$/]",
+    "constructed or inserted style sheet (PRD-S1, PRD-T3)",
+  ],
+  [
+    "MemberExpression[property.name=/^(write|writeln)$/]:matches([object.name=/^(document|ownerDocument|contentDocument)$/], [object.property.name=/^(document|ownerDocument|contentDocument)$/])",
     "document.write (PRD-S2)",
   ],
   ["Identifier[name='insertAdjacentHTML']", "insertAdjacentHTML (PRD-S2)"],
