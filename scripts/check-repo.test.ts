@@ -852,7 +852,16 @@ test("types: a canary that tsc accepts cannot be checked", () => {
       '{ "compilerOptions": { "strict": true, "noEmit": true } }\n',
   });
   const out = expect("types", repo(), 3, { canaries: clean });
-  assert.match(out, /tsc passed the planted type error/);
+  assert.match(out, /tsc did not report the planted type error/);
+});
+test("types: a canary tsc fails for another reason cannot be checked", () => {
+  // A canary config listing no file makes tsc exit non-zero without ever reading the planted error.
+  const broken = canaryDir("types", {
+    "canary.ts": 'export const n: number = "one";\n',
+    "tsconfig.json": '{ "files": [] }\n',
+  });
+  const out = expect("types", repo(), 3, { canaries: broken });
+  assert.match(out, /tsc did not report the planted type error/);
 });
 
 /** A fixture whose branch holds one commit per subject after origin/main. */

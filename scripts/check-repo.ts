@@ -1088,8 +1088,14 @@ function types(root: string, list: Set<string>): Result {
       CANNOT,
       `TypeScript ${got} is installed, package.json pins ${pin}`,
     );
-  if (tscRun(canaries("types")).status === 0)
-    return result(CANNOT, "tsc passed the planted type error");
+  // The planted error itself must be reported: any other failure (a broken config) proves nothing.
+  const canary = tscRun(canaries("types"));
+  if (!canary.lines.some((l) => /canary\.ts\(\d+,\d+\): error TS2322:/.test(l)))
+    return result(
+      CANNOT,
+      "tsc did not report the planted type error (TS2322 in canary.ts)",
+      canary.lines.slice(0, 5),
+    );
   const program = tscProgram(root);
   if (isResult(program)) return program;
   const outside = mine.filter((f) => !program.some((p) => p.endsWith(`/${f}`)));
