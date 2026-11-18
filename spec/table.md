@@ -30,7 +30,8 @@ to the consumer as one callback (stated with the statements that add user action
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
-  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
+  (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
+  later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
@@ -51,7 +52,10 @@ to the consumer as one callback (stated with the statements that add user action
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
-- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
+- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty. A row id that
+  is a number is never empty; a column id or a text that is not a string counts as empty (RND-05).
+- **Same row id.** Two row ids are the same when their text forms are equal: the number 1 and the string "1" are the
+  same id.
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector; never a test id or a class, except THEME-09, which tests the public classes
@@ -167,16 +171,24 @@ its cells.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | `caption` is empty | `captionEmpty` | "Table caption must not be empty." |
+  | `caption` is not a string (left out by a plain JavaScript caller) | `captionEmpty` | "Table caption must not be empty." |
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
+  | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
+  | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
+  | two rows share an id in its text form (the number 1 and the string "1") | `rowIdDuplicate` | "Two rows share an id." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
+  | `getRowId` returns a value that is neither a string nor a finite number (`NaN`, `Infinity`, `null`) | `rowIdUnreadable` | "A row id could not be read." |
+
+  A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
+  no alert.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
