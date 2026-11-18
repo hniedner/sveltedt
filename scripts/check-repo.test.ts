@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -185,8 +185,11 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
     "svelte.config.js": "export default {};\n",
-    ".githooks/commit-msg":
-      '#!/bin/sh\nexec node scripts/check-repo.ts commit-msg "$@"\n',
+    // The committed hook itself, so a change to it reaches the rows that run git.
+    ".githooks/commit-msg": readFileSync(
+      join(here, "..", ".githooks", "commit-msg"),
+      "utf8",
+    ),
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
   chmodSync(join(root, ".githooks/commit-msg"), 0o755);
@@ -3122,8 +3125,8 @@ test("commit-msg: a conventional header passes, one without a type is a finding"
   commitMsg("feat: add a thing\n\nThe body.\n", 0);
   assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg: /m);
 });
-// Pins: git's merge header and the headers git writes for --fixup and --squash pass the hook before any other rule,
-// the 100 characters included; the gate refuses the autosquash ones (above).
+// Pins: a header starting with `Merge ` or with an autosquash prefix (--fixup, --squash, --fixup=amend:) passes the
+// hook before any other rule, the 100 characters included; the gate refuses the autosquash ones (above).
 test("commit-msg: git's merge header and fixup, squash and amend headers pass, whatever they hold", () => {
   commitMsg("Merge branch 'main' into chore/hooks\n", 0);
   for (const h of ["fixup!", "squash!", "amend!"])
@@ -3151,7 +3154,8 @@ test("commit-msg: an empty message is a finding that says so", () => {
       /^FINDING commit-msg: the message is empty \(lines starting with # are comments\)$/m,
     );
 });
-// Pins: what the hook prints is escaped on every path: a passed header and the name of a file it cannot read.
+// Pins: the hook escapes what it prints when it passes and when it cannot read the file (a finding's text comes from
+// the headerProblem the `commits` rows pin).
 test("commit-msg: control characters are printed escaped when it passes and when it cannot read", () => {
   const passed = commitMsg("feat: a‮x\n", 0);
   assert.ok(!passed.includes("‮"), passed);
@@ -3195,7 +3199,18 @@ test("commit-msg: git runs the hook from .githooks and commits only what it pass
         ],
         ...args,
       ],
-      { encoding: "utf8", env: { ...GIT_ENV, ...env } },
+      {
+        encoding: "utf8",
+        // The hook runs `node` from PATH: this test's own Node goes first. No global or system git configuration
+        // (a core.commentChar or commit.template there changes what git hands the hook).
+        env: {
+          ...GIT_ENV,
+          PATH: `${dirname(process.execPath)}${delimiter}${GIT_ENV.PATH ?? ""}`,
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_NOSYSTEM: "1",
+          ...env,
+        },
+      },
     );
     return { code: r.status, out: r.stdout + r.stderr };
   };

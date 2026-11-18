@@ -2161,11 +2161,12 @@ function commits(root: string): Result {
   );
 }
 
-// git's scissors line: git writes its editor template and, with `commit -v`, the diff below it (measured).
+// git's scissors line: with `commit -v`, git writes it below the editor template and the diff below it (measured).
 const SCISSORS = "# ------------------------ >8 ------------------------";
-// The commit-msg hook's check of one message file, which git hands over before its own clean-up (measured): the
-// editor template's comment lines are dropped and nothing below the scissors line is read, as git will do. git's merge
-// header and its headers for `commit --fixup` and `--squash` pass before any other rule; the gate's `commits` step
+// The commit-msg hook's check of one message file, which git hands over before its own clean-up (measured): comment
+// lines are dropped and nothing below the scissors line is read, as git does when it opens the editor (a message given
+// with -m or -F keeps its # lines; the hook skips them all the same). A header starting with `Merge ` or with the
+// autosquash prefix of --fixup, --squash or --fixup=amend: passes before any other rule; the gate's `commits` step
 // still refuses the autosquash ones and judges a one-parent commit that only looks like a merge.
 function commitMsg(file: string | undefined): Result {
   if (!file) return result(USAGE, "no message file given");
@@ -2190,7 +2191,7 @@ function commitMsg(file: string | undefined): Result {
       "the message is empty (lines starting with # are comments)",
     );
   if (MERGE.test(header) || AUTOSQUASH.test(header))
-    return result(PASS, `${shownHeader(header)}: git's own header`);
+    return result(PASS, `${shownHeader(header)}: a merge or autosquash header`);
   const problem = headerProblem(header);
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }

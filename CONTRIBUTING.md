@@ -8,7 +8,8 @@ works. This page is the short version.
 
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff origin/main...<ref>`, and check it out only in a separate clone.
+`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone: a merge runs the
+merged branch's commit-msg hook (Commit headers).
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
@@ -141,19 +142,25 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-git runs `.githooks/commit-msg` on every commit once `core.hooksPath` is set (by hand for now; nothing checks the
-setting yet). It applies the same rules to the message git hands it, which comes before git's own clean-up:
+Once `core.hooksPath` is set (by hand for now; nothing checks the setting yet), git runs `.githooks/commit-msg` when
+`git commit` (also `--amend`) or `git merge` writes a message. The hook needs the Node version of `.node-version` first
+on the `PATH` that git sees, which a desktop git client may not share with your shell. The setting replaces any global
+`core.hooksPath` and the hooks in `.git/hooks` for this clone: carry over any hook of your own you rely on, such as a
+secret scan. The hook applies the rules above to the message git hands it, before git's own clean-up:
 
 - Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
   (`commit -v`). A message with nothing else is refused as empty.
-- `fixup!`, `squash!` and `amend!` commits and git's `Merge ...` pass the hook, whatever their length; the `commits`
-  step refuses the autosquash ones at the pull request.
-- Limits: `git commit -m "# x"` keeps that line as the header, so the hook passes the line below it and the `commits`
-  step refuses the commit; a comment character other than `#` (`core.commentChar`) is not known to the hook.
+- A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
+  the `commits` step refuses the autosquash ones at the pull request.
+- Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one on
+  an ordinary commit; `git revert`, `git cherry-pick` and the commits a rebase replays run no commit-msg hook; git
+  keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"` passes the hook (which
+  judges `feat: y`) while git stores `# x` as the header; a comment character other than `#` (`core.commentChar`) is
+  not known to the hook.
 
-A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`).
-`core.hooksPath` is shared by every worktree of a clone: once a branch is checked out there, later commits run that
-branch's hook, which is one more reason to check an unreviewed branch out only in a separate clone.
+A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`). The path is
+relative: a commit in any worktree of the clone runs the `.githooks/commit-msg` of the branch checked out there, which
+is code from that branch.
 
 ## How a change is made
 
@@ -170,9 +177,9 @@ branch's hook, which is one more reason to check an unreviewed branch out only i
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the local hooks that run checks before a commit or a push, and the gate's check that `core.hooksPath` is set
-  (gates.md G9) (issue #6);
-  until they exist, maintainers run the private word scan by hand before every push;
+- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the hooks that run
+  checks before a commit or a push (issue #6); only the commit-msg hook exists (Commit headers). Until the rest exist,
+  maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 
