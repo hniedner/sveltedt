@@ -7,8 +7,8 @@
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
   shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, the listener, the
-  canary page, no inline bootstrap, no violation on the list page) and the view without tokens. Other request
-  methods, the JSON endpoint, the dataset and the other views come with later parts.
+  canary page, no inline bootstrap, no violation on any page of the build). Other request methods, the JSON
+  endpoint, the dataset and the views by URL parameter come with later parts.
 
 ## Conventions
 
@@ -94,8 +94,7 @@ the strict policy.
 - Traces: PRD-W4.
 
 **SRV-03** Each file the site server answers MUST carry the content type of its kind.
-- Examples (the test runs every row, with a build folder holding one file of each kind; later parts add a row for each
-  kind their build writes):
+- Examples (the test runs every row, with a build folder holding one file of each kind):
 
   | File | `Content-Type` |
   |---|---|
@@ -144,8 +143,7 @@ the strict policy.
 **LIST-01** The list page MUST show one table, named by its caption, holding the rows of the site's fixed list.
 - Example: the list page component mounted: exactly one table, whose accessible name is its caption "Orders", with
   20 body rows, one per entry of the site's fixed list of 20.
-- Reason: it is the first look at the table on a site page. The pager part replaces the fixed list with the site's
-  endpoint, and with it this statement.
+- Reason: it is the first look at the table on a site page.
 - Layer: component.
 - Traces: PRD-W5.
 
@@ -155,20 +153,21 @@ the strict policy.
   "Order 04", "Order 12", "Order 16", "Order 08", in that order, and the first cells of the body rows read the same,
   in the same order. The order is neither ascending nor descending, so a table that sorts fails.
 - Reason: the table keeps the order it is given (the server's order); the page proves that where a consumer uses it.
-  The pager part rewrites this statement against the order of the site's endpoint.
 - Layer: component.
 - Traces: PRD-W5.
 
 ## 4. The strict policy on the site (POL)
 
-**POL-01** Each HTML page of the site MUST load the listener from the site's own origin so that it runs before every
-other script of the page.
-- Examples (the test runs every row against the site's real build; the HTML is read as the server answers it):
+**POL-01** Each HTML page the build folder holds MUST load the listener from the site's own origin so that it runs
+before every other script of the page.
+- Examples (the test runs every row against the site's real build; it lists the build folder's `.html` files, reads
+  each as the server answers it at its path, and reports "could not check" when it lists none):
 
   | Page | The listener | Every other `script` element |
   |---|---|---|
-  | the list page (`GET /`) | present | after the listener, or a module script without `async` |
-  | the canary page (`GET /canary.html`) | present | after the listener, or a module script without `async` |
+  | `index.html` (`GET /`) | present | after the listener, or a module script without `async` |
+  | `canary.html` (`GET /canary.html`) | present | after the listener, or a module script without `async` |
+  | any other `.html` file of the build, at its path | present | after the listener, or a module script without `async` |
 
   "The listener" here means: a `script` element with a `src` that is a path on the site (it starts with one `/` and
   names no scheme or host), which the server answers with 200 and `text/javascript; charset=utf-8`, and which has no
@@ -213,36 +212,22 @@ other script of the page.
 - Layer: static check.
 - Traces: PRD-W4.
 
-**POL-04** Each page of the site other than the canary page MUST raise no policy violation by the time it has loaded
-and shows its table.
-- Examples (the test runs every row in each engine, in this order: the response carries the strict policy (SRV-02);
-  the listener's list exists; the page has loaded; the table shows its rows; then the list holds 0 entries):
+**POL-04** Each HTML page the build folder holds, other than the canary page, MUST raise no policy violation by the
+time it has loaded and shows its table.
+- Examples (the test lists the build folder's `.html` files and reports "could not check" when it lists none; it runs
+  every row in each engine, in this order: the response carries the strict policy (SRV-02); the listener's list
+  exists; the page has loaded; the page shows what the row names; then the list holds 0 entries):
 
-  | Page | The table shows |
+  | Page | The page shows |
   |---|---|
-  | the list page (`GET /`) | its 20 body rows (LIST-01) |
-  | the list page without tokens (`GET /?tokens=none`, VIEW-01) | its 20 body rows |
+  | `index.html` (`GET /`) | the table's 20 body rows (LIST-01) |
+  | any other `.html` file of the build except `canary.html`, at its path | at least one region of a table (A11Y-09) or the alert of RND-05 |
 
   Break that turns it red: a `style` attribute on an element inside the `body` of the list page's `index.html`.
 - Reason: the component claims 0 violations under the strict policy on a client-rendered page (PRD-S1); the order of
   the reads means a 0 cannot come from a page without the header, without the listener or without the table.
 - Layer: real browser.
 - Traces: PRD-S1, PRD-W4.
-
-## 5. Views (VIEW)
-
-**VIEW-01** The list page opened with the URL parameter `tokens=none` MUST define no `--sdt-*` custom property and
-keep the site's other styles.
-- Example: `GET /?tokens=none` in each engine: for every `--sdt-*` name that a `var(` of the site's built CSS reads,
-  the computed value on the table and on every element inside it is the empty string; and the caption's bounding box
-  is at most 1 by 1 CSS px, as A11Y-13 measures, which only the site's Tailwind styles make so. The test reports how
-  many `--sdt-*` names it read; when it reads none, it reports "could not check". Break that turns it red: a
-  stylesheet of the site that defines one `--sdt-*` property on `:root` for every view.
-- Reason: THEME-03 and THEME-06 prove the system-colour fallbacks on a site page with Tailwind and no token
-  definitions; this view is that page, and it must stay free of tokens when the site gains its example token set
-  (PRD-T4) without losing the styles that the fallbacks are measured with.
-- Layer: real browser.
-- Traces: PRD-W7.
 
 ## Trace
 
@@ -260,7 +245,6 @@ keep the site's other styles.
 | POL-02 | PRD-W4, PRD-S1 |
 | POL-03 | PRD-W4 |
 | POL-04 | PRD-S1, PRD-W4 |
-| VIEW-01 | PRD-W7 |
 
 ### PRD must -> statements
 
@@ -269,7 +253,7 @@ keep the site's other styles.
 | PRD-W1 | IMP-01 | in full |
 | PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: the header on responses to other methods comes with the endpoint part |
 | PRD-W5 | SRV-01, SRV-03, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
-| PRD-W7 | VIEW-01 | in part: the light, dark, `dir=rtl`, spacing, slowdown and two-table views come with the parts that need them |
-| PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half on the list page; later pages with their parts; the server-rendered half with the consumer project (PRD-W8) |
+| PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 
-PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W8, PRD-W9, PRD-W10.
+PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W7 (no statement yet; first with the part
+that brings the PRD-T4 token set), PRD-W8, PRD-W9, PRD-W10.
