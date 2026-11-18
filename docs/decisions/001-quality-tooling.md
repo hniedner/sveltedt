@@ -221,7 +221,6 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 - The jest-dom matchers: the tests assert with Vitest's own `expect`.
 - A Dependabot group for `vitest` and `@vitest/*`: the only direct `@vitest/*` package, the ESLint plugin, is
   versioned on its own.
-
 - ESLint ignores read from `.gitignore`: here the class table alone selects files.
 - The `globals` package: a hand list is enough.
 - Cooldowns of 14 and 7 days: the companion's G11 values and the 3-day release age decided in the review of this change stand.
