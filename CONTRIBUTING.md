@@ -83,9 +83,10 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions (`@ts-expect-error`, `jscpd:ignore`, a zizmor ignore comment) are not yet refused; ESLint
-  ignores its inline configuration, gitleaks ignores its allow comments, and the scan refuses a
-  folder holding a `.gitleaksignore`. A ban list for the rest comes with the Svelte checks.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
+  `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
+  a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.

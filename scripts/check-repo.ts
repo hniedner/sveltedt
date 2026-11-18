@@ -730,9 +730,21 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
 
 // The opening and closing markers only: a line of seven "=" is also a Markdown heading underline.
 const CONFLICT = /^(<{7}|>{7})( |$)/;
+// Comments that switch a check off; refused in code (the files ESLint lints). Built from parts, or this file would
+// hold them.
+const SUPPRESSION = new RegExp(
+  [
+    ["svelte-", "ignore"],
+    ["@ts-", "expect-error"],
+    ["@ts-", "nocheck"],
+    ["jscpd:", "ignore"],
+  ]
+    .map((parts) => parts.join(""))
+    .join("|"),
+);
 
 // For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
-// no conflict marker (Prettier keeps one in Markdown as text).
+// no conflict marker (Prettier keeps one in Markdown as text). In code: no suppression comment.
 function text(root: string, list: Set<string>): Result {
   const mine = ofClass(list, "text");
   if (isResult(mine)) return mine;
@@ -740,6 +752,7 @@ function text(root: string, list: Set<string>): Result {
   for (const f of list) {
     const t = readFileSync(join(root, f), "utf8");
     const plain = mine.includes(f);
+    const code = CLASSES.find((k) => k.match.test(f))?.steps.includes("lint");
     if (plain && t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
     t.split("\n").forEach((line, i) => {
       if (plain && line.endsWith("\r"))
@@ -748,13 +761,15 @@ function text(root: string, list: Set<string>): Result {
         details.push(`${f}:${i + 1}: trailing whitespace`);
       if (CONFLICT.test(line))
         details.push(`${f}:${i + 1}: merge-conflict marker`);
+      const word = code && SUPPRESSION.exec(line)?.[0];
+      if (word) details.push(`${f}:${i + 1}: suppression comment ${word}`);
     });
   }
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
     PASS,
-    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s)`,
+    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s), no suppression comment in code`,
   );
 }
 
