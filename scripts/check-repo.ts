@@ -694,7 +694,7 @@ const CLASSES: FileClass[] = [
   },
   // TypeScript has one checker by path: tsc through scripts/tsconfig.json for scripts/ (types); svelte-check through
   // the root tsconfig.json for the rest (svelte), which may import a component that tsc sees only as an ambient module.
-  // A declaration file (any name with ".d.", as TypeScript reads it) is in neither: under skipLibCheck no checker
+  // A declaration file (a .ts file whose name contains ".d.", as TypeScript reads it) is in neither: under skipLibCheck no checker
   // would check it, so it has no class.
   {
     match: /^scripts\/(?!.*\.d\.[^/]*$).*\.test\.ts$/,
@@ -1453,10 +1453,11 @@ function projectFiles(root: string): Result | Set<string> {
   return new Set(parsed.fileNames.map((f) => relative(root, f)));
 }
 
-/** Why the component at `path` would not be type-checked, or null: Svelte's compiler must parse it, and it must have a
- * script with lang="ts" on each. A parse error is reported here with Svelte's message and line: svelte-check drops one
- * that says "expected" when there is no preprocess and the component has any lang attribute (measured, 4.7.8). Any
- * other error (a read, an AST that changed shape) is thrown, and the step stops. */
+/** Why the component at `path` would not be type-checked, or null: Svelte's compiler must parse it, and it must have
+ * at least one script, every script carrying lang="ts". A parse error is reported here with Svelte's message and line:
+ * svelte-check drops one that says "expected" when there is no preprocess and the component has any lang attribute
+ * (measured with svelte-check 4.7.8). Any other error (a read error, or a parse failure that is not a Svelte
+ * CompileError) is thrown: check-repo stops with USAGE. */
 function scriptProblem(path: string): string | null {
   const { parse } = createRequire(join(HERE, "..", "package.json"))(
     "svelte/compiler",
@@ -1491,9 +1492,9 @@ function scriptProblem(path: string): string | null {
   return typed ? null : 'a script that is not lang="ts", or none';
 }
 
-/** The result that stops svelte-check over `mine`, or null: each must be in the root program, no script of tsc's
- * (`theirs`) may be, a component must be among them (these could not check), and each component's scripts must be
- * TypeScript (a finding). */
+/** The result that stops svelte-check over `mine`, or null. COULD NOT CHECK: the root tsconfig.json cannot be read, a
+ * file of `mine` is outside its program, a script of tsc's (`theirs`) is in it, or no component is among `mine`.
+ * FINDING: a component Svelte cannot parse, or one with no script or a script not lang="ts". */
 function svelteInputs(
   root: string,
   mine: string[],

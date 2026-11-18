@@ -59,7 +59,7 @@ jobs:
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
 /** The fixture's root tsconfig, for components and the TypeScript beside them (svelte-check); scripts/ has its own
- * (tsc). ESLint's type-aware rules read the nearest one (Prettier's layout). */
+ * (tsc). ESLint's type-aware rules read the tsconfig.json nearest to each file. */
 const FIXTURE_TSCONFIG = `{
   "compilerOptions": {
     "target": "es2024",
@@ -1010,8 +1010,8 @@ test("dupes: a file too small to hold a clone is set aside by name with jscpd's 
   assert.doesNotMatch(out, /mid\.mjs|five\.mjs/);
   assert.match(out, /set aside 5 file\(s\) under 50 tokens or 5 lines/);
 });
-test("dupes: a repository whose every file is too small passes, each set aside by name", () => {
-  // Measured: jscpd exits 0 and writes its report when it analyses no file at all.
+test("dupes: a repository whose every file is too small passes, the files set aside", () => {
+  // Measured with jscpd 5.4.3: it exits 0 and writes its report when it analyses no file at all.
   const out = expect(
     "dupes",
     repo((root) => {
@@ -1024,6 +1024,22 @@ test("dupes: a repository whose every file is too small passes, each set aside b
     0,
   );
   assert.match(out, /no clone in 0 of 5 file\(s\); set aside 5 file\(s\)/);
+});
+test("dupes: a name with .d inside a word keeps its class: dupes reads it unless it is a test", () => {
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      for (const f of [
+        "src/x.dom.ts",
+        "src/x.dom.test.ts",
+        "scripts/x.dom.test.ts",
+      ])
+        put(root, f, "export const one = 1;\n");
+    }),
+    0,
+  );
+  assert.match(out, /^ {2}src\/x\.dom\.ts: /m);
+  assert.doesNotMatch(out, /x\.dom\.test\.ts/);
 });
 test("dupes: a clone is still a finding beside the files set aside", () => {
   const out = expect(
@@ -1265,20 +1281,31 @@ test("svelte: a test and a rune module beside the components are svelte-check's,
   }
 });
 test("svelte: a component Svelte cannot parse is a finding with Svelte's own message and line", () => {
-  // Measured: svelte-check drops a Svelte parse error that says "expected" when the config has no preprocess and the
+  // Measured with svelte-check 4.7.8: it drops a Svelte parse error that says "expected" when the config has no
+  // preprocess and the
   // component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped script. The step
   // reports the parse error itself.
-  for (const body of [
-    '<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n',
-    '<script lang="js">\n  const a = 1;\n</script>\n\n<p>{a}</p>\n\n<style>\n  p:is() {\n    color: red;\n  }\n</style>\n',
-    '<p>{1}</p>\n\n<style lang="css">\n  p:is() {\n    color: red;\n  }\n</style>\n',
+  for (const [body, line] of [
+    ['<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n', "2"],
+    [
+      '<script lang="js">\n  const a = 1;\n</script>\n\n<p>{a}</p>\n\n<style>\n  p:is() {\n    color: red;\n  }\n</style>\n',
+      "\\d+",
+    ],
+    [
+      '<p>{1}</p>\n\n<style lang="css">\n  p:is() {\n    color: red;\n  }\n</style>\n',
+      "4",
+    ],
   ]) {
     const out = expect("svelte", repo(component(body)), 1);
+    // Svelte's own line, and its message's first line only (the second is a link).
     assert.match(
       out,
-      /src\/Count\.svelte: Svelte cannot parse it at line \d+: /,
+      new RegExp(
+        `src/Count\\.svelte: Svelte cannot parse it at line ${line}: \\S`,
+      ),
       body,
     );
+    assert.doesNotMatch(out, /svelte\.dev\/e\//, body);
   }
 });
 test("svelte: TypeScript outside scripts/ with no component cannot be checked: svelte-check needs one", () => {
@@ -1663,7 +1690,7 @@ test("types: a scripts/tsconfig.json that turns checking off cannot be checked: 
   });
   assert.match(out, /tsc did not report the planted type errors/);
 });
-test("types: a declaration file, or any .js file but svelte.config.js, has no class until one is decided", () => {
+test("types: a declaration file, or any .js file but the root svelte.config.js, has no class until one is decided", () => {
   // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
   for (const file of [
     "src/app.d.ts",
