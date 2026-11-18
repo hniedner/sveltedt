@@ -113,6 +113,29 @@ the strict policy.
 - Layer: HTTP.
 - Traces: PRD-W5.
 
+**SRV-04** The site server MUST NOT answer a file that it reaches through a symbolic link in its build folder.
+- Examples (the test runs every row; the build folder and its parent are those of SRV-01; each row plants its link in
+  the build folder, a symbolic link's target written relative to the link, and then starts its own server; "no
+  file" as in SRV-01):
+
+  | Link planted | Request | Status | Body |
+  |---|---|---|---|
+  | `linkdir`, to the build folder's parent | `GET /linkdir/package.json` | 404 | no file |
+  | `outside.json`, to the parent's `package.json` | `GET /outside.json` | 404 | no file |
+  | `same.js`, to `assets/app.js` | `GET /same.js` | 404 | no file |
+  | `same.js`, to `assets/app.js` | `GET /assets/app.js` | 200 | the bytes of `assets/app.js` |
+  | `loop`, to the build folder itself | the server starts, then `GET /` | 200 | the bytes of `index.html` |
+  | `loop`, to the build folder itself | `GET /loop/index.html` | 404 | no file |
+  | `hard.js`, a hard link to `assets/app.js` | `GET /hard.js` | 200 | the bytes of `assets/app.js` |
+
+  A symbolic link is not a file the build folder holds (SRV-01); a hard link is one: it is the file under a second
+  name. A symbolic link that points back into the build folder is refused too; its target is answered only at the
+  target's own path. Break that turns it red: the server follows links and answers a file at the link's path.
+- Reason: a build tool or a careless copy can leave a link in the build folder, and a server that follows it serves
+  files outside the build folder, up to the whole repository, or never starts when the link loops.
+- Layer: HTTP.
+- Traces: PRD-W5.
+
 ## 2. Imports (IMP)
 
 **IMP-01** The site's source MUST import SvelteDT only through the package's public exports.
@@ -272,6 +295,7 @@ time it has loaded and its table has rendered.
 | SRV-01 | PRD-W5 |
 | SRV-02 | PRD-W4 |
 | SRV-03 | PRD-W5 |
+| SRV-04 | PRD-W5 |
 | IMP-01 | PRD-W1 |
 | LIST-01 | PRD-W5 |
 | LIST-02 | PRD-W5 |
@@ -286,7 +310,7 @@ time it has loaded and its table has rendered.
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
 | PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
-| PRD-W5 | SRV-01, SRV-03, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
+| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 
 PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W7 (no statement yet; first with the part
