@@ -284,10 +284,9 @@ other script of the page.
 **CON-10** The component's styles MUST apply in the consumer through its Tailwind `@source` line naming the installed
 package.
 - Examples (the consumer's stylesheet holds `@source` with the relative path from the stylesheet to
-  `node_modules/@hniedner/sveltedt`, a link the package manager made, which Tailwind follows (READ by this spec's
-  review in tailwindlabs/tailwindcss issues 20203 and 20347; the first row decides it); the test opens
-  `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a canary, a copy
-  without the `@source` line, which must be found):
+  `node_modules/@hniedner/sveltedt`, a link the package manager made; that the consumer's Tailwind version follows the
+  link is shown by the first row itself; the test opens `/` in each engine and measures the caption as A11Y-13 of
+  `spec/table.md` does; the second row is a canary, a copy without the `@source` line, which must be found):
 
   | Consumer | Caption |
   |---|---|
