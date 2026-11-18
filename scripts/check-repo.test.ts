@@ -1209,6 +1209,37 @@ test("lint: a class: directive in a component is a finding that names the ban", 
   );
   assert.match(out, /no-restricted-syntax class: directive/);
 });
+test("lint: a <style> block in a component is a finding that names the ban", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        `${COMPONENT}\n<style>\n  p {\n    margin: 0;\n  }\n</style>\n`,
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax <style> block/);
+});
+test("lint: markup and code beside the injection bans pass in a component", () => {
+  // Near misses: another element through svelte:element, an iframe without srcdoc, reading innerHTML, a write that
+  // is not document's.
+  expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "</script>",
+          "  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n</script>",
+        ).replace(
+          "<p>{count}</p>",
+          '<svelte:element this="p">{count}{log.write(innerHTML)}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>',
+        ),
+      ),
+    ),
+    0,
+  );
+});
 test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
   const out = expect(
     "lint",

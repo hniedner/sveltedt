@@ -33,4 +33,19 @@
 <p bind:this={el}>bind:this is allowed</p>
 <svelte:head><title>{inject}</title></svelte:head>
 {@html rest.html}
+<link rel="stylesheet" href="injected.css" />
+<div>
+  <script>
+    alert(1);
+  </script>
+</div>
+<svelte:element this="style">p {"{}"}</svelte:element>
+<svelte:element this={"script"}></svelte:element>
+<iframe srcdoc="<p>raw</p>" title="srcdoc"></iframe>
 <p>{String(idle)}</p>
+
+<style>
+  p {
+    margin: 0;
+  }
+</style>

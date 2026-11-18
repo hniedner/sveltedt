@@ -956,8 +956,13 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "@typescript-eslint/ban-ts-comment",
     "no-restricted-syntax|setAttribute style",
     "no-restricted-syntax|createElement of style",
-    "no-restricted-syntax|innerHTML or outerHTML",
+    "no-restricted-syntax|assigning innerHTML",
+    "no-restricted-syntax|in an object literal",
     "no-restricted-syntax|insertAdjacentHTML",
+    "no-restricted-syntax|setAttribute srcdoc",
+    "no-restricted-syntax|parseHTMLUnsafe or createContextualFragment",
+    "no-restricted-syntax|DOMParser",
+    "no-restricted-syntax|document.write",
   ],
   // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [
@@ -974,7 +979,12 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|{style} shorthand",
     "no-restricted-syntax|svelte:head",
     "no-restricted-syntax|setAttribute style",
-    "no-restricted-syntax|innerHTML or outerHTML",
+    "no-restricted-syntax|assigning innerHTML",
+    "no-restricted-syntax|<style> block",
+    "no-restricted-syntax|style, link or script element",
+    "no-restricted-syntax|svelte:element as style",
+    "no-restricted-syntax|svelte:element this={...} as style",
+    "no-restricted-syntax|srcdoc attribute",
   ],
 };
 

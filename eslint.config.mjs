@@ -54,9 +54,29 @@ const markupBans = [
     "SvelteElement[kind='special'][name.name='svelte:head']",
     "svelte:head (PRD-S1, PRD-B19)",
   ],
+  [
+    "SvelteStyleElement",
+    "<style> block (PRD-T3): no CSS ships; use Tailwind classes",
+  ],
+  [
+    "SvelteElement[kind='html'][name.name=/^(style|link|script)$/i]",
+    "style, link or script element (PRD-S1)",
+  ],
+  [
+    "SvelteElement[name.name='svelte:element'] > SvelteStartTag > SvelteAttribute[key.name='this'][value.0.value=/^(style|link|script)$/i]",
+    "svelte:element as style, link or script (PRD-S1)",
+  ],
+  [
+    "SvelteSpecialDirective[kind='this'][expression.value=/^(style|link|script)$/i]",
+    "svelte:element this={...} as style, link or script (PRD-S1)",
+  ],
+  [
+    ":matches(SvelteAttribute, SvelteShorthandAttribute)[key.name=/^srcdoc$/i]",
+    "srcdoc attribute (PRD-S2)",
+  ],
 ].map(([selector, message]) => ({ selector, message }));
 // Code a component may not run, in TypeScript and in components. PRD-S1: no injected style, link or script.
-// PRD-S2: no raw HTML.
+// PRD-S2: no raw HTML, through a property, an object literal, an attribute or a parsing call.
 const scriptBans = [
   [
     "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^style$/i]",
@@ -67,8 +87,25 @@ const scriptBans = [
     "createElement of style, link or script (PRD-S1)",
   ],
   [
-    "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]",
-    "innerHTML or outerHTML (PRD-S2)",
+    "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^srcdoc$/i]",
+    "setAttribute srcdoc (PRD-S2)",
+  ],
+  [
+    "AssignmentExpression:matches([left.property.name=/^(innerHTML|outerHTML|srcdoc)$/], [left.property.value=/^(innerHTML|outerHTML|srcdoc)$/])",
+    "assigning innerHTML, outerHTML or srcdoc (PRD-S2)",
+  ],
+  [
+    "ObjectExpression > Property:matches([key.name=/^(innerHTML|outerHTML|srcdoc)$/], [key.value=/^(innerHTML|outerHTML|srcdoc)$/])",
+    "innerHTML, outerHTML or srcdoc in an object literal (PRD-S2)",
+  ],
+  [
+    "CallExpression[callee.property.name=/^(setHTMLUnsafe|parseHTMLUnsafe|createContextualFragment)$/]",
+    "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment (PRD-S2)",
+  ],
+  ["NewExpression[callee.name='DOMParser']", "DOMParser (PRD-S2)"],
+  [
+    "CallExpression[callee.property.name=/^(write|writeln)$/]:matches([callee.object.name=/document$/i], [callee.object.property.name=/document$/i])",
+    "document.write (PRD-S2)",
   ],
   [
     "CallExpression[callee.property.name='insertAdjacentHTML']",

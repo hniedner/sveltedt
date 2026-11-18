@@ -39,4 +39,11 @@ export function inject(el: HTMLElement, html: string): void {
   document.head.append(document.createElement("style"));
   el.innerHTML = html;
   el.insertAdjacentHTML("beforeend", html);
+  el.setAttribute("srcdoc", html);
+  el.setHTMLUnsafe(html);
+  document.createRange().createContextualFragment(html);
+  document.write(html);
+  new DOMParser().parseFromString(html, "text/html");
+  Document.parseHTMLUnsafe(html);
+  Object.assign(el, { innerHTML: html });
 }

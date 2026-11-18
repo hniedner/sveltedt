@@ -40,9 +40,12 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this`, inline style or `svelte:head`; no style set by
-  `setAttribute`, no created `style`, `link` or `script` element, no `innerHTML`, `outerHTML` or
-  `insertAdjacentHTML`: PRD-G2, PRD-S1 and PRD-S2; no browser
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, inline style, `svelte:head`, a `<style>` block
+  (PRD-T3) or a `style`, `link` or `script` element, written or through `svelte:element` with a literal `this`; no
+  style or `srcdoc` set by `setAttribute`, no created `style`, `link` or `script` element, no `innerHTML`,
+  `outerHTML` or `srcdoc` assigned or in an object literal, no `srcdoc` attribute, no `insertAdjacentHTML`,
+  `setHTMLUnsafe`, `parseHTMLUnsafe`, `createContextualFragment`, `DOMParser` or `document.write`: PRD-G2, PRD-S1 and PRD-S2; a `svelte:element`
+  whose `this` is computed is not checked; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
