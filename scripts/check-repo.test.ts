@@ -664,7 +664,11 @@ test("lockfile: every entry of the packages list is read, and the list ends at t
     workspace(
       `packages:\n  - site\n  # the tools\n\n  - "tools/x"\n# exceptions\nminimumReleaseAgeExclude:\n  - prettier@3.9.11 ${GHSA}`,
     )(root);
-    put(root, "site/package.json", "{}");
+    put(
+      root,
+      "site/package.json",
+      '{ "devDependencies": { "jsdom": "^31.0.1" } }',
+    );
     put(
       root,
       "tools/x/package.json",
@@ -673,7 +677,8 @@ test("lockfile: every entry of the packages list is read, and the list ends at t
   };
   const out = expect("lockfile", repo(list), 1);
   assert.match(out, /tools\/x\/package\.json: devDependencies: vite/);
-  assert.doesNotMatch(out, /site\/package\.json|prettier/);
+  assert.match(out, /site\/package\.json: devDependencies: jsdom/);
+  assert.doesNotMatch(out, /prettier/);
 });
 test("lockfile: an optional or peer dependency of a workspace package other than a workspace link is a finding", () => {
   const site = sitePackage({
