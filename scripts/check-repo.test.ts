@@ -1356,11 +1356,11 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ],
     [
       'document.styleSheets[0]?.insertRule("p {}");',
-      "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
+      "a rule inserted into a style sheet",
     ],
     [
       'document.styleSheets[0]?.addRule("p", "margin: 0");',
-      "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
+      "a rule inserted into a style sheet",
     ],
     [
       "(el as HTMLIFrameElement).contentDocument?.write(html);",
@@ -1369,7 +1369,7 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ["window.Document.parseHTML(html);", "Document.parseHTML"],
     [
       'document.createElementNS("http://www.w3.org/2000/svg", "style");',
-      "createElement of style",
+      "createElementNS of style",
     ],
     ['el["insertAdjacentHTML"]("beforeend", html);', "a sink name in brackets"],
     ['document["write"](html);', "a sink name in brackets"],
@@ -1382,11 +1382,11 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ['document.createElement("SCRIPT");', "createElement of style"],
     [
       'document.createElementNS("http://www.w3.org/2000/svg", "script");',
-      "createElement of style",
+      "createElementNS of style",
     ],
     [
       'document.createElementNS("http://www.w3.org/1999/xhtml", "link");',
-      "createElement of style",
+      "createElementNS of style",
     ],
     ['el["outerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
     [
@@ -1633,10 +1633,29 @@ test("lint: a config block that changes a proven rule for the component's folder
   // Measured: a later block that sets no-restricted-syntax for some files replaces the list for them, while every
   // canary still passes. Each rule the canaries prove must be configured for src/lib and site/src as for its canary.
   const real = join(here, "..", "eslint.config.mjs");
-  for (const [block, named] of [
+  for (const [block, named, file = ""] of [
     [
       '{ files: ["src/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
       "src/lib/probe.svelte: no-restricted-syntax",
+    ],
+    // A block narrower than the probes: the file it reaches is compared too.
+    [
+      '{ files: ["src/lib/components/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/components/Grid.svelte: no-restricted-syntax",
+      "src/lib/components/Grid.svelte",
+    ],
+    [
+      '{ files: ["**/DataTable.svelte"], rules: { "svelte/no-at-html-tags": "off" } }',
+      "src/lib/DataTable.svelte: svelte/no-at-html-tags",
+      "src/lib/DataTable.svelte",
+    ],
+    [
+      '{ files: ["src/**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/probe.svelte.ts: no-restricted-syntax",
+    ],
+    [
+      '{ files: ["src/**"], linterOptions: { noInlineConfig: false } }',
+      "src/lib/probe.svelte: linterOptions",
     ],
     [
       '{ files: ["site/**"], rules: { "svelte/no-at-html-tags": "off" } }',
@@ -1656,9 +1675,12 @@ test("lint: a config block that changes a proven rule for the component's folder
       config,
       `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
     );
-    const out = expect("lint", repo(), 3, {
-      extraEnv: { ESLINT_CONFIG: config },
-    });
+    const out = expect(
+      "lint",
+      repo(file ? component(COMPONENT, file) : () => {}),
+      3,
+      { extraEnv: { ESLINT_CONFIG: config } },
+    );
     assert.ok(out.includes(named), `${named}: ${out}`);
   }
   // Adding a block that leaves the proven rules alone is not a finding.

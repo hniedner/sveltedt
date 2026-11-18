@@ -95,7 +95,7 @@ const scriptBans = [
   ],
   [
     "CallExpression[callee.property.name='createElementNS'][arguments.1.value=/^(style|link|script)$/]",
-    "createElement of style, link or script (PRD-S1): createElementNS",
+    "createElementNS of style, link or script (PRD-S1)",
   ],
   [
     "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(srcdoc|on\\w+)$/i]",
@@ -124,7 +124,7 @@ const scriptBans = [
   ],
   [
     "MemberExpression[property.name=/^(insertRule|addRule)$/]",
-    "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
+    "a rule inserted into a style sheet (PRD-S1, PRD-T3)",
   ],
   [
     "MemberExpression[property.name=/^(write|writeln)$/]:matches([object.name=/^(document|ownerDocument|contentDocument)$/], [object.property.name=/^(document|ownerDocument|contentDocument)$/])",

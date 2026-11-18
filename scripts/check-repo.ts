@@ -818,7 +818,7 @@ const results = await eslint.lintFiles(lintable);
 const configs = {};
 for (const f of [...lintable, ...files.filter((f) => f.startsWith("?")).map((f) => f.slice(1))]) {
   const c = await eslint.calculateConfigForFile(f);
-  configs[f] = c ? { rules: c.rules, settings: c.settings } : null;
+  configs[f] = c ? { rules: c.rules, settings: c.settings, linterOptions: c.linterOptions } : null;
 }
 console.log(JSON.stringify({ version: ESLint.version, configs, files: results.map((r) => ({
   f: r.filePath.slice(root.length + 1),
@@ -843,7 +843,11 @@ interface EslintRecord {
   version: string;
   configs: Record<
     string,
-    { rules: Record<string, unknown>; settings: object } | null
+    {
+      rules: Record<string, unknown>;
+      settings: object;
+      linterOptions: object;
+    } | null
   >;
   files: { f: string; messages: { rule: string | null; text: string }[] }[];
 }
@@ -956,6 +960,11 @@ const JS_RULES = [
   "no-restricted-syntax|assigning innerHTML",
 ];
 const LINT_CANARY_RULES: Record<string, string[]> = {
+  ".svelte.ts": [
+    "@typescript-eslint/no-explicit-any",
+    "@typescript-eslint/ban-ts-comment",
+    "no-restricted-syntax|assigning innerHTML",
+  ],
   ".mjs": JS_RULES,
   ".js": JS_RULES,
   ".ts": [
@@ -978,8 +987,8 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|document.write",
     "no-restricted-syntax|setHTML or createRawSnippet",
     "no-restricted-syntax|constructed or inserted style sheet",
-    "no-restricted-syntax|a rule inserted",
-    "no-restricted-syntax|: createElementNS",
+    "no-restricted-syntax|a rule inserted into",
+    "no-restricted-syntax|createElementNS of",
     "no-restricted-syntax|execCommand insertHTML",
     "no-restricted-syntax|Document.parseHTML",
     "no-restricted-syntax|a sink name in brackets",
@@ -1009,10 +1018,16 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
   ],
 };
 
+/** The canary extension of a file: the longest key of LINT_CANARY_RULES it ends with (.svelte.ts before .ts). */
+const extOf = (f: string): string | undefined =>
+  Object.keys(LINT_CANARY_RULES)
+    .filter((e) => f.endsWith(e))
+    .sort((a, b) => b.length - a.length)[0];
+
 /** The planted rules a canary record did not raise, per extension, or "no canary for <ext>". */
 function lintCanaryMisses(canary: EslintRecord): string[] {
   return Object.entries(LINT_CANARY_RULES).flatMap(([ext, rules]) => {
-    const files = canary.files.filter((c) => c.f.endsWith(ext));
+    const files = canary.files.filter((c) => extOf(c.f) === ext);
     if (!files.length) return [`no canary for ${ext}`];
     const messages = files.flatMap((c) => c.messages);
     return rules
@@ -1028,26 +1043,27 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
 // The canaries prove their rules where they sit. A later config block scoped to the component's folders replaces a
 // rule there (measured: a second no-restricted-syntax block replaces the whole list) while every canary still passes,
-// so each proven rule, and the settings, must be the same for a path in src/lib and site/src as for the canary.
+// so each proven rule, the settings and the linter options must be the same for every linted file, and for a path in
+// src/lib and site/src (folders that may be empty yet), as for the canary of its extension.
 const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
   ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
 );
 function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
-  return CONFIG_PROBES.flatMap((probe) => {
-    const ext =
-      Object.keys(LINT_CANARY_RULES).find((e) => probe.endsWith(e)) ?? "";
-    const planted = Object.keys(canary.configs).find((f) => f.endsWith(ext));
+  return Object.keys(rec.configs).flatMap((probe) => {
+    const ext = extOf(probe) ?? "";
+    const planted = Object.keys(canary.configs).find((f) => extOf(f) === ext);
     const want = planted ? canary.configs[planted] : null;
     const got = rec.configs[probe];
     if (!want || !got) return [`${probe}: no config`];
     const rules = [
-      ...new Set(LINT_CANARY_RULES[ext].map((e) => e.split("|")[0])),
+      ...new Set((LINT_CANARY_RULES[ext] ?? []).map((e) => e.split("|")[0])),
     ];
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
     return [
       ...rules.filter((r) => !same(got.rules[r], want.rules[r])),
       ...(same(got.settings, want.settings) ? [] : ["settings"]),
+      ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
     ].map((r) => `${probe}: ${r}`);
   });
 }
@@ -1072,13 +1088,6 @@ function lint(root: string, list: Set<string>): Result {
     ...CONFIG_PROBES.map((p) => `?${p}`),
   ]);
   if ("error" in rec) return result(CANNOT, rec.error);
-  const drift = configDrift(canary, rec);
-  if (drift.length)
-    return result(
-      CANNOT,
-      "the config sets a rule the canaries prove otherwise for the component's folders",
-      drift,
-    );
   if (rec.version !== pin)
     return result(
       CANNOT,
@@ -1094,6 +1103,13 @@ function lint(root: string, list: Set<string>): Result {
       ...notLinted,
       ...ignored.map((r) => r.f),
     ]);
+  const drift = configDrift(canary, rec);
+  if (drift.length)
+    return result(
+      CANNOT,
+      "the config sets a rule the canaries prove otherwise for a linted file or the component's folders",
+      drift,
+    );
   const details = rec.files.flatMap((r) =>
     r.messages.map((m) => `${r.f}:${m.text}`),
   );
@@ -1105,7 +1121,7 @@ function lint(root: string, list: Set<string>): Result {
     );
   // Per extension, so a kind with no real file shows 0 instead of hiding behind its canary.
   const counts = Object.keys(LINT_CANARY_RULES).map(
-    (ext) => `${ext} ${mine.filter((f) => f.endsWith(ext)).length}`,
+    (ext) => `${ext} ${mine.filter((f) => extOf(f) === ext).length}`,
   );
   return result(
     PASS,
