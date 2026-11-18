@@ -102,6 +102,13 @@ Category B licences in use: none today. Expected:
 - **Removed when** no picomatch at or below 4.0.7 is left in `pnpm-lock.yaml` (`pnpm why picomatch`), or a fixed
   version is released: the commit that moves the lockfile removes the id from `dependency-review.yml` and this entry.
 
+## Overrides
+
+- **minimatch 11.0.8 under @typescript-eslint/typescript-estree** (`pnpm-workspace.yaml`), for GHSA-g3hv-75wg-m249
+  (minimatch >= 7.0.0, < 11.0.1, fixed in 11.0.1). typescript-estree 8.72.2 asks for `^10.2.2`; between v8.72.2 and
+  v8.73.0 its only minimatch change is that range, to `^11.0.1`. 8.73.0 is younger than the release age.
+- **Removed** on or after 2026-11-19: the commit that bumps typescript-eslint to >= 8.73.0 removes this override.
+
 ## Pinned programs
 
 - **zizmor runs offline** (`--offline`): its online audits (does a pinned SHA belong to its tag, is an action known
