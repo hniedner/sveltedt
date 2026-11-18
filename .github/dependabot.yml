@@ -4,7 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Headers "ci(deps): ...", "build(deps): ...": the gate's commits step checks every commit (taken from ontoprism).
+    # Headers "ci(deps): ...", "build(deps): ...": conventional, as the commit-message check requires from the next
+    # pull request (issue #6). Origin: docs/decisions/001-quality-tooling.md.
     commit-message:
       prefix: ci
       include: scope

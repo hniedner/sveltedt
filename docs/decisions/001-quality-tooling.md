@@ -78,14 +78,24 @@ pages named, or measured with the command named.
 Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included", and "using a GPL'ed
 tool during the build is okay, but including GPL'ed source code is not".
 
-Measured with `pnpm licenses list`: every development dependency today is MIT, Apache-2.0, BlueOak-1.0.0,
-BSD-2-Clause, BSD-3-Clause or ISC, all Category A. `dependency-review.yml` allows exactly these.
+**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: Apache-2.0,
+BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT. Another Category A licence or a listed Category B one
+joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
 
 Category B licences in use: none today. Expected:
 
 - MPL-2.0 (lightningcss, under Tailwind 4 and Vite 8);
 - CC-BY-4.0 (caniuse-lite, under the browser-floor check).
   Both are development-only and listed here when they enter.
+
+## Pinned programs
+
+- **zizmor runs offline** (`--offline`): its online audits (does a pinned SHA belong to its tag, is an action known
+  to be vulnerable) do not run, and the `pins` step checks a pin's shape only. Whether CI runs it online with the
+  workflow token is a later ruling.
+- **The `scripts/<name>.version` pins** (actionlint, zizmor, gitleaks) are not watched by Dependabot. A maintainer
+  moves one by hand, in a `build:` commit that changes the version and its sha256 lines together, when a release
+  is at least 7 days old (the actions' cooldown) or at once for a security fix.
 
 ## Commit messages
 
@@ -104,8 +114,11 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 `frontend/eslint.config.js`, `frontend/vite.config.ts`, `frontend/vitest-setup-client.ts`,
 `frontend/playwright.config.ts`, `.github/dependabot.yml` and the `web-tests` job of `.github/workflows/ci.yml`.
 
-**Taken now:** Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
-`include: scope`. The gate's `commits` step checks every commit, so a Dependabot header must be conventional.
+**Taken now:**
+
+- Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
+  `include: scope`: the commit-message check, from the next pull request (issue #6), needs conventional headers;
+- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`).
 
 **To take with the layer that needs it:**
 
@@ -114,8 +127,8 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
   - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
-- with the TypeScript and Svelte lint: `no-undef` off for TypeScript files, as typescript-eslint advises; the
-  Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the TypeScript parser;
+- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
+  TypeScript parser;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**

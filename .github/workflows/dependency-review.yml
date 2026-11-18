@@ -24,4 +24,4 @@ jobs:
           fail-on-scopes: runtime, development
           # The licences measured in the lockfile, each on the ASF Category A list. A new one is a ruling request;
           # a Category B licence is added only with its package named in docs/decisions/001-quality-tooling.md.
-          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT
+          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT

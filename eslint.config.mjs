@@ -61,7 +61,7 @@ export default [
         },
       ],
       // The preset replaces core no-implied-eval with @typescript-eslint/no-implied-eval, which knows types.
-      // TypeScript checks undefined names itself; typescript-eslint advises turning this rule off (taken from ontoprism).
+      // TypeScript checks undefined names itself; typescript-eslint advises turning this rule off (origin: docs/decisions/001).
       "no-undef": "off",
     },
   },

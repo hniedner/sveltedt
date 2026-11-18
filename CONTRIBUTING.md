@@ -15,8 +15,13 @@ pnpm gate
 
 It needs Node (the major version in `.node-version`), pnpm (the version in `package.json`'s `packageManager`),
 and the pinned programs the checks run: actionlint with shellcheck, zizmor and gitleaks (each version in
-`scripts/<name>.version`). Each check ends with one line: `PASS`, `FINDING` or `COULD NOT CHECK`. "Could not
-check" blocks exactly like a finding (method section 6). CI runs the same command; its `gate` check is required on
+`scripts/<name>.version`). On macOS: `brew install actionlint shellcheck zizmor gitleaks`; on Linux, the release
+archives that `.github/workflows/ci.yml` installs, checked against the sha256 in the same file. A newer version than
+the pin makes the gate answer `COULD NOT CHECK` until the pin moves.
+
+Each check ends with one line: `PASS`, `FINDING`, `COULD NOT CHECK`, or `NOT APPLICABLE` when there is nothing of
+its kind to check (such as no commit after `origin/main`). "Could not check" blocks exactly like a finding (method
+section 6). CI runs the same command; its `gate` check is required on
 `main`.
 
 The checks today:
@@ -31,7 +36,8 @@ The checks today:
   code outside tests. The two method files in `docs/engineering/` are never reformatted: they change only through
   their change log.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
-  injection, dangerous triggers and over-broad permissions.
+  injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
+  tag is not checked (docs/decisions/001-quality-tooling.md).
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI).
 
