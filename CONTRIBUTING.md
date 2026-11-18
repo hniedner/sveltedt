@@ -29,6 +29,8 @@ section 6). CI runs the same command; its `gate` check is required on
 
 The checks today:
 
+- **hooks:** `core.hooksPath` is `.githooks` and each hook there is the executable two-line shim (not applicable in
+  CI, where git runs no hook).
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
@@ -98,6 +100,10 @@ find it, so a tool that silently checks nothing cannot pass.
 
 git runs them from `.githooks/` once `core.hooksPath` is set. They read files and change none.
 
+- **pre-commit**, on the staged files: `text`, `format` and `lint` on the files of their class; `lockfile` when
+  `package.json`, the lockfile, `pnpm-workspace.yaml` or `dependabot.yml` is staged; `workflows` when a file under
+  `.github/` is; then gitleaks on the staged files. A staged file changed again before the commit stops it: stage or
+  restore that change. The hook never stashes or re-stages anything.
 - **commit-msg:** the header is `<type>(<scope>): <subject>` (scope optional, `!` before the colon for a breaking
   change), at most 100 characters. The types are the list `TYPES` in `scripts/check-repo.ts`; a refused header
   prints them. The changelog is generated from these headers.
@@ -121,8 +127,7 @@ correct message.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the local hooks that run checks before a commit or a push (issue #6); until they exist, maintainers run the
-  private word scan by hand before every push;
+- the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

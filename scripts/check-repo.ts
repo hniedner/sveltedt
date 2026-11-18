@@ -1,17 +1,18 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
-//   node scripts/check-repo.ts commit-msg <file>        the commit-msg hook (.githooks/), run by git
+//   node scripts/check-repo.ts pre-commit | commit-msg <file>   the git hooks (.githooks/), run by git
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -375,8 +376,6 @@ function runTestFile(
   root: string,
   file: string,
 ): { code: number; line: string } {
-  if (!existsSync(join(root, file)))
-    return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
   const r = spawnSync(
     process.execPath,
@@ -807,10 +806,11 @@ const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 
 // Asks Prettier itself, file by file, whether it ignores the file, which parser it infers and whether the file is
-// formatted, with the options its CLI would use. Prints one JSON record.
+// formatted, with the options its CLI would use. Prints one JSON record. The config is fixed to the root package.json's
+// "prettier" key, so a nested Prettier config can neither change the rules nor run code.
 const PRETTIER_PROBE = `
 import { readFileSync } from "node:fs";
-const [url, root, ...files] = process.argv.slice(1);
+const [url, config, root, ...files] = process.argv.slice(1);
 const p = await import(url);
 const out = { version: p.version, files: [] };
 for (const f of files) {
@@ -818,7 +818,7 @@ for (const f of files) {
   const info = await p.getFileInfo(path, { ignorePath: [] });
   const rec = { f, ignored: info.ignored, parser: info.inferredParser };
   if (rec.parser && !rec.ignored) {
-    const options = { ...(await p.resolveConfig(path, { editorconfig: true })), filepath: path };
+    const options = { ...(await p.resolveConfig(path, { editorconfig: true, config })), filepath: path };
     try { rec.formatted = await p.check(readFileSync(path, "utf8"), options); }
     catch (e) { rec.error = String(e.message).split("\\n")[0]; }
   }
@@ -924,7 +924,9 @@ function format(root: string, list: Set<string>): Result {
   if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
   const prettierRecord = (r: string, f: string[]) =>
-    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f);
+    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f, [
+      join(root, "package.json"),
+    ]);
   const canary = prettierRecord(dir, planted);
   if ("error" in canary) return result(CANNOT, canary.error);
   const missed = canary.files.filter(
@@ -1782,21 +1784,28 @@ function secrets(root: string): Result {
     [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
     { encoding: "utf8", env: childEnv() },
   );
+  return scanResult(
+    r,
+    range.range,
+    `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
+  );
+}
+
+/** The secret scan wrapper's answer as a step result. */
+function scanResult(
+  r: SpawnSyncReturns<string>,
+  what: string,
+  passed: string,
+): Result {
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
-  if (r.status === PASS)
-    return result(
-      PASS,
-      `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
-      out,
-    );
+  if (r.status === PASS) return result(PASS, passed, out);
   // node also exits 1 on an uncaught error: only the wrapper's own line makes it a finding.
   if (
     r.status === FINDING &&
     !out.some((l) => l.startsWith("FINDING scan-secrets:"))
   )
     return result(CANNOT, "the secret scan exited 1 with no FINDING line", out);
-  if (r.status === FINDING)
-    return result(FINDING, `secrets in ${range.range}`, out);
+  if (r.status === FINDING) return result(FINDING, `secrets in ${what}`, out);
   return result(
     CANNOT,
     `the secret scan exited ${r.status ?? errorCode(r.error)}`,
@@ -1877,7 +1886,151 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, `"${header}"`);
 }
 
+// The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
+// this runner. No hook changes a file.
+const HOOKS = ["pre-commit", "commit-msg"];
+const shim = (hook: string): string =>
+  `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
+
+function hooks(root: string): Result {
+  if (inCI()) return result(NA, "git runs no hook in CI");
+  const path = spawnSync(
+    "git",
+    ["-C", root, "config", "--get", "core.hooksPath"],
+    { encoding: "utf8", env: childEnv() },
+  ).stdout.trim();
+  const details =
+    path === ".githooks"
+      ? []
+      : [
+          `core.hooksPath is ${path ? `"${path}"` : "unset"}: run git config core.hooksPath .githooks`,
+        ];
+  for (const h of HOOKS) {
+    const f = join(root, ".githooks", h);
+    if (!existsSync(f)) details.push(`.githooks/${h}: missing`);
+    else if (!(statSync(f).mode & 0o100))
+      details.push(`.githooks/${h}: not executable`);
+    else if (readFileSync(f, "utf8") !== shim(h))
+      details.push(`.githooks/${h}: not the two-line shim`);
+  }
+  if (details.length)
+    return result(FINDING, `${details.length} problem(s)`, details);
+  return result(PASS, `core.hooksPath .githooks; ${HOOKS.join(", ")} as shims`);
+}
+
+type Stage = [string, () => Result];
+
+// The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
+// index for `git commit -a` or `git commit <path>`: the listings and the export below keep that environment.
+function preCommit(): Result | Stage[] {
+  const git = (...args: string[]) =>
+    spawnSync("git", args, { encoding: "utf8" });
+  const staged = git(
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+    "--diff-filter=ACMR",
+  );
+  const changed = git("diff", "--name-only", "-z");
+  if (staged.status !== 0 || changed.status !== 0)
+    return result(CANNOT, "git cannot list the staged files");
+  const files = new Set(staged.stdout.split("\0").filter(Boolean));
+  // The checks read the work tree, so it must hold exactly what is staged.
+  const again = changed.stdout.split("\0").filter((f) => files.has(f));
+  if (again.length)
+    return result(
+      CANNOT,
+      `${again.length} staged file(s) changed after staging: stage or restore the change`,
+      again,
+    );
+  if (!files.size) return result(NA, "no added or changed file is staged");
+  const root = process.cwd();
+  const whole = () => tracked(root) ?? files;
+  const some = (match: (f: string) => boolean) => [...files].some(match);
+  // A staged file of no class runs the step, which then names it.
+  const ofStep = (step: string) =>
+    some(
+      (f) => CLASSES.find((k) => k.match.test(f))?.steps.includes(step) ?? true,
+    );
+  const when = (step: string, staged: boolean, check: () => Result): Stage => [
+    step,
+    staged ? check : () => result(NA, "no staged file of its kind"),
+  ];
+  return [
+    when("text", ofStep("text"), () => text(root, files)),
+    when("format", ofStep("format"), () => format(root, files)),
+    when("lint", ofStep("lint"), () => lint(root, files)),
+    when(
+      "lockfile",
+      some((f) =>
+        /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
+          f,
+        ),
+      ),
+      () => lockfile(root, whole()),
+    ),
+    when(
+      "workflows",
+      some((f) => f.startsWith(".github/")),
+      () => workflows(root, whole()),
+    ),
+    ["secrets", () => stagedSecrets(root, [...files])],
+  ];
+}
+
+// The secret scan of the staged blobs, exported from the hook's index.
+function stagedSecrets(root: string, files: string[]): Result {
+  const dir = mkdtempSync(join(tmpdir(), "staged-"));
+  try {
+    const e = spawnSync(
+      "git",
+      ["checkout-index", `--prefix=${dir}/`, "--", ...files],
+      { encoding: "utf8" },
+    );
+    if (e.status !== 0)
+      return result(
+        CANNOT,
+        `git cannot export the staged files: ${e.stderr.trim()}`,
+      );
+    const r = spawnSync(
+      process.execPath,
+      [join(root, "scripts", "scan-secrets.ts"), "dir", dir],
+      { encoding: "utf8", env: childEnv() },
+    );
+    return scanResult(
+      r,
+      "the staged files",
+      `${files.length} staged file(s) scanned`,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Runs the stages in order, stopping at the first that does not pass; one not applicable is counted apart. */
+function runStages(name: string, stages: Stage[]): number {
+  const notApplicable: string[] = [];
+  for (const [step, check] of stages) {
+    const r = check();
+    const code = report(step, r);
+    if (code !== PASS) return report(name, result(code, `stopped at ${step}`));
+    if (r.code === NA) notApplicable.push(step);
+  }
+  const passed = `${stages.length - notApplicable.length} checks passed`;
+  return report(
+    name,
+    result(
+      PASS,
+      notApplicable.length
+        ? `${passed}, ${notApplicable.length} not applicable: ${notApplicable.join(", ")}`
+        : passed,
+    ),
+  );
+}
+
 const CHECKS: Record<string, Check> = {
+  hooks,
   toolchain,
   selftest,
   files,
@@ -1908,12 +2061,18 @@ function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name === "commit-msg") return report(name, commitMsg(rest[0]));
+  if (name === "pre-commit") {
+    const stages = preCommit();
+    return Array.isArray(stages)
+      ? runStages(name, stages)
+      : report(name, stages);
+  }
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",
       result(
         USAGE,
-        `unknown check; use one of all, needs, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
+        `unknown check; use one of all, needs, pre-commit, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
   const [flag, given, ...extra] = rest;
@@ -1930,23 +2089,12 @@ function main(argv: string[]): number {
       result(CANNOT, `${root}: git ls-files failed or lists nothing`),
     );
   if (name !== "all") return report(name, CHECKS[name](root, list));
-  const notApplicable: string[] = [];
-  for (const [step, check] of Object.entries(CHECKS)) {
-    const r = check(root, list);
-    const code = report(step, r);
-    if (code !== PASS) return report("all", result(code, `stopped at ${step}`));
-    if (r.code === NA) notApplicable.push(step);
-  }
-  // A step that had nothing to check is counted apart, never as passed.
-  const passed = `${Object.keys(CHECKS).length - notApplicable.length} checks passed`;
-  return report(
+  return runStages(
     "all",
-    result(
-      PASS,
-      notApplicable.length
-        ? `${passed}, ${notApplicable.length} not applicable: ${notApplicable.join(", ")}`
-        : passed,
-    ),
+    Object.entries(CHECKS).map(([step, check]) => [
+      step,
+      () => check(root, list),
+    ]),
   );
 }
 
