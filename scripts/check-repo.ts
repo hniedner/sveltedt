@@ -584,6 +584,59 @@ function lockfile(root: string, list: Set<string>): Result {
   );
 }
 
+const REVIEW_FILE = ".github/workflows/dependency-review.yml";
+
+/** The packages of `record` (pnpm's `licenses list --json`) whose licence is not in `allowed`; "Unknown" never is. */
+const licenceProblems = (
+  record: Record<string, { name: string }[]>,
+  allowed: Set<string>,
+): string[] =>
+  Object.entries(record)
+    .filter(([licence]) => !allowed.has(licence))
+    .flatMap(([licence, pkgs]) => pkgs.map((p) => `${p.name}: ${licence}`));
+
+// Every installed package's licence is on the one allow list, dependency-review.yml's `allow-licenses`, which the
+// pull-request check also reads; a licence pnpm cannot detect is a finding (docs/decisions/001, Licences).
+function licences(root: string): Result {
+  const line = /^\s*allow-licenses:\s*(.+)$/m.exec(readText(root, REVIEW_FILE));
+  if (!line)
+    return result(CANNOT, `${REVIEW_FILE} holds no allow-licenses line`);
+  const allowed = new Set(line[1].split(",").map((l) => l.trim()));
+  const planted = {
+    Unknown: [{ name: "canary-a" }],
+    "GPL-3.0-only": [{ name: "canary-b" }],
+  };
+  if (licenceProblems(planted, allowed).length !== 2)
+    return result(
+      CANNOT,
+      "the allow list passed a planted unknown or GPL licence",
+    );
+  const r = spawnSync(binaryOf("pnpm"), ["licenses", "list", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: childEnv(),
+  });
+  let record: Record<string, { name: string }[]>;
+  try {
+    if (r.status !== 0) throw new Error();
+    record = JSON.parse(r.stdout) as typeof record;
+  } catch {
+    return result(
+      CANNOT,
+      `pnpm licenses list exited ${r.status ?? errorCode(r.error)} without a record`,
+    );
+  }
+  const details = licenceProblems(record, allowed);
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} package(s) outside the allow list`,
+      details,
+    );
+  const count = Object.values(record).flat().length;
+  return result(PASS, `${count} package(s), every licence on the allow list`);
+}
+
 // Every tracked file belongs to the first class whose pattern matches it: the steps that check it, or none with the
 // reason. A tracked file of no class makes the steps that read this table answer could-not-check, so a new kind of
 // file is a decision, never a silent skip.
@@ -1235,6 +1288,7 @@ const CHECKS: Record<string, Check> = {
   selftest,
   files,
   lockfile,
+  licences,
   text,
   format,
   lint,

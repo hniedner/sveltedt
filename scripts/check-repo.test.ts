@@ -47,6 +47,15 @@ jobs:
     steps:
       - run: echo done
 `;
+const REVIEW = `on: [pull_request]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/dependency-review-action@${SHA} # v1.0.0
+        with:
+          allow-licenses: ISC, MIT
+`;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
 /** The fixture's own tsconfig, read by ESLint's type-aware rules for its TypeScript scripts (Prettier's layout). */
 const FIXTURE_TSCONFIG = `{
@@ -149,7 +158,7 @@ function repo(change: (root: string) => void = () => {}): string {
     "scripts/gitleaks.version": "version 9.9.9\n",
     "scripts/tool.mjs": TOOL,
     ".github/workflows/ci.yml": CI,
-    ".github/workflows/dependency-review.yml": "on: [pull_request]\n",
+    ".github/workflows/dependency-review.yml": REVIEW,
     ".github/workflows/scorecard.yml": "on: [push]\n",
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
@@ -217,11 +226,20 @@ exit 0
 }
 
 /** A stand-in for pnpm that reports `version`. */
-function fakePnpm(version = "12.19.0"): string {
+/** A stand-in for pnpm: reports `version`; `licenses list --json` prints `licences` and exits `listExit`. */
+function fakePnpm(
+  version = "12.19.0",
+  licences = '{"MIT":[{"name":"a"}],"ISC":[{"name":"b"}]}',
+  listExit = 0,
+): string {
   const bin = join(tempDir(), "pnpm");
   writeFileSync(
     bin,
-    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\nexit 2\n`,
+    `#!/bin/sh
+if [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi
+if [ "$1" = "licenses" ]; then echo '${licences}'; exit ${listExit}; fi
+exit 2
+`,
   );
   chmodSync(bin, 0o755);
   return bin;
@@ -1127,7 +1145,12 @@ test("pins: a local or docker action is a finding", () => {
 test("pins: a workflow whose only uses line is a comment cannot be checked", () => {
   expect(
     "pins",
-    repo(edit(".github/workflows/ci.yml", "- uses:", "# - uses:")),
+    repo((root) =>
+      [
+        ".github/workflows/ci.yml",
+        ".github/workflows/dependency-review.yml",
+      ].forEach((w) => edit(w, "- uses:", "# - uses:")(root)),
+    ),
     3,
   );
 });
@@ -1367,7 +1390,7 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
   const out = expect("all", repo(), 0);
-  assert.match(out, /^PASS all: 14 checks passed, 1 not applicable: secrets$/m);
+  assert.match(out, /^PASS all: 15 checks passed, 1 not applicable: secrets$/m);
 });
 test("all: returns the failing step's finding and names the step", () => {
   const out = expect(
@@ -1423,6 +1446,30 @@ test("an unknown argument is a usage error", () => {
   const r = run(["text", "--root", repo(), "--rot", "x"]);
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /unknown argument --rot/);
+});
+test("licences: passes when every package's licence is on the workflow's allow list", () => {
+  assert.match(expect("licences", repo(), 0), /2 package\(s\)/);
+});
+test("licences: a licence outside the allow list is a finding that names the package", () => {
+  const gpl = fakePnpm("12.19.0", '{"GPL-3.0-only":[{"name":"copyleft"}]}');
+  assert.match(expect("licences", repo(), 1, { pnpm: gpl }), /copyleft/);
+});
+test("licences: a package whose licence pnpm cannot detect is a finding", () => {
+  const unknown = fakePnpm("12.19.0", '{"Unknown":[{"name":"mystery"}]}');
+  assert.match(expect("licences", repo(), 1, { pnpm: unknown }), /mystery/);
+});
+test("licences: a dependency-review workflow without an allow list cannot be checked", () => {
+  const none = (root: string) =>
+    put(
+      root,
+      ".github/workflows/dependency-review.yml",
+      "on: [pull_request]\n",
+    );
+  assert.match(expect("licences", repo(none), 3), /allow-licenses/);
+});
+test("licences: a pnpm that cannot list the licences cannot be checked", () => {
+  const broken = fakePnpm("12.19.0", "not json", 1);
+  expect("licences", repo(), 3, { pnpm: broken });
 });
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
