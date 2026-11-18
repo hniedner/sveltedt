@@ -1282,27 +1282,27 @@ test("svelte: a test and a rune module beside the components are svelte-check's,
 });
 test("svelte: a component Svelte cannot parse is a finding with Svelte's own message and line", () => {
   // Measured with svelte-check 4.7.8: it drops a Svelte parse error that says "expected" when the config has no
-  // preprocess and the
-  // component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped script. The step
-  // reports the parse error itself.
+  // preprocess and the component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped
+  // script. The step reports the parse error itself, with Svelte's line and message (measured with Svelte's parse).
   for (const [body, line] of [
-    ['<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n', "2"],
+    [
+      '<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n',
+      "2: Unexpected token",
+    ],
     [
       '<script lang="js">\n  const a = 1;\n</script>\n\n<p>{a}</p>\n\n<style>\n  p:is() {\n    color: red;\n  }\n</style>\n',
-      "\\d+",
+      "8: \\S",
     ],
     [
       '<p>{1}</p>\n\n<style lang="css">\n  p:is() {\n    color: red;\n  }\n</style>\n',
-      "4",
+      "4: \\S",
     ],
   ]) {
     const out = expect("svelte", repo(component(body)), 1);
     // Svelte's own line, and its message's first line only (the second is a link).
     assert.match(
       out,
-      new RegExp(
-        `src/Count\\.svelte: Svelte cannot parse it at line ${line}: \\S`,
-      ),
+      new RegExp(`src/Count\\.svelte: Svelte cannot parse it at line ${line}`),
       body,
     );
     assert.doesNotMatch(out, /svelte\.dev\/e\//, body);

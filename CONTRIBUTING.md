@@ -56,7 +56,7 @@ The checks today:
   real type, which tsc does not know. Every component carries a `<script lang="ts">` block, and each of its scripts is
   TypeScript: svelte-check type-checks no markup and no script of a component without one (measured with
   svelte-check 4.7.8), so the step reports such a component as a finding. A component Svelte's compiler cannot parse is a finding too,
-  with Svelte's message and line: svelte-check drops some parse errors (one that says "expected" when there is no
+  with Svelte's message and line: svelte-check drops some parse errors (one that says "expected" when `svelte.config.js` has no
   `preprocess` and the component has a `lang` attribute; measured with svelte-check 4.7.8). A file outside the program, or a script
   in it as well as in tsc's, blocks the
   gate, since svelte-check would skip the first silently and the two checkers could disagree on the second. TypeScript outside
