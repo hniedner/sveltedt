@@ -215,8 +215,8 @@ other addition, the `style-src-attr` allowance of PRD-W8.
 - Reason: the framework's own bootstrap is an inline script, which the strict policy allows only by a nonce; the
   nonce is what the consumer adds for its own scripts (PRD section 4.4), the component needs none, and a nonce that
   repeats across responses protects nothing. Where the nonce sits is what it allows: in `script-src` only; the one
-  `style-src-attr` hash allows only the framework's announcer style (PRD-W8, MEASURED in three engines), so no other
-  inline style is allowed.
+  `style-src-attr` hash allows only the framework's announcer style (PRD-W8, MEASURED in three engines on
+  SvelteKit 2.21.1 and 3.2.0), so no other inline style is allowed.
 - Layer: consumer HTTP.
 - Traces: PRD-W8, PRD-S1.
 
