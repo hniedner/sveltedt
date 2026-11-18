@@ -90,7 +90,10 @@ behaviour, every protection that system has becomes a statement here, or the own
 ## 4. Coverage without padding
 
 **Every change covers at least 95 % of its changed lines.** This is the only coverage rule. A changed file that is
-missing from the coverage report counts as *could not check* (`diff-coverage`, G4).
+missing from the coverage report counts as *could not check* (`diff-coverage`, G4). When a change is below that
+floor, a changed line that no statement's test reaches is removed, given a statement, or reached by running a
+statement's test through the real entry point; a test written to reach it is padding. A line that still cannot be
+reached is the owner's exception, recorded with its reason.
 
 Two checks keep the tests honest:
 - **"Can this test fail?"** For each new test the author names the one-line break that turns it red. The reviewer
@@ -280,3 +283,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-18 | Section 8: before a non-trivial decision, the proposal states the practice of the leading libraries or the relevant standard, from sources fetched for it, each claim marked fetched or inferred | Section 8 covered building, not deciding: mechanisms, budgets and patterns were proposed without a check against established practice. Owner's decision, 2026-11-18 |
 | 2026-11-18 | Section 8: a probe's own result is marked measured; companion: the cross-reference row for section 8 names the fetched practice before a non-trivial decision | A probe's result is neither fetched nor inferred, and the companion's cross-reference table missed the new rule. Owner's decision, 2026-11-18 |
 | 2026-11-18 | Section 8, the evaluation template: a row for the own cost (the effort to build it ourselves and the lasting maintenance it adds) | No dependency is preferred, but not at any cost: a decision to build must weigh what building and maintaining it costs against a well-vetted library. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 4: when a change is below the floor, an uncovered changed line is removed, given a statement, or reached by a statement's test through the real entry point; a test written to reach it is padding; a line that still cannot be reached is the owner's exception, recorded with its reason | A coverage floor invites tests written for a line count, and the method said what padding is but not what to do with an uncovered line. A line whose mutant only a test without a statement kills is given a statement, and that test becomes the statement's test (step 6 unchanged). Owner's decision, 2026-11-18 |
