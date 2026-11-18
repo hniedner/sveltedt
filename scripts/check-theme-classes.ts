@@ -2,9 +2,10 @@
 // a `--sdt-*` custom property with a CSS system-colour fallback, e.g. `bg-[var(--sdt-surface,Canvas)]`.
 //   node scripts/check-theme-classes.ts [--root <dir>]
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
-// It reads the source as Tailwind does, as plain text split into candidate tokens, so a class built in a `.ts` file
-// or a template string is read too. A value it does not know as a size, width or style keyword counts as a colour:
-// an unknown class is a finding, never a silent pass. Only tracked files under src/lib are read (tests excluded).
+// It reads the source as plain text split on white space and quotes (like Tailwind reading candidates, though not its
+// extractor), so a class built in a `.ts` file or a template string is read too. A value it does not know as a size,
+// width or style keyword counts as a colour: an unknown class is a finding, never a silent pass. Only tracked
+// `.svelte`, `.ts` and `.js` files under src/lib are read (tests excluded).
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -156,7 +157,7 @@ function check(root: string): {
   const classes = all.reduce((n, s) => n + s.classes, 0);
   const literals = all.reduce((n, s) => n + s.literals, 0);
   const details = all.flatMap((s) => s.findings);
-  const read = `${classes} class literal(s) read, ${literals} colour literal(s) checked in ${files.length} file(s)`;
+  const read = `${classes} class literal(s) read, ${literals} colour-prefixed literal(s) checked in ${files.length} file(s)`;
   // Either count at 0 means the scan saw nothing it could judge (THEME-01: "more than 0")
   if (!classes || !literals)
     return { code: CANNOT, summary: `${read}: nothing to check`, details };

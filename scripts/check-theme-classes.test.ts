@@ -1,5 +1,5 @@
 // Tests for check-theme-classes.ts (THEME-01). Each case builds a small git repository in a temporary folder, plants
-// one class in the component source and asserts the exit code and the first word of the output.
+// class literals in the component source and asserts the exit code and the word the last output line starts with.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -67,8 +67,44 @@ test("THEME-01 row: a class built at run time is a finding", () => {
 test("THEME-01 row: a token class with a system-colour fallback passes and is counted", () => {
   assert.match(
     expect(["--root", component(`${GOOD} p-2`)], 0),
-    /2 class literal\(s\) read, 1 colour literal\(s\) checked in 1 file\(s\)/,
+    /2 class literal\(s\) read, 1 colour-prefixed literal\(s\) checked in 1 file\(s\)/,
   );
+});
+// THEME-01's prefix list, each with a palette class: every one must be read as a colour class
+for (const prefix of [
+  "bg-",
+  "text-",
+  "border-",
+  "outline-",
+  "ring-",
+  "divide-",
+  "decoration-",
+  "accent-",
+  "caret-",
+  "fill-",
+  "stroke-",
+  "from-",
+  "via-",
+  "to-",
+  "shadow-",
+  "inset-shadow-",
+  "inset-ring-",
+  "drop-shadow-",
+  "text-shadow-",
+])
+  test(`THEME-01 prefix ${prefix}: a palette class is a finding`, () => {
+    expect(["--root", component(`${GOOD} ${prefix}red-500`)], 1);
+  });
+test("a longer prefix is read before the shorter one it starts with", () => {
+  const tokens = [
+    "text-shadow-",
+    "inset-ring-",
+    "inset-shadow-",
+    "drop-shadow-",
+  ]
+    .map((p) => `${p}[var(--sdt-a,CanvasText)]`)
+    .join(" ");
+  expect(["--root", component(`${GOOD} ${tokens}`)], 0);
 });
 test("transparent, current and inherit pass", () => {
   expect(
