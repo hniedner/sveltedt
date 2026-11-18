@@ -207,8 +207,13 @@ const git = (root: string, ...args: string[]): string =>
     encoding: "utf8",
   });
 
-/** Commits everything under `root` with a synthetic identity; the fixture runs no hook. */
+/**
+ * Commits everything under `root` with a synthetic identity; the fixture runs no hook. The message goes through a
+ * file: Linux refuses a single argument over 128 KiB, which the long-header rows need.
+ */
 function commit(root: string, message: string, ...flags: string[]): void {
+  const file = join(tempDir(), "message");
+  writeFileSync(file, message);
   git(root, "add", "-A");
   git(
     root,
@@ -224,8 +229,8 @@ function commit(root: string, message: string, ...flags: string[]): void {
     "-q",
     "--allow-empty",
     ...flags,
-    "-m",
-    message,
+    "-F",
+    file,
   );
 }
 
