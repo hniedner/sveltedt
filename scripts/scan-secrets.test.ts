@@ -3,14 +3,25 @@
 // canary run to the real one, so each refusal is reached past the canary and asserts its own reason.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 
 const here = import.meta.dirname;
 const WRAPPER = join(here, "scan-secrets.ts");
-const PIN = /^version (\S+)$/m.exec(readFileSync(join(here, "gitleaks.version"), "utf8"))?.[1] ?? "";
+const PIN =
+  /^version (\S+)$/m.exec(
+    readFileSync(join(here, "gitleaks.version"), "utf8"),
+  )?.[1] ?? "";
 const made: string[] = [];
 after(() => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
@@ -29,13 +40,28 @@ function tree(root: string, files: Record<string, string>): string {
 }
 
 function git(repo: string, ...args: string[]): string {
-  const id = ["-c", "user.name=T", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"];
-  const r = spawnSync("git", [...id, "-C", repo, ...args], { encoding: "utf8" });
+  const id = [
+    "-c",
+    "user.name=T",
+    "-c",
+    "user.email=t@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+  ];
+  const r = spawnSync("git", [...id, "-C", repo, ...args], {
+    encoding: "utf8",
+  });
   if (r.status !== 0) throw new Error(r.stderr);
   return r.stdout.trim();
 }
 
-function commit(repo: string, message: string, files: Record<string, string> = {}): void {
+function commit(
+  repo: string,
+  message: string,
+  files: Record<string, string> = {},
+): void {
   tree(repo, files);
   git(repo, "add", "-A");
   git(repo, "commit", "-q", "--allow-empty", "-m", message);
@@ -57,12 +83,17 @@ function fakeToken(): string {
 }
 
 /** A fake scanner: reports the pinned version, hands the canary run to the real gitleaks, then runs `body`. */
-function fakeScanner(body: string, { canary = true, version = PIN } = {}): string {
+function fakeScanner(
+  body: string,
+  { canary = true, version = PIN } = {},
+): string {
   const p = join(tempDir(), "fake-gitleaks");
   const lines = [
     "#!/bin/sh",
     `[ "$1" = version ] && { echo ${version}; exit 0; }`,
-    canary ? 'case "$*" in *scan-secrets-canary-*) exec gitleaks "$@";; esac' : "",
+    canary
+      ? 'case "$*" in *scan-secrets-canary-*) exec gitleaks "$@";; esac'
+      : "",
     body,
   ];
   writeFileSync(p, `${lines.join("\n")}\n`);
@@ -70,8 +101,17 @@ function fakeScanner(body: string, { canary = true, version = PIN } = {}): strin
   return p;
 }
 
-function run(args: string[], env: Record<string, string> = {}, wrapper = WRAPPER): { code: number; out: string } {
-  const r = spawnSync(process.execPath, [wrapper, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+function run(
+  args: string[],
+  env: Record<string, string> = {},
+  wrapper = WRAPPER,
+  cwd?: string,
+): { code: number; out: string } {
+  const r = spawnSync(process.execPath, [wrapper, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
   return { code: r.status ?? -1, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -79,20 +119,39 @@ const oneFile = () => tree(tempDir(), { "a.txt": "x\n" });
 
 before(() => {
   const v = spawnSync("gitleaks", ["version"], { encoding: "utf8" });
-  assert.ok(!v.error, "gitleaks is not installed: these tests need the pinned gitleaks on PATH");
-  assert.equal(v.stdout.trim().replace(/^v/, ""), PIN, `installed gitleaks is not the pinned ${PIN}`);
+  assert.ok(
+    !v.error,
+    "gitleaks is not installed: these tests need the pinned gitleaks on PATH",
+  );
+  assert.equal(
+    v.stdout.trim().replace(/^v/, ""),
+    PIN,
+    `installed gitleaks is not the pinned ${PIN}`,
+  );
 });
 
 // Directory mode
 
 test("dir: passes a clean tree, says how much it scanned and that the canary was found", () => {
-  const r = run(["dir", tree(tempDir(), { "a.txt": "hello world\n", "sub/b.md": "# title\n" })]);
+  const r = run([
+    "dir",
+    tree(tempDir(), { "a.txt": "hello world\n", "sub/b.md": "# title\n" }),
+  ]);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /PASS scan-secrets: 2 files, \d+ bytes scanned, canary found/);
+  assert.match(
+    r.out,
+    /PASS scan-secrets: 2 files, \d+ bytes scanned, canary found/,
+  );
 });
 test("dir: a planted token is a finding with file:line, and the token is never printed", () => {
   const tok = fakeToken();
-  const r = run(["dir", tree(tempDir(), { "ok.txt": "fine\n", "conf/x.env": `a=1\ntoken = "${tok}"\n` })]);
+  const r = run([
+    "dir",
+    tree(tempDir(), {
+      "ok.txt": "fine\n",
+      "conf/x.env": `a=1\ntoken = "${tok}"\n`,
+    }),
+  ]);
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /FINDING scan-secrets: 1 leak/);
   assert.match(r.out, /conf\/x\.env:2/);
@@ -109,13 +168,18 @@ test("dir: an empty directory cannot be checked", () => {
   assert.match(r.out, /nothing to scan/);
 });
 test("dir: a scanner that reads 0 bytes of a non-empty tree cannot be checked", () => {
-  const fake = fakeScanner('echo "INF scanned ~0 bytes (0) in 1ms" >&2; exit 0');
+  const fake = fakeScanner(
+    'echo "INF scanned ~0 bytes (0) in 1ms" >&2; exit 0',
+  );
   const r = run(["dir", oneFile()], { GITLEAKS_BIN: fake });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /read 0 bytes/);
 });
 test("dir: a scanner that misses the canary cannot be checked", () => {
-  const fake = fakeScanner('echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0', { canary: false });
+  const fake = fakeScanner(
+    'echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0',
+    { canary: false },
+  );
   const r = run(["dir", oneFile()], { GITLEAKS_BIN: fake });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /canary not found/);
@@ -127,7 +191,9 @@ test("dir: a scanner crash (exit 1) cannot be checked, never a finding or a pass
   assert.match(r.out, /scanner exited 1/);
 });
 test("dir: a scanner that logs an error cannot be checked", () => {
-  const fake = fakeScanner('echo "ERR could not read a file" >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0');
+  const fake = fakeScanner(
+    'echo "ERR could not read a file" >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0',
+  );
   const r = run(["dir", oneFile()], { GITLEAKS_BIN: fake });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /logged an error/);
@@ -139,7 +205,9 @@ test("dir: a scanner that reports no byte count cannot be checked", () => {
   assert.match(r.out, /did not report bytes scanned/);
 });
 test("dir: a leak exit without a report cannot be checked", () => {
-  const fake = fakeScanner('echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 7');
+  const fake = fakeScanner(
+    'echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 7',
+  );
   const r = run(["dir", oneFile()], { GITLEAKS_BIN: fake });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /wrote no report/);
@@ -154,12 +222,16 @@ test("dir: a leak exit with an empty report cannot be checked", () => {
   assert.match(r.out, /report is empty/);
 });
 test("dir: a scanner that is not installed cannot be checked", () => {
-  const r = run(["dir", oneFile()], { GITLEAKS_BIN: join(tempDir(), "no-such-bin") });
+  const r = run(["dir", oneFile()], {
+    GITLEAKS_BIN: join(tempDir(), "no-such-bin"),
+  });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /not runnable/);
 });
 test("dir: a scanner of another version than the pinned one cannot be checked", () => {
-  const r = run(["dir", oneFile()], { GITLEAKS_BIN: fakeScanner("exit 0", { version: "8.1.0" }) });
+  const r = run(["dir", oneFile()], {
+    GITLEAKS_BIN: fakeScanner("exit 0", { version: "8.1.0" }),
+  });
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /version 8\.1\.0 is not the pinned/);
 });
@@ -169,9 +241,16 @@ test("dir: a missing config file cannot be checked", () => {
   assert.match(r.out, /config file missing/);
 });
 test("dir: a missing version file cannot be checked", () => {
-  const copy = join(tempDir(), "scan-secrets.ts");
+  // The wrapper alone, with the module it imports, in a folder without gitleaks.version.
+  const dir = tempDir();
+  const copy = join(dir, "scan-secrets.ts");
   copyFileSync(WRAPPER, copy);
-  const r = run(["dir", oneFile(), "--config", join(here, "gitleaks.toml")], {}, copy);
+  copyFileSync(join(here, "pinned.ts"), join(dir, "pinned.ts"));
+  const r = run(
+    ["dir", oneFile(), "--config", join(here, "gitleaks.toml")],
+    {},
+    copy,
+  );
   assert.equal(r.code, 3, r.out);
   assert.match(r.out, /gitleaks\.version/);
 });
@@ -188,7 +267,10 @@ test("git: passes a clean range and counts its commits", () => {
   commit(r, "two", { "b.txt": "y\n" });
   const out = run(["git", r, "HEAD~1..HEAD"]);
   assert.equal(out.code, 0, out.out);
-  assert.match(out.out, /PASS scan-secrets: 1 commits, \d+ bytes scanned, canary found/);
+  assert.match(
+    out.out,
+    /PASS scan-secrets: 1 commits, \d+ bytes scanned, canary found/,
+  );
 });
 test("git: a token in a commit of the range is a finding with commit:file:line", () => {
   const r = repoWith({ "a.txt": "x\n" });
@@ -200,6 +282,17 @@ test("git: a token in a commit of the range is a finding with commit:file:line",
   assert.ok(out.out.includes(`${sha}:k.txt:1`), out.out);
   assert.ok(!out.out.includes(tok));
 });
+test("git: a token added and removed again inside the range is a finding", () => {
+  const r = repoWith({ "a.txt": "x\n" });
+  commit(r, "add", { "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "remove", { "k.txt": "t = 0\n" });
+  assert.equal(run(["git", r, "HEAD~2..HEAD"]).code, 1);
+});
+test("git: a token committed before the range passes", () => {
+  const r = repoWith({ "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "two", { "a.txt": "y\n" });
+  assert.equal(run(["git", r, "HEAD~1..HEAD"]).code, 0);
+});
 test("git: a range ending in a merge commit passes", () => {
   const r = repoWith({ "a.txt": "x\n" });
   git(r, "switch", "-q", "-c", "side");
@@ -209,6 +302,27 @@ test("git: a range ending in a merge commit passes", () => {
   git(r, "merge", "-q", "--no-edit", "side");
   const out = run(["git", r, "HEAD~1..HEAD"]);
   assert.equal(out.code, 0, out.out);
+});
+test("dir: a gitleaks:allow comment does not hide a token", () => {
+  const d = tree(tempDir(), {
+    "k.txt": `t = "${fakeToken()}" # gitleaks:allow\n`,
+  });
+  assert.equal(run(["dir", d]).code, 1);
+});
+test("dir: a .gitleaksignore where the scan runs does not hide a token", () => {
+  // gitleaks reads the file from its working folder; the fingerprint holds the path it was given.
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  writeFileSync(join(d, ".gitleaksignore"), `${d}/k.txt:github-pat:1\n`);
+  const r = run(["dir", d], {}, WRAPPER, d);
+  assert.equal(r.code, 3, r.out);
+  assert.match(r.out, /\.gitleaksignore would silence/);
+});
+test("dir: a .gitleaksignore in the working folder only does not hide a token", () => {
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  const cwd = tree(tempDir(), {
+    ".gitleaksignore": `${d}/k.txt:github-pat:1\n`,
+  });
+  assert.equal(run(["dir", d], {}, WRAPPER, cwd).code, 1);
 });
 test("git: a range holding a delete-only and an empty commit passes", () => {
   const r = repoWith({ "a.txt": "x\n", "b.txt": "y\n" });
@@ -250,7 +364,9 @@ test("git: a folder that is not a repository cannot be checked", () => {
 test("git: a scanner that scans fewer commits than add text cannot be checked", () => {
   const r = repoWith({ "a.txt": "x\n" });
   commit(r, "two", { "b.txt": "y\n" });
-  const fake = fakeScanner('echo "INF 0 commits scanned." >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0');
+  const fake = fakeScanner(
+    'echo "INF 0 commits scanned." >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0',
+  );
   const out = run(["git", r, "HEAD~1..HEAD"], { GITLEAKS_BIN: fake });
   assert.equal(out.code, 3, out.out);
   assert.match(out.out, /scanned 0 commits/);
@@ -258,7 +374,9 @@ test("git: a scanner that scans fewer commits than add text cannot be checked", 
 test("git: a scanner that scans more commits than the range holds cannot be checked", () => {
   const r = repoWith({ "a.txt": "x\n" });
   commit(r, "two", { "b.txt": "y\n" });
-  const fake = fakeScanner('echo "INF 5 commits scanned." >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0');
+  const fake = fakeScanner(
+    'echo "INF 5 commits scanned." >&2; echo "INF scanned ~10 bytes (10) in 1ms" >&2; exit 0',
+  );
   const out = run(["git", r, "HEAD~1..HEAD"], { GITLEAKS_BIN: fake });
   assert.equal(out.code, 3, out.out);
   assert.match(out.out, /scanned 5 commits/);
@@ -266,7 +384,9 @@ test("git: a scanner that scans more commits than the range holds cannot be chec
 test("git: a scanner that reads 0 bytes cannot be checked", () => {
   const r = repoWith({ "a.txt": "x\n" });
   commit(r, "two", { "b.txt": "y\n" });
-  const fake = fakeScanner('echo "INF 1 commits scanned." >&2; echo "INF scanned ~0 bytes (0) in 1ms" >&2; exit 0');
+  const fake = fakeScanner(
+    'echo "INF 1 commits scanned." >&2; echo "INF scanned ~0 bytes (0) in 1ms" >&2; exit 0',
+  );
   const out = run(["git", r, "HEAD~1..HEAD"], { GITLEAKS_BIN: fake });
   assert.equal(out.code, 3, out.out);
   assert.match(out.out, /read 0 bytes/);

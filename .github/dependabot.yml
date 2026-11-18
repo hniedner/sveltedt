@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Headers "ci(deps): ..." here and "build(deps-dev): ..." for npm: conventional, as the commit-message check requires from the next
+    # pull request (issue #6). Origin: docs/decisions/001-quality-tooling.md.
+    commit-message:
+      prefix: ci
+      include: scope
     # GitHub Actions supports only default-days for cooldown (Dependabot options reference).
     cooldown:
       default-days: 7
@@ -12,5 +17,25 @@ updates:
         applies-to: version-updates
         update-types: [minor, patch]
       actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+    # The shortest of these must equal pnpm's minimumReleaseAge (pnpm-workspace.yaml); the gate compares them.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      npm-security:
         applies-to: security-updates
         patterns: ["*"]
