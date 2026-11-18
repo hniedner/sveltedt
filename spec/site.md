@@ -49,8 +49,9 @@
   page full"). A statement's test arrives with the pull request that makes its last example runnable.
 - **What a statement covers.** A statement covers what its examples show; an earlier statement is never widened to
   anticipate a later part's pages. POL-01 and POL-04 are the deliberate exception: their rows name every `.html` file
-  of the build, so a page joins them by existing; a later part whose page cannot meet their rows (a page with no
-  table) says so in a statement of its own before that page is built.
+  of the build, so a page joins them by existing. A later part whose page cannot meet their rows (a page with no
+  table) changes their rows before that page is built, by a reviewer's ruling, knowing that this changes their hashes
+  and makes their tests stale on purpose.
 
 ## 1. Serving (SRV)
 
