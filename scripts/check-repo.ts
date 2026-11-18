@@ -1226,13 +1226,23 @@ function main(argv: string[]): number {
       result(CANNOT, `${root}: git ls-files failed or lists nothing`),
     );
   if (name !== "all") return report(name, CHECKS[name](root, list));
+  const notApplicable: string[] = [];
   for (const [step, check] of Object.entries(CHECKS)) {
-    const code = report(step, check(root, list));
+    const r = check(root, list);
+    const code = report(step, r);
     if (code !== PASS) return report("all", result(code, `stopped at ${step}`));
+    if (r.code === NA) notApplicable.push(step);
   }
+  // A step that had nothing to check is counted apart, never as passed.
+  const passed = `${Object.keys(CHECKS).length - notApplicable.length} checks passed`;
   return report(
     "all",
-    result(PASS, `${Object.keys(CHECKS).length} checks passed`),
+    result(
+      PASS,
+      notApplicable.length
+        ? `${passed}, ${notApplicable.length} not applicable: ${notApplicable.join(", ")}`
+        : passed,
+    ),
   );
 }
 

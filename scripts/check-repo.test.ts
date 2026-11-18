@@ -1261,8 +1261,10 @@ test("needs: an empty or unreadable list cannot be checked", () => {
   needs("not json", 3);
 });
 
-test("all: passes when every step passes", () => {
-  expect("all", repo(), 0);
+test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
+  // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
+  const out = expect("all", repo(), 0);
+  assert.match(out, /^PASS all: 14 checks passed, 1 not applicable: secrets$/m);
 });
 test("all: returns the failing step's finding and names the step", () => {
   const out = expect(
@@ -1273,10 +1275,9 @@ test("all: returns the failing step's finding and names the step", () => {
   assert.match(out, /^FINDING links\b/m);
 });
 test("all: returns could-not-check from a step that could not check", () => {
-  const out = expect("all", repo(), 3, {
-    lint: fakeLint({ version: "1.0.0" }),
-  });
-  assert.match(out, /^COULD NOT CHECK actionlint\b/m);
+  const out = expect("all", repo(), 3, { pnpm: fakePnpm("1.0.0") });
+  assert.match(out, /^COULD NOT CHECK toolchain\b/m);
+  assert.match(out, /stopped at toolchain/);
 });
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
