@@ -659,6 +659,22 @@ test("lockfile: workspace packages written in a form the step cannot read are a 
     );
   }
 });
+test("lockfile: every entry of the packages list is read, and the list ends at the next setting", () => {
+  const list = (root: string): void => {
+    workspace(
+      `packages:\n  - site\n  # the tools\n\n  - "tools/x"\n# exceptions\nminimumReleaseAgeExclude:\n  - prettier@3.9.11 ${GHSA}`,
+    )(root);
+    put(root, "site/package.json", "{}");
+    put(
+      root,
+      "tools/x/package.json",
+      '{ "devDependencies": { "vite": "^8.3.8" } }',
+    );
+  };
+  const out = expect("lockfile", repo(list), 1);
+  assert.match(out, /tools\/x\/package\.json: devDependencies: vite/);
+  assert.doesNotMatch(out, /site\/package\.json|prettier/);
+});
 test("lockfile: an optional or peer dependency of a workspace package other than a workspace link is a finding", () => {
   const site = sitePackage({
     optionalDependencies: { "left-pad": "1.3.0" },

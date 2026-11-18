@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { request, type Server } from "node:http";
-import { connect, createServer } from "node:net";
+import { connect, createServer, Server as NetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,7 +26,7 @@ let out: string[] = [];
 let err: string[] = [];
 let savedExitCode: typeof process.exitCode;
 
-// True when a connection to 127.0.0.1:4173 is refused: nothing listens there
+// True when a connection to 127.0.0.1:4173 is refused: nothing listens there (any other answer is not proof)
 function refused(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = connect(PORT, HOST);
@@ -34,7 +34,9 @@ function refused(): Promise<boolean> {
       socket.destroy();
       resolve(false);
     });
-    socket.once("error", () => resolve(true));
+    socket.once("error", (error: NodeJS.ErrnoException) =>
+      resolve(error.code === "ECONNREFUSED"),
+    );
   });
 }
 
@@ -57,14 +59,28 @@ beforeEach(async () => {
   };
   vi.spyOn(process.stdout, "write").mockImplementation(into(out));
   vi.spyOn(process.stderr, "write").mockImplementation(into(err));
-  for (const method of ["log", "info", "debug"] as const)
-    vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
-      out.push(`${args.join(" ")}\n`);
-    });
-  for (const method of ["warn", "error", "trace"] as const)
-    vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
-      err.push(`${args.join(" ")}\n`);
-    });
+  const methods = console as unknown as Record<
+    string,
+    (...args: unknown[]) => void
+  >;
+  for (const [name, value] of Object.entries(methods))
+    if (typeof value === "function")
+      vi.spyOn(methods, name).mockImplementation((...args: unknown[]) => {
+        (["warn", "error", "trace", "assert"].includes(name) ? err : out).push(
+          `${args.join(" ")}\n`,
+        );
+      });
+  // Every server that listens during the test, the start's own included, is closed after it
+  const listen = Reflect.get(NetServer.prototype, "listen") as (
+    ...args: unknown[]
+  ) => NetServer;
+  vi.spyOn(NetServer.prototype, "listen").mockImplementation(function (
+    this: NetServer,
+    ...args: unknown[]
+  ) {
+    closers.push(() => new Promise((done) => this.close(() => done())));
+    return listen.apply(this, args);
+  });
 });
 
 afterEach(async () => {
@@ -77,22 +93,12 @@ afterEach(async () => {
   }
 });
 
-function closeLater(server: Server | ReturnType<typeof createServer>): void {
-  closers.push(() => new Promise((done) => server.close(() => done())));
-}
-
-// The start for the build folder; whatever it starts is closed after the test
-async function start(): Promise<Server | null> {
-  const server = await startSite(dist);
-  if (server) closeLater(server);
-  return server;
-}
+const start = (): Promise<Server | null> => startSite(dist);
 
 // The test's own listener on 127.0.0.1:4173: the control that the port is taken
 async function holdPort(): Promise<void> {
   const holder = createServer();
   await new Promise<void>((done) => holder.listen(PORT, HOST, done));
-  closeLater(holder);
 }
 
 const withIndex = (): void => {
