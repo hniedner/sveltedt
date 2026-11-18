@@ -52,8 +52,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
 - **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
-- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and attributes
-  of an element so found.
+- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and the ARIA
+  and HTML attributes of an element so found, never a test id or a class.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -132,7 +132,7 @@ its cells.
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
-  | two columns share a label | `columnLabelDuplicate` | "Two columns share a label." |
+  | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
@@ -296,7 +296,7 @@ otherwise.
 - Layer: component.
 - Traces: PRD-B2, PRD-B1.
 
-**STATE-06** With `status 'loading'`, the table MUST show only the loading message and none of the rows it is given.
+**STATE-06** With `status 'loading'`, the table MUST show the loading message and none of the rows it is given.
 - Example: `status 'loading'` with three rows Beta, Gamma, Delta: "Loading data…" is shown, and no body cell holds
   "Beta", "Gamma" or "Delta"; the same with `busy true`.
 - Reason: `loading` means there is no answer yet, so any rows shown are not the answer; a refetch that keeps the
@@ -448,7 +448,7 @@ focused by keyboard.
   | the region of the 30-column table of A11Y-12 |
   | "Sort by Name" |
   | each step button and a page number button of a `Pagination` of 20 pages on page 11, with `sizes` |
-  | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 |
+  | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 (`offset 0`) |
   | the page-size select |
 
   Later groups add their controls.
@@ -568,7 +568,7 @@ that does not focus a button on a click.
 
 ## 5. No global footprint (FOOT)
 
-**FOOT-01** Mounting, rerendering and unmounting the table MUST leave the root element's attributes and inline style
+**FOOT-01** Mounting, rerendering and unmounting the table or the pager MUST leave the root element's attributes and inline style
 unchanged.
 - Example: snapshot the attributes and the inline style of `document.documentElement`; mount the table, rerender it
   through `loading`, `failed`, `ready` with rows, `ready` with `busy true` and the alert, then unmount it: after mount,
@@ -579,7 +579,7 @@ unchanged.
 - Layer: component.
 - Traces: PRD-B19.
 
-**FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
+**FOOT-02** While mounted and after unmount, the table and the pager MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
   and unmount a control component that handles every event type the table's own elements handle (so far `click`,
@@ -591,7 +591,8 @@ those Svelte adds for any component.
 - Layer: component.
 - Traces: PRD-B19.
 
-**FOOT-03** Mounting the table, giving it new rows, changing its state and unmounting it MUST NOT scroll the window.
+**FOOT-03** Mounting the table or the pager, giving it new rows or a new offset, changing its state and unmounting it
+MUST NOT scroll the window.
 - Example: a test page whose table sits in a wrapper of fixed height between two 2000 px spacers, with
   `overflow-anchor: none`; the window starts scrolled to 1200 px. Mount the table, give it a new set of 20 rows (the
   row count stays 20), rerender it through `loading`, `ready` and `busy true` to `busy false`, then unmount it: after
@@ -780,7 +781,7 @@ after it passes the new order and rows, or a failure.
   | `status 'loading'`; then `status 'failed'` |
   | `sort [name asc]`, then 25 new rows |
 
-  While loading or failed the table with its header and sort buttons stays (the `table` carries `aria-busy` in both
+  While loading or failed the table with its header and sort buttons stays (the `table` element is present in both
   states, STATE-04); STATE-06 and STATE-07 hide the rows, not the header.
 
 - Reason: a keyboard user who sorts twice in a row must not have to find the button again, and focus must never fall
@@ -873,7 +874,8 @@ how to add a column.
 `Pagination` is a separate component, so a consumer can place it anywhere or leave it out. The current page is
 `offset / limit` rounded down, plus 1, except while `offset` is above 0 and at or past `total`, when no page is
 current (PAGE-25); the number of pages is `total / limit` rounded up, and at least 1. "First page" and "Previous page"
-can move unless `offset` is 0; "Next page" and "Last page" can move while a page follows the current page.
+can move unless `offset` is 0; "Next page" and "Last page" can move while `offset` plus `limit` is below `total`.
+"Previous page" moves to the page before the current one, or to offset 0 from page 1.
 
 **PAGE-09** The pager MUST be a `nav` element named by its `label` prop.
 - Example: `label="Pages of orders"` gives exactly one element found by role `navigation` and name "Pages of orders".
@@ -1014,6 +1016,8 @@ offsets on the page grid.
   | 25, 10, 95 | 3 | Page 3 (the current page) | 20 |
   | 25, 50, 95 | 1, `1 2` | First page | 0 |
   | 25, 50, 95 | 1 | Previous page | 0 |
+  | 25, 50, 95 | 1 | Next page | 50 |
+  | 25, 50, 95 | 1 | Last page | 50 |
   | 91, 10, 95 | 10, `1 … 6 7 8 9 10` | Previous page | 80 |
   | 91, 10, 95 | 10 | Page 10 (the current page) | 90 |
 
@@ -1046,7 +1050,7 @@ offsets on the page grid.
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
   | `offset 100, total 95` (past the last page) | Next page, Last page |
-  | `offset 25, limit 50, total 95` (off the grid, on page 1) | Next page, Last page |
+  | `offset 25, limit 50, total 95` (off the grid, on page 1 of 2) | none |
   | `offset 91, total 95` (off the grid, on the last page) | Next page, Last page |
 
   In every row no step button has the `disabled` attribute (PAGE-21 shows that focus stays on one). Break that
