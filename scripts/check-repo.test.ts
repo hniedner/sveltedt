@@ -517,6 +517,15 @@ test("text: the owner-approved method text is still checked", () => {
 test("text: the generated lockfile is classified as not checked", () => {
   expect("text", repo(edit("pnpm-lock.yaml", "  .: {}\n", "  .: {} \n")), 0);
 });
+test("text: a conflict marker in a file of another class is a finding that names it", () => {
+  // Markdown is only formatted, and Prettier keeps a conflict marker in it as text.
+  const marked = (root: string) =>
+    put(root, "CONTRIBUTING.md", "# Contributing\n\n<<<<<<< HEAD\n");
+  assert.match(
+    expect("text", repo(marked), 1),
+    /CONTRIBUTING\.md:3: merge-conflict marker/,
+  );
+});
 test("text: a repository without a file of its class cannot be checked", () => {
   const out = expect(
     "text",

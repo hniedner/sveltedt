@@ -614,17 +614,20 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
 
 const CONFLICT = /^(<{7} |={7}$|>{7} )/;
 
-// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace, no conflict marker.
+// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
+// no conflict marker (Prettier keeps one in Markdown as text).
 function text(root: string, list: Set<string>): Result {
   const mine = ofClass(list, "text");
   if (isResult(mine)) return mine;
   const details: string[] = [];
-  for (const f of mine) {
+  for (const f of list) {
     const t = readFileSync(join(root, f), "utf8");
-    if (t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
+    const plain = mine.includes(f);
+    if (plain && t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
     t.split("\n").forEach((line, i) => {
-      if (line.endsWith("\r")) details.push(`${f}:${i + 1}: CRLF line ending`);
-      else if (/[ \t]$/.test(line))
+      if (plain && line.endsWith("\r"))
+        details.push(`${f}:${i + 1}: CRLF line ending`);
+      else if (plain && /[ \t]$/.test(line))
         details.push(`${f}:${i + 1}: trailing whitespace`);
       if (CONFLICT.test(line))
         details.push(`${f}:${i + 1}: merge-conflict marker`);
@@ -634,7 +637,7 @@ function text(root: string, list: Set<string>): Result {
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
     PASS,
-    `${mine.length} file(s): LF, final newline, no trailing whitespace, no conflict marker`,
+    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s)`,
   );
 }
 
