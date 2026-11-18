@@ -131,7 +131,7 @@ The `commits` step judges every non-merge commit of the branch by its header: th
 
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff main...<ref>`.
+`git diff main...<ref>`, and check it out only in a separate clone.
 
 ## How a change is made
 

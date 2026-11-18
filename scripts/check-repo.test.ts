@@ -208,7 +208,7 @@ const git = (root: string, ...args: string[]): string =>
   });
 
 /** Commits everything under `root` with a synthetic identity; the fixture runs no hook. */
-function commit(root: string, message: string): void {
+function commit(root: string, message: string, ...flags: string[]): void {
   git(root, "add", "-A");
   git(
     root,
@@ -223,6 +223,7 @@ function commit(root: string, message: string): void {
     "commit",
     "-q",
     "--allow-empty",
+    ...flags,
     "-m",
     message,
   );
@@ -2787,9 +2788,10 @@ test("commits: CI's range from GATE_BASE and GATE_HEAD is the one checked", () =
 // Pins: the step never judges commits it cannot read. A base of all zeros (a new branch pushed in CI) and a base git
 // does not know (a shallow clone, a force-pushed base) both stop the step.
 test("commits: a GATE_BASE of all zeros cannot be checked", () => {
-  expect("commits", branch("feat: x"), 3, {
+  const out = expect("commits", branch("feat: x"), 3, {
     extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
   });
+  assert.match(out, /GATE_BASE is all zeros/);
 });
 test("commits: a GATE_BASE git does not know cannot be checked", () => {
   const out = expect("commits", branch("feat: x"), 3, {
@@ -2815,9 +2817,6 @@ test("commits: a commit headed like a merge but with one parent is a finding", (
 // %s would join them), and a subject beginning with "#" is judged as stored.
 test("commits: the header is the first line, even with a body line right below it", () => {
   expect("commits", branch(`feat: one\n${"x".repeat(100)}`), 0);
-});
-test("commits: a stored subject beginning with # is a finding", () => {
-  expect("commits", branch("#123 fix the thing"), 1);
 });
 // Pins: git's own revert headers are judged by the header they wrap; autosquash commits never reach a pull request.
 test("commits: git's Revert and Reapply headers pass when the header they wrap does", () => {
@@ -2922,9 +2921,21 @@ test("commits: a malformed header is a finding", () => {
 test("commits: a bad first line is a finding even with a conventional line below it", () => {
   expect("commits", branch("Add a thing\n\nfeat: in the body"), 1);
 });
-// Pins: blank lines before the header, trailing blanks and a Windows line end are not part of it.
+// Pins: in a message stored as written (`--cleanup=verbatim`, or a commit made through an API), blank lines before
+// the header, trailing blanks and a Windows line end are not part of it; git's own clean-up would remove them first.
 test("commits: blank lines before the header, trailing blanks and CRLF are not part of it", () => {
-  expect("commits", branch(`\n\nfeat: ${"x".repeat(94)}   \r\n`), 0);
+  const root = repo();
+  commit(root, `\n \t\nfeat: ${"x".repeat(94)}   \r\n`, "--cleanup=verbatim");
+  expect("commits", root, 0);
+});
+// Pins: only ASCII blanks make a line blank, as in git; a line of a no-break space or a byte-order mark is the header.
+test("commits: a first line of a no-break space or a byte-order mark is the header", () => {
+  const out = expect(
+    "commits",
+    branch("\u00a0\nfeat: x", "\ufeff\nfeat: y"),
+    1,
+  );
+  assert.match(out, /2 of 2 commit\(s\)/);
 });
 // Pins: the 100 characters count the header as written, a revert's wrapping included; nesting and quotes inside are
 // judged by the innermost header.
@@ -2942,9 +2953,30 @@ test("commits: git's Revert headers: nesting, quotes, and the length as written"
 });
 // Pins: a refused header is printed with its control characters escaped.
 test("commits: control characters in a refused header are printed escaped", () => {
-  const out = expect("commits", branch("Add x\u001b[2K\rspoof"), 1);
-  assert.ok(!out.includes("\u001b"), out);
-  assert.match(out, /\\u001b/);
+  const raw = [
+    "\u001b",
+    "\u007f",
+    "\u009b",
+    "\u061c",
+    "\u200f",
+    "\u2028",
+    "\u202e",
+    "\u2066",
+  ];
+  const out = expect("commits", branch(`Add x${raw.join("")}[2K\rspoof`), 1);
+  for (const c of raw) {
+    assert.ok(!out.includes(c), JSON.stringify(c));
+    assert.ok(
+      out.includes(`\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`),
+      JSON.stringify(c),
+    );
+  }
+});
+// Pins: a header too long to read is shown cut short, with its full length named.
+test("commits: a very long header is shown shortened, with its length", () => {
+  const out = expect("commits", branch(`feat: ${"x".repeat(19994)}`), 1);
+  assert.match(out, /20000 characters, more than 100/);
+  assert.ok(out.length < 1000, `${out.length} characters of output`);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

@@ -1938,7 +1938,10 @@ function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
 
-/** A range without commits: nothing to check locally; in CI, where every event brings a commit, a wrong range. */
+/**
+ * A range without commits: nothing to check locally; in CI, where every event brings a commit, a wrong range. For
+ * `commits`, which leaves merges out, a range of merges alone is empty too, and in CI it is reported, never passed.
+ */
 function emptyRange(range: string): Result {
   if (inCI()) return result(CANNOT, `no commit in ${range} in CI`);
   return result(NA, `no commit in ${range}`);
@@ -2033,9 +2036,23 @@ const MERGE = /^Merge /;
 // git's headers for `commit --fixup[=amend:|reword:]` and `--squash`: fine while working, squashed before a pull
 // request.
 const AUTOSQUASH = /^(fixup|squash|amend)! /;
-/** What is wrong with a header as written, or null; the header is quoted escaped, so no control character is printed. */
+// What JSON.stringify leaves as it is but a terminal or log viewer acts on: DEL, the C1 controls, the bidi marks and
+// U+2028/9.
+const UNPRINTABLE =
+  /[\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g;
+/** A header for output: its first 100 characters if longer, quoted, control characters and bidi marks escaped. */
+const shownHeader = (written: string): string =>
+  JSON.stringify(
+    written.length > MAX_HEADER
+      ? `${written.slice(0, MAX_HEADER)}...`
+      : written,
+  ).replace(
+    UNPRINTABLE,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+/** What is wrong with a header as written, or null. */
 function headerProblem(written: string): string | null {
-  const shown = JSON.stringify(written);
+  const shown = shownHeader(written);
   if (written.length > MAX_HEADER)
     return `${shown}: ${written.length} characters, more than ${MAX_HEADER}`;
   let h = written;
@@ -2049,14 +2066,14 @@ function headerProblem(written: string): string | null {
 }
 
 /**
- * A message's header as git stores it: its first non-blank line, only a trailing carriage return and trailing blanks
- * removed (a leading blank or byte-order mark is kept, as git keeps it).
+ * A message's header as git stores it: its first non-blank line, trailing ASCII blanks and a carriage return removed.
+ * Blank means ASCII blanks only, as in git: a line of a no-break space or a byte-order mark is a header.
  */
 const headerOf = (message: string): string =>
   message
     .split("\n")
-    .find((l) => l.trim())
-    ?.trimEnd() ?? "";
+    .map((l) => l.replace(/[ \t\r]+$/, ""))
+    .find(Boolean) ?? "";
 
 // Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
 function commits(root: string): Result {
