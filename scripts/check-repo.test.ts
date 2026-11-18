@@ -1246,7 +1246,8 @@ test("lint: markup and code beside the injection bans pass in a component", () =
   );
 });
 // RND-04 (spec/table.md): every raw-HTML form its example names is a finding: {@html and srcdoc in a component, the
-// script forms in a script (the script bans run in components too: canary.svelte plants two of them).
+// script forms in a script (the script bans run in components too: canary.svelte plants setAttribute style and
+// innerHTML).
 const SINK = (body: string) =>
   `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
 test("lint: each raw-HTML form RND-04 names is a finding that names its ban", () => {
@@ -1352,6 +1353,22 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       "constructed or inserted style sheet",
     ],
     [
+      'document.styleSheets[0]?.addRule("p", "margin: 0");',
+      "constructed or inserted style sheet",
+    ],
+    [
+      "(el as HTMLIFrameElement).contentDocument?.write(html);",
+      "document.write",
+    ],
+    ["window.Document.parseHTML(html);", "Document.parseHTML"],
+    [
+      'document.createElementNS("http://www.w3.org/2000/svg", "style");',
+      "createElement of style",
+    ],
+    ['el["insertAdjacentHTML"]("beforeend", html);', "a sink name in brackets"],
+    ['document["write"](html);', "a sink name in brackets"],
+    ['el["setAttribute"]("style", "");', "a sink name in brackets"],
+    [
       'document.execCommand("INSERTHTML", false, html);',
       "execCommand insertHTML",
     ],
@@ -1382,6 +1399,7 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       "svelte:element this={...} as style",
     ],
     ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
+    ["<x-raw outerHTML={srcdoc}></x-raw>", "innerHTML or outerHTML attribute"],
   ].map(([tag, ban], i) => [
     `src/C${i}.svelte`,
     COMPONENT.replace("$props();", '$props();\n  const srcdoc = "";').replace(

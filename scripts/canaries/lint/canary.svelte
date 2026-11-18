@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Planted violations: the lint step fails could-not-check unless ESLint reports every one of them.
+  // Planted violations: the lint step fails could-not-check unless ESLint raises every rule and ban message
+  // LINT_CANARY_RULES (scripts/check-repo.ts) lists for this extension; plants that share a message count once.
   let {
     rest,
     value = $bindable(),
@@ -42,6 +43,7 @@
 <svelte:element this="style">p {"{}"}</svelte:element>
 <svelte:element this={"script"}></svelte:element>
 <iframe srcdoc="<p>raw</p>" title="srcdoc"></iframe>
+<x-raw innerHTML={rest.html}></x-raw>
 <p>{String(idle)}</p>
 
 <style>

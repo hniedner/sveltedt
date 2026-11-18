@@ -40,16 +40,18 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this`, inline style, `svelte:head`, a `<style>` block
-  (PRD-T3) or a `style`, `link` or `script` element, written or through `svelte:element` with a literal `this`; no
-  style or `srcdoc` set by `setAttribute`, no created `style`, `link` or `script` element, no `innerHTML`,
-  `outerHTML` or `srcdoc` assigned or in an object literal, no `srcdoc` attribute, no `insertAdjacentHTML`,
-  `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`, `createContextualFragment`,
-  `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no constructed or inserted style sheet: PRD-G2, PRD-S1, PRD-S2 and PRD-T3. The bans match
-  literal names and plain string literals only: a name built at run time, a template literal, a cast, an alias
-  (`const d = document; d.write`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element` `this` is not
-  caught, and review is the guard; no browser
-  API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a `style` attribute in any case or `{style}`,
+  `svelte:head`, a `<style>` block or a `style`, `link` or `script` element, written or through `svelte:element`
+  with a literal `this`; no style or `srcdoc` set by `setAttribute`, no `style`, `link` or `script` created by
+  `createElement` or `createElementNS`, no `innerHTML`, `outerHTML` or `srcdoc` assigned, in an object literal or
+  as an attribute, no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
+  `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
+  constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names written with a
+  dot and plain string arguments. They do not catch a name built at run time, a template literal, a cast of the
+  object or the argument (`(document as Document).write`), an alias (`const d = document; d.write`, or one
+  destructured), a method reached through `.call`, `Reflect.set`, `Object.defineProperty`, `setAttributeNS`,
+  `setAttributeNode` or a computed `svelte:element` `this`: review is the guard for these. TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from

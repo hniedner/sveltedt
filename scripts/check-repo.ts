@@ -935,6 +935,8 @@ function format(root: string, list: Set<string>): Result {
 
 // The rules each extension's planted canary must raise. TypeScript files get typescript-eslint's type-aware
 // twin of no-implied-eval, and no no-undef (TypeScript checks names itself).
+// "<rule>|<text>": that rule with a message holding the text, for the no-restricted-syntax bans, which share
+// one rule.
 const JS_RULES = [
   "complexity",
   "no-eval",
@@ -968,8 +970,8 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|constructed or inserted style sheet",
     "no-restricted-syntax|execCommand insertHTML",
     "no-restricted-syntax|Document.parseHTML",
+    "no-restricted-syntax|a sink name in brackets",
   ],
-  // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [
     "@typescript-eslint/no-explicit-any",
     "svelte/no-at-html-tags",
@@ -990,6 +992,7 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|svelte:element as style",
     "no-restricted-syntax|svelte:element this={...} as style",
     "no-restricted-syntax|srcdoc attribute",
+    "no-restricted-syntax|innerHTML or outerHTML attribute",
   ],
 };
 

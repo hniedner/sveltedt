@@ -1,4 +1,5 @@
-// Planted violations: the lint step fails could-not-check unless ESLint reports every one of them in a .ts file.
+// Planted violations: the lint step fails could-not-check unless ESLint raises every rule and ban message
+// LINT_CANARY_RULES (scripts/check-repo.ts) lists for this extension; plants that share a message count once.
 export const a: any = eval("1");
 export const b = setTimeout("a()", 1);
 export const c = new Function("return 1");
@@ -31,7 +32,7 @@ export function e(x: number): number {
 }
 // Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
 export const idle = new IdleDetector();
-// Refused by typescript-eslint's ban-ts-comment: a comment that switches type checking off.
+// Refused by typescript-eslint's ban-ts-comment: a comment that switches type checking off for the next line.
 // @ts-ignore
 export const off: number = "one";
 export function inject(el: HTMLElement, html: string): void {
@@ -50,4 +51,5 @@ export function inject(el: HTMLElement, html: string): void {
   document.adoptedStyleSheets = [new CSSStyleSheet()];
   document.execCommand("insertHTML", false, html);
   Document.parseHTML(html);
+  el["insertAdjacentHTML"]("beforeend", html);
 }

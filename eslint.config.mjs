@@ -31,8 +31,9 @@ const linterOptions = {
 };
 
 // Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: a style attribute
-// in any case on any element (svelte/no-inline-styles checks plain HTML elements only), the {style} shorthand,
-// svelte:head and style, link or script elements. PRD-T3: no <style> block. PRD-S2: no srcdoc.
+// in any case on any element (the plugin's svelte/no-inline-styles, not enabled, checks only lowercase style on plain
+// HTML elements), the {style} shorthand and style, link or script elements. PRD-S1 and PRD-B19: no svelte:head.
+// PRD-T3: no <style> block. PRD-S2: no srcdoc, innerHTML or outerHTML attribute.
 const markupBans = [
   [
     "SvelteDirective[kind='Class']",
@@ -75,9 +76,14 @@ const markupBans = [
     ":matches(SvelteAttribute, SvelteShorthandAttribute)[key.name=/^srcdoc$/i]",
     "srcdoc attribute (PRD-S2)",
   ],
+  [
+    "SvelteAttribute[key.name=/^(innerHTML|outerHTML)$/i]",
+    "innerHTML or outerHTML attribute (PRD-S2): a custom element sets it as a property",
+  ],
 ].map(([selector, message]) => ({ selector, message }));
-// Code a component may not run: in TypeScript, JavaScript and components. PRD-S1: no injected style, link or script.
-// PRD-S2: no raw HTML, through a property, an object literal, an attribute or a parsing call.
+// Code no file may hold: every .js, .mjs and .ts file and every component, the repository's scripts included.
+// PRD-S1: no injected style, link or script. PRD-S2: no raw HTML, through a property, an object literal, an
+// attribute, or an inserting or parsing call. PRD-T3 (with PRD-S1): no constructed or inserted style sheet.
 const scriptBans = [
   [
     "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^style$/i]",
@@ -86,6 +92,10 @@ const scriptBans = [
   [
     "CallExpression[callee.property.name='createElement'][arguments.0.value=/^(style|link|script)$/i]",
     "createElement of style, link or script (PRD-S1)",
+  ],
+  [
+    "CallExpression[callee.property.name='createElementNS'][arguments.1.value=/^(style|link|script)$/i]",
+    "createElement of style, link or script (PRD-S1): createElementNS",
   ],
   [
     "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^srcdoc$/i]",
@@ -109,7 +119,7 @@ const scriptBans = [
     "setHTML or createRawSnippet (PRD-S2): markup from a value",
   ],
   [
-    "Identifier[name=/^(CSSStyleSheet|adoptedStyleSheets|insertRule)$/]",
+    "Identifier[name=/^(CSSStyleSheet|adoptedStyleSheets|insertRule|addRule)$/]",
     "constructed or inserted style sheet (PRD-S1, PRD-T3)",
   ],
   [
@@ -122,8 +132,12 @@ const scriptBans = [
     "execCommand insertHTML (PRD-S2)",
   ],
   [
-    "MemberExpression[object.name='Document'][property.name='parseHTML']",
+    "MemberExpression[property.name='parseHTML']:matches([object.name='Document'], [object.property.name='Document'])",
     "Document.parseHTML (PRD-S2): markup from a value",
+  ],
+  [
+    "MemberExpression[computed=true][property.value=/^(insertAdjacentHTML|setHTML|setHTMLUnsafe|parseHTML|parseHTMLUnsafe|createContextualFragment|createRawSnippet|DOMParser|write|writeln|execCommand|setAttribute|createElement|createElementNS|CSSStyleSheet|adoptedStyleSheets|insertRule|addRule)$/]",
+    "a sink name in brackets (PRD-S1, PRD-S2): write it with a dot, so the bans can read it",
   ],
 ].map(([selector, message]) => ({ selector, message }));
 
@@ -181,7 +195,8 @@ export default [
   {
     files: ["**/*.svelte", "**/*.svelte.ts"],
     languageOptions: { parserOptions: { parser: ts.parser } },
-    // No PostCSS: the plugin would load any postcss config from the folder upward, untracked ones included.
+    // No PostCSS: for a <style lang="postcss"> block the plugin would load, and so run, any PostCSS config from the
+    // working directory up to the home directory, untracked ones included.
     settings: { svelte: { compileOptions: { postcss: false } } },
     linterOptions,
     rules: {
