@@ -19,7 +19,12 @@
       {#each rows as row (getRowId(row))}
         <tr>
           {#each columns as column (column.id)}
-            <td>{column.value?.(row)}</td>
+            <td
+              >{#if column.cell}{@render column.cell(
+                  row,
+                  column.id,
+                )}{:else}{column.value?.(row)}{/if}</td
+            >
           {/each}
         </tr>
       {/each}

@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
+import { createRawSnippet } from "svelte";
 import { describe, expect, it } from "vitest";
 import { spec } from "../../test/spec.ts";
 import DataTable from "./DataTable.svelte";
@@ -77,5 +78,29 @@ describe(spec("RND-08", "e3e4bdfc"), () => {
   it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
     show();
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
+  });
+});
+
+describe(spec("RND-02", "9a4c8ebf"), () => {
+  it("renders the cell snippet, called with the row and the column id, in each of its cells", () => {
+    const beta = { id: "r1", name: "Beta" };
+    const gamma = { id: "r2", name: "Gamma" };
+    const calls: [Item, string][] = [];
+    const cell = createRawSnippet<[Item, string]>((row, columnId) => {
+      calls.push([row(), columnId()]);
+      return { render: () => `<a href="#${row().id}">Open ${row().name}</a>` };
+    });
+    show({
+      rows: [beta, gamma],
+      columns: [{ id: "name", label: "Name", cell }],
+    });
+    for (const name of ["Open Beta", "Open Gamma"]) {
+      const shown = screen.getByRole("cell", { name });
+      expect(within(shown).getByRole("link", { name }).isConnected).toBe(true);
+    }
+    expect(calls).toEqual([
+      [beta, "name"],
+      [gamma, "name"],
+    ]);
   });
 });
