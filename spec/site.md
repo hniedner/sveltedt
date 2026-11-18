@@ -82,17 +82,18 @@
 - Examples (the scan covers every `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` and `.svelte` file under `site/`
   except its build folder and `node_modules`, the site's Vite and TypeScript configuration included. An import of
   SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a relative path that
-  resolves into the repository's `src/` folder; a relative path to anything else, such as a shared test fixture, is
-  not one. It is allowed only when it is written
+  resolves into the repository's `src/` folder or into the package's build output (`dist/`); a relative path to
+  anything else, such as a shared test fixture, is not one. It is allowed only when it is written
   `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
   `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary
-  that must be found):
+  that must be found; each file canary is planted in `site/src/`, where `../../` reaches the repository root):
 
   | Canary |
   |---|
   | `import { DataTable } from '../../src/lib/DataTable.svelte'` in a `.ts` file |
   | `export { DataTable } from '../../src/lib/index.ts'` in a `.ts` file |
   | `await import('../../src/lib/Pagination.svelte')` in a `.ts` file |
+  | `import { DataTable } from '../../dist/index.js'` in a `.ts` file |
   | `import { DataTable } from '../../src/lib/DataTable.svelte'` inside the `<script>` of a `.svelte` file |
   | `import { DataTable } from '@hniedner/sveltedt/src/lib/DataTable.svelte'`, a subpath `exports` does not name |
   | an alias in the site's Vite configuration that points `@hniedner/sveltedt` at a folder of the repository |
