@@ -1213,17 +1213,6 @@ test("test: a failing test is a finding that names the file and the test", () =>
   assert.match(out, /src\/a\.test\.ts: failed/);
   assert.match(out, / {2}adds$/m);
 });
-test("test: a tracked test file the config does not run cannot be checked, and is named", () => {
-  const both = (root: string): void => {
-    vitestTest(PASSING_VITEST)(root);
-    put(
-      root,
-      "site/b.test.ts",
-      `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
-    );
-  };
-  assert.match(expect("test", repo(both), 3), /^ {2}site\/b\.test\.ts$/m);
-});
 test("test: without a tracked vitest.config.ts the step cannot be checked", () => {
   const untracked = (root: string): void => {
     vitestTest(PASSING_VITEST)(root);
@@ -1247,6 +1236,18 @@ test("test: a canary that vitest passes cannot be checked", () => {
   });
   assert.match(out, /did not report the planted failing test/);
 });
+test("test: a canary run that writes no report cannot be checked, even with no test file to run", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST.replace("toBe(2)", "toBe(3)")}`,
+    "vitest.config.ts": "export default { test: { include: [,,] } ;\n",
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted failing test/);
+});
 test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
   const late =
     'test("adds", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
@@ -1260,22 +1261,61 @@ test("test: a test skipped at run time beside a passing one is a finding that na
   assert.match(out, /1 test\(s\) skipped/);
   assert.match(out, /^ {4}the real check$/m);
 });
-test("test: a config option that lets an unhandled error pass cannot be checked", () => {
-  for (const option of [
-    "dangerouslyIgnoreUnhandledErrors: true",
-    "onUnhandledError: () => false",
-  ]) {
-    const swallowing = (root: string): void => {
-      vitestTest(PASSING_VITEST)(root);
-      put(
-        root,
-        "vitest.config.ts",
-        `export default { test: { include: ["src/**/*.test.ts"], ${option} } };\n`,
-      );
-    };
-    const out = expect("test", repo(swallowing), 3);
-    assert.match(out, new RegExp(option.split(":")[0]));
-  }
+test("test: a test.todo beside a passing test is a finding that names it", () => {
+  const out = expect(
+    "test",
+    repo(vitestTest(`${PASSING_VITEST}test.todo("the real check");\n`)),
+    1,
+  );
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
+});
+/** A tracked vitest.config.ts with `options` added to the fixture's include. */
+const vitestConfig =
+  (options: string) =>
+  (root: string): void =>
+    put(
+      root,
+      "vitest.config.ts",
+      `export default { test: { include: ["src/**/*.test.ts"], ${options} } };\n`,
+    );
+const LATE =
+  'test("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
+test("test: a tracked config that ignores unhandled errors does not hide one: the step overrides it", () => {
+  const ignoring = (root: string): void => {
+    vitestTest(LATE)(root);
+    vitestConfig("dangerouslyIgnoreUnhandledErrors: true")(root);
+  };
+  assert.match(expect("test", repo(ignoring), 1), /late failure/);
+});
+test("test: a tracked config that turns assertions off does not let an empty test pass", () => {
+  const off = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    vitestConfig("expect: { requireAssertions: false }")(root);
+  };
+  expect("test", repo(off), 1);
+});
+test("test: a tracked config that only type-checks the tests does not stop them from running", () => {
+  const typecheckOnly = (root: string): void => {
+    vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))(root);
+    vitestConfig(
+      'typecheck: { enabled: true, only: true, include: ["src/**/*.test.ts"] }',
+    )(root);
+  };
+  expect("test", repo(typecheckOnly), 1);
+});
+test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (no flag overrides it)", () => {
+  const handler = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    vitestConfig("onUnhandledError: () => false")(root);
+  };
+  assert.match(expect("test", repo(handler), 3), /onUnhandledError/);
+});
+test("test: a vitest that cannot be started cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: join(tempDir(), "no-vitest") },
+  });
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
 });
 test("test: the reason shown for an unhandled TypeError names it and the file it came from", () => {
   const typeError =
@@ -1291,7 +1331,7 @@ test("test: a test file that fails to load is a finding that names it, and is co
     put(root, "src/b.test.ts", 'import "./missing.ts";\n');
   };
   const out = expect("test", repo(both), 1);
-  assert.match(out, /src\/b\.test\.ts: /);
+  assert.match(out, /src\/b\.test\.ts: .*missing\.ts/);
   assert.match(out, /1 file\(s\) failed/);
 });
 test("test: a tracked test file whose tests were all skipped cannot be checked, and is named", () => {

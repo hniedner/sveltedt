@@ -8,3 +8,6 @@ test.only("is focused", () => {
 test.skip("is skipped", () => {
   expect(1).toBe(1);
 });
+test("asserts nothing with its expect", () => {
+  expect(1 === 1);
+});

@@ -233,11 +233,12 @@ export default [
     files: ["**/*.ts"],
     plugins: { vitest },
     rules: {
-      // Method section 4: a test without an assertion or a skipped test cannot fail, and a focused test stops the
-      // others in its file from running.
+      // Method section 4: a test without an assertion, a skipped test or an expect without a matcher cannot fail,
+      // and a focused test stops the others in its file from running.
       "vitest/expect-expect": "error",
       "vitest/no-focused-tests": "error",
       "vitest/no-disabled-tests": "error",
+      "vitest/valid-expect": "error",
     },
   },
 ];

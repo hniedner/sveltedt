@@ -1000,6 +1000,7 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "vitest/expect-expect",
     "vitest/no-focused-tests",
     "vitest/no-disabled-tests",
+    "vitest/valid-expect",
     "compat/compat",
     "@typescript-eslint/ban-ts-comment",
     "no-restricted-syntax|setAttribute style",
@@ -1731,14 +1732,15 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+// The test seam VITEST_BIN, like SVELTE_CHECK_BIN; unset, the installed vitest.
 const vitestBin = (): string =>
-  join(HERE, "..", "node_modules", ".bin", "vitest");
+  process.env.VITEST_BIN || join(HERE, "..", "node_modules", ".bin", "vitest");
 /** A tracked Vitest test file: any *.test.ts or *.spec.ts outside scripts/ (whose tests run under node:test). */
 const isVitestTest = (f: string): boolean =>
   /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/");
-/** Tracked code a test should cover: TypeScript and components under src/ and site/. */
+/** Tracked code a test should cover: TypeScript and components under src/ and site/ (asked only when no test file is). */
 const isTestedCode = (f: string): boolean =>
-  /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f) && !isVitestTest(f);
+  /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f);
 const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, "g");
 /** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
 function tail(text: string): string[] {
@@ -1772,7 +1774,12 @@ interface VitestReport {
 function vitest(
   cwd: string,
   args: string[],
-): { report: VitestReport | null; status: number | null; out: string } {
+): {
+  report: VitestReport | null;
+  status: number | null;
+  out: string;
+  error?: string;
+} {
   const dir = mkdtempSync(join(tmpdir(), "vitest-"));
   try {
     const file = join(dir, "report.json");
@@ -1796,7 +1803,12 @@ function vitest(
     const report = existsSync(file)
       ? (JSON.parse(readFileSync(file, "utf8")) as VitestReport)
       : null;
-    return { report, status: r.status, out: `${r.stdout}${r.stderr}` };
+    return {
+      report,
+      status: r.status,
+      out: `${r.stdout}${r.stderr}`,
+      error: r.error && `cannot run ${vitestBin()}: ${errorCode(r.error)}`,
+    };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1807,6 +1819,7 @@ function vitest(
 // no test may fail, and vitest itself must exit 0 (an error thrown after a test's assertions is in no report).
 function test(root: string, list: Set<string>): Result {
   const canary = vitest(canaries("test"), []);
+  if (canary.error) return result(CANNOT, canary.error);
   if (!canary.report || canary.report.numFailedTests < 1)
     return result(
       CANNOT,
@@ -1826,24 +1839,29 @@ function test(root: string, list: Set<string>): Result {
         );
   if (!list.has("vitest.config.ts"))
     return result(CANNOT, "vitest.config.ts is not tracked");
-  // Options that let an unhandled error exit 0, read as text: a config that builds the name at run time is not seen
-  const swallowing = [
-    "dangerouslyIgnoreUnhandledErrors",
-    "onUnhandledError",
-  ].filter((o) =>
-    readFileSync(join(root, "vitest.config.ts"), "utf8").includes(o),
-  );
-  if (swallowing.length)
-    return result(
-      CANNOT,
-      "vitest.config.ts lets an unhandled error pass",
-      swallowing,
-    );
+  // No flag overrides an onUnhandledError function (measured), so it is read as text; a name built at run time is
+  // not seen (a limit stated in CONTRIBUTING.md)
+  if (
+    readFileSync(join(root, "vitest.config.ts"), "utf8").includes(
+      "onUnhandledError",
+    )
+  )
+    return result(CANNOT, "vitest.config.ts lets an unhandled error pass", [
+      "onUnhandledError",
+    ]);
+  // Each flag wins over the opposite setting in the config (measured): unhandled errors fail the run, a test
+  // without an assertion fails, and the tests run rather than only being type-checked
   const {
     report: run,
     status,
     out,
-  } = vitest(root, ["--config", join(root, "vitest.config.ts")]);
+  } = vitest(root, [
+    "--config",
+    join(root, "vitest.config.ts"),
+    "--dangerouslyIgnoreUnhandledErrors=false",
+    "--expect.requireAssertions",
+    "--typecheck.enabled=false",
+  ]);
   if (!run) return result(CANNOT, "vitest wrote no report", tail(out));
   // Vitest names each file by its real path; the root may reach it through a link (macOS: /var -> /private/var).
   const real = realpathSync(root);
@@ -1880,7 +1898,7 @@ function test(root: string, list: Set<string>): Result {
       "no test passed in tracked test files (all skipped?)",
       idle,
     );
-  // A test skipped at run time (skipIf, runIf, ctx.skip()) did not check its statement
+  // A test skipped at run time (skipIf, runIf, ctx.skip()) or left as test.todo did not check its statement
   const skipped = run.numPendingTests + run.numTodoTests;
   if (skipped)
     return result(
@@ -1894,7 +1912,7 @@ function test(root: string, list: Set<string>): Result {
     );
   return result(
     PASS,
-    `vitest failed the canary; ${run.numTotalTests - skipped} test(s) in ${byFile.size} file(s) passed, ${skipped} skipped`,
+    `vitest failed the canary; ${run.numTotalTests} test(s) in ${byFile.size} file(s) passed`,
   );
 }
 
