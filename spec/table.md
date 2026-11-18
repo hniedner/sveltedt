@@ -1,14 +1,15 @@
-# DataTable: component spec
+# DataTable and Pagination: component spec
 
 - **Name:** `DataTable`, the table component of SvelteDT (`@hniedner/sveltedt`), and `Pagination`, its separate
-  pager (sections 7 onward).
+  pager (section 7).
 - **Status:** groups 1 and 2 of the component spec. Later groups add filter, column chooser, selection, sticky
   layout, the strict-policy proofs, large pages and theming to this file.
 - Field names: no
 - **Scope:** group 1: the statements a read-only table needs: rows in the given order with text or snippet cells, the
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
   props, the APG table pattern, and no global footprint. Group 2: server-driven multi-column sort, the pager, ids
-  that stay unique per instance and across hydration, and numbers through replaceable functions.
+  that stay unique per instance and across hydration, numbers through replaceable functions, and no window scroll
+  after a sort or pager intent.
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
@@ -28,7 +29,7 @@ to the consumer as one callback (from group 2 on).
     indicators, hover, axe.
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
-- **Props used in this group.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
+- **Props used in groups 1 and 2.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
   (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`); `busy`;
   `messages` (the words); the snippets `heading` and `actions`. Group 2 adds to `DataTable`: `sort` (the order, a
   list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or `'desc'`) and
@@ -36,15 +37,16 @@ to the consumer as one callback (from group 2 on).
   `onpage(offset)` and `onsize(n)`. Later groups add their own props.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
-  directions unless the row says otherwise.
+  directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
+  passes an `onpage`, and an `onsize` when it has `sizes`.
 - **Pager places.** The pager shows page numbers and gaps; each counts as one place. "Page n" is a page number
   button. A row such as `1 … 4 5 6 … 20` lists the places in order.
 - **The region** is the element with `role="region"` that holds the table (A11Y-09). **The alert** is the alert of
   RND-05. **The live count** is the polite live region of A11Y-05.
-- **Shown columns.** In this group every given column is shown; column hiding arrives with the column group.
+- **Shown columns.** In groups 1 and 2 every given column is shown; column hiding arrives with the column group.
 - **"Emits X once"** (used from group 2 on) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
-- **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06).
+- **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group. A requirement id from `docs/PRD.md` is written `PRD-B1`.
@@ -61,7 +63,7 @@ to the consumer as one callback (from group 2 on).
   | r3 "Gamma", r1 "Alpha", r2 "Beta" | r3, r1, r2 |
   | r1 "Beta", r2 "Beta", r3 "" | r1, r2, r3 |
   | 25 rows r01 ... r25 | the same 25 rows, r01 first, r25 last |
-  | r3 "Gamma", r2 "Beta", r1 "Alpha" with `sort` `[name asc]` | r3, r2, r1 |
+  | r3 "Gamma", r1 "Alpha", r2 "Beta", Name sortable, `sort` `[name asc]`, `onsort` given | r3, r1, r2 |
 
 - Reason: the server orders and pages the rows; a reorder or a cut in the browser would show rows the server did not
   put there.
@@ -91,7 +93,7 @@ its cells.
   | `regionLabel` |
   | a column `label` |
   | a default cell (`value(row)`) |
-  | each entry of `messages`, the returned text of `rowCount` included |
+  | each entry of `messages`, the returned text of every function included |
 
   In every row the literal text appears on the page or in the accessible name, and the component holds no `img`
   and no `none` element. Later groups add their props to this table.
@@ -134,7 +136,8 @@ its cells.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3.
 
-**RND-09** The alert MUST hold no value taken from the rows, the column definitions or a thrown error.
+**RND-09** The alert MUST hold no value taken from the rows, the column definitions, the `sort` prop or a thrown
+error.
 - Examples (the test runs every row):
 
   | Invalid input | Text that must not appear in the alert |
@@ -170,11 +173,8 @@ its cells.
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
   | `sortBy` (a function of the label) | "Sort by Name" for the label "Name" | SORT-09 |
-  | `sortAscending` | "sorted ascending" | SORT-06 |
-  | `sortDescending` | "sorted descending" | SORT-06 |
-  | `sortPriority` (a function of the rank) | "priority 2" for rank 2 | SORT-06, I18N-01 |
   | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
-  | `sortHint` | "Shift+click or Shift+Enter adds this column to the sort." | SORT-06 |
+  | `sortDescription` (a function of the direction and the rank) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups add their words to this table.
@@ -184,8 +184,7 @@ its cells.
 
 **RND-07** A column that is not sortable MUST NOT show a sort button.
 - Example: the columns Name and Note, neither configured as sortable: no button whose name starts with "Sort by"
-  exists, and neither header cell holds a button. (The sort group adds the positive half: a sortable column shows its
-  sort button.)
+  exists, and neither header cell holds a button. (SORT-10 is the positive half.)
 - Reason: a control that does nothing misleads.
 - Layer: component.
 - Traces: PRD-B3.
@@ -312,16 +311,11 @@ role `grid`, `treegrid` or `gridcell`, and no row, header cell or cell is focusa
 - Traces: PRD-A2.
 
 **A11Y-10** The Tab order MUST follow the reading order: the `heading` and `actions` snippets' controls, then the
-region while it is a stop, then the controls in the header cells from the first column to the last, then the controls
-in the cells row by row, each row from its first column to its last.
-- Examples (the test runs every row; the table fits its viewport, so the region is no stop):
-
-  | Table | Tab from the start reaches |
-  |---|---|
-  | an `actions` snippet holding "Export"; a `cell` snippet holding a link "Open <name>" in the first of two columns and "Edit <name>" in the second; rows Beta and Gamma | "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma" |
-  | the same, with both columns sortable (labels Name and Code) | "Export", "Sort by Name", "Sort by Code", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma" |
-
-  Later groups add their controls to this order.
+region while it is a stop, then the controls in the cells row by row, each row from its first column to its last.
+- Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
+  "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
+  start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
+  this order.)
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3.
@@ -356,7 +350,7 @@ in the cells row by row, each row from its first column to its last.
 - Layer: component.
 - Traces: PRD-A4, PRD-B15.
 
-**A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
+**A11Y-16** Hovering or focusing any part of the table or the pager MUST NOT make content appear, other than the focused element's
 own focus indicator.
 - Example: the 30-column, 25-row table with a link in one column: hover every header cell and every body cell in turn,
   and focus the region and each link; after each step the page's visible text and the set of visible elements equal
@@ -398,6 +392,24 @@ own focus indicator.
 - Reason: an automated check catches regressions in names, roles and contrast that the statements above do not name.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
+
+**A11Y-17** A sort press or a pager intent MUST NOT scroll the window.
+- Examples (the test runs every row, in the scenario of PRD-A3: the window starts mid-page, the site's test switch
+  keeps the row count constant across the intent, the page sets `overflow-anchor: none`; the window's scroll
+  position is read before the press and after the consumer's new rows are painted):
+
+  | Intent |
+  |---|
+  | press "Sort by Name" |
+  | Shift+press "Sort by Code" |
+  | press each of "First page", "Previous page", "Next page", "Last page" and a page number |
+  | choose another page size |
+
+  Later groups add their intents. Break that turns it red: the table calls `scrollIntoView` on its first row when
+  new rows arrive, or the pager scrolls itself into view after a press.
+- Reason: users keep their place; a jump after a sort or a page change loses it.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A3.
 
 ## 4. Actions snippet and export (EXP)
 
@@ -479,15 +491,16 @@ those Svelte adds for any component.
   | `[code asc, name desc]` | Name | `[name asc]` |
   | `[name asc, code desc]` | Name | `[name desc]` |
 
-  The rule: if the column leads the order, it moves on one step (ascending, then descending, then unsorted) and the
-  other columns are dropped; otherwise it becomes the only sorted column, ascending.
+  The rule: if the column leads the order, it moves on to the next direction it allows (ascending before
+  descending) and the other columns are dropped; after its last allowed direction it leaves the order. Otherwise it
+  becomes the only sorted column, in the first direction it allows. SORT-04 holds the single-direction rows.
 - Reason: emitting the whole order means the consumer sends it as is and never merges partial changes.
 - Layer: component.
 - Traces: PRD-B4, PRD-B2.
 
 **SORT-02** A press on a sort button with Shift MUST emit `onsort` once with an order in which only that column has
-moved on one step and every other column keeps its place and direction.
-- Examples (the test runs every row by Shift+click, Shift+Enter and Shift+Space):
+moved on one step and every other column keeps its relative order and direction.
+- Examples (the test runs every row by Shift+click, Shift+Enter and Shift+Space, and counts one call each):
 
   | Order before | Shift+press | `onsort` receives |
   |---|---|---|
@@ -498,22 +511,20 @@ moved on one step and every other column keeps its place and direction.
   | `[name desc, code asc]` | Name | `[code asc]` |
   | `[]` | Name | `[name asc]` |
 
-  A column not yet in the order joins at the end, ascending.
+  A column not yet in the order joins at the end, in the first direction it allows; after its last allowed direction
+  it leaves the order.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
 - Layer: component.
 - Traces: PRD-B4.
 
-**SORT-03** One press on a sort button MUST emit exactly one `onsort`.
-- Examples (the test runs every row, on Name with order `[]`):
+**SORT-03** One press on a sort button without Shift MUST emit exactly one `onsort`.
+- Examples (the test runs every row, on Name with order `[]`; the Shift inputs are counted in SORT-02):
 
   | Input | `onsort` calls |
   |---|---|
   | click | 1 |
   | Enter on the focused button | 1 |
   | Space on the focused button | 1 |
-  | Shift+click | 1 |
-  | Shift+Enter | 1 |
-  | Shift+Space | 1 |
 
 - Reason: two emits are two server requests whose answers can arrive in either order.
 - Layer: component.
@@ -535,11 +546,33 @@ moved on one step and every other column keeps its place and direction.
 - Layer: component.
 - Traces: PRD-B4.
 
-**SORT-12** After a press on a sort button, focus MUST stay on that button, also once the consumer has passed the new
-order and new rows.
-- Example: focus "Sort by Name" with order `[]`, press Enter; the consumer passes `sort` `[name asc]`, then 25 new
-  rows; the focused element is still "Sort by Name".
-- Reason: a keyboard user who sorts twice in a row must not have to find the button again (WCAG 2.4.3).
+**SORT-12** A sort press MUST NOT change what the table shows until the consumer passes a new `sort`.
+- Examples (the test runs every row; `onsort` records its call and passes nothing back; Name and Code sortable):
+
+  | Order | Press | Still shown after the press |
+  |---|---|---|
+  | `[]` | Name | no `aria-sort` on any header; Name's description "H" (SORT-06); no mark (SORT-05, SORT-13) |
+  | `[name asc]` | Shift+Code | `aria-sort="ascending"` on Name only; Code's description "H"; no rank marks |
+
+  Break that turns it red: the table keeps its own copy of the order and updates it on a press.
+- Reason: the table shows only what its props say (PRD-B2); if the server refuses or fails, an order the user did
+  not get must not be announced.
+- Layer: component.
+- Traces: PRD-B2, PRD-B4.
+
+**SORT-11** After a press on a sort button, focus MUST stay on that button while the consumer loads and after it
+passes the new order and rows.
+- Examples (the test runs every row; focus "Sort by Name" with order `[]`, press Enter, then the consumer passes the
+  props of each step in turn; after every step the focused element is "Sort by Name"):
+
+  | Steps the consumer takes |
+  |---|
+  | `busy true`; then `sort [name asc]` with 25 new rows and `busy false` |
+  | `status 'loading'`; then `sort [name asc]`, 25 new rows and `status 'ready'` |
+  | `sort [name asc]`, then 25 new rows |
+
+- Reason: a keyboard user who sorts twice in a row must not have to find the button again, and focus must never fall
+  to the page body (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3.
 
@@ -566,7 +599,23 @@ order and new rows.
   | `[name asc]` | "Sort by Name" |
   | `[code asc, name desc]` | "Sort by Name" (not "Sort by Name 2") |
 
-- Reason: the visible label stays the accessible name (WCAG 2.5.3), so voice-control users can say what they see.
+- Reason: the accessible name contains the visible label (WCAG 2.5.3), so voice-control users can say what they see.
+- Layer: component.
+- Traces: PRD-B5, PRD-A1.
+
+**SORT-13** Each sorted header MUST show a mark of its direction, hidden from assistive technology, that differs
+between ascending and descending.
+- Examples (the test runs every row; each mark is inside an `aria-hidden="true"` element in the header cell):
+
+  | Order | Mark on Code | Mark on Name |
+  |---|---|---|
+  | `[name asc]` | none | the ascending mark |
+  | `[name desc]` | none | the descending mark, whose markup differs from the ascending mark |
+  | `[]` | none | none |
+  | `[code asc, name desc]` | the ascending mark | the descending mark |
+
+- Reason: sighted users read the direction at a glance; assistive technology gets it from `aria-sort` and the
+  description (SORT-06), so the mark is hidden. Its contrast and forced-colours visibility are later statements.
 - Layer: component.
 - Traces: PRD-B5, PRD-A1.
 
@@ -588,7 +637,7 @@ visual mark that is hidden from assistive technology.
 
 **SORT-06** Each sort button MUST be described by its direction, its rank while two or more columns are sorted, and
 how to add a column.
-- Examples (the test runs every row; H is "Shift+click or Shift+Enter adds this column to the sort."):
+- Examples (the test runs every row; H is "Shift+click, Shift+Enter or Shift+Space adds this column to the sort."):
 
   | Order | Button | Accessible description |
   |---|---|---|
@@ -597,6 +646,8 @@ how to add a column.
   | `[code asc, date asc, name desc]` | Sort by Name | "sorted descending, priority 3. H" |
   | `[code asc]` | Sort by Name | "H" |
 
+  The whole description is one message, `sortDescription`, a function of the direction and the rank, so a
+  translation can order and punctuate it freely (RND-06).
 - Reason: `aria-sort` is on one header only (A11Y-03), so the other sorted columns need words.
 - Layer: component.
 - Traces: PRD-B5, PRD-A2.
@@ -604,7 +655,14 @@ how to add a column.
 ## 7. The pager (PAGE)
 
 `Pagination` is a separate component, so a consumer can place it anywhere or leave it out. The current page is
-`offset / limit + 1`; the number of pages is `total / limit` rounded up, and at least 1.
+`offset / limit` rounded down, plus 1; the number of pages is `total / limit` rounded up, and at least 1.
+
+OPEN: an `offset` at or past the last page while `total` is above 0 (rows deleted between two requests can cause it).
+Proposed: no alert; the pager shows the real pages with no `aria-current`, "First page" and "Previous page"
+enabled, "Next page" and "Last page" `aria-disabled`. Layer: component.
+
+OPEN: an `offset` that is not a multiple of `limit` (a consumer that keeps the offset after `onsize`). Proposed: the
+current page as above, and the step buttons emit offsets on the page grid (multiples of `limit`). Layer: component.
 
 **PAGE-09** The pager MUST be a `nav` element named by its `label` prop.
 - Example: `label="Pages of orders"` gives exactly one element found by role `navigation` and name "Pages of orders".
@@ -620,16 +678,18 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-B9, PRD-A3.
 
-**PAGE-01** A press on an enabled pager button MUST emit `onpage` once with that page's offset.
-- Examples (the test runs every row; `offset 30, limit 10, total 95`):
+**PAGE-01** A press on an enabled step button, or on a page number other than the current page, MUST emit `onpage`
+once with that page's offset.
+- Examples (the test runs every row; `offset 20, limit 10, total 95`: page 3 of 10, places `1 2 3 4 5 … 10`):
 
   | Press | `onpage` receives |
   |---|---|
   | First page | 0 |
-  | Previous page | 20 |
-  | Next page | 40 |
+  | Previous page | 10 |
+  | Next page | 30 |
   | Last page | 90 |
-  | Page 6 | 50 |
+  | Page 5 | 40 |
+  | Page 10 | 90 |
 
 - Reason: the server pages by offset, and the consumer owns the request.
 - Layer: component.
@@ -663,27 +723,40 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-B9, PRD-A1.
 
-**PAGE-03** The pager MUST work out its places without doing work per page.
-- Example: `offset 0, limit 1, total 9007199254740991` (2^53 - 1 pages) mounts and shows its places within one
-  second; a pager that visits each page would not finish.
+**PAGE-03** The pager MUST show its places within one second for any safe total.
+- Example: `offset 0, limit 1, total 9007199254740991` (2^53 - 1 pages) shows `1 2 3 4 5 … 9,007,199,254,740,991`
+  within one second. The test mounts the pager in a worker that it stops after one second, so a pager that visits
+  every page fails on the time assertion instead of hanging the run.
 - Reason: row counts of large stores reach the billions, and a list of every page would not fit in memory.
 - Layer: component.
 - Traces: PRD-B9, PRD-P2.
 
-**PAGE-18** The pager MUST show the right places and offsets at the edges of the row count.
-- Examples (the test runs every row; `offset 0, limit 25`; "Last page emits" is the `onpage` value of a press on an
-  enabled "Last page"):
+**PAGE-17** The pager MUST show the right places at the edges of the row count.
+- Examples (the test runs every row; `offset 0, limit 25`; `total 0` is PAGE-08):
 
-  | `total` | Places shown | Last page emits |
-  |---|---|---|
-  | 0 | 1 | nothing (disabled) |
-  | 1 | 1 | nothing (disabled) |
-  | 25 | 1 | nothing (disabled) |
-  | 26 | 1 2 | 25 |
-  | 9007199254740991 | 1 2 3 4 5 … 360,287,970,189,640 | 9007199254740975 |
+  | `total` | Places shown |
+  |---|---|
+  | 1 | 1 |
+  | 25 | 1 |
+  | 26 | 1 2 |
+  | 9007199254740991 | 1 2 3 4 5 … 360,287,970,189,640 |
 
   In every row the pager's text and accessible names hold no "NaN", no "Infinity" and no "Page 0".
 - Reason: a wrong pager is worse than none, and these are the totals where arithmetic slips (PRD-B9).
+- Layer: component.
+- Traces: PRD-B9.
+
+**PAGE-18** A press on an enabled "Last page" MUST emit the offset of the last page at the edges of the row count.
+- Examples (the test runs every row; `offset 0, limit 25`):
+
+  | `total` | `onpage` receives |
+  |---|---|
+  | 26 | 25 |
+  | 50 | 25 |
+  | 51 | 50 |
+  | 9007199254740991 | 9007199254740975 |
+
+- Reason: an off-by-one here asks for an empty page or skips the last rows.
 - Layer: component.
 - Traces: PRD-B9.
 
@@ -723,6 +796,21 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-B9, PRD-A3.
 
+**PAGE-22** A pager intent MUST NOT change what the pager shows until the consumer passes new props.
+- Examples (the test runs every row; `offset 20, limit 10, total 95, sizes [10, 25, 50]`; `onpage` and `onsize`
+  record their calls and pass nothing back):
+
+  | Intent | Still shown after the intent |
+  |---|---|
+  | press "Next page" | "Page 3" has `aria-current="page"`; places `1 2 3 4 5 … 10` |
+  | press "Page 5" | "Page 3" has `aria-current="page"` |
+  | choose 50 in the select | the select shows 10 |
+
+  Break that turns it red: the pager keeps its own offset or size and updates it on an intent.
+- Reason: the pager shows only what its props say (PRD-B2); a page the server did not send must not be marked current.
+- Layer: component.
+- Traces: PRD-B2, PRD-B9.
+
 **PAGE-21** After a press on a step button, focus MUST stay on that button once the consumer has passed the new
 offset.
 - Examples (the test runs every row; `limit 10, total 95`):
@@ -733,9 +821,10 @@ offset.
   | 80 | Next page | 90 | "Next page", now `aria-disabled` |
   | 30 | First page | 0 | "First page", now `aria-disabled` |
 
-- Reason: a new page moves no focus (PRD-A3), also when the pressed button cannot move again.
+- Reason: a new page moves no focus (PRD-A3), also when the pressed button cannot move again (PRD-B2 lists that
+  pending focus).
 - Layer: component.
-- Traces: PRD-A3, PRD-B9.
+- Traces: PRD-A3, PRD-B9, PRD-B2.
 
 **PAGE-06** When a new offset moves a focused page number to another place, focus MUST stay on the button for that
 same page number.
@@ -751,13 +840,14 @@ same page number.
 - Layer: component.
 - Traces: PRD-B9.
 
-**PAGE-07** With `sizes`, the pager MUST offer exactly those page sizes, in the given order, in a select named
-"entries per page", with `limit` selected.
-- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select named "entries per page" with those
-  seven options in that order, 25 selected.
-- Reason: the allowed sizes are a server limit that the consumer knows and the component does not.
+**PAGE-07** With a non-empty `sizes`, the pager MUST offer exactly those page sizes, in the given order, in a select
+labelled by the visible text "entries per page", with `limit` selected.
+- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select whose accessible name is "entries per
+  page", taken from a visible `label` element, with those seven options in that order and 25 selected.
+- Reason: the allowed sizes are a server limit that the consumer knows and the component does not; a visible label
+  tells sighted users what the bare number means (WCAG 3.3.2).
 - Layer: component.
-- Traces: PRD-B9.
+- Traces: PRD-B9, PRD-A1.
 
 **PAGE-14** A change of the page-size select MUST emit `onsize` once with the chosen size.
 - Example: `limit 25, sizes [10, 25, 50]`, choose 50: `onsize(50)` once, and `onpage` is not called.
@@ -765,8 +855,17 @@ same page number.
 - Layer: component.
 - Traces: PRD-B9, PRD-B2.
 
-**PAGE-15** Without `sizes`, the pager MUST show no page-size select.
-- Example: no `sizes` prop: no element with role `combobox` or `listbox` in the pager.
+**PAGE-23** After a change of the page-size select, focus MUST stay on the select once the consumer has passed the
+new `limit` and offset.
+- Example: `offset 50, limit 25, total 300, sizes [10, 25, 50]`: focus the select, choose 50; the consumer passes
+  `limit 50, offset 0`; the select still has focus and shows 50.
+- Reason: a new page moves no focus (PRD-A3), and a rebuilt select would drop it to the page body.
+- Layer: component.
+- Traces: PRD-A3, PRD-B9.
+
+**PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
+  `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -778,16 +877,19 @@ same page number.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | `total` is -1, 1.5, `NaN`, `Infinity` or 2^53 | `totalInvalid` | "The row total is not a valid number." |
-  | `offset` is -25, 2.5, `NaN` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
-  | `limit` is 0, -10, 2.5 or `NaN` | `limitInvalid` | "The page size is not a valid number." |
+  | `offset` is -25, 2.5, `NaN`, `Infinity` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
+  | `limit` is 0, -10, 2.5, `NaN`, `Infinity` or 2^53 | `limitInvalid` | "The page size is not a valid number." |
   | `label` is empty or blank | `labelEmpty` | "Pager label must not be empty." |
   | `sizes` holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
-  | `sizes` is given and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
+  | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
+  | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
+  | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer).
-- Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request.
+- Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
+  no handler does nothing.
 - Layer: component.
-- Traces: PRD-B9, PRD-S4.
+- Traces: PRD-B9, PRD-B3, PRD-S4.
 
 **PAGE-19** Every fixed word the pager shows or announces MUST come from its `messages` prop with an English default.
 - Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
@@ -817,7 +919,7 @@ same page number.
   | Prop that carries the text |
   |---|
   | `label` |
-  | each entry of `messages`, the returned text of the functions included |
+  | each entry of `messages`, the returned text of every function included |
 
   In every row the literal text appears in the pager's text or accessible names, and the pager holds no `img` and
   no `none` element.
@@ -827,26 +929,31 @@ same page number.
 
 ## 8. Ids across instances and server rendering (ID)
 
+The examples of this section use four instances: two `DataTable`s with the same sortable columns, both sorted
+`[code asc, name desc]`, and two `Pagination`s with `sizes`, mounted side by side. Each instance holds at least one
+`id` and one id reference (the sort descriptions); the tests assert both counts are above 0, so an instance with
+nothing to check fails instead of passing.
+
 **ID-01** Two tables, and two pagers, on one page MUST share no `id`.
-- Example: two `DataTable`s with the same columns, both sorted `[code asc, name desc]`, and two `Pagination`s with
-  `sizes`, mounted side by side: the set of `id` values of each instance is disjoint from the other's, and no `id`
+- Example: the four instances: the set of `id` values of each instance is disjoint from the others', and no `id`
   occurs twice in the document.
 - Reason: a duplicated id makes the second table's descriptions point at the first table's words.
 - Layer: component.
 - Traces: PRD-B18.
 
 **ID-02** Every id reference of a table or a pager MUST name an element inside that same instance.
-- Example: the four instances of ID-01: every `aria-describedby`, `aria-labelledby`, `aria-controls` and `for` value
-  of each instance names only ids found inside that instance.
+- Example: the four instances: every `aria-describedby`, `aria-labelledby`, `aria-controls` and `for` value of each
+  instance names only ids found inside that instance.
 - Reason: a reference that resolves into a neighbour reads the neighbour's words, and no check of one instance alone
   finds it.
 - Layer: component.
 - Traces: PRD-B18.
 
 **ID-03** The ids of a server-rendered table and pager MUST equal their ids after hydration.
-- Example: the four instances of ID-01, rendered with Svelte's server renderer, put into the simulated DOM and
-  hydrated: every `id` and every id reference is the same before and after hydration, and Svelte reports no
-  hydration mismatch.
+- Example: the four instances, rendered with Svelte's server renderer, put into the simulated DOM and hydrated in
+  Svelte's development mode: every `id` and every id reference is the same before and after hydration, and Svelte
+  reports no hydration mismatch. A planted mismatch (one instance rendered with different props on the server) must
+  be reported, which proves the check can fail.
 - Reason: a description id that changes on hydration leaves the server-rendered references dangling. The consumer
   project proves it again in three engines (site spec).
 - Layer: component.
@@ -856,39 +963,23 @@ same page number.
 
 **I18N-01** Every number the table or the pager shows or announces MUST come from a `messages` function that
 receives that number.
-- Examples (the test runs every row; the defaults use English digit grouping; the test then passes functions that
-  return Eastern Arabic digits and checks that each replacement appears and no Western digits of that number remain):
+- Examples (the test runs every row; the test then passes functions that return Eastern Arabic digits and checks
+  that each replacement appears and no Western digits of that number remain):
 
   | Function | Called with | English default | Shown by |
   |---|---|---|---|
   | `rowCount` | 1000 | "1,000 rows displayed" | A11Y-05 |
   | `sortRank` | 2 | "2" | SORT-05 |
-  | `sortPriority` | 3 | "priority 3" | SORT-06 |
+  | `sortDescription` | descending, rank 3 | "sorted descending, priority 3. H" (H as in SORT-06) | SORT-06 |
   | `pageNumber` | 1234 | "1,234" | PAGE-02 |
   | `pageLabel` | 1234 | "Page 1,234" | PAGE-01 |
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
 
+  The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
+  German default locale and still expects "1,000".
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
 - Traces: PRD-I2, PRD-I1.
-
-**A11Y-17** A sort press or a pager intent MUST NOT scroll the window.
-- Examples (the test runs every row, in the scenario of PRD-A3: the window starts mid-page, the site's test switch
-  keeps the row count constant across the intent, the page sets `overflow-anchor: none`; the window's scroll
-  position is read before the press and after the consumer's new rows are painted):
-
-  | Intent |
-  |---|
-  | press "Sort by Name" |
-  | Shift+press "Sort by Code" |
-  | press each of "First page", "Previous page", "Next page", "Last page" and a page number |
-  | choose another page size |
-
-  Later groups add their intents. Break that turns it red: the table calls `scrollIntoView` on its first row when
-  new rows arrive, or the pager scrolls itself into view after a press.
-- Reason: users keep their place; a jump after a sort or a page change loses it.
-- Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-A3.
 
 ## Trace for group 1
 
@@ -935,6 +1026,8 @@ receives that number.
 
 ### PRD must -> statements (the musts group 1 touches)
 
+As of group 1. For every PRD id that group 2 touches, the group-2 table below replaces its row.
+
 "In full" means group 1 holds every statement the requirement needs; "in part" names what later groups add.
 
 | PRD id | Statements | Coverage |
@@ -958,9 +1051,10 @@ receives that number.
 
 ## Trace for group 2
 
-Group 2 also adds rows to group-1 statements: RND-01 (a `sort` prop does not reorder), RND-05 and RND-09 (the sort
-input), RND-06 (the sort words), A11Y-06 (sorted states and the pager), A11Y-10 (sort buttons in the Tab order) and
-A11Y-16 (sort buttons and the pager). Their trace lines are unchanged.
+Group 2 also adds rows to group-1 statements: RND-01 (a `sort` prop does not reorder), RND-03 (the new message
+functions), RND-05 and RND-09 (the sort input), RND-06 (the sort words), A11Y-06 (sorted states and the pager) and
+A11Y-16 (sort buttons and the pager). Their trace lines are unchanged. A11Y-17 is new in group 2 and sits in
+section 3.
 
 ### Statement -> PRD
 
@@ -971,9 +1065,11 @@ A11Y-16 (sort buttons and the pager). Their trace lines are unchanged.
 | SORT-02 | PRD-B4 |
 | SORT-03 | PRD-B2, PRD-B4 |
 | SORT-04 | PRD-B4 |
-| SORT-12 | PRD-A3 |
+| SORT-12 | PRD-B2, PRD-B4 |
+| SORT-11 | PRD-A3 |
 | A11Y-03 | PRD-A2 |
 | SORT-09 | PRD-B5, PRD-A1 |
+| SORT-13 | PRD-B5, PRD-A1 |
 | SORT-05 | PRD-B5 |
 | SORT-06 | PRD-B5, PRD-A2 |
 | PAGE-09 | PRD-B9, PRD-A1 |
@@ -982,18 +1078,21 @@ A11Y-16 (sort buttons and the pager). Their trace lines are unchanged.
 | PAGE-02 | PRD-B9 |
 | PAGE-11 | PRD-B9, PRD-A1 |
 | PAGE-03 | PRD-B9, PRD-P2 |
+| PAGE-17 | PRD-B9 |
 | PAGE-18 | PRD-B9 |
 | PAGE-04 | PRD-B9, PRD-A1 |
 | PAGE-12 | PRD-B9, PRD-B2 |
 | PAGE-05 | PRD-B9, PRD-A3 |
 | PAGE-13 | PRD-B9, PRD-A3 |
-| PAGE-21 | PRD-A3, PRD-B9 |
+| PAGE-22 | PRD-B2, PRD-B9 |
+| PAGE-21 | PRD-A3, PRD-B9, PRD-B2 |
 | PAGE-06 | PRD-A3, PRD-B9 |
 | PAGE-08 | PRD-B9 |
-| PAGE-07 | PRD-B9 |
+| PAGE-07 | PRD-B9, PRD-A1 |
 | PAGE-14 | PRD-B9, PRD-B2 |
+| PAGE-23 | PRD-A3, PRD-B9 |
 | PAGE-15 | PRD-B9 |
-| PAGE-16 | PRD-B9, PRD-S4 |
+| PAGE-16 | PRD-B9, PRD-B3, PRD-S4 |
 | PAGE-19 | PRD-I1 |
 | PAGE-20 | PRD-S2 |
 | ID-01 | PRD-B18 |
@@ -1004,20 +1103,20 @@ A11Y-16 (sort buttons and the pager). Their trace lines are unchanged.
 
 ### PRD must -> statements (the musts group 2 touches)
 
-Statements of group 1 are listed where group 2 changes the coverage.
+This table replaces the group-1 rows of the same PRD ids. Statements of group 1 are listed where they count.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05 | in full (the `sort` row of RND-01 is in) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, PAGE-01, PAGE-12, PAGE-14 | in part: the filter, column and selection groups add their one-callback statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10 | in part: the filter group adds the positive halves of RND-11 and RND-12 |
-| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04 | in part: the column group adds "hidden columns keep their place" |
-| PRD-B5 | SORT-09, SORT-05, SORT-06 | in part: the column group adds ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B9 | PAGE-01 to PAGE-16, PAGE-18, PAGE-21 | in full |
-| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference adds its instances to the ID-01 example |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, SORT-09, PAGE-09, PAGE-11, PAGE-04 | in part: the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-B1 | RND-01, STATE-05 | in part: the filter group adds the row where filters are given and the rows are still not filtered |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-14, PAGE-21, PAGE-22 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, PAGE-16 | in part: the filter group adds the positive halves of RND-11 and RND-12 |
+| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12 | in part: the column group adds "hidden columns keep their place" |
+| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group adds ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
+| PRD-B9 | PAGE-01 to PAGE-18, PAGE-21 to PAGE-23 | in full, apart from the two OPEN lines of section 7 |
+| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference adds its instances to the section 8 examples |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, SORT-09, SORT-13, PAGE-09, PAGE-11, PAGE-04, PAGE-07 | in part: the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group adds the hidden-lead row of A11Y-03; the sticky group adds the `stickyHeader` row of A11Y-12 |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, SORT-12, PAGE-10, PAGE-05, PAGE-13, PAGE-21, PAGE-06, A11Y-17 | in part: focus and no-scroll after the intents of later groups |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, SORT-11, PAGE-10, PAGE-05, PAGE-13, PAGE-21, PAGE-06, PAGE-23, A11Y-17 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table" |
 | PRD-A10 | A11Y-16 | in part: the skip-link and dialog groups add their rows |
 | PRD-I1 | RND-06, PAGE-19, I18N-01 | in part: later groups add their words |
 | PRD-I2 | I18N-01 | in part: later groups add the numbers they show |
@@ -1028,13 +1127,16 @@ Statements of group 1 are listed where group 2 changes the coverage.
 
 ### PRD musts left to later groups (after group 2)
 
+Every must marked "in part" in the tables above keeps its remainder with the group named there. Musts with no
+statement yet:
+
 - Filter and criteria: PRD-B6, PRD-B7, PRD-B8.
 - Columns (chooser, reorder, resize): PRD-B10, PRD-B11, PRD-B12.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
-- Accessibility beyond what groups 1 and 2 hold: PRD-A4 (column-move announcement), PRD-A5, PRD-A6, PRD-A7,
-  PRD-A8, PRD-A9, PRD-A11, PRD-A12.
-- Strict policy and side effects: PRD-S1, PRD-S3 (in part).
+- Accessibility beyond what groups 1 and 2 hold: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12 (and the
+  column-move announcement of PRD-A4).
+- Strict policy and side effects: PRD-S1 (and the rest of PRD-S3).
 - Theming: PRD-T1, PRD-T2, PRD-T3, PRD-T4.
 - Internationalisation: PRD-I3.
 - Large pages and size: PRD-P1, PRD-P3.
