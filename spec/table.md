@@ -132,9 +132,12 @@ its cells.
   | `el.outerHTML = x` |
   | `Object.assign(el, { innerHTML: x })` |
   | `Object.assign(el, { outerHTML: x })` |
+  | `Object.assign(el, { srcdoc: x })` |
   | `el.insertAdjacentHTML("beforeend", x)` |
   | `document.write(x)` |
   | `document.writeln(x)` |
+  | `window.document.write(x)` |
+  | `el.ownerDocument.write(x)` |
   | `document.execCommand("insertHTML", false, x)` |
   | `range.createContextualFragment(x)` |
   | `new DOMParser().parseFromString(x, "text/html")` |
