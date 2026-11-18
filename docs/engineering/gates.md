@@ -75,6 +75,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   `--close`).
 - Skip, xfail, `.only` and `todo` fail the check.
 - Marker: `@spec("TABLE-07", "<first 8 hex of sha256 of the statement text>")`. A hash mismatch makes the test stale, which fails.
+  The statement text that is hashed runs from its id through its examples, up to but not including its reason line,
+  with white space collapsed to single spaces; so an added example row makes the test stale, which is wanted because
+  the test runs every row.
 - A test id that no spec holds fails.
 - A protected statement (`TIER-`, `DEID-`, `AUD-`, `REF-`) with no test marked `negative=True` fails.
 - Reads the spec files: a spec header without `Field names: yes|no`, or a `yes` spec whose text does not cite the
