@@ -20,9 +20,9 @@ to the consumer as one callback (stated with the statements that add user action
   requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
   a hash of the statement text.
 - **Test layers.**
-  - **component**: the component mounted in a simulated DOM, queried through roles, accessible names and visible
-    text only. No test ids and no internals. A test finds elements by role, accessible name and visible text, and may
-    read the tag and the ARIA and HTML attributes of an element so found, never a test id or a class.
+  - **component**: the component mounted in a simulated DOM. A test finds elements by role, accessible name and
+    visible text, may read the tag, the ARIA and HTML attributes, the ancestors and the descendants of an element so
+    found, and may assert that the component holds no element of a named tag or selector; never a test id or a class.
   - **real browser**: the component mounted on a test-site page in a real engine, in Chromium, Firefox and WebKit
     unless the statement names fewer and says why. Used for what needs an engine: layout, scrolling, focus
     indicators, hover, axe.
@@ -37,8 +37,8 @@ to the consumer as one callback (stated with the statements that add user action
   `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
   A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
-  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component: the
-  one query without a role these statements allow, because the count has no role of its own.
+  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
+  because the count has no role of its own.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
