@@ -96,8 +96,11 @@ Category B licences in use: none today. Expected:
   by its id in `dependency-review.yml`. Why: "No pattern reaches the vulnerable picomatch 4.0.7 that dependency-review
   reports. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config file in the tree, which a
   pull request can add in any folder; the effect is at most a hung gate, which a pull request can already cause."
-- **Removed when** a fixed picomatch is released, or tinyglobby no longer depends on it: the commit that bumps it
-  removes the id from `dependency-review.yml` and this entry.
+- **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
+  `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
+  `svelte` peer.
+- **Removed when** no picomatch at or below 4.0.7 is left in `pnpm-lock.yaml` (`pnpm why picomatch`), or a fixed
+  version is released: the commit that moves the lockfile removes the id from `dependency-review.yml` and this entry.
 
 ## Pinned programs
 
