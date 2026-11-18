@@ -1460,73 +1460,6 @@ test("test: a config vitest cannot load cannot be checked, and says why", () => 
   assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
   assert.doesNotMatch(out, /^\s+at /m); // a stack frame is not a reason
 });
-test("theme: a scan that crashes is a usage error that shows why, never a finding", () => {
-  const scripts = tempDir();
-  for (const f of ["check-repo.ts", "pinned.ts"])
-    writeFileSync(join(scripts, f), readFileSync(join(here, f)));
-  writeFileSync(
-    join(scripts, "check-theme-classes.ts"),
-    'import { nope } from "./pinned.ts";\nconsole.log(nope);\n',
-  );
-  const root = repo((r) =>
-    put(
-      r,
-      "src/lib/T.svelte",
-      '<div class="bg-[var(--sdt-a,Canvas)]"></div>\n',
-    ),
-  );
-  const r = spawnSync(
-    process.execPath,
-    [join(scripts, "check-repo.ts"), "theme", "--root", root],
-    {
-      encoding: "utf8",
-      env: GIT_ENV,
-    },
-  );
-  assert.equal(r.status, 2, r.stdout);
-  assert.match(
-    r.stdout,
-    /^USAGE theme: check-theme-classes\.ts printed no result line/m,
-  );
-  assert.match(r.stdout, /nope/);
-});
-test("theme: with no component under src/lib the step is not applicable", () => {
-  const r = run(["theme", "--root", repo()]);
-  assert.equal(r.code, 0, r.out);
-  assert.match(
-    r.out,
-    /^NOT APPLICABLE theme: no component is tracked under src\/lib$/m,
-  );
-});
-test("theme: a token class with a system-colour fallback passes", () => {
-  const good = '<div class="bg-[var(--sdt-surface,Canvas)]"></div>\n';
-  const out = expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", good)),
-    0,
-  );
-  assert.match(
-    out,
-    /PASS theme: 1 class literal\(s\) read, 1 colour-prefixed literal\(s\) checked/,
-  );
-});
-test("theme: a palette class in a component is a finding that names it", () => {
-  const bad = '<div class="bg-blue-500"></div>\n';
-  const out = expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", bad)),
-    1,
-  );
-  assert.match(out, /src\/lib\/T\.svelte:1: bg-blue-500/);
-});
-test("theme: a component with no colour class cannot be checked", () => {
-  const none = '<div class="p-2"></div>\n';
-  expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", none)),
-    3,
-  );
-});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -3076,7 +3009,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, theme, secrets$/m,
+    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

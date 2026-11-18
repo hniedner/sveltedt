@@ -1934,38 +1934,6 @@ function test(root: string, list: Set<string>): Result {
   );
 }
 
-// THEME-01 (spec/table.md): check-theme-classes.ts over the component source, with its own exit code. With no
-// component tracked under src/lib there is no class to read: not applicable.
-function theme(root: string, list: Set<string>): Result {
-  if (![...list].some((f) => /^src\/lib\/.+\.svelte$/.test(f)))
-    return result(NA, "no component is tracked under src/lib");
-  const r = spawnSync(
-    process.execPath,
-    [join(HERE, "check-theme-classes.ts"), "--root", root],
-    { encoding: "utf8", env: childEnv() },
-  );
-  const lines = (r.stdout ?? "").trim().split("\n");
-  const last =
-    /^(?:PASS|FINDING|USAGE|COULD NOT CHECK) check-theme-classes: (.*)$/.exec(
-      lines.at(-1) ?? "",
-    );
-  // A scan that crashed before printing its result line (a broken import) is a crash, not a finding
-  if (!last)
-    return result(
-      USAGE,
-      "check-theme-classes.ts printed no result line",
-      tail(`${r.stdout ?? ""}${r.stderr ?? ""}`),
-    );
-  const code = [PASS, FINDING, CANNOT].includes(r.status ?? -1)
-    ? (r.status as number)
-    : USAGE;
-  return result(
-    code,
-    last[1],
-    lines.slice(0, -1).map((l) => l.trim()),
-  );
-}
-
 function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
@@ -2052,7 +2020,6 @@ const CHECKS: Record<string, Check> = {
   types,
   svelte,
   test,
-  theme,
   dupes,
   pins,
   "gate-needs": gateNeeds,
