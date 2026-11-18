@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Planted violations: the lint step fails could-not-check unless ESLint reports every one of them.
+  // Planted violations: the lint step fails could-not-check unless ESLint raises every rule and ban message
+  // LINT_CANARY_RULES (scripts/check-repo.ts) lists for this extension; plants that share a message count once.
   let {
     rest,
     value = $bindable(),
@@ -7,9 +8,16 @@
   const act = (node: HTMLElement) => node;
   const attach = (node: HTMLElement) => node;
   const style = "color: red";
+  // Refused by ban-ts-comment in a component too.
+  // @ts-ignore
+  const off: number = "one";
   let el: HTMLElement | undefined = $state();
   // Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
   const idle = new IdleDetector();
+  const inject = (html: string) => {
+    el?.setAttribute("STYLE", "color: red");
+    if (el) el.innerHTML = html;
+  };
 </script>
 
 <!-- eslint-disable -->
@@ -23,9 +31,26 @@
 <p style:color="red">style directive</p>
 <p {@attach attach}>attach</p>
 <p {style}>style shorthand</p>
-<svelte:element this="p" style="color: red"
+<svelte:element this="p" STYLE="color: red"
   >style attribute on svelte:element</svelte:element
 >
 <p bind:this={el}>bind:this is allowed</p>
+<svelte:head><title>{inject}</title></svelte:head>
 {@html rest.html}
-<p>{String(idle)}</p>
+<link rel="stylesheet" href="injected.css" />
+<div>
+  <script>
+    alert(1);
+  </script>
+</div>
+<svelte:element this="style">p {"{}"}</svelte:element>
+<svelte:element this={"script"}></svelte:element>
+<iframe srcdoc="<p>raw</p>" title="srcdoc"></iframe>
+<x-raw innerHTML={rest.html}></x-raw>
+<p>{String(idle)}{off}</p>
+
+<style>
+  p {
+    margin: 0;
+  }
+</style>
