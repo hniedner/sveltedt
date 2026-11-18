@@ -76,10 +76,11 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 - Skip, xfail, `.only` and `todo` fail the check.
 - Marker: `@spec("TABLE-07", "<first 8 hex of sha256 of the statement text>")`. A hash mismatch makes the test stale, which fails.
   The statement text that is hashed is the raw Markdown source, UTF-8, from the first character of the statement's
-  `**ID**` line up to the line before its first `- Reason:` line (example tables and notes before it included), with
-  every run of white space, line breaks included, collapsed to one space and the result trimmed. A statement with no
-  `- Reason:` line fails the check. So an added example row makes the test stale, which is wanted because the test
-  runs every row.
+  `**ID**` line up to the line before its first `- Reason:` line (example tables and notes before it included),
+  followed by its `- Layer:` line, with every run of white space, line breaks included, collapsed to one space and
+  the result trimmed. Reason and Traces stay outside, since a changed reason or trace does not change what a test must
+  prove. A statement with no `- Reason:` or no `- Layer:` line fails the check. So an added example row or a changed
+  layer makes the test stale, which is wanted because the test runs every row at its layer.
 - A test id that no spec holds fails.
 - A protected statement (`TIER-`, `DEID-`, `AUD-`, `REF-`) with no test marked `negative=True` fails.
 - Reads the spec files: a spec header without `Field names: yes|no`, or a `yes` spec whose text does not cite the
