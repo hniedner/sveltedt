@@ -1264,16 +1264,22 @@ test("svelte: a test and a rune module beside the components are svelte-check's,
     assert.match(out, new RegExp(`${file.replace(".", "\\.")}:\\d+ ${code} `));
   }
 });
-test("svelte: a component Svelte cannot parse is svelte-check's to report, with its own message", () => {
-  const out = expect(
-    "svelte",
-    repo(
-      component('<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n'),
-    ),
-    1,
-  );
-  assert.match(out, /src\/Count\.svelte:\d+ /);
-  assert.doesNotMatch(out, /not lang="ts"/);
+test("svelte: a component Svelte cannot parse is a finding with Svelte's own message and line", () => {
+  // Measured: svelte-check drops a Svelte parse error that says "expected" when the config has no preprocess and the
+  // component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped script. The step
+  // reports the parse error itself.
+  for (const body of [
+    '<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n',
+    '<script lang="js">\n  const a = 1;\n</script>\n\n<p>{a}</p>\n\n<style>\n  p:is() {\n    color: red;\n  }\n</style>\n',
+    '<p>{1}</p>\n\n<style lang="css">\n  p:is() {\n    color: red;\n  }\n</style>\n',
+  ]) {
+    const out = expect("svelte", repo(component(body)), 1);
+    assert.match(
+      out,
+      /src\/Count\.svelte: Svelte cannot parse it at line \d+: /,
+      body,
+    );
+  }
 });
 test("svelte: TypeScript outside scripts/ with no component cannot be checked: svelte-check needs one", () => {
   // Measured: svelte-check reports error 100001, no Svelte input, on a program of TypeScript alone.
@@ -1657,16 +1663,18 @@ test("types: a scripts/tsconfig.json that turns checking off cannot be checked: 
   });
   assert.match(out, /tsc did not report the planted type errors/);
 });
-test("types: a declaration file or a .js file outside the root has no class until one is decided", () => {
+test("types: a declaration file, or any .js file but svelte.config.js, has no class until one is decided", () => {
   // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
   for (const file of [
     "src/app.d.ts",
     "scripts/x.d.ts",
     "src/x.d.css.ts",
     "src/x.d.test.ts",
+    "scripts/x.d.test.ts",
     "scripts/a.d.svelte.ts",
     "src/x.js",
     "vite.config.js",
+    "docs/svelte.config.js",
   ]) {
     const out = expect(
       "types",
@@ -1676,6 +1684,26 @@ test("types: a declaration file or a .js file outside the root has no class unti
     assert.ok(out.includes(file), `${file}: ${out}`);
   }
 });
+test("types: a name with .d inside a word keeps its class: only .d. marks a declaration", () => {
+  // tsc must check it: an error in it is a finding.
+  const out = expect(
+    "types",
+    repo((r) =>
+      put(r, "scripts/x.dom.ts", 'export const n: number = "one";\n'),
+    ),
+    1,
+  );
+  assert.match(out, /scripts\/x\.dom\.ts/);
+  // ... and it stays tsc's alone: the svelte step has nothing of its own.
+  const svelte = run([
+    "svelte",
+    "--root",
+    repo((r) => put(r, "scripts/x.dom.ts", "export const one = 1;\n")),
+  ]);
+  assert.equal(svelte.code, 0, svelte.out);
+  assert.match(svelte.out, /^NOT APPLICABLE svelte/m);
+});
+
 test("types: TypeScript outside scripts/ is not tsc's: an error there is svelte-check's to find", () => {
   // tsc sees a component only through svelte's ambient module, so it is not asked about the component side.
   const out = expect(

@@ -1453,32 +1453,42 @@ function projectFiles(root: string): Result | Set<string> {
   return new Set(parsed.fileNames.map((f) => relative(root, f)));
 }
 
-/** Whether the component at `path` has a script, and lang="ts" on each, as Svelte's compiler parses it. One that
- * does not parse counts as typed: svelte-check reports the parse error with its own message. */
-function typedScripts(path: string): boolean {
+/** Why the component at `path` would not be type-checked, or null: Svelte's compiler must parse it, and it must have a
+ * script with lang="ts" on each. A parse error is reported here with Svelte's message and line: svelte-check drops one
+ * that says "expected" when there is no preprocess and the component has any lang attribute (measured, 4.7.8). Any
+ * other error (a read, an AST that changed shape) is thrown, and the step stops. */
+function scriptProblem(path: string): string | null {
   const { parse } = createRequire(join(HERE, "..", "package.json"))(
     "svelte/compiler",
   ) as typeof import("svelte/compiler");
+  const source = readFileSync(path, "utf8");
+  let ast: import("svelte/compiler").AST.Root;
   try {
-    const ast = parse(readFileSync(path, "utf8"), { modern: true });
-    const scripts = [ast.instance, ast.module].filter(
-      (s) => s !== null && s !== undefined,
-    );
-    return (
-      scripts.length > 0 &&
-      scripts.every((s) =>
-        s.attributes.some(
-          (a) =>
-            a.name === "lang" &&
-            Array.isArray(a.value) &&
-            a.value[0]?.type === "Text" &&
-            a.value[0].data === "ts",
-        ),
-      )
-    );
-  } catch {
-    return true;
+    ast = parse(source, { modern: true });
+  } catch (e) {
+    const compile = e as {
+      code?: unknown;
+      message: string;
+      start?: { line: number };
+    };
+    if (typeof compile.code !== "string") throw e;
+    return `Svelte cannot parse it at line ${compile.start?.line ?? "?"}: ${compile.message.split("\n")[0]}`;
   }
+  const scripts = [ast.instance, ast.module].filter(
+    (s) => s !== null && s !== undefined,
+  );
+  const typed =
+    scripts.length > 0 &&
+    scripts.every((s) =>
+      s.attributes.some(
+        (a) =>
+          a.name === "lang" &&
+          Array.isArray(a.value) &&
+          a.value[0]?.type === "Text" &&
+          a.value[0].data === "ts",
+      ),
+    );
+  return typed ? null : 'a script that is not lang="ts", or none';
 }
 
 /** The result that stops svelte-check over `mine`, or null: each must be in the root program, no script of tsc's
@@ -1516,14 +1526,15 @@ function svelteInputs(
   // svelte-check type-checks neither the markup of a component without a script nor a script without lang="ts"
   // (measured with svelte-check 4.7.8):
   // each component needs a script, and each of its scripts TypeScript. Svelte's own parser reads them.
-  const untyped = mine.filter(
-    (f) => f.endsWith(".svelte") && !typedScripts(join(root, f)),
-  );
+  const untyped = mine.flatMap((f) => {
+    const problem = f.endsWith(".svelte") ? scriptProblem(join(root, f)) : null;
+    return problem ? [`${f}: ${problem}`] : [];
+  });
   if (untyped.length)
     return result(
       FINDING,
-      `${untyped.length} component(s) without TypeScript`,
-      untyped.map((f) => `${f}: a script that is not lang="ts", or none`),
+      `${untyped.length} component(s) that svelte-check would not type-check`,
+      untyped,
     );
   return null;
 }
