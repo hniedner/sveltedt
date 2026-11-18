@@ -43,16 +43,19 @@ The checks today:
   `{@attach}`, spread attribute, `bind:` other than `bind:this`, a lowercase `style` attribute or `{style}`: PRD-G2
   and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
-  type-checks the scripts, jscpd finds copied
+  type-checks `scripts/` through `scripts/tsconfig.json`, jscpd finds copied
   code outside tests and components (a file under its 50 tokens cannot hold a clone: it is set aside and named, with
   jscpd's own token count). Not yet banned, following in its own pull request: a style attribute in
   another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
   `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
-- **svelte:** svelte-check type-checks every tracked `.svelte` component, strict, through `tsconfig.json`; a
-  component outside its `include` blocks the gate, since svelte-check would skip it silently. With no component
-  tracked the step is NOT APPLICABLE, after its planted error was found. It names `svelte.config.js` as the one
+- **svelte:** svelte-check type-checks every tracked `.svelte` component and all TypeScript outside `scripts/`,
+  strict, through the root `tsconfig.json`: TypeScript that imports a component is checked against the component's
+  real type, which tsc does not know. Every component carries a `<script lang="ts">` block (without one, an import of
+  it fails with TS7016). A file outside the program's `include`, or a script in it as well as in tsc's, blocks the
+  gate, since svelte-check would skip the first silently and the two checkers could disagree on the second. With
+  nothing of its own tracked the step is NOT APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
   it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not

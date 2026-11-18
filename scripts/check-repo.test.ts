@@ -58,7 +58,8 @@ jobs:
           allow-licenses: ISC, MIT
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
-/** The fixture's own tsconfig, read by ESLint's type-aware rules for its TypeScript scripts (Prettier's layout). */
+/** The fixture's root tsconfig, for components and the TypeScript beside them (svelte-check); scripts/ has its own
+ * (tsc). ESLint's type-aware rules read the nearest one (Prettier's layout). */
 const FIXTURE_TSCONFIG = `{
   "compilerOptions": {
     "target": "es2024",
@@ -70,9 +71,10 @@ const FIXTURE_TSCONFIG = `{
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["src", "site", "test"]
 }
 `;
+const SCRIPTS_TSCONFIG = `{ "extends": "../tsconfig.json", "include": ["**/*.ts"] }\n`;
 const NODE_MAJOR = process.versions.node.split(".")[0];
 /** A script long enough for jscpd to count it (a file under its 50 tokens is not a source). */
 const TOOL = `export function describe(entries) {
@@ -152,6 +154,7 @@ function repo(change: (root: string) => void = () => {}): string {
     "SECURITY.md": "# Security\n",
     ".gitignore": "/tmp/\n/node_modules\n",
     "tsconfig.json": FIXTURE_TSCONFIG,
+    "scripts/tsconfig.json": SCRIPTS_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
     "package.json": `${JSON.stringify(PACKAGE, null, 2)}\n`,
     "pnpm-workspace.yaml": WORKSPACE,
@@ -1069,24 +1072,18 @@ test("types: a type error in a script is a finding that names the file", () => {
     put(root, "scripts/y.ts", 'export const n: number = "one";\n');
   assert.match(expect("types", repo(bad), 1), /scripts\/y\.ts/);
 });
-/** A tracked Svelte component under src/, which the fixture's tsconfig.json then includes. */
+/** A tracked Svelte component under src/, which the fixture's tsconfig.json includes. */
 const component =
   (body: string, path = "src/Count.svelte") =>
-  (root: string): void => {
-    edit(
-      "tsconfig.json",
-      '"include": ["scripts/**/*.ts"]',
-      '"include": ["scripts/**/*.ts", "src/**/*.svelte"]',
-    )(root);
+  (root: string): void =>
     put(root, path, body);
-  };
 const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
   assert.match(
     r.out.trim().split("\n").at(-1) ?? "",
-    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no \.svelte file is tracked$/,
+    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no component and no TypeScript outside scripts\/ is tracked$/,
     r.out,
   );
 });
@@ -1146,13 +1143,50 @@ test("svelte: tsconfig.json is read as TypeScript reads it: comments, a ./ inclu
       put(
         root,
         "tsconfig.json",
-        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["scripts/**/*.ts", "./src/**/*.svelte"],\n}\n`,
+        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["./src/**/*.svelte"],\n}\n`,
       );
     }),
     3,
   );
   assert.match(out, /src\/legacy\/Old\.svelte/);
   assert.doesNotMatch(out, /src\/Count\.svelte/);
+});
+const TABLE = `<script lang="ts" generics="T extends { id: number }">\n  const { rows }: { rows: T[] } = $props();\n</script>\n\n<p>{rows.length}</p>\n`;
+const MOUNT = (row: string) =>
+  `import { mount } from "svelte";\nimport Table from "./Table.svelte";\ninterface Item {\n  id: number;\n  name: string;\n}\nexport const show = (target: HTMLElement) =>\n  mount(Table<Item>, { target, props: { rows: [${row}] } });\n`;
+test("svelte: TypeScript that mounts a generic component is checked against its real type", () => {
+  // tsc would refuse Table<Item> (TS2635: it sees only svelte's ambient module); svelte-check knows the component.
+  const project = (row: string) => (root: string) => {
+    put(root, "src/Table.svelte", TABLE);
+    put(root, "src/show.ts", MOUNT(row));
+  };
+  const ok = expect("svelte", repo(project('{ id: 1, name: "a" }')), 0);
+  assert.match(ok, /accepted 2 file\(s\)/);
+  const out = expect("svelte", repo(project('{ id: "x", name: "a" }')), 1);
+  assert.match(out, /src\/show\.ts:\d+ 2322 /);
+});
+test("svelte: TypeScript in neither program cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => put(root, "tools/z.ts", "export const one = 1;\n")),
+    3,
+  );
+  assert.match(out, /tools\/z\.ts/);
+});
+test("svelte: a script in the component program as well as in tsc's cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      edit(
+        "tsconfig.json",
+        '"include": ["src"',
+        '"include": ["scripts", "src"',
+      )(root);
+    }),
+    3,
+  );
+  assert.match(out, /scripts\/scan-secrets\.ts/);
 });
 test("svelte: a canary that svelte-check accepts cannot be checked", () => {
   const dir = canaryDir("svelte", {
@@ -1397,7 +1431,11 @@ const diagnostic = (code: number, type = "ERROR", filename = "canary.svelte") =>
     code,
     message: "planted",
   });
-const PLANTED = [diagnostic(2322), diagnostic(7006)];
+const PLANTED = [
+  diagnostic(2322),
+  diagnostic(7006),
+  diagnostic(2322, "ERROR", "canary.ts"),
+];
 test("svelte: output that is not svelte-check's diagnostics cannot be checked, from the canary run or the real one", () => {
   for (const [canary, rest] of [
     [['{"type":"ERROR","filename'], []],
@@ -1415,6 +1453,7 @@ test("svelte: a canary run missing a planted error, reporting it as a warning or
     [diagnostic(7006)],
     [diagnostic(2322), diagnostic(7006, "WARNING")],
     [diagnostic(2322), diagnostic(7006, "ERROR", "other.svelte")],
+    [diagnostic(2322), diagnostic(7006)],
   ]) {
     const out = expect("svelte", repo(component(COMPONENT)), 3, {
       extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, []) },
@@ -1457,7 +1496,8 @@ test("svelte: another svelte-check version than the pin cannot be checked", () =
 });
 test("types: a rune module (.svelte.ts) type-checks under the repository's tsconfig.json, its errors found", () => {
   const runes = (body: string) => (root: string) => {
-    put(root, "tsconfig.json", readFileSync(join(here, "..", "tsconfig.json")));
+    for (const f of ["tsconfig.json", "scripts/tsconfig.json"])
+      put(root, f, readFileSync(join(here, "..", f)));
     put(root, "scripts/count.svelte.ts", body);
   };
   const COUNTER =
@@ -1470,14 +1510,31 @@ test("types: a rune module (.svelte.ts) type-checks under the repository's tscon
   );
   assert.match(out, /count\.svelte\.ts/);
 });
-test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
-  const outside = (root: string): void =>
-    put(root, "tools/z.ts", "export const one = 1;\n");
-  assert.match(expect("types", repo(outside), 3), /tools\/z\.ts/);
+test("types: a script scripts/tsconfig.json leaves out cannot be checked", () => {
+  const outside = (root: string): void => {
+    put(root, "scripts/z.ts", "export const one = 1;\n");
+    put(
+      root,
+      "scripts/tsconfig.json",
+      SCRIPTS_TSCONFIG.replace("] }", '], "exclude": ["z.ts"] }'),
+    );
+  };
+  assert.match(expect("types", repo(outside), 3), /scripts\/z\.ts/);
 });
-test("types: a repository without tsconfig.json cannot be checked", () => {
-  const out = expect("types", repo(remove("tsconfig.json")), 3);
+test("types: a repository without scripts/tsconfig.json cannot be checked", () => {
+  const out = expect("types", repo(remove("scripts/tsconfig.json")), 3);
   assert.match(out, /tsc could not read/);
+});
+test("types: TypeScript outside scripts/ is not tsc's: an error there is svelte-check's to find", () => {
+  // tsc sees a component only through svelte's ambient module, so it is not asked about the component side.
+  const out = expect(
+    "types",
+    repo((root) =>
+      put(root, "src/bad.ts", 'export const n: number = "one";\n'),
+    ),
+    0,
+  );
+  assert.doesNotMatch(out, /src\/bad\.ts/);
 });
 test("types: another TypeScript version than the pin cannot be checked", () => {
   expect(

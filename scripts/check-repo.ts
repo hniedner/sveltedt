@@ -690,12 +690,24 @@ const CLASSES: FileClass[] = [
     steps: ["format", "lint"],
     why: "dupes: configuration that tools read (svelte.config.js), no logic to copy",
   },
+  // TypeScript has one checker by path: tsc through scripts/tsconfig.json for scripts/ (types); svelte-check through
+  // the root tsconfig.json for the rest (svelte), which may import a component that tsc sees only as an ambient module.
   {
-    match: /\.test\.ts$/,
+    match: /^scripts\/.*\.test\.ts$/,
     steps: ["format", "lint", "types"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
-  { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
+  { match: /^scripts\/.*\.ts$/, steps: ["format", "lint", "types", "dupes"] },
+  {
+    match: /\.test\.ts$/,
+    steps: ["format", "lint", "svelte"],
+    why: "dupes: as for scripts; types: svelte-check's, since it may import a component",
+  },
+  {
+    match: /\.ts$/,
+    steps: ["format", "lint", "svelte", "dupes"],
+    why: "types: svelte-check's, since it may import a component",
+  },
   {
     match: /\.svelte$/,
     steps: ["format", "lint", "svelte"],
@@ -1278,7 +1290,7 @@ function tscRun(dir: string): { status: number | null; lines: string[] } {
   };
 }
 
-// The pinned TypeScript, strict, over the project tsconfig.json declares (PRD-G3). Every file of the types
+// The pinned TypeScript, strict, over the program scripts/tsconfig.json declares (PRD-G3). Every file of the types
 // class must be in tsc's own list of the program, so a script outside `include` cannot go unchecked. A planted type
 // error must fail first.
 function types(root: string, list: Set<string>): Result {
@@ -1306,7 +1318,8 @@ function types(root: string, list: Set<string>): Result {
       "tsc did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.ts)",
       canary.lines.slice(0, 5),
     );
-  const program = tscProgram(root);
+  const scripts = join(root, "scripts");
+  const program = tscProgram(scripts);
   if (isResult(program)) return program;
   const outside = mine.filter((f) => !program.some((p) => p.endsWith(`/${f}`)));
   if (outside.length)
@@ -1315,7 +1328,7 @@ function types(root: string, list: Set<string>): Result {
       "tsc's program leaves out tracked TypeScript",
       outside,
     );
-  const run = tscRun(root);
+  const run = tscRun(scripts);
   if (run.status === 0)
     return result(
       PASS,
@@ -1410,17 +1423,21 @@ function projectFiles(root: string): Result | Set<string> {
       },
     ],
   );
+  // TS18003, no input at all, is an empty program: every file of the step is then outside it, and named.
   const errors = [read.error, ...parsed.errors].flatMap((e) =>
-    e ? [ts.flattenDiagnosticMessageText(e.messageText, " ")] : [],
+    e && e.code !== 18003
+      ? [ts.flattenDiagnosticMessageText(e.messageText, " ")]
+      : [],
   );
   if (errors.length)
     return result(CANNOT, "TypeScript cannot read tsconfig.json", errors);
   return new Set(parsed.fileNames.map((f) => relative(root, f)));
 }
 
-// svelte-check, strict, over every tracked Svelte component (PRD-G3); `types` keeps tsc for the scripts. svelte-check
-// lists no checked file and silently skips one tsconfig.json leaves out, so each component must be in the program.
-// With no component tracked the step is not applicable, after the planted errors were found.
+// svelte-check, strict, over every tracked component and the TypeScript outside scripts/ (PRD-G3); `types` keeps tsc
+// for scripts/. svelte-check lists no checked file and silently skips one tsconfig.json leaves out, so each file must
+// be in the program, and no file of `types` may be (two checkers, two answers). With none tracked the step is not
+// applicable, after the planted errors were found.
 function svelte(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.["svelte-check"];
   const v = versionOf(svelteCheckBin(), "--version");
@@ -1445,26 +1462,25 @@ function svelte(root: string, list: Set<string>): Result {
       "svelte-check printed lines that are not its diagnostics",
       canary.broken.slice(0, 5),
     );
-  const planted = (code: number) =>
+  const planted = (code: number, file = "canary.svelte") =>
     canary.found.some(
-      (d) =>
-        d.type === "ERROR" &&
-        d.code === code &&
-        d.filename.endsWith("canary.svelte"),
+      (d) => d.type === "ERROR" && d.code === code && d.filename.endsWith(file),
     );
-  if (!planted(2322) || !planted(7006))
+  if (!planted(2322) || !planted(7006) || !planted(2322, "canary.ts"))
     return result(
       CANNOT,
-      "svelte-check did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.svelte)",
+      "svelte-check did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.svelte, TS2322 in canary.ts)",
       canary.out.trim().split("\n").slice(0, 5),
     );
-  const mine = [...list].filter((f) =>
-    CLASSES.find((k) => k.match.test(f))?.steps.includes("svelte"),
-  );
+  const checkedBy = (step: string) =>
+    [...list].filter((f) =>
+      CLASSES.find((k) => k.match.test(f))?.steps.includes(step),
+    );
+  const mine = checkedBy("svelte");
   if (!mine.length)
     return result(
       NA,
-      `svelte-check ${got} failed the canary; no .svelte file is tracked`,
+      `svelte-check ${got} failed the canary; no component and no TypeScript outside scripts/ is tracked`,
     );
   const program = projectFiles(root);
   if (isResult(program)) return program;
@@ -1472,8 +1488,15 @@ function svelte(root: string, list: Set<string>): Result {
   if (outside.length)
     return result(
       CANNOT,
-      "tsconfig.json leaves out tracked Svelte components",
+      "tsconfig.json leaves out tracked components or TypeScript",
       outside,
+    );
+  const both = checkedBy("types").filter((f) => program.has(f));
+  if (both.length)
+    return result(
+      CANNOT,
+      "tsconfig.json also holds scripts that types checks with tsc",
+      both,
     );
   const run = svelteCheck(root, join(root, "tsconfig.json"), config);
   if (run.broken.length)
@@ -1488,7 +1511,7 @@ function svelte(root: string, list: Set<string>): Result {
   if (run.status === 0 && !details.length)
     return result(
       PASS,
-      `svelte-check ${got} failed the canary and accepted ${mine.length} component(s)`,
+      `svelte-check ${got} failed the canary and accepted ${mine.length} file(s)`,
     );
   if (run.status === 1 && details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
