@@ -966,6 +966,16 @@ test("types: a canary that tsc accepts cannot be checked", () => {
   const out = expect("types", repo(), 3, { canaries: clean });
   assert.match(out, /tsc did not report the planted type error/);
 });
+test("types: a canary project that is not strict cannot be checked", () => {
+  const loose = canaryDir("types", {
+    "canary.ts":
+      'export const n: number = "one";\nexport function same(x) {\n  return x;\n}\n',
+    "tsconfig.json":
+      '{ "compilerOptions": { "strict": false, "noEmit": true } }\n',
+  });
+  const out = expect("types", repo(), 3, { canaries: loose });
+  assert.match(out, /TS7006/);
+});
 test("types: a canary tsc fails for another reason cannot be checked", () => {
   // A canary config listing no file makes tsc exit non-zero without ever reading the planted error.
   const broken = canaryDir("types", {

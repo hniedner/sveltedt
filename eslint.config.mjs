@@ -20,7 +20,11 @@ const shared = {
   "no-implied-eval": "error",
   "no-new-func": "error",
 };
-const linterOptions = { reportUnusedDisableDirectives: "error" };
+// No inline configuration: a comment cannot switch a rule off (the lint canary plants one).
+const linterOptions = {
+  noInlineConfig: true,
+  reportUnusedDisableDirectives: "error",
+};
 
 export default [
   js.configs.recommended,

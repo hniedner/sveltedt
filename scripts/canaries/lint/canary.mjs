@@ -1,6 +1,8 @@
 // Planted violations: the lint step fails could-not-check unless ESLint reports every one of them.
 export const a = eval("1");
 export const b = setTimeout("a()", 1);
+// The only no-new-func violation, behind an inline disable: it is raised only while inline configuration is ignored.
+// eslint-disable-next-line no-new-func
 export const c = new Function("return 1");
 export const d = undefinedName;
 export function e(x) {

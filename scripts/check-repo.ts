@@ -1189,10 +1189,15 @@ function types(root: string, list: Set<string>): Result {
     );
   // The planted error itself must be reported: any other failure (a broken config) proves nothing.
   const canary = tscRun(canaries("types"));
-  if (!canary.lines.some((l) => /canary\.ts\(\d+,\d+\): error TS2322:/.test(l)))
+  // TS2322 (a wrong type) and TS7006 (an implicit any, an error only when strict) must both be reported.
+  const reported = (code: string) =>
+    canary.lines.some((l) =>
+      new RegExp(`canary\\.ts\\(\\d+,\\d+\\): error ${code}:`).test(l),
+    );
+  if (!reported("TS2322") || !reported("TS7006"))
     return result(
       CANNOT,
-      "tsc did not report the planted type error (TS2322 in canary.ts)",
+      "tsc did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.ts)",
       canary.lines.slice(0, 5),
     );
   const program = tscProgram(root);
