@@ -227,9 +227,10 @@ export default [
     },
   },
   // Vitest's rules fire on test calls imported from "vitest" or used as globals; calls imported from node:test
-  // (scripts/) are left alone.
+  // (scripts/) are left alone. Not scoped by path: a block for test files only would give them a configuration the
+  // .ts canary does not prove, which the lint step's self-proof refuses; the rules are silent where no Vitest test is.
   {
-    files: ["**/*.test.ts", "**/*.svelte.test.ts"],
+    files: ["**/*.ts"],
     plugins: { vitest },
     rules: {
       // Method section 4: a test without an assertion or a skipped test cannot fail, and a focused test stops the
