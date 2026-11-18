@@ -27,6 +27,14 @@ const noteColumn: DataTableColumn<Item> = {
   value: () => "",
 };
 
+// The text of the first cell of each body row, top to bottom
+function firstCells(): string[] {
+  return screen
+    .getAllByRole("row")
+    .filter((row) => within(row).queryAllByRole("cell").length > 0)
+    .map((row) => within(row).getAllByRole("cell")[0]?.textContent ?? "");
+}
+
 // Mounts the table with the given props over a one-row base; returns the element that holds the component
 function show(props: Partial<DataTableProps<Item>> = {}): HTMLElement {
   const base: DataTableProps<Item> = {
@@ -102,5 +110,35 @@ describe(spec("RND-02", "9a4c8ebf"), () => {
       [beta, "name"],
       [gamma, "name"],
     ]);
+  });
+});
+
+const twentyFive: Item[] = Array.from({ length: 25 }, (_, index) => {
+  const id = `r${String(index + 1).padStart(2, "0")}`;
+  return { id, name: `Name ${id}` };
+});
+
+describe(spec("RND-01", "4b6167be"), () => {
+  it.each([
+    [
+      "r3, r1, r2",
+      [
+        { id: "r3", name: "Gamma" },
+        { id: "r1", name: "Alpha" },
+        { id: "r2", name: "Beta" },
+      ],
+    ],
+    [
+      "two equal names and an empty one",
+      [
+        { id: "r1", name: "Beta" },
+        { id: "r2", name: "Beta" },
+        { id: "r3", name: "" },
+      ],
+    ],
+    ["25 rows", twentyFive],
+  ])("shows the rows %s in exactly the order given", (_rows, rows) => {
+    show({ rows, columns: [idColumn, nameColumn] });
+    expect(firstCells()).toEqual(rows.map((row) => row.id));
   });
 });
