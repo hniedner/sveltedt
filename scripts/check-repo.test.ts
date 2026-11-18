@@ -1434,7 +1434,7 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
       );
     };
     const out = expect("test", repo(outside), 3);
-    assert.match(out, new RegExp(`^ {2}${path.replace(/\./g, "\\.")}$`, "m"));
+    assert.ok(out.split("\n").includes(`  ${path}`), out);
     assert.match(out, /did not run/);
   }
 });
@@ -1457,6 +1457,7 @@ test("test: a config vitest cannot load cannot be checked, and says why", () => 
   assert.match(out, /vitest wrote no report/);
   assert.match(out, /vitest\.config\.ts/);
   assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+  assert.doesNotMatch(out, /^\s+at /m); // a stack frame is not a reason
 });
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);

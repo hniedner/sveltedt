@@ -1742,7 +1742,10 @@ function tail(text: string): string[] {
     .replace(COLOUR, "")
     .split("\n")
     .filter(
-      (l) => l.trim() && !/^\s+(?:at |❯ |\d+\||\|)|JSON report written/.test(l),
+      (l) =>
+        l.trim() &&
+        !/^\s+(?:at |❯ |\d+\||\|)/.test(l) &&
+        !l.includes("JSON report written"),
     );
   const first = lines.filter((l) =>
     /\w*(?:Error|Exception)\b.*:|originated in/.test(l),
