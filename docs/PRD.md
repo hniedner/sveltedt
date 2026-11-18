@@ -3,8 +3,8 @@
 - **Product:** SvelteDT, an accessible, server-driven data table for Svelte 5 and Tailwind 4.
 - **Status:** Approved by the owner on 2026-11-17, REV 7; amended by the owner the same day: releases are automatic
   (PRD-S7); the consumer project's type check replaces "Are the types wrong?" in PRD-K2 (owner's decision,
-  2026-11-17: the tool does not support a package that re-exports `.svelte` files). A requirement changes only by the
-  owner from here on.
+  2026-11-17: the tool does not support a package that re-exports `.svelte` files, READ in its source and issue
+  tracker). A requirement changes only by the owner from here on.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
