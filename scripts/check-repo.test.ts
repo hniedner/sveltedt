@@ -1221,7 +1221,7 @@ test("lint: a <style> block in a component is a finding that names the ban", () 
   );
   assert.match(out, /no-restricted-syntax <style> block/);
 });
-test("lint: markup and code beside the injection bans pass in a component", () => {
+test("lint: markup and code beside the injection bans pass in a component (setAttribute once would not: on plus letters, like any handler)", () => {
   // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
   // innerHTML; a string holding its name; setAttribute and createElement of other names; a write that is not a
   // document's; a name that only contains a sink's name; a local parseHTML or addRule; a bracketed name that is no

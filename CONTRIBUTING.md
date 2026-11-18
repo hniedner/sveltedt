@@ -57,7 +57,9 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
   `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration for a path in `src/lib` and in
   `site/src` and blocks when a rule the canaries prove, or the settings, differ there from the canaries' (a later
-  config block scoped to those folders would otherwise replace the bans unseen). TypeScript
+  config block scoped to those folders would otherwise replace the bans unseen). The probe paths are one list,
+  `CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level source folder (say `consumer/src/`) is not probed until
+  it is added there. TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
