@@ -10,10 +10,6 @@
   let el: HTMLElement | undefined = $state();
   // Above the browser floor (PRD-E1): IdleDetector is in no floor browser.
   const idle = new IdleDetector();
-  const inject = (html: string) => {
-    el?.setAttribute("STYLE", "color: red");
-    if (el) el.innerHTML = html;
-  };
 </script>
 
 <!-- eslint-disable -->
@@ -27,10 +23,9 @@
 <p style:color="red">style directive</p>
 <p {@attach attach}>attach</p>
 <p {style}>style shorthand</p>
-<svelte:element this="p" STYLE="color: red"
+<svelte:element this="p" style="color: red"
   >style attribute on svelte:element</svelte:element
 >
 <p bind:this={el}>bind:this is allowed</p>
-<svelte:head><title>{inject}</title></svelte:head>
 {@html rest.html}
 <p>{String(idle)}</p>

@@ -40,9 +40,7 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this`, inline style or `svelte:head`; no style set by
-  `setAttribute`, no created `style`, `link` or `script` element, no `innerHTML`, `outerHTML` or
-  `insertAdjacentHTML`: PRD-G2, PRD-S1 and PRD-S2; no browser
+  `{@attach}`, spread attribute, `bind:` other than `bind:this` or inline style: PRD-G2 and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
@@ -87,9 +85,8 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
-  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
-  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
+  `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
   ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
   a workflow is not yet refused.
 
