@@ -287,3 +287,49 @@ describe(spec("RND-05", "7e95b611"), () => {
     expect(component.querySelector("table")).toBeNull();
   });
 });
+
+describe(spec("RND-09", "eb114954"), () => {
+  it.each<[string, Partial<DataTableProps<Item>>, string, string[]]>([
+    [
+      "two rows with id r2, the second named Hidden-77",
+      {
+        rows: [
+          { id: "r2", name: "Alpha" },
+          { id: "r2", name: "Hidden-77" },
+        ],
+      },
+      "Two rows share an id.",
+      ["r2", "Hidden-77"],
+    ],
+    [
+      "a getRowId that throws an error saying token-9",
+      {
+        getRowId: () => {
+          throw new Error("token-9");
+        },
+      },
+      "A row id could not be read.",
+      ["token-9"],
+    ],
+    [
+      "two columns with id col-x9",
+      { columns: [column("col-x9", "Name"), column("col-x9", "Code")] },
+      "Two columns share an id.",
+      ["col-x9"],
+    ],
+    [
+      "a column with id col-y7 and an empty label",
+      { columns: [column("col-y7", "")] },
+      "A column label is empty.",
+      ["col-y7"],
+    ],
+  ])(
+    "keeps the value out of the alert for %s",
+    (_input, props, message, forbidden) => {
+      show(props);
+      const text = screen.getByRole("alert").textContent ?? "";
+      expect(text).toContain(message);
+      for (const word of forbidden) expect(text).not.toContain(word);
+    },
+  );
+});
