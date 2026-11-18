@@ -21,8 +21,8 @@ to the consumer as one callback (stated with the statements that add user action
   a hash of the statement text.
 - **Test layers.**
   - **component**: the component mounted in a simulated DOM, queried through roles, accessible names and visible
-    text only. No test ids and no internals. A test finds elements by role, name and text, and may read the tag and
-    the ARIA and HTML attributes of an element so found, never a test id or a class.
+    text only. No test ids and no internals. A test finds elements by role, accessible name and visible text, and may
+    read the tag and the ARIA and HTML attributes of an element so found, never a test id or a class.
   - **real browser**: the component mounted on a test-site page in a real engine, in Chromium, Firefox and WebKit
     unless the statement names fewer and says why. Used for what needs an engine: layout, scrolling, focus
     indicators, hover, axe.
