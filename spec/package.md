@@ -7,9 +7,10 @@
   which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: the root export of the packed package, what the tarball holds and its licence files (PRD-K2,
-  PRD-L1), and the consumer project's install, peer check, type check, Tailwind source line, server rendering,
+  PRD-L1), and the consumer project's install, peer check, type check, stylesheet import, server rendering,
   hydration, server HTML and policy header (PRD-K2, PRD-K4, PRD-T3, PRD-W8, part of PRD-S1). The server-rendered
-  zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Further `exports` subpaths,
+  zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). The `./styles.css` export
+  (PKG-05). Further `exports` subpaths,
   the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
   dependency and that there is no runtime dependency is SUP-04 of `spec/release.md`, not restated here.
 
@@ -94,20 +95,21 @@
 - Traces: PRD-K2.
 
 **PKG-03** The tarball MUST hold only `package.json`, `README.md`, `LICENSE`, `NOTICE` and, under `dist/`, files
-ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.spec.`.
+ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.spec.`, and one `.css` file, the
+target of the `./styles.css` export (PKG-05).
 - Examples (the first row is the real tarball; every other row is a canary: the file planted in a copy of its
   contents):
 
   | File in the tarball | Result |
   |---|---|
   | the real tarball's files | passes |
-  | `dist/index.js`, `dist/DataTable.svelte`, `dist/DataTable.svelte.d.ts` | passes |
+  | `dist/index.js`, `dist/DataTable.svelte`, `dist/DataTable.svelte.d.ts`, `dist/styles.css` | passes |
   | `dist/DataTable.test.js` | finding: a test file |
   | `dist/sort.spec.d.ts` | finding: a test file |
   | `src/lib/index.ts` | finding: source outside `dist/` |
   | `site/server.ts` | finding: the site |
   | `consumer/package.json` | finding: the consumer project |
-  | `dist/app.css` | finding: a kind not listed (THEME-04 of `spec/table.md` states the package's no-CSS rule itself) |
+  | `dist/app.css` beside `dist/styles.css` | finding: a second stylesheet (THEME-04 of `spec/table.md`) |
   | `.npmrc` | finding: not listed |
 
   That a listed file is present is not this statement's (PKG-02, PKG-04 and the README's own part check that). When
@@ -138,6 +140,29 @@ ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.s
 - Traces: PRD-L1, PRD-K2.
 
 ## 2. The consumer project (CON)
+
+**PKG-05** The packed manifest's `exports` MUST map `./styles.css` to the package's stylesheet under exactly the
+conditions `style` and `default`, both naming the same file in the tarball.
+- Examples (the first row is the real manifest; every other row is a canary planted in a copy of it, which must be
+  found):
+
+  | `exports["./styles.css"]` | Result |
+  |---|---|
+  | `{ "style": "./dist/styles.css", "default": "./dist/styles.css" }`, the file in the tarball | passes |
+  | `{ "style": "./dist/styles.css" }` | finding: no `default` |
+  | `{ "default": "./dist/styles.css" }` | finding: no `style` |
+  | absent | finding |
+  | `{ "style": "./dist/x.css", "default": "./dist/x.css" }`, no such file in the tarball | finding |
+
+  When the manifest cannot be read, the check reports "could not check".
+- Reason: one import line serves every host. MEASURED 2026-11-18 in a probe (three packed stubs installed with pnpm
+  12.19.0, built with Vite 8.3.8 and, for Tailwind, `@tailwindcss/vite` 4.3.5): with `style` and `default` the
+  specifier `@hniedner/sveltedt/styles.css` resolves from a JavaScript import, from a CSS `@import`, and from a
+  Tailwind 4 `@import ... layer(components)`, landing inside that layer; with `style` alone the JavaScript import
+  fails; `default` alone resolved in all three, and `style` stays for tools that resolve CSS by that condition
+  (INFERRED: not measured beyond these three).
+- Layer: pack.
+- Traces: PRD-K2, PRD-T3.
 
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
 consumer project, and leave the committed consumer project unchanged.
@@ -284,23 +309,23 @@ other script of the page.
 - Layer: consumer files.
 - Traces: PRD-K2, PRD-W8.
 
-**CON-10** The component's styles MUST apply in the consumer through its Tailwind `@source` line naming the installed
-package.
-- Examples (the consumer's stylesheet holds `@source` with the relative path from the stylesheet to
-  `node_modules/@hniedner/sveltedt`, a link the package manager made; that the consumer's Tailwind version follows the
-  link is shown by the first row itself; the test opens `/` in each engine and measures the caption as A11Y-13 of
-  `spec/table.md` does; the second row is a canary, a copy without the `@source` line, which must be found):
+**CON-10** The component's styles MUST apply in the consumer through one import of the package's stylesheet by its
+public specifier.
+- Examples (the consumer's stylesheet holds `@import "tailwindcss";` and then
+  `@import "@hniedner/sveltedt/styles.css" layer(components);`, as PRD-T3 tells a Tailwind 4 application to write; the
+  test opens `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a
+  canary, a copy without the second import, which must be found):
 
   | Consumer | Caption |
   |---|---|
   | the real consumer project | visually hidden: its bounding box at most 1 by 1 CSS px |
-  | a copy without the `@source` line | larger than 1 by 1 CSS px, found |
+  | a copy without the import of `@hniedner/sveltedt/styles.css` | larger than 1 by 1 CSS px, found |
 
-  Only a class Tailwind generated from the package's files hides the caption, since the package ships no CSS
-  (PRD-T3); the second row shows that no class of the consumer's own files does it instead. Break that turns it red:
-  the `@source` line removed, so Tailwind, which skips `node_modules`, generates none of the component's classes.
-- Reason: a consumer who installs the package and forgets the line gets an unstyled table; the consumer project must
-  show the line the documentation will tell consumers to write, and show that it is enough.
+  Only the package's stylesheet hides the caption; the second row shows that no rule of the consumer's own files does
+  it instead. Break that turns it red: the import removed. The consumer project arrives with its own build step
+  (PRD-W8); until then this statement is listed as not yet tested.
+- Reason: a consumer who installs the package and leaves out the line gets an unstyled table; the consumer project
+  must show the line the documentation will tell consumers to write, and show that it is enough.
 - Layer: consumer browser.
 - Traces: PRD-T3, PRD-W8.
 
@@ -333,6 +358,7 @@ package.
 | PKG-02 | PRD-K2 |
 | PKG-03 | PRD-K2 |
 | PKG-04 | PRD-L1, PRD-K2 |
+| PKG-05 | PRD-K2, PRD-T3 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
 | CON-03 | PRD-S1, PRD-W8 |
@@ -348,11 +374,11 @@ package.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
-| PRD-T3 | CON-10 | in part: the consumer's `@source`; no CSS shipped and the build's variants are `spec/table.md`'s |
+| PRD-T3 | PKG-05, CON-10 | in part: the export (PKG-05) and the consumer's layered import (CON-10); one static, unlayered stylesheet is THEME-04 of `spec/table.md`; the import line for an application without Tailwind arrives with PRD-D1 |
 | PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` is `spec/table.md`'s FOOT-04, and its build holding no `eval`, `new Function` or string timers has no statement yet |
 
 PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8 and PRD-S1 (as above). PRD-W9's three engines

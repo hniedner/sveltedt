@@ -656,12 +656,12 @@ anything to the document head.
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
   cast, an alias (`const make = document.createElement.bind(document); make("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
-- Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 that no CSS ships: an injected
-  inline style or script is refused under the strict policy, so a consumer would have to loosen its policy, and a
-  sheet the component adds sits outside the consumer's one stylesheet build; the document head belongs to the app
-  (PRD-B19).
+- Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 and PRD-T15 that the one shipped
+  stylesheet is the only CSS: an injected inline style or script is refused under the strict policy, so a consumer would
+  have to loosen its policy, and a sheet the component adds is not the one the application imports; the document head
+  belongs to the app (PRD-B19).
 - Layer: static check.
-- Traces: PRD-S1, PRD-T3, PRD-B19.
+- Traces: PRD-S1, PRD-T3, PRD-T15, PRD-B19.
 
 ---
 
@@ -670,45 +670,49 @@ anything to the document head.
 The component's look comes from prefixed custom properties the consumer may define. Without them it falls back to
 the browser's system colours and stays usable.
 
-**THEME-01** Every colour class in the component MUST be a complete literal class whose value reads a `--sdt-*`
-custom property with a CSS system-colour fallback.
-- Examples (the scan runs every row against a canary file holding it; only the last row passes):
+**THEME-01** Every colour value in a declaration of the package's stylesheet MUST read a `--sdt-*` custom property
+with a CSS system-colour fallback, except the keywords `inherit`, `currentColor` and `transparent`, a zero-width
+border, and declarations inside `@media (forced-colors: active)`.
+- Examples (the scan runs every row against a canary stylesheet holding it; only the last four rows pass):
 
-  | Class in a canary file | Result |
+  | Declaration in a canary stylesheet | Result |
   |---|---|
-  | `bg-blue-500` (a palette class) | finding |
-  | `` bg-[${tone}] `` (a class built at run time) | finding |
-  | `bg-[var(--sdt-surface,#fff)]` (fallback is not a system colour) | finding |
-  | `bg-[var(--sdt-surface)]` (no fallback) | finding |
-  | `bg-[var(--app-surface,Canvas)]` (not the `--sdt-` prefix) | finding |
-  | `bg-[var(--sdt-surface,Canvas)]` | pass |
+  | `.sdt-x { color: #333 }` | finding |
+  | `.sdt-x { border: 1px solid blue }` (a shorthand with a named colour) | finding |
+  | `.sdt-x { background-image: linear-gradient(red, var(--sdt-a, Canvas)) }` (a gradient with one raw colour) | finding |
+  | `.sdt-x { color: var(--sdt-text, #333) }` (fallback is not a system colour) | finding |
+  | `.sdt-x { color: var(--sdt-text) }` (no fallback) | finding |
+  | `.sdt-x { color: var(--app-text, CanvasText) }` (not the `--sdt-` prefix) | finding |
+  | `.sdt-x { color: var(--sdt-text, CanvasText) }` | pass |
+  | `.sdt-x { color: currentColor; border: 0 solid red }` (a keyword; a zero-width border) | pass |
+  | `@media (forced-colors: active) { .sdt-x { outline-color: Highlight } }` | pass |
+  | `.sdt-x { background: transparent }` | pass |
 
-  A colour class is one with the utility prefix `bg-`, `text-`, `border-`, `outline-`, `ring-`, `divide-`,
-  `decoration-`, `accent-`, `caret-`, `fill-`, `stroke-`, `from-`, `via-`, `to-`, `shadow-`, `inset-shadow-`,
-  `inset-ring-`, `drop-shadow-` or `text-shadow-` whose value is a colour (not a size, a width or a style keyword).
-  The values `transparent`, `current` and `inherit` name no colour of their own and pass. A system colour is one of
-  the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`).
-  The scan reads the component source and, once the package is built (PRD-K2), the built package; it finds no
-  finding, and it reports how many class literals it read (more than 0).
-- Reason: prefixed names cannot collide with an application's tokens, and Tailwind only generates classes it finds as
-  complete literals in the source; a palette class would ignore the consumer's theme.
+  A colour value is a CSS Color 4 colour anywhere in a property's value: a named colour, a hex colour or a colour
+  function (`rgb()`, `hsl()`, `oklch()`, `color-mix()` and the others of CSS Color 4 and 5). A system colour is one of
+  the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`). The scan
+  reads the package's stylesheet (THEME-04) in the source and, once the package is built (PRD-K2), in the tarball; it
+  reports how many declarations it read, and with no stylesheet or 0 declarations it reports "could not check", which
+  blocks like a finding.
+- Reason: prefixed names cannot collide with an application's tokens, and a raw colour would ignore the consumer's
+  theme; the system-colour fallback keeps the table usable without tokens (PRD-T2).
 - Layer: static check.
 - Traces: PRD-T1.
 
-**THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the component's class literals
-use.
-- Example: a class literal reading `--sdt-border` with no `--sdt-border` row in the table is a finding; a table row
-  `--sdt-unused` that no class reads is a finding. The class literals are read as in THEME-01 (source, and the built
-  package once it exists).
-- Reason: the token names are public interface; a list kept by hand drifts from the code unless a check compares
-  them.
+**THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the package's stylesheet
+reads.
+- Example: a declaration reading `var(--sdt-border, CanvasText)` with no `--sdt-border` row in the table is a
+  finding; a table row `--sdt-unused` that no declaration reads is a finding. The stylesheet is read as in THEME-01;
+  with no token table, or 0 names read from the stylesheet, the check reports "could not check".
+- Reason: the token names are public interface (PRD-K3); a list kept by hand drifts from the stylesheet unless a
+  check compares them.
 - Layer: static check.
 - Traces: PRD-T1.
 
 **THEME-03** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
 table.
-- Example: a site page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
-  critical violations (its colour-contrast rule included).
+- Example: a site page with the package's stylesheet and no token definitions, in each state of A11Y-06: axe reports
+  0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
   get a plain table, not a broken one.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -722,22 +726,69 @@ table.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
-**THEME-04** The package MUST ship no CSS file and no `<style>` block.
-- Example: the packed package holds no `.css` file and no `.svelte` file with a `<style>` block; a canary `.svelte`
-  file with a `<style>` block is found.
-- Reason: there is one stylesheet build per application (the consumer's Tailwind, which adds the package as an
-  `@source`), and a shipped stylesheet could not follow the consumer's tokens.
-- Layer: static check.
-- Traces: PRD-T3.
+**THEME-04** The package MUST ship exactly one stylesheet, which holds no `@layer` and no `@import` rule, and no
+`.svelte` file of the component may hold a `<style>` block.
+- Examples (the first row is the real source; every other row is a canary planted in a copy of it, which must be
+  found):
 
-**THEME-05** The component's class literals MUST use only Tailwind's built-in variants.
-- Example: `hover:`, `focus-visible:`, `dark:` and `forced-colors:` pass; a canary class `app-dense:p-1` is a
-  finding. The list of built-in variants is read from the pinned Tailwind package, not kept by hand; the scan reads
-  the component source and, once it exists, the built package.
-- Reason: a custom variant needs a matching definition in the consumer's stylesheet, which a consumer would have to
-  know about and copy.
+  | Source | Result |
+  |---|---|
+  | the real source: one `.css` file under `src/lib`, no `<style>` block | passes |
+  | a second `.css` file under `src/lib` | finding: two stylesheets |
+  | no `.css` file under `src/lib` | finding: no stylesheet |
+  | `@layer sdt { .sdt-x { color: inherit } }` in the stylesheet | finding: a layer |
+  | `@import "./more.css";` in the stylesheet | finding: an import |
+  | `<style>.x { color: inherit }</style>` at the top level of a `.svelte` file under `src/lib` | finding: a style block |
+
+  Once the package is built (PRD-K2), the same holds for the tarball: exactly one `.css` file, the target of the
+  `./styles.css` export (PKG-05 of `spec/package.md`). An added `<style>` element is FOOT-04's.
+- Reason: PRD-T3 asks for one static, unlayered file: an unlayered file held under Bootstrap 5.3's unlayered reboot
+  where a layered copy failed (MEASURED 2026-11-18, PRD-T3), the application chooses the layer when it imports the
+  file, and an `@import` would make the consumer's bundler fetch a second file; a `<style>` block is compiled by the
+  application's Svelte settings (PRD-T15).
 - Layer: static check.
-- Traces: PRD-T3.
+- Traces: PRD-T3, PRD-T15.
+
+**THEME-08** Every class the component writes MUST be `sdt` or start with `sdt-`, or come from a hook prop.
+- Examples (the scan runs every row as a canary planted in a copy of the source, which must be found; the real
+  source passes):
+
+  | Canary | Result |
+  |---|---|
+  | `<td class="app-x">` in a `.svelte` file | finding |
+  | ``<td class={`x-${kind}`}>`` in a `.svelte` file | finding |
+  | `<td class={["sdt-cell", "app-x"]}>` in a `.svelte` file | finding |
+  | `const cls = "app-x";` used as a class in a `.ts` file under `src/lib` | finding |
+  | `<td class={["sdt-cell", column.class]}>` (a hook prop) | passes |
+
+  The scan reads every `class` attribute in the `.svelte` files under `src/lib` and every class string the `.ts` and
+  `.svelte.ts` files there return or hold for markup (PRD-G2 (e)): each string literal, and each fixed part of a
+  template literal, must consist of class names that are `sdt` or start with `sdt-`; every other operand must be a
+  hook prop: a column's `class` or `headerClass` (PRD-T7, PRD-T14), or what `rowClass` or `cellClass` returns
+  (PRD-T8). Once the package is built (PRD-K2), the same holds for the tarball. The scan reports how many class
+  attributes it read; with 0 it reports "could not check".
+- Reason: one prefix keeps the component's classes from colliding with an application's or a framework's (PRD-T15),
+  and the application's own classes enter only where it put them.
+- Layer: static check.
+- Traces: PRD-T15.
+
+**THEME-09** The public classes MUST sit exactly on these elements: `sdt` on the table component's root element,
+`sdt-table` on the `table`, `sdt-head-row` on the header row, `sdt-th` on every header cell, `sdt-row` on every body
+data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
+- Examples (the test counts the elements carrying each class, and checks each sits on the element named):
+
+  | Props | `sdt` | `sdt-table` | `sdt-head-row` | `sdt-th` | `sdt-row` | `sdt-cell` |
+  |---|---|---|---|---|---|---|
+  | `status 'ready'`, 3 rows, 2 columns | 1 | 1 | 1 | 2 | 3 | 6 |
+  | `status 'ready'`, 0 rows, 2 columns (the empty text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
+  | `status 'loading'`, 2 columns (the loading text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
+
+  A `Pagination` with `offset 0, limit 10, total 25` has exactly one element with `sdt-pager`, its `nav`. No other
+  element carries one of the seven classes.
+- Reason: the seven classes are public interface, and removing one or moving it to another element is a breaking
+  change (PRD-K3); an application's selectors rely on where they sit.
+- Layer: component.
+- Traces: PRD-K3.
 
 **THEME-07** The component source MUST NOT give an element a `style` attribute, in markup or through
 `setAttribute`, nor a `style:` directive.
@@ -1044,8 +1095,8 @@ list.
 
 **SORT-21** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in the states of
 SORT-20.
-- Example (as THEME-03, for the sort controls): a site page with Tailwind and no token definitions, in each state of
-  SORT-20: axe reports 0 serious or critical violations (its colour-contrast rule included).
+- Example (as THEME-03, for the sort controls): a site page with the package's stylesheet and no token definitions, in
+  each state of SORT-20: axe reports 0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true for the sort controls too.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
@@ -1346,11 +1397,10 @@ named "entries per page", with `limit` selected.
 - Traces: PRD-B9.
 
 **PAGE-24** The page-size select's name MUST be text that is visible on the page.
-- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and
-  inside the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text
-  colour has an alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the
-  visible text and the name are both "Zeilen". A visually hidden label (Tailwind's `sr-only`) or one moved off-screen
-  fails.
+- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and inside
+  the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text colour has an
+  alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the visible text and the
+  name are both "Zeilen". A visually hidden label (clipped to 1 by 1 CSS px) or one moved off-screen fails.
 - Reason: a sighted user must see what the bare number means (WCAG 3.3.2, 2.5.3); a label hidden by CSS passes in a
   simulated DOM, so this needs an engine.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -1503,7 +1553,8 @@ those Svelte adds for any component.
 
 **PAGE-34** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
 pager.
-- Example (as THEME-03, for the pager): a site page with Tailwind and no token definitions, in each state of PAGE-30:
+- Example (as THEME-03, for the pager): a site page with the package's stylesheet and no token definitions, in
+  each state of PAGE-30:
   axe reports 0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true for the pager too.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -1622,13 +1673,14 @@ receives that number.
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
-| FOOT-04 | PRD-S1, PRD-T3, PRD-B19 |
+| FOOT-04 | PRD-S1, PRD-T3, PRD-T15, PRD-B19 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
 | THEME-06 | PRD-T2, PRD-A1 |
-| THEME-04 | PRD-T3 |
-| THEME-05 | PRD-T3 |
+| THEME-04 | PRD-T3, PRD-T15 |
+| THEME-08 | PRD-T15 |
+| THEME-09 | PRD-K3 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -1730,7 +1782,9 @@ state in their own statements.
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
-| PRD-T3 | THEME-04, THEME-05, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
+| PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
+| PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
+| PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 
 ### PRD musts not yet traced
@@ -1740,11 +1794,12 @@ state in their own statements.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
-- Theming: PRD-T4 (the example token set, light and dark).
+- Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T11, PRD-T13, PRD-T14,
+  PRD-T16.
 - Internationalisation: PRD-I3.
 - Large pages and size: PRD-P1, PRD-P3.
 - Browsers: PRD-E1.
-- Packaging: PRD-K1, PRD-K2, PRD-K3.
+- Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7.
 - Licence: PRD-L1.
