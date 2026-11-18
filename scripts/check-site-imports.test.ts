@@ -300,7 +300,7 @@ test("a dynamic import whose argument is not a string literal cannot be read and
     /not a string literal/,
   );
 });
-test("a multi-line import statement is read, with the line of its start", () => {
+test("a multi-line import statement is read, with the line of its path", () => {
   assert.match(
     expect(
       [
@@ -309,7 +309,7 @@ test("a multi-line import statement is read, with the line of its start", () => 
       ],
       1,
     ),
-    /a\.ts:2: /,
+    /a\.ts:5: /,
   );
 });
 test("a path is judged as written: a link in it is not followed", () => {
@@ -333,11 +333,12 @@ test("a file under site/dist or any node_modules is not read", () => {
 test("every extension the statement lists is read, and a file of another kind is not", () => {
   const bad = "import a from '../../src/x';\n";
   const files = Object.fromEntries(
-    ["ts", "mts", "cts", "js", "mjs", "cjs", "svelte"].map((e) => [
+    ["ts", "mts", "cts", "js", "mjs", "cjs"].map((e) => [
       `site/src/f.${e}`,
       bad,
     ]),
   );
+  files["site/src/f.svelte"] = `<script lang="ts">\n${bad}</script>\n`;
   assert.match(
     expect(["--root", repo({ ...files, "site/src/notes.md": bad })], 1),
     /7 finding\(s\); 8 file\(s\) read/,
@@ -434,16 +435,73 @@ test("tsconfig paths: a wildcard that matches the name is a finding, an entry fo
     );
   passes(plant("tsconfig.json", wild("$lib/*")), 2);
 });
-test("tsconfig paths: a paths value that is not a literal object cannot be read and is a finding", () => {
+test("tsconfig paths: an entry inherited through extends is found, as TypeScript reads the file", () => {
+  const root = repo({
+    "site/tsconfig.base.json": `{ "compilerOptions": { "paths": { "${PKG}": ["../src/lib"] } } }\n`,
+    "site/tsconfig.json": '{ "extends": "./tsconfig.base.json" }\n',
+  });
   assert.match(
-    expect(
-      [
-        "--root",
-        plant("tsconfig.json", '{ "compilerOptions": { "paths": null } }\n'),
-      ],
-      1,
+    expect(["--root", root], 1),
+    /site\/tsconfig\.json:1 \(inherited through extends\): paths entry/,
+  );
+});
+test("tsconfig paths: a file TypeScript cannot read is a finding", () => {
+  assert.match(
+    expect(["--root", plant("tsconfig.json", "{ nope\n")], 1),
+    /TypeScript cannot read it/,
+  );
+});
+
+// ---- what the lexer reads and what it does not
+test("a comment inside an import does not hide it", () => {
+  found(
+    plant(
+      "a.ts",
+      "import { A } from /* c */ '../../src/lib/a.ts';\nexport { A };\n",
     ),
-    /cannot be read/,
+    "a.ts",
+    /\.\.\/\.\.\/src\/lib\/a\.ts: reaches the repository's src\//,
+  );
+});
+test("a string or a comment that holds import text is not an import", () => {
+  const text =
+    "export const s = \"import x from '../../src/lib/z.ts'\";\n// import y from '../../src/lib/y.ts'\n";
+  passes(plant("a.ts", text), 2);
+});
+test("a component's markup that holds the words import ... from as text is not an import", () => {
+  const svelte =
+    "<script lang=\"ts\">\n  const n = 1;\n</script>\n\n<p>import x from '../../src/lib/x.ts' ({n})</p>\n";
+  passes(plant("A.svelte", svelte), 2);
+});
+test("a component's module script is read too, through Svelte's parser", () => {
+  const svelte =
+    "<script lang=\"ts\" module>\n  import { x } from '../../src/lib/x.ts';\n  export { x };\n</script>\n";
+  found(plant("A.svelte", svelte), "A.svelte", /A\.svelte:2: /);
+});
+test("import.meta.glob and a non-literal import() in a comment are not findings; in code they are", () => {
+  passes(
+    plant(
+      "a.ts",
+      "// import.meta.glob('../../src/**')\n/* import(name) */\nexport {};\n",
+    ),
+    2,
+  );
+  found(
+    plant("a.ts", "export const m = import.meta.glob('../../src/**');\n"),
+    "a.ts",
+    /reaches the repository's src\//,
+  );
+  found(
+    plant("a.ts", "const n = 'x';\nexport const m = import(n);\n"),
+    "a.ts",
+    /not a string literal/,
+  );
+});
+test("limit: the regex-read forms inside a string are read as code (a finding, never a silent pass)", () => {
+  found(
+    plant("a.ts", "export const s = 'import(name)';\n"),
+    "a.ts",
+    /not a string literal/,
   );
 });
 

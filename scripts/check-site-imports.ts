@@ -21,6 +21,8 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse } from "svelte/compiler";
+import ts from "typescript";
 import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
 const WORD: Record<number, string> = {
@@ -88,12 +90,6 @@ function judge(
 
 // ---- script files (.ts .mts .cts .js .mjs .cjs .svelte)
 const STR = String.raw`(?:'([^'\n]*)'|"([^"\n]*)"|\x60([^\x60$\n]*)\x60)`;
-const FROM = new RegExp(
-  String.raw`\b(?:import|export)\b[^'"\x60;]*?\bfrom\s*${STR}`,
-  "g",
-);
-const SIDE = new RegExp(String.raw`\bimport\s*${STR}`, "g");
-const CALL = new RegExp(String.raw`\b(?:import|require)\s*\(\s*${STR}`, "g");
 const OPEN = /\b(?:import|require)\s*\(/g;
 const LITERAL_ARG = new RegExp(String.raw`^\s*${STR}`);
 const GLOB =
@@ -160,6 +156,22 @@ function aliasFindings(text: string): string[] {
   return out;
 }
 
+/** The script text of a file with its offset: the whole file, or each script block of a component as Svelte reads it. */
+function scripts(
+  file: string,
+  text: string,
+): { code: string; offset: number }[] {
+  if (!file.endsWith(".svelte")) return [{ code: text, offset: 0 }];
+  const ast = parse(text, { modern: true });
+  // A script node spans its tags; its text runs from the end of the opening tag to the closing tag
+  return [ast.instance, ast.module].flatMap((script) => {
+    if (!script) return [];
+    const start = text.indexOf(">", script.start) + 1;
+    const end = text.lastIndexOf("</script", script.end);
+    return [{ code: text.slice(start, end), offset: start }];
+  });
+}
+
 function scanScript(ctx: Ctx, file: string, text: string): string[] {
   const out: string[] = [];
   const at = (idx: number): string =>
@@ -167,24 +179,33 @@ function scanScript(ctx: Ctx, file: string, text: string): string[] {
   const add = (idx: number, spec: string, why: string): void => {
     if (why) out.push(`${at(idx)}: ${spec}: ${why}`);
   };
-  for (const m of text.matchAll(FROM))
-    add(m.index, lit(m), judge(ctx, file, lit(m), false));
-  for (const m of text.matchAll(SIDE))
-    add(m.index, lit(m), judge(ctx, file, lit(m), false));
-  for (const m of text.matchAll(CALL))
-    add(m.index, lit(m), judge(ctx, file, lit(m), false));
-  for (const m of text.matchAll(OPEN)) {
-    if (!LITERAL_ARG.test(text.slice(m.index + m[0].length)))
-      add(
-        m.index,
-        "import(...)",
-        "the argument is not a string literal, so it cannot be read",
-      );
+  let blocks: { code: string; offset: number }[];
+  try {
+    blocks = scripts(file, text);
+  } catch {
+    return [`${file}: Svelte cannot parse it, so its imports cannot be read`];
   }
-  for (const m of text.matchAll(GLOB)) {
-    for (const s of m[1].matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`\n]*)`/g))
-      add(m.index, lit(s), judge(ctx, file, lit(s), false));
+  for (const { code, offset } of blocks) {
+    // TypeScript's own lexer: import and export-from, import(), require() and typeof import(), never in a comment
+    // or a string
+    for (const f of ts.preProcessFile(code, true, true).importedFiles)
+      add(offset + f.pos, f.fileName, judge(ctx, file, f.fileName, false));
+    // What the lexer does not report, read from the text with its comments blanked. Limit: the words inside a
+    // string ("import(x)", "import.meta.glob('../../src')") are read as code too, so they are findings.
+    const bare = withoutComments(code);
+    for (const m of bare.matchAll(OPEN))
+      if (!LITERAL_ARG.test(bare.slice(m.index + m[0].length)))
+        add(
+          offset + m.index,
+          "import(...)",
+          "the argument is not a string literal, so it cannot be read",
+        );
+    for (const m of bare.matchAll(GLOB))
+      for (const g of m[1].matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`\n]*)`/g))
+        add(offset + m.index, lit(g), judge(ctx, file, lit(g), false));
   }
+  // The Vite alias is read as text: reading it as Vite does (loadConfigFromFile) would run the config and its
+  // plugins inside a static check (measured; CONTRIBUTING, imports step).
   if (!file.endsWith(".svelte"))
     for (const why of aliasFindings(withoutComments(text)))
       out.push(`${at(0)}: ${why}`);
@@ -192,31 +213,33 @@ function scanScript(ctx: Ctx, file: string, text: string): string[] {
 }
 
 const ESC = /[.+?^$(){}|[\]\\]/g;
-// ---- tsconfig / jsconfig: a `paths` key that matches the name or a subpath of it
-function scanTsconfig(file: string, text: string): string[] {
-  const out: string[] = [];
-  for (const m of text.matchAll(/"paths"/g)) {
-    const open = text.indexOf("{", m.index + 7);
-    const colon = /^\s*:\s*\{/.test(text.slice(m.index + 7, open + 1));
-    const end = colon ? closing(text, open) : -1;
-    if (end < 0) {
-      out.push(
-        `${file}: "paths" is not written as a literal object, so it cannot be read`,
-      );
-      continue;
-    }
-    for (const k of text
-      .slice(open, end + 1)
-      .matchAll(/"([^"\n]+)"\s*:\s*\[/g)) {
-      const line = text.slice(0, open + k.index).split("\n").length;
-      const re = new RegExp(
-        `^${k[1].replace(ESC, "\\$&").replace(/\*/g, ".*")}$`,
-      );
-      if (re.test(PKG) || re.test(`${PKG}/probe`))
-        out.push(`${file}:${line}: paths entry "${k[1]}" redirects ${PKG}`);
-    }
-  }
-  return out;
+// ---- tsconfig / jsconfig: a `paths` key that matches the name or a subpath of it, read as TypeScript reads the
+// file (comments, trailing commas and `extends` included)
+function scanTsconfig(ctx: Ctx, file: string, text: string): string[] {
+  const path = join(ctx.root, file);
+  const read = ts.readConfigFile(path, (p) => ts.sys.readFile(p));
+  if (read.error) return [`${file}: TypeScript cannot read it`];
+  const paths =
+    ts.parseJsonConfigFileContent(
+      read.config,
+      ts.sys,
+      dirname(path),
+      undefined,
+      path,
+    ).options.paths ?? {};
+  return Object.keys(paths)
+    .filter((k) => {
+      const re = new RegExp(`^${k.replace(ESC, "\\$&").replace(/\*/g, ".*")}$`);
+      return re.test(PKG) || re.test(`${PKG}/probe`);
+    })
+    .map((k) => {
+      const line = text.indexOf(`"${k}"`);
+      const where =
+        line < 0
+          ? "1 (inherited through extends)"
+          : text.slice(0, line).split("\n").length;
+      return `${file}:${where}: paths entry "${k}" redirects ${PKG}`;
+    });
 }
 
 // ---- CSS: the path-taking at-rules and source(...)
@@ -288,7 +311,7 @@ function scanCss(ctx: Ctx, file: string, raw: string): string[] {
 
 function scanFile(ctx: Ctx, file: string, text: string): string[] {
   if (CSS.test(file)) return scanCss(ctx, file, text);
-  if (TSCONFIG.test(basename(file))) return scanTsconfig(file, text);
+  if (TSCONFIG.test(basename(file))) return scanTsconfig(ctx, file, text);
   return scanScript(ctx, file, text);
 }
 

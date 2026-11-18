@@ -63,7 +63,11 @@ The checks today:
   (THEME-01, `scripts/check-theme-classes.ts`); the scan runs the statement's example rows as canaries first.
 - **imports:** the site imports the package only through its public exports, and its stylesheet names the
   package's files through the installed name (IMP-01, `scripts/check-site-imports.ts`); the scan runs the
-  statement's canary rows first.
+  statement's canary rows first. Script imports are read by TypeScript's own lexer (`ts.preProcessFile`), a
+  component's scripts through Svelte's parser, `paths` through TypeScript's config reader; the Vite alias is read as
+  text, because loading the config as Vite does would run it and its plugins (measured). Why not ESLint:
+  the comparison of 2026-11-18 (a second `no-restricted-syntax` block replaced the markup bans; a regex per folder
+  depth missed non-canonical paths).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
