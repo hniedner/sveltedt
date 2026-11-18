@@ -135,6 +135,10 @@ Development dependencies on the same terms as the test toolchain.
   alternative is none (Svelte's own compiler has no Vite integration of its own).
 - **@tailwindcss/vite 4.3.5:** Tailwind's own Vite integration for version 4 (the PostCSS route would add a PostCSS
   config, which the Svelte lint's settings keep out).
+- **`import.meta.main` in `site/server.ts`:** the documented way for an ES module to know it is the program's entry
+  (Node 24.2 and later; "Stability: 1.0 - Early development" in the Node.js v26.13.1 documentation, read
+  2026-11-18). An early-development feature may change in a minor release: when the Node pin moves, the site
+  server's start is checked against that release's notes.
 
 ## Accepted advisories
 
