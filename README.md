@@ -1,10 +1,11 @@
 # SvelteDT
 
-The objective: a data table for Svelte 5 and Tailwind 4, inspired by DataTables (datatables.net) and aiming at its
-functionality, server-side and client-side, the Svelte way, within the scope the product requirements set. It is
-built to best practice: accessible, usable under a strict content-security policy, and tested first. It should be
-easy to adopt, for a new project and for a project migrating from DataTables. SvelteDT is an independent project, not
-affiliated with or endorsed by DataTables.
+SvelteDT brings the utility of DataTables (datatables.net) to Svelte 5 and Tailwind 4: a data table for server-side and
+client-side data, built idiomatically for Svelte with components, props, callbacks and snippets rather than as an
+imitation of DataTables' JavaScript API. It is accessible, usable under a strict content-security policy, and tested
+first. Two adoption paths are first-class: a new project, and a project migrating from DataTables, which keeps its
+server-side backend working through a connection helper and maps its options with a migration guide. SvelteDT is an
+independent project, not affiliated with or endorsed by DataTables.
 
 **Status: pre-release.** This repository holds no component code yet, and there is nothing to install or use. Its
 requirements are written first; code follows them, test first.
