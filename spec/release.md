@@ -16,10 +16,10 @@
   requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
   a hash of the statement text.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
-  the method's rule (section 2, step 7). The checks of this part are built in a later step. Until a file a check
-  needs exists on `main` (the package manifest, the lockfile, the package manager's settings, the npm entry of the
-  Dependabot configuration, the release workflow), that check reports "could not check"; nothing obliges the pull
-  request that adds the file to build the check.
+  the method's rule (section 2, step 7). The checks of this part are built in a later step, each only once what it
+  reads exists on `main`: the lockfile and the package manager's settings (SUP-05, SUP-06), the release workflow
+  (SUP-03's rows for its jobs), and a package manifest that is publishable, without `"private": true`, which the
+  packaging change makes it (SUP-04). Nothing obliges the pull request that adds those files to build the check.
 - **Test layers.**
   - **static check**: a scan of the repository's files, run in the gate, behind a wrapper that must find a planted
     canary. Each scan reports how many files it read; when it reads none, or a file it needs is missing, it reports
@@ -33,10 +33,12 @@
 - **The package manifest** is the `package.json` whose `name` is `@hniedner/sveltedt`; **the lockfile** is
   `pnpm-lock.yaml` at the repository root; **the package manager's settings** are `pnpm-workspace.yaml` at the root.
 - **Exact version.** A version written as three numbers, `11.6.2`; `11`, `^11`, `~11.6` and `latest` are not exact.
-- **An install** is a command of a JavaScript package manager (`npm`, `pnpm`, `yarn`, `npx`, `corepack`) or the
-  `pnpm/action-setup` action that fetches packages. **A tool install** is one with `--global`, `pnpm dlx` or `npx`;
-  any other install is a dependency install. A download pinned by a checksum (`curl` and `sha256sum`) is not an
-  install.
+- **An install** is a step that fetches packages: a package-manager command `install`, `i`, `add`, `ci`, `dlx`,
+  `npx` or `corepack prepare`, or the `pnpm/action-setup` action. **A tool install** is one with `--global`, `pnpm
+  dlx`, `npx`, `corepack prepare` or the `pnpm/action-setup` action (which installs pnpm itself); the action's
+  `run_install: true` and every other install are dependency installs. Commands that fetch nothing (`pnpm run`,
+  `pnpm exec`, `pnpm gate`, `corepack enable`, `npm publish`) and a download pinned by a checksum (`curl` and
+  `sha256sum`) are not installs.
 - **Data.** Example values are synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
   A requirement id from `docs/PRD.md` is written `PRD-S5`.
@@ -152,6 +154,7 @@ install MUST name an exact version.
   | `pnpm dlx publint@0.3.12` or `npx publint@0.3.12` | passes |
   | `pnpm dlx publint` or `npx publint` | finding |
   | `npm publish` | passes (not an install) |
+  | `pnpm gate`, `pnpm run build`, `pnpm exec playwright test`, `corepack enable` | passes (not installs) |
 
 - Reason: development dependencies stay locked (PRD-S5): an install that may rewrite the lockfile, or a tool at a
   floating version, can pull code nobody reviewed.
@@ -211,7 +214,7 @@ cooldown whose every day field is at least 1, and grouped version updates.
   | that job with an `if:` condition | finding |
   | the review step with an `if:` condition | finding |
   | a `paths-ignore` or `branches-ignore` filter | finding |
-  | a `types:` list on `pull_request` without `opened`, `synchronize` or `reopened` | finding (that pull request event is not reviewed) |
+  | a `types:` list on `pull_request` that omits any one of `opened`, `synchronize`, `reopened` (for example `[opened, synchronize]`) | finding (that pull request event is not reviewed) |
   | the step or its job with `continue-on-error: true` | finding |
   | the step with `warn-only: true` | finding |
   | the step only in a workflow on `pull_request_target` | finding |
