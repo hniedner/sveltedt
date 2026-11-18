@@ -88,7 +88,9 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `vitest.config.ts`; every tracked test file must have run, and a test that fails is a finding. With no such file
   tracked the step is NOT APPLICABLE, after its planted failing test was reported.
 - **theme:** every colour class in the component reads a `--sdt-*` property with a CSS system-colour fallback
-  (THEME-01, `scripts/check-theme-classes.ts`); the scan runs the statement's example rows as canaries first.
+  (THEME-01, `scripts/check-theme-classes.ts`); the scan runs the statement's example rows as canaries first. It
+  reads the source as text, comments included, so a word such as `text-align` in a comment is read as a class and
+  reported: reword the comment, the scan does not skip it.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

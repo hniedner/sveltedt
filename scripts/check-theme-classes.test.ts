@@ -107,6 +107,24 @@ test("a longer prefix is read before the shorter one it starts with", () => {
     .join(" ");
   expect(["--root", component(`${GOOD} ${tokens}`)], 0);
 });
+test("a palette class behind an arbitrary-value variant is a finding", () => {
+  for (const cls of [
+    "aria-[sort=ascending]:bg-blue-500",
+    "data-[selected]:text-red-500",
+    "max-[600px]:border-red-500",
+    "has-[input]:bg-white",
+  ])
+    expect(["--root", component(`${GOOD} ${cls}`)], 1);
+});
+test("ring-offset with a palette colour is a finding", () => {
+  expect(["--root", component(`${GOOD} ring-offset-red-500`)], 1);
+});
+test("text-base and two-word background positions are not colours", () => {
+  expect(
+    ["--root", component(`${GOOD} text-base bg-left-top bg-right-bottom`)],
+    0,
+  );
+});
 test("transparent, current and inherit pass", () => {
   expect(
     ["--root", component(`${GOOD} bg-transparent text-current border-inherit`)],

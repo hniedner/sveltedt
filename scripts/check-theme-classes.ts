@@ -49,7 +49,7 @@ const TOKEN = new RegExp(
 );
 const NO_COLOUR = new Set(["transparent", "current", "inherit"]);
 const NOT_COLOUR =
-  /^(?:\d[\w.%]*|px|none|hidden|solid|dashed|dotted|double|inset|collapse|separate|left|center|right|justify|start|end|top|bottom|wrap|nowrap|balance|pretty|ellipsis|clip|auto|2xs|xs|sm|md|lg|\d?xl|fixed|local|scroll|cover|contain|repeat|no-repeat|wavy|from-font|reverse|(?:spacing|offset|opacity|repeat|linear|radial|conic|clip|origin|blend|size|position)-.+|\[(?:length|number|percentage|url|image|position|size):.+\]|\[-?[\d.]+[a-z%]*\])(?:\/\S+)?$/;
+  /^(?:\d[\w.%]*|px|none|hidden|solid|dashed|dotted|double|inset|collapse|separate|base|(?:left|right)-(?:top|bottom)|left|center|right|justify|start|end|top|bottom|wrap|nowrap|balance|pretty|ellipsis|clip|auto|2xs|xs|sm|md|lg|\d?xl|fixed|local|scroll|cover|contain|repeat|no-repeat|wavy|from-font|reverse|(?:spacing|offset|opacity|repeat|linear|radial|conic|clip|origin|blend|size|position)-.+|\[(?:length|number|percentage|url|image|position|size):.+\]|\[-?[\d.]+[a-z%]*\])(?:\/\S+)?$/;
 // THEME-01's example table: the canary rows, planted in a temporary file on every run
 const CANARIES: [string, boolean][] = [
   ["bg-blue-500", false],
@@ -79,7 +79,8 @@ function scanText(name: string, text: string): Scan {
   text.split("\n").forEach((line, i) => {
     for (const token of line.split(/[\s"'`]+/)) {
       const utility = token
-        .replace(/^(?:\[[^\]]*\]:|[^[\]:]+:)*!?-?/, "")
+        // Variants, arbitrary ones too (aria-[sort=ascending]:, max-[600px]:), each up to its ":"
+        .replace(/^(?:(?:[^\s:[\]]|\[[^\]]*\])+:)*!?-?/, "")
         .replace(/!$/, "");
       const prefix = PREFIXES.find((p) => utility.startsWith(p));
       if (!prefix) continue;
