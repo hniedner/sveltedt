@@ -8,8 +8,10 @@ works. This page is the short version.
 
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone: once
-`core.hooksPath` is set, a merge that makes a commit runs the merged branch's commit-msg hook (Commit headers).
+`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone without
+`core.hooksPath`: with it set, git runs any hook the branch puts in `.githooks/`, such as post-checkout on a checkout
+or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg on a merge commit (Commit
+headers).
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
@@ -161,8 +163,8 @@ hands it, before git's own clean-up:
   not known to the hook.
 
 A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`). The path is
-relative: a commit in any worktree of the clone runs the `.githooks/commit-msg` of the branch checked out there, which
-is code from that branch.
+relative: in any worktree of the clone, git runs the hooks in `.githooks/` of the branch checked out there, which are
+code from that branch.
 
 ## How a change is made
 
