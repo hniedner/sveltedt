@@ -1888,7 +1888,7 @@ function commitMsg(file: string | undefined): Result {
 
 // The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
 // this runner. No hook changes a file.
-const HOOKS = ["pre-commit", "commit-msg"];
+const HOOKS = ["pre-commit", "commit-msg", "pre-push"];
 const shim = (hook: string): string =>
   `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
 
@@ -2008,6 +2008,155 @@ function stagedSecrets(root: string, files: string[]): Result {
   }
 }
 
+const ZERO = /^0+$/;
+/** This clone's own setting `sveltedt.<key>`, or "" when it is not set. */
+const setting = (root: string, key: string): string =>
+  spawnSync("git", ["-C", root, "config", "--get", `sveltedt.${key}`], {
+    encoding: "utf8",
+    env: childEnv(),
+  }).stdout.trim();
+
+// The pre-push hook: git names the remote and writes one line per pushed ref on stdin, "<local ref> <local sha>
+// <remote ref> <remote sha>". A pushed secret or private word counts as published, so the scans block here.
+function prePush(remote: string | undefined): Result | Stage[] {
+  const root = process.cwd();
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      env: childEnv(),
+    });
+  const ranges: string[] = [],
+    skipped: string[] = [];
+  for (const line of readFileSync(0, "utf8").split("\n").filter(Boolean)) {
+    const [localRef, localSha, remoteRef, remoteSha] = line.split(" ");
+    if (ZERO.test(localSha)) skipped.push(`${remoteRef}: deletion`);
+    else if (localRef.startsWith("refs/tags/"))
+      skipped.push(`${remoteRef}: tag`);
+    else {
+      // A new branch: its commits after the remote's main, as the gate's own range.
+      const base = ZERO.test(remoteSha)
+        ? git("merge-base", `refs/remotes/${remote}/main`, localSha)
+        : { status: 0, stdout: remoteSha };
+      const count = git(
+        "rev-list",
+        "--count",
+        `${base.stdout.trim()}..${localSha}`,
+      );
+      if (base.status !== 0 || count.status !== 0)
+        return result(
+          CANNOT,
+          `git cannot list the commits of ${remoteRef} (fetch ${remote} first)`,
+        );
+      if (count.stdout.trim() === "0")
+        skipped.push(`${remoteRef}: no new commit`);
+      else ranges.push(`${base.stdout.trim()}..${localSha}`);
+    }
+  }
+  if (!ranges.length) return result(NA, skipped.join("; ") || "nothing pushed");
+  // The gate reads the work tree, so it must be the pushed commit.
+  const head = git("rev-parse", "HEAD").stdout.trim();
+  if (
+    git("status", "--porcelain").stdout.trim() ||
+    ranges.some((r) => !r.endsWith(`..${head}`))
+  )
+    return result(
+      CANNOT,
+      "the work tree is not the pushed commit: check out the pushed branch and commit or restore every change",
+    );
+  return [
+    ...ranges.map((r): Stage => [
+      `secrets ${r}`,
+      () =>
+        scanResult(
+          spawnSync(
+            process.execPath,
+            [join(root, "scripts", "scan-secrets.ts"), "git", root, r],
+            {
+              encoding: "utf8",
+              env: childEnv(),
+            },
+          ),
+          r,
+          `${r} scanned`,
+        ),
+    ]),
+    ...ranges.map((r): Stage => [`words ${r}`, () => words(root, r)]),
+    ["gate", () => gate(root)],
+  ];
+}
+
+// The private word scan (companion G3) is the owner's: its program and lists stay outside the repository, named
+// in this clone's git config (sveltedt.wordScan, .wordList, .wordAllow). A contributor's clone has none.
+function words(root: string, range: string): Result {
+  const scan = setting(root, "wordScan");
+  if (!scan)
+    return result(NA, "word scan not set up in this clone (owner only)");
+  const r = spawnSync(
+    process.execPath,
+    [
+      scan,
+      "git",
+      root,
+      range,
+      "--list",
+      setting(root, "wordList"),
+      "--allow",
+      setting(root, "wordAllow"),
+    ],
+    { encoding: "utf8", env: childEnv() },
+  );
+  const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
+  if (r.status === PASS) return result(PASS, `${range} scanned`, out);
+  if (r.status === FINDING)
+    return result(FINDING, `private words in ${range}`, out);
+  return result(
+    CANNOT,
+    `the word scan exited ${r.status ?? errorCode(r.error)}`,
+    out,
+  );
+}
+
+const GATE_LIMIT_MS = 9 * 60_000; // under the heavy-work lock's 10-minute hold
+
+// The whole gate, under the machine's heavy-work lock when this clone names one (sveltedt.lock: a script taking
+// `take|release <holder>`, exit 0 when done). The lock is released on every path.
+function gate(root: string): Result {
+  const lock = setting(root, "lock");
+  const holder = `pre-push-${process.pid}`;
+  const locking = (act: string) =>
+    spawnSync("sh", [lock, act, holder], { encoding: "utf8", env: childEnv() });
+  if (lock) {
+    const take = locking("take");
+    if (take.status !== 0)
+      return result(
+        CANNOT,
+        `the heavy-work lock is not free: ${take.stdout.trim()}`,
+      );
+  }
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "check-repo.ts"), "all", "--root", root],
+    {
+      encoding: "utf8",
+      env: childEnv(),
+      timeout: GATE_LIMIT_MS,
+    },
+  );
+  if (lock && locking("release").status !== 0)
+    return result(CANNOT, `the heavy-work lock ${lock} was not released`);
+  const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
+  if (r.status === PASS) return result(PASS, out.at(-1) ?? "", []);
+  if (r.status === FINDING)
+    return result(FINDING, "the gate found a problem", out);
+  return result(
+    CANNOT,
+    r.error
+      ? `the gate ran over ${GATE_LIMIT_MS / 60_000} minutes`
+      : "the gate could not check",
+    out,
+  );
+}
+
 /** Runs the stages in order, stopping at the first that does not pass; one not applicable is counted apart. */
 function runStages(name: string, stages: Stage[]): number {
   const notApplicable: string[] = [];
@@ -2061,8 +2210,8 @@ function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name === "commit-msg") return report(name, commitMsg(rest[0]));
-  if (name === "pre-commit") {
-    const stages = preCommit();
+  if (name === "pre-commit" || name === "pre-push") {
+    const stages = name === "pre-push" ? prePush(rest[0]) : preCommit();
     return Array.isArray(stages)
       ? runStages(name, stages)
       : report(name, stages);

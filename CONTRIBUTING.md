@@ -107,6 +107,15 @@ git runs them from `.githooks/` once `core.hooksPath` is set. They read files an
 - **commit-msg:** the header is `<type>(<scope>): <subject>` (scope optional, `!` before the colon for a breaking
   change), at most 100 characters. The types are the list `TYPES` in `scripts/check-repo.ts`; a refused header
   prints them. The changelog is generated from these headers.
+- **pre-push**, for each pushed branch with new commits (a new branch: those after the remote's `main`; an update:
+  those after the remote's commit; a deletion or a tag: nothing): gitleaks on those commits, the private word scan
+  when this clone names it, then the whole gate. The work tree must be the pushed commit, clean, since the gate reads
+  it. A pushed secret or private word counts as published, so these scans block the push.
+
+Maintainers' clones also name, in git config, the owner-only word scan (`sveltedt.wordScan`, the scan program;
+`sveltedt.wordList` and `sveltedt.wordAllow`, its lists) and the machine's heavy-work lock (`sveltedt.lock`, a script
+taking `take|release <holder>`), which pre-push holds while the gate runs and always releases. A clone without them
+skips the word scan and runs the gate unlocked.
 
 A hook that refuses is answered by fixing the change or rewording the message, never by `--no-verify` (method
 section 10). A bad message on a pushed branch is not rewritten: the work moves to a new branch from `main` with a
@@ -127,7 +136,6 @@ correct message.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 
