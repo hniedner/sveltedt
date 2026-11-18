@@ -1233,8 +1233,8 @@ test("lint: markup and code beside the injection bans pass in a component", () =
           "</script>",
           '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n' +
             '  const tag = "p";\n  const text = document.body.innerHTML;\n  const box = document.createElement("div");\n' +
-            '  box.setAttribute("title", text);\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
-            '  const parseHTML = (s: string): string => s;\n  document.execCommand("copy", false, parseHTML(text));\n</script>',
+            '  box.setAttribute("title", text);\n  box.append(document.createElementNS("http://www.w3.org/2000/svg", "circle"));\n  box["title"] = text;\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
+            '  const parseHTML = (s: string): string => s;\n  const addRule = (s: string): string => s;\n  document.execCommand("copy", false, addRule(parseHTML(text)));\n</script>',
         ).replace(
           "<p>{count}</p>",
           '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>\n' +
@@ -1323,6 +1323,10 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ['document.createElement("link");', "createElement of style"],
     ['document.createElement("script");', "createElement of style"],
     ['el.setAttribute("SRCDOC", html);', "setAttribute srcdoc"],
+    [
+      'el.setAttribute("onclick", html);',
+      "setAttribute srcdoc or an on* handler",
+    ],
     ["el.setHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
     ["Document.parseHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
     ["el.setHTML(html);", "setHTML or createRawSnippet"],
@@ -1373,8 +1377,65 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       "execCommand insertHTML",
     ],
     ["Document.parseHTML(html);", "Document.parseHTML"],
+    ['document.createElement("SCRIPT");', "createElement of style"],
+    [
+      'document.createElementNS("http://www.w3.org/2000/svg", "script");',
+      "createElement of style",
+    ],
+    [
+      'document.createElementNS("http://www.w3.org/1999/xhtml", "link");',
+      "createElement of style",
+    ],
+    ['el["outerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      '(el as HTMLIFrameElement)["srcdoc"] = html;',
+      "assigning innerHTML, outerHTML or srcdoc",
+    ],
+    [
+      "Object.assign(el, { outerHTML: html });",
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      'Object.assign(el, { "innerHTML": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      'Object.assign(el, { "srcdoc": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      "const { ownerDocument } = el;\n  ownerDocument.write(html);",
+      "document.write",
+    ],
+    // Every name the bracket ban lists, in brackets: a name dropped from its list cannot stay green.
+    ...[
+      "insertAdjacentHTML",
+      "setHTML",
+      "setHTMLUnsafe",
+      "parseHTML",
+      "parseHTMLUnsafe",
+      "createContextualFragment",
+      "createRawSnippet",
+      "DOMParser",
+      "write",
+      "writeln",
+      "execCommand",
+      "setAttribute",
+      "createElement",
+      "createElementNS",
+      "CSSStyleSheet",
+      "adoptedStyleSheets",
+      "insertRule",
+      "addRule",
+    ].map((name) => [`void el["${name}"];`, "a sink name in brackets"]),
   ].map(([body, ban], i) => [`scripts/s${i}.ts`, SINK(body), ban]);
   const markup = [
+    ['<iframe SRCDOC="<p>x</p>" title="t"></iframe>', "srcdoc attribute"],
+    [
+      '<svelte:element this={"STYLE"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    ["<x-raw {outerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
     ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
     ["<div><script>alert(1)</script></div>", "style, link or script element"],
     ["<div><style></style></div>", "style, link or script element"],
@@ -1400,11 +1461,15 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ],
     ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
     ["<x-raw outerHTML={srcdoc}></x-raw>", "innerHTML or outerHTML attribute"],
+    ["<x-raw {innerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
   ].map(([tag, ban], i) => [
     `src/C${i}.svelte`,
-    COMPONENT.replace("$props();", '$props();\n  const srcdoc = "";').replace(
+    COMPONENT.replace(
+      "$props();",
+      '$props();\n  const srcdoc = "";\n  const innerHTML = "";\n  const outerHTML = "";',
+    ).replace(
       "<p>{count}</p>",
-      `<p>{count}{srcdoc}</p>\n${tag}`,
+      `<p>{count}{srcdoc}{innerHTML}{outerHTML}</p>\n${tag}`,
     ),
     ban,
   ]);

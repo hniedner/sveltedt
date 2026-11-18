@@ -77,7 +77,7 @@ const markupBans = [
     "srcdoc attribute (PRD-S2)",
   ],
   [
-    "SvelteAttribute[key.name=/^(innerHTML|outerHTML)$/i]",
+    ":matches(SvelteAttribute, SvelteShorthandAttribute)[key.name=/^(innerHTML|outerHTML)$/]",
     "innerHTML or outerHTML attribute (PRD-S2): a custom element sets it as a property",
   ],
 ].map(([selector, message]) => ({ selector, message }));
@@ -94,12 +94,12 @@ const scriptBans = [
     "createElement of style, link or script (PRD-S1)",
   ],
   [
-    "CallExpression[callee.property.name='createElementNS'][arguments.1.value=/^(style|link|script)$/i]",
+    "CallExpression[callee.property.name='createElementNS'][arguments.1.value=/^(style|link|script)$/]",
     "createElement of style, link or script (PRD-S1): createElementNS",
   ],
   [
-    "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^srcdoc$/i]",
-    "setAttribute srcdoc (PRD-S2)",
+    "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(srcdoc|on\\w+)$/i]",
+    "setAttribute srcdoc or an on* handler (PRD-S2): script or markup from a string",
   ],
   [
     "AssignmentExpression:matches([left.property.name=/^(innerHTML|outerHTML|srcdoc)$/], [left.property.value=/^(innerHTML|outerHTML|srcdoc)$/])",
@@ -119,8 +119,12 @@ const scriptBans = [
     "setHTML or createRawSnippet (PRD-S2): markup from a value",
   ],
   [
-    "Identifier[name=/^(CSSStyleSheet|adoptedStyleSheets|insertRule|addRule)$/]",
+    "Identifier[name=/^(CSSStyleSheet|adoptedStyleSheets)$/]",
     "constructed or inserted style sheet (PRD-S1, PRD-T3)",
+  ],
+  [
+    "MemberExpression[property.name=/^(insertRule|addRule)$/]",
+    "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
   ],
   [
     "MemberExpression[property.name=/^(write|writeln)$/]:matches([object.name=/^(document|ownerDocument|contentDocument)$/], [object.property.name=/^(document|ownerDocument|contentDocument)$/])",
@@ -135,6 +139,7 @@ const scriptBans = [
     "MemberExpression[property.name='parseHTML']:matches([object.name='Document'], [object.property.name='Document'])",
     "Document.parseHTML (PRD-S2): markup from a value",
   ],
+  // Every sink name of the bans above, in brackets: keep the list in step with them.
   [
     "MemberExpression[computed=true][property.value=/^(insertAdjacentHTML|setHTML|setHTMLUnsafe|parseHTML|parseHTMLUnsafe|createContextualFragment|createRawSnippet|DOMParser|write|writeln|execCommand|setAttribute|createElement|createElementNS|CSSStyleSheet|adoptedStyleSheets|insertRule|addRule)$/]",
     "a sink name in brackets (PRD-S1, PRD-S2): write it with a dot, so the bans can read it",
