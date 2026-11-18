@@ -79,21 +79,26 @@
 ## 2. Imports (IMP)
 
 **IMP-01** The site's source MUST import SvelteDT only through the package's public exports.
-- Examples (the scan covers every file under `site/` except its build folder and `node_modules`; an import of
-  SvelteDT is allowed when it is written `@hniedner/sveltedt` or one of the subpaths the `exports` field of the
-  repository's root `package.json` names; the test runs every row as a canary that must be found):
+- Examples (the scan covers every `.ts`, `.js` and `.svelte` file under `site/` except its build folder and
+  `node_modules`, and the site's Vite and TypeScript configuration. An import of SvelteDT is a specifier that starts
+  with `@hniedner/sveltedt` or a relative path that leaves `site/`. It is allowed only when it is written
+  `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
+  `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary
+  that must be found):
 
   | Canary |
   |---|
   | `import { DataTable } from '../../src/lib/DataTable.svelte'` in a `.ts` file |
   | `export { DataTable } from '../../src/lib/index.ts'` in a `.ts` file |
   | `await import('../../src/lib/Pagination.svelte')` in a `.ts` file |
-  | the first row inside the `<script>` of a `.svelte` file |
-  | an alias in the site's Vite configuration that points `@hniedner/sveltedt` at `src/lib` |
-  | a `paths` entry in the site's TypeScript configuration that points `@hniedner/sveltedt` at `src/lib` |
+  | `import { DataTable } from '../../src/lib/DataTable.svelte'` inside the `<script>` of a `.svelte` file |
+  | `import { DataTable } from '@hniedner/sveltedt/src/lib/DataTable.svelte'`, a subpath `exports` does not name |
+  | an alias in the site's Vite configuration that points `@hniedner/sveltedt` at a folder of the repository |
+  | a `paths` entry in the site's TypeScript configuration that points `@hniedner/sveltedt` at a folder of the repository |
 
-  With no root `package.json`, or no `exports` field in it, the scan reports "could not check", which blocks like a
-  finding.
+  A site that imports only `@hniedner/sveltedt` and resolves it as a consumer does, with no alias, passes. The scan
+  reports how many files it read; with no root `package.json`, no `exports` field in it, or no file read, it reports
+  "could not check", which blocks like a finding.
 - Reason: the site may use only what a consumer can; a deep import hides a missing or broken export.
 - Layer: static check.
 - Traces: PRD-W1.
