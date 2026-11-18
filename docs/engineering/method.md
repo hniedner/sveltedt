@@ -49,13 +49,17 @@ Cost is measured (section 12) only to plan; it is never a reason to skip a check
    - a static check for a code constraint (no raw-HTML path, no eval, design tokens only, no shipped CSS), run as a
      scan in the gate (section 10).
 
-   Each test carries its statement's id and a hash of the statement text.
+   Each test carries its statement's id and a hash of the statement text, as G6 defines it.
 5. **Show it red for the right reason.** A script (`red-check`, G7) runs the new tests against the code before the
    change. They must fail on an assertion, not an import error.
 6. **Work inward with TDD:** red, minimal green, refactor. Add a unit test only where the acceptance test cannot
    pin the logic down by itself; a unit test that repeats its proof is padding. One statement is one commit, holding its tests and its code, so no commit ever holds a
    failing test.
-7. **Trace.** A check (`trace`, G6) reads the test results. Every statement must have a test that ran and passed.
+7. **Trace.** A check (`trace`, G6) reads the test results. Every statement must have a test that ran and passed, with
+   one exception: a statement that no test names yet may be merged, and the check then lists it as *not yet tested*,
+   never as a pass. An untested statement blocks the close of its milestone, and blocks 1.0 and every release after
+   it; a release before 1.0 may ship while statements of open milestones are not yet tested, and its notes say how
+   many. A protected statement (section 3) has no such exception.
    A skipped test, a test of a statement whose text has changed, or a test of no statement fails.
    It also checks the two-way table: every statement traces to a PRD requirement, and every "must" requirement has
    statements. Every spec header says `Field names: yes|no`; a missing header, or a `yes` spec that does not cite
@@ -261,4 +265,5 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-17 | npm package name `@hniedner/sveltedt` (section 7; companion G10 and G12) | npm refused the bare name; owner decision |
 | 2026-11-17 | Companion G10: CodeQL merge protection does not cover Dependabot pull requests analysed by default setup; default setup does not scan pull requests from forks; it does scan other pull requests | Fact correction, read from docs.github.com 2026-11-17 |
 | 2026-11-17 | Reuse: the owner's own earlier work (code, tests, set-up, workflows) is ported through the method instead of rebuilt where it fits; third-party code only through section 8; every plan states a reuse check; a decision record may name a public source (sections 2, 8, 9; companion G12) | Owner decision, 2026-11-17 |
+| 2026-11-17 | Step 7 and G6: a statement may be merged before its test and is listed as *not yet tested*, never as a pass; it blocks the milestone close, 1.0 and every later release | Owner's decision, 2026-11-17 |
 | 2026-11-17 | Companion G10: the concurrency group is keyed on the pull-request number, not the branch name, which pull requests from forks can share | Fact correction, decided in the review of the quality-tooling change |
