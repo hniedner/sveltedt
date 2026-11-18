@@ -50,7 +50,8 @@ pages named, or measured with the command named.
   - fallow 3 (native, MIT; duplication plus complexity and dead code; its diff mode needs a base ref).
 - **Decision:** jscpd over every non-test script (the dupes class), any clone fails. Svelte components are not in
   the class: jscpd 5.4.3 counts a component as several sources and names none (measured, 2026-11-17), so the step
-  cannot prove each one analysed. Review guards duplicated markup until that is solved (issue #7).
+  cannot prove each one analysed. Review guards duplicated markup until that is solved (issue #7, the remaining
+  gate checks).
   - The scripts start at zero clones, so "no clone in them" equals "no new block repeats an existing one"
     without a base ref.
   - fallow's complexity check would repeat ESLint's (method section 5, one source).

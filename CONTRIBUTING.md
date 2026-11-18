@@ -40,11 +40,13 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this` or inline style: PRD-G2 and PRD-S1; no browser
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a lowercase `style` attribute or `{style}`: PRD-G2
+  and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
-  code outside tests and components. The security lint set (inline styles, injected elements, raw HTML) follows in
-  its own pull request. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  code outside tests and components. Not yet banned, following in its own pull request: a style attribute in
+  another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
+  `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
 - **svelte:** svelte-check type-checks every tracked `.svelte` component, strict, through `tsconfig.json`; a
@@ -89,8 +91,8 @@ These checks are part of the method but do not exist in this repository yet:
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
 - Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
   `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
-  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
-  a workflow is not yet refused.
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. Not yet refused: a zizmor
+  ignore comment in a workflow, and `prettier-ignore`.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.

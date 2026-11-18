@@ -30,8 +30,8 @@ const linterOptions = {
   reportUnusedDisableDirectives: "error",
 };
 
-// Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: inline styles, in
-// every element and through the {style} shorthand (svelte/no-inline-styles checks only plain HTML elements).
+// Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: a lowercase style
+// attribute on any element (svelte/no-inline-styles checks plain HTML elements only) and the {style} shorthand.
 const markupBans = [
   [
     "SvelteDirective[kind='Class']",

@@ -1255,16 +1255,44 @@ test("text: each suppression comment in a script or a component is a finding tha
           "scripts/x.ts",
           `// ${word} for a reason\nexport const one = 1;\n`,
         );
+        put(root, "scripts/y.mjs", `export const one = 1; // ${word}\n`);
+        put(root, "scripts/z.svelte.ts", `export const one = 1;\n// ${word}\n`);
         component(COMPONENT.replace("<p>", `<!-- ${word} -->\n<p>`))(root);
       }),
       1,
     );
-    assert.ok(out.includes(`scripts/x.ts:1: suppression comment ${word}`), out);
+    for (const at of [
+      "scripts/x.ts:1",
+      "scripts/y.mjs:1",
+      "scripts/z.svelte.ts:2",
+    ])
+      assert.ok(out.includes(`${at}: suppression comment ${word}`), out);
     assert.ok(
       out.includes(`src/Count.svelte:5: suppression comment ${word}`),
       out,
     );
   }
+});
+test("text: suppression comments on successive lines are each a finding", () => {
+  const out = expect(
+    "text",
+    repo((root) =>
+      put(
+        root,
+        "scripts/x.ts",
+        `// ${SUPPRESSIONS[1]}\n// ${SUPPRESSIONS[2]}\nexport const one = 1;\n`,
+      ),
+    ),
+    1,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:1: suppression comment ${SUPPRESSIONS[1]}`),
+    out,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:2: suppression comment ${SUPPRESSIONS[2]}`),
+    out,
+  );
 });
 test("text: a suppression word in prose is not a finding", () => {
   const prose = `# Notes\n\nNever use ${SUPPRESSIONS[0]}.\n`;
