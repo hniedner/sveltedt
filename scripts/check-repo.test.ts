@@ -2966,6 +2966,7 @@ test("commits: control characters in a refused header are printed escaped", () =
     "\u009b",
     "\u00ad",
     "\u061c",
+    "\u200b",
     "\u200f",
     "\u2028",
     "\u202e",

@@ -2037,11 +2037,12 @@ const MERGE = /^Merge /;
 // git's headers for `commit --fixup[=amend:|reword:]` and `--squash`: fine while working, squashed before a pull
 // request.
 const AUTOSQUASH = /^(fixup|squash|amend)! /;
-// What JSON.stringify leaves as it is but a terminal or log viewer acts on: DEL, the C1 controls, the bidi marks and
-// U+2028/9.
+// What JSON.stringify leaves as it is but a terminal or log viewer acts on, or a reader cannot see: DEL, the C1
+// controls, the bidi marks, U+2028/9, and the invisible format characters (soft hyphen, zero-width characters, word
+// joiner, byte-order mark).
 const UNPRINTABLE =
   /[\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
-/** A header for output: its first 100 characters if longer, quoted, control characters and bidi marks escaped. */
+/** A header for output: its first 100 characters if longer, quoted, every character of UNPRINTABLE escaped. */
 const shownHeader = (written: string): string =>
   JSON.stringify(
     written.length > MAX_HEADER

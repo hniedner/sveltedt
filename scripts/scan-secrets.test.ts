@@ -294,7 +294,11 @@ test("git: a token in a signed commit is a finding when git shows signatures", (
   tree(r, { "k.txt": `t = "${tok}"\n` });
   git(r, "add", "-A");
   git(r, "commit", "-q", "-S", "-m", "two");
-  const out = run(["git", r, "HEAD~1..HEAD"]);
+  // Only this repository's configuration: a global allowed-signers file would let git verify, hiding the flag's need.
+  const out = run(["git", r, "HEAD~1..HEAD"], {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  });
   assert.equal(out.code, 1, out.out);
   assert.ok(!out.out.includes(tok));
 });
