@@ -122,11 +122,11 @@ the strict policy.
   arguments it reads as imports; `source(none)`, `@source not` and `@source inline(...)` name no path and are not
   imports. An import of SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a
   relative path that resolves, as written and without following links, into the repository's `src/` folder or into the
-  package's build output (`dist/`), or to a folder that holds either; a relative path to anything else, such as a shared
-  test fixture, is not one. It is allowed only when it is written `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a
-  subpath the `exports` field of the repository's root `package.json` names, and when no alias or `paths` entry
-  redirects that name. The test runs every row as a canary that must be found; each file canary is planted in
-  `site/src/`, where `../../` reaches the repository root):
+  package's build output (`dist/`), or to the repository root or a folder above it (which holds the repository's own
+  `src/`); a relative path to anything else, such as a shared test fixture, is not one. It is allowed only when it is
+  written `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
+  `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary that
+  must be found; each file canary is planted in `site/src/`, where `../../` reaches the repository root):
 
   | Canary |
   |---|
@@ -143,9 +143,9 @@ the strict policy.
   | `@import 'tailwindcss' source('../../src');` in a `.css` file |
 
   A site that imports only `@hniedner/sveltedt` and resolves it as a consumer does, with no alias, passes, and so does a
-  `@source` that names the installed package as a consumer's does (`@source '../node_modules/@hniedner/sveltedt';`). The
-  scan reports how many files it read; with no root `package.json`, no `exports` field in it, or no file read, it
-  reports "could not check", which blocks like a finding.
+  `@source` that names the installed package as a consumer's does (`@source '../node_modules/@hniedner/sveltedt';`), and
+  one that names the site's own folder (`@source '../';`). The scan reports how many files it read; with no root
+  `package.json`, no `exports` field in it, or no file read, it reports "could not check", which blocks like a finding.
 - Reason: the site may use only what a consumer can; a deep import hides a missing or broken export.
 - Layer: static check.
 - Traces: PRD-W1.
@@ -267,7 +267,7 @@ time it has loaded and its table has rendered.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
-| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: the header on the JSON endpoint's responses comes with the endpoint part, as a statement of its own |
+| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
 | PRD-W5 | SRV-01, SRV-03, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 
