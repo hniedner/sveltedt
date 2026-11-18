@@ -7,9 +7,10 @@
 - Field names: no
 - **Scope:** the statements a read-only table needs: rows in the given order with text or snippet cells, the
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
-  props, the APG table pattern, no global footprint, and theming by prefixed tokens. Then server-driven multi-column
-  sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable functions,
-  and focus and window scroll after a sort or pager intent.
+  props, the APG table pattern, no global footprint, and theming by prefixed tokens; the strict-policy rules for
+  the component source (no raw-HTML path, no injected style, link or script, no inline style). Then server-driven
+  multi-column sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable
+  functions, and focus and window scroll after a sort or pager intent.
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
@@ -120,10 +121,41 @@ its cells.
 - Traces: PRD-S2.
 
 **RND-04** The component source MUST NOT contain a raw-HTML path.
-- Example: a scan of `src/lib` for `{@html`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`,
-  `createContextualFragment`, `DOMParser` and `srcdoc` finds none; canary files holding `{@html x}` and
-  `el.insertAdjacentHTML("beforeend", x)` are both found.
-- Reason: RND-03 sweeps the props that exist; the scan also covers every prop added later.
+- Examples (each row, placed in a canary file, is a finding of the ban that names it; that the component source,
+  holding none of them, is not a finding is checked from the pull request that adds `src/lib`):
+
+  | Raw-HTML path in a canary file |
+  |---|
+  | `{@html x}` |
+  | `el.innerHTML = x` |
+  | `el["innerHTML"] = x` |
+  | `el.outerHTML = x` |
+  | `Object.assign(el, { innerHTML: x })` |
+  | `Object.assign(el, { outerHTML: x })` |
+  | `Object.assign(el, { srcdoc: x })` |
+  | `el.insertAdjacentHTML("beforeend", x)` |
+  | `document.write(x)` |
+  | `document.writeln(x)` |
+  | `window.document.write(x)` |
+  | `el.ownerDocument.write(x)` |
+  | `document.execCommand("insertHTML", false, x)` |
+  | `range.createContextualFragment(x)` |
+  | `new DOMParser().parseFromString(x, "text/html")` |
+  | `Document.parseHTML(x)` |
+  | `Document.parseHTMLUnsafe(x)` |
+  | `el.setHTML(x)` |
+  | `el.setHTMLUnsafe(x)` |
+  | `createRawSnippet(() => ({ render: () => x }))` |
+  | `<iframe srcdoc={x}></iframe>` |
+  | `<iframe {srcdoc}></iframe>` |
+  | `el.srcdoc = x` |
+  | `el.setAttribute("srcdoc", x)` |
+
+  A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
+  cast, an alias (`const d = document; d.write(x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  `this` is not seen, and such code is left to review.
+- Reason: RND-03 sweeps the props that exist; the check also covers every prop added later and each listed API that
+  turns a string into markup, Svelte's own `createRawSnippet` among them.
 - Layer: static check.
 - Traces: PRD-S2.
 
@@ -578,6 +610,36 @@ those Svelte adds for any component.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B19, PRD-A3.
 
+**FOOT-04** The component source MUST NOT add a style, link or script element or a style sheet to the page, nor
+anything to the document head.
+- Examples (each row, placed in a canary file, is a finding of the ban that names it; that the component source,
+  holding none of them, is not a finding is checked from the pull request that adds `src/lib`):
+
+  | Injection in a canary file |
+  |---|
+  | `<svelte:head><title>x</title></svelte:head>` |
+  | `<link rel="stylesheet" href={x} />` |
+  | `<div><script src={x}></script></div>` |
+  | `<div><style></style></div>` |
+  | `<svelte:element this="style"></svelte:element>` |
+  | `<svelte:element this={"script"}></svelte:element>` |
+  | `document.createElement("style")` |
+  | `document.createElement("link")` |
+  | `document.createElement("script")` |
+  | `new CSSStyleSheet()` |
+  | `document.adoptedStyleSheets = [sheet]` |
+  | `sheet.insertRule(rule)` |
+
+  A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
+  cast, an alias (`const make = document.createElement.bind(document); make("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  `this` is not seen, and such code is left to review.
+- Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 that no CSS ships: an injected
+  inline style or script is refused under the strict policy, so a consumer would have to loosen its policy, and a
+  sheet the component adds sits outside the consumer's one stylesheet build; the document head belongs to the app
+  (PRD-B19).
+- Layer: static check.
+- Traces: PRD-S1, PRD-T3, PRD-B19.
+
 ---
 
 ## 6. Theming (THEME)
@@ -653,6 +715,31 @@ table.
   know about and copy.
 - Layer: static check.
 - Traces: PRD-T3.
+
+**THEME-07** The component source MUST NOT give an element a `style` attribute, in markup or through
+`setAttribute`, nor a `style:` directive.
+- Examples (each row, placed in a canary file, is a finding of the ban that names it; that the component source,
+  holding none of them, is not a finding is checked from the pull request that adds `src/lib`):
+
+  | Inline style in a canary file |
+  |---|
+  | `<p style="color: red"></p>` |
+  | `<p style={x}></p>` |
+  | `<svelte:element this="p" style="color: red"></svelte:element>` |
+  | `<p {style}></p>` |
+  | `<p style:color="red"></p>` |
+  | `el.setAttribute("style", x)` |
+
+  Setting one property of an element's `style` object (`el.style.width = w`, `el.style.setProperty("width", w)`)
+  stays allowed: the policy does not refuse it.
+  A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
+  cast, an alias (`const set = el.setAttribute.bind(el); set("style", x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  `this` is not seen, and such code is left to review.
+- Reason: server rendering writes each markup form as a `style="..."` attribute (MEASURED 2026-11-18, Svelte 5.57.3), which the
+  strict policy refuses (PRD-S1), and `setAttribute("style", ...)` is refused in the browser; a `style:` directive is
+  also a form the mutation tool does not mutate (PRD-G2).
+- Layer: static check.
+- Traces: PRD-S1, PRD-G2.
 
 ## 7. Server-driven sort (SORT)
 
@@ -1510,12 +1597,14 @@ receives that number.
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
+| FOOT-04 | PRD-S1, PRD-T3, PRD-B19 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
 | THEME-06 | PRD-T2, PRD-A1 |
 | THEME-04 | PRD-T3 |
 | THEME-05 | PRD-T3 |
+| THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
 | SORT-02 | PRD-B4 |
@@ -1600,7 +1689,7 @@ state in their own statements.
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
@@ -1608,6 +1697,7 @@ state in their own statements.
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
+| PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
@@ -1615,7 +1705,8 @@ state in their own statements.
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
-| PRD-T3 | THEME-04, THEME-05 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
+| PRD-T3 | THEME-04, THEME-05, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
+| PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 
 ### PRD musts not yet traced
 
@@ -1624,13 +1715,12 @@ state in their own statements.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
-- Strict policy and side effects: PRD-S1.
 - Theming: PRD-T4 (the example token set, light and dark).
 - Internationalisation: PRD-I3.
 - Large pages and size: PRD-P1, PRD-P3.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2, PRD-K3.
-- Gate: PRD-G1, PRD-G2, PRD-G3.
+- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.

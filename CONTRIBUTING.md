@@ -40,11 +40,52 @@ The checks today:
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
   detect is a finding.
 - **text, format, lint, types, dupes:** every tracked file has a class in `scripts/check-repo.ts` that names the
-  steps that check it; a file of no class blocks the gate. Prettier formats (fix with
-  `pnpm exec prettier --write <file>`), ESLint lints the scripts, TypeScript type-checks them, jscpd finds copied
-  code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
+  (named in `package.json`; fix with
+  `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a `style` attribute in any case or `{style}`,
+  `svelte:head`, a `<style>` block or a `style`, `link` or `script` element, written or through `svelte:element`
+  with a literal `this`; no style, `srcdoc` or `on*` handler set by `setAttribute`, no `style`, `link` or `script`
+  created by
+  `createElement` or `createElementNS`, no `innerHTML`, `outerHTML` or `srcdoc` assigned, in an object literal or
+  as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
+  `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
+  constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
+  run time or written as a template literal; a cast or non-null assertion on the object a ban reads
+  (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as
+string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
+  `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
+  `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
+  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration of every
+  linted file and of a path in `src/lib` and `site/src` (`CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level
+  source folder is not probed until it is added there), and blocks when a rule the canaries prove, the settings, the
+  linter options, the processor or the parser differ from its extension's canary, or a script ban the `.ts` canary
+  proves is missing. A processor or parser that keeps the real one's name and version, or has none, while changing
+  what is linted, is not seen by this comparison (measured with eslint-plugin-svelte 3.24.1 and ESLint 10.15.0). TypeScript
+  type-checks `scripts/` through `scripts/tsconfig.json`, jscpd finds copied
+  code outside tests and components (a file under its 50 tokens or, measured with jscpd 5.4.3, 5 lines cannot hold a clone: it is set
+  aside and named with jscpd's own count, or as blank). The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
+- **svelte:** svelte-check type-checks, strict and through the root `tsconfig.json`, every tracked `.svelte`
+  component and all TypeScript outside `scripts/` except declaration files (a name with `.d.` has no class and
+  blocks): TypeScript that imports a component is checked against the component's
+  real type, which tsc does not know. Every component carries a `<script lang="ts">` block, and each of its scripts is
+  TypeScript: svelte-check type-checks no markup and no script of a component without one (measured with
+  svelte-check 4.7.8), so the step reports such a component as a finding. A component Svelte's compiler cannot parse is a finding too,
+  with Svelte's message and line: svelte-check drops some parse errors (one that says "expected" when `svelte.config.js` has no
+  `preprocess` and the component has a `lang` attribute; measured with svelte-check 4.7.8). A file outside the program, or a script
+  in it as well as in tsc's, blocks the
+  gate, since svelte-check would skip the first silently and the two checkers could disagree on the second. TypeScript outside
+  `scripts/` with no component at all cannot be checked: svelte-check refuses a program without a component (its
+  error 100001, measured with svelte-check 4.7.8), a limit of the tool, not a rule of ours. With nothing of its own tracked the step is NOT
+  APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
+  config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
+  (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
+  it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
+  added; that file is edited.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
@@ -102,9 +143,11 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions (`@ts-expect-error`, `jscpd:ignore`, a zizmor ignore comment) are not yet refused; ESLint
-  ignores its inline configuration, gitleaks ignores its allow comments, and the scan refuses a
-  folder holding a `.gitleaksignore`. A ban list for the rest comes with the Svelte checks.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
+  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
+  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
+  a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.
