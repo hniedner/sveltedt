@@ -2,13 +2,20 @@
   import type { DataTableProps } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
-  const { rows, columns, getRowId, caption, regionLabel }: DataTableProps<Row> =
-    $props();
+  const {
+    rows,
+    columns,
+    getRowId,
+    caption,
+    regionLabel,
+    heading,
+  }: DataTableProps<Row> = $props();
   const fault = $derived(
     validateTable({ rows, columns, getRowId, caption, regionLabel }),
   );
 </script>
 
+{@render heading?.()}
 {#if fault}
   <div role="alert">{fault}</div>
 {:else}

@@ -333,3 +333,16 @@ describe(spec("RND-09", "eb114954"), () => {
     },
   );
 });
+
+const heading = createRawSnippet(() => ({ render: () => "<h2>Orders</h2>" }));
+
+describe(spec("RND-10", "2943a803"), () => {
+  it("still renders the heading snippet beside the alert", () => {
+    const component = show({ columns: [], heading });
+    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    expect(screen.getByRole("heading", { name: "Orders" }).isConnected).toBe(
+      true,
+    );
+    expect(component.querySelector("table")).toBeNull();
+  });
+});
