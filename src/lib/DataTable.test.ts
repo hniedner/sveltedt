@@ -309,12 +309,69 @@ describe("RND-05", () => {
       },
       "A row id is empty.",
     ],
+    // The pairs below are adjacent rows of the table: each fails if its two checks swap order
+    [
+      "several faults: an empty caption and an empty region label",
+      { caption: "", regionLabel: "" },
+      "Table caption must not be empty.",
+    ],
+    [
+      "several faults: an empty region label and no columns",
+      { regionLabel: "", columns: [] },
+      "Table region label must not be empty.",
+    ],
+    [
+      "several faults: two columns sharing an id, one with an empty label",
+      { columns: [column("c", "Name"), column("c", "")] },
+      "Two columns share an id.",
+    ],
+    [
+      "several faults: two columns sharing a label, one with neither value nor cell",
+      {
+        columns: [
+          column("a", "Name"),
+          { id: "b", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "Two columns share a label.",
+    ],
+    [
+      "several faults: a column with neither value nor cell and an empty row id",
+      {
+        columns: [
+          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+        getRowId: () => "",
+      },
+      "A column has no value and no cell.",
+    ],
+    [
+      "several faults: two rows sharing an id, then a row id that throws",
+      {
+        rows: [...twoRows, { id: "r3", name: "Gamma" }],
+        getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
+      },
+      "Two rows share an id.",
+    ],
   ])("shows only one alert, no table, when %s", (_fault, props, message) => {
     const component = show(props);
     expect(
       screen.getAllByRole("alert").map((alert) => alert.textContent),
     ).toEqual([message]);
     expect(component.querySelector("table")).toBeNull();
+  });
+
+  it("follows the props: the alert gives way to the table and comes back", async () => {
+    const { rerender } = render(DataTable<Item>, { ...base, columns: [] });
+    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    await rerender({ columns: [nameColumn] });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(firstCells()).toEqual(["Beta"]);
+    await rerender({ caption: "" });
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Table caption must not be empty.",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
   });
 });
 
@@ -395,10 +452,17 @@ type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
-// True when field K of T is read-only
-type ReadOnlyField<T, K extends keyof T> = Same<
-  Pick<T, K>,
-  Readonly<Pick<T, K>>
+// True when A can be passed where B is expected
+type Fits<A, B> = [A] extends [B] ? true : false;
+// True when field K is read-only in every member of the union T (a Pick over the whole union would hide one
+// member that drops it)
+type ReadOnlyField<T, K extends PropertyKey> = Same<
+  T extends unknown
+    ? K extends keyof T
+      ? Same<Pick<T, K>, Readonly<Pick<T, K>>>
+      : true
+    : never,
+  true
 >;
 
 describe("DataTableColumn's type", () => {
@@ -411,5 +475,14 @@ describe("DataTableColumn's type", () => {
       ReadOnlyField<DataTableColumn<Item>, "cell">,
     ] = [true, true, true, true];
     expect(fields).toEqual([true, true, true, true]);
+  });
+
+  it("requires value or cell", () => {
+    // Compiles only while a column with neither is refused: the types and svelte steps check it
+    const neither: Fits<
+      { id: string; label: string },
+      DataTableColumn<Item>
+    > = false;
+    expect(neither).toBe(false);
   });
 });
