@@ -138,11 +138,13 @@
 
   | Setting | Result |
   |---|---|
-  | build scripts allowed for `esbuild` only, `esbuild` in the allow-list | passes |
-  | build scripts allowed for every package | finding |
-  | build scripts allowed for `left-pad`, which the allow-list does not name | finding |
+  | no package allowed, and an unlisted package with a script fails the install | passes |
+  | `esbuild` allowed, with the reason its script must run beside it | passes |
+  | `esbuild` allowed with no reason | finding |
+  | every package allowed | finding |
+  | an unlisted package with a script only warned about, the install going on | finding |
 
-  The allow-list is a file in the repository that names each package and the reason its script must run.
+  The allow-list lives in the package manager's settings in the repository; each entry carries its reason.
 - Reason: an install script runs with the developer's and the runner's rights before any test or review.
 - Layer: static check.
 - Traces: PRD-S5.
@@ -290,18 +292,19 @@ job, which runs in the `release` environment.
 
   | Tag | Version in `package.json` on `main` | Version in the packed tarball |
   |---|---|---|
-  | `v0.4.0` | `0.0.0-development` | `0.4.0` |
-  | `v0.1.0-rehearsal.0` | `0.0.0-development` | `0.1.0-rehearsal.0` |
+  | `v0.4.0` | `0.0.0` | `0.4.0` |
+  | `v0.1.0-rehearsal.0` | `0.0.0` | `0.1.0-rehearsal.0` |
 
 - Reason: with no commit to `main` (REL-05), the tag is the only place the version lives.
 - Layer: unit.
 - Traces: PRD-S7.
 
-**REL-09** The `version` in `package.json` on `main` MUST be `0.0.0-development`.
-- Examples (the test runs every row as a canary): `0.0.0-development` passes; `0.4.0` is a finding; a missing
-  `version` is a finding.
-- Reason: a real version on `main` would drift from the tags and could be published by mistake; the placeholder
-  cannot be mistaken for a release.
+**REL-09** The `version` in `package.json` on `main` MUST be `0.0.0`.
+- Examples (the test runs every row as a canary): `0.0.0` passes; `0.4.0` is a finding; `0.0.0-development` is a
+  finding; a missing `version` is a finding.
+- Reason: a real version on `main` would drift from the tags; `0.0.0` is the placeholder already on the registry
+  (PRD-S7 step 1), so a publish of `main` by mistake names a version npm already holds and is refused (INFERRED:
+  npm never accepts a published version twice).
 - Layer: static check.
 - Traces: PRD-S7.
 
