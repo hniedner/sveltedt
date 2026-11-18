@@ -25,6 +25,20 @@ import { parse } from "svelte/compiler";
 import ts from "typescript";
 import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
+interface Result {
+  code: number;
+  summary: string;
+  details: string[];
+}
+const result = (
+  code: number,
+  summary: string,
+  details: string[] = [],
+): Result => ({
+  code,
+  summary,
+  details,
+});
 const WORD: Record<number, string> = {
   [PASS]: "PASS",
   [FINDING]: "FINDING",
@@ -439,44 +453,26 @@ function exportsFolder(e: unknown): string {
   return common.join("/");
 }
 
-function check(root: string): {
-  code: number;
-  summary: string;
-  details: string[];
-} {
+function check(root: string): Result {
   if (!canariesFound())
-    return {
-      code: CANNOT,
-      summary: "an IMP-01 canary row did not give its stated result",
-      details: [],
-    };
+    return result(
+      CANNOT,
+      "an IMP-01 canary row did not give its stated result",
+    );
   const pkg = readExports(root);
-  if (!pkg)
-    return {
-      code: CANNOT,
-      summary: "no readable root package.json",
-      details: [],
-    };
+  if (!pkg) return result(CANNOT, "no readable root package.json");
   const keys = exportKeys(pkg.exports);
-  if (typeof keys === "string")
-    return { code: CANNOT, summary: keys, details: [] };
+  if (typeof keys === "string") return result(CANNOT, keys);
   const folder = exportsFolder(pkg.exports);
   if (!folder)
-    return {
-      code: CANNOT,
-      summary:
-        "the exports targets' deepest folder is the package's own folder",
-      details: [],
-    };
+    return result(
+      CANNOT,
+      "the exports targets' deepest folder is the package's own folder",
+    );
   const r = spawnSync("git", ["-C", root, "ls-files", "-z", "site"], {
     encoding: "utf8",
   });
-  if (r.status !== 0)
-    return {
-      code: CANNOT,
-      summary: `${root}: git ls-files failed`,
-      details: [],
-    };
+  if (r.status !== 0) return result(CANNOT, `${root}: git ls-files failed`);
   const files = r.stdout
     .split("\0")
     .filter(
@@ -485,12 +481,7 @@ function check(root: string): {
         !/^site\/(?:dist|node_modules)\//.test(f) &&
         !f.includes("/node_modules/"),
     );
-  if (!files.length)
-    return {
-      code: CANNOT,
-      summary: "no tracked file read under site/",
-      details: [],
-    };
+  if (!files.length) return result(CANNOT, "no tracked file read under site/");
   const ctx: Ctx = { root, exportKeys: keys, exportsFolder: folder };
   const details = files.flatMap((f) =>
     scanFile(ctx, f, readFileSync(join(root, f), "utf8")),
