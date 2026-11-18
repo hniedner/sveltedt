@@ -43,14 +43,16 @@ The checks today:
   `{@attach}`, spread attribute, `bind:` other than `bind:this` or inline style: PRD-G2 and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
-  code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  code outside tests and components. The security lint set (inline styles, injected elements, raw HTML) follows in
+  its own pull request. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
 - **svelte:** svelte-check type-checks every tracked `.svelte` component, strict, through `tsconfig.json`; a
   component outside its `include` blocks the gate, since svelte-check would skip it silently. With no component
   tracked the step is NOT APPLICABLE, after its planted error was found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
-  (ignored folders too), and with no root config those above it (measured). A second Svelte or Vite config is not
+  (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
+  it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
   added; that file is edited.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its

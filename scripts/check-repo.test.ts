@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -1135,9 +1134,8 @@ test("svelte: without a tracked svelte.config.js the step cannot be checked", ()
   assert.match(out, /svelte\.config\.js is not tracked/);
 });
 test("svelte: no Svelte config below the root is imported, only the root's", () => {
-  // svelte-check searches above the root and imports vite.config.* only while no root config exists (measured by
-  // the probe kept with this step's evidence); the step refuses to run without one, so the nested case is the one
-  // a run can meet.
+  // svelte-check searches above the root and imports vite.config.* only while no root config exists (measured with
+  // svelte-check 4.7.8, 2026-11-17); the step refuses to run without one, so the nested case is the one a run can meet.
   const root = repo(component(COMPONENT));
   const marker = join(root, "MARKER-nested");
   put(
@@ -1308,17 +1306,63 @@ test("svelte: a canary that reports only the wrong type, as a non-strict config 
   const out = expect("svelte", repo(), 3, { canaries: dir });
   assert.match(out, /did not report the planted type errors/);
 });
-test("svelte: output that is not svelte-check's diagnostics cannot be checked", () => {
+/** A stand-in for svelte-check: the canary folder (.../svelte) prints `canary`, the repository `rest`, each line a
+ * machine-verbose line; both exit 1. */
+function fakeSvelteCheck(canary: string[], rest: string[]): string {
   const bin = join(tempDir(), "svelte-check");
+  const say = (lines: string[]) =>
+    lines.map((l) => `echo '1 ${l}'`).join("; ") || ":";
   writeFileSync(
     bin,
-    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\necho '1 {"type":"ERROR","filename'\nexit 1\n`,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\ncase "$(pwd)" in\n  */svelte) ${say(canary)};;\n  *) ${say(rest)};;\nesac\nexit 1\n`,
   );
   chmodSync(bin, 0o755);
-  const out = expect("svelte", repo(), 3, {
-    extraEnv: { SVELTE_CHECK_BIN: bin },
+  return bin;
+}
+/** One diagnostic line as svelte-check prints it. */
+const diagnostic = (code: number, type = "ERROR", filename = "canary.svelte") =>
+  JSON.stringify({
+    type,
+    filename,
+    start: { line: 1 },
+    code,
+    message: "planted",
   });
-  assert.match(out, /not its diagnostics/);
+const PLANTED = [diagnostic(2322), diagnostic(7006)];
+test("svelte: output that is not svelte-check's diagnostics cannot be checked, from the canary run or the real one", () => {
+  for (const [canary, rest] of [
+    [['{"type":"ERROR","filename'], []],
+    [PLANTED, ['{"type":"ERROR","filename']],
+    [PLANTED, ['{"type":"ERROR"}']],
+  ]) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, rest) },
+    });
+    assert.match(out, /not its diagnostics/);
+  }
+});
+test("svelte: a canary run missing a planted error, reporting it as a warning or on another file cannot be checked", () => {
+  for (const canary of [
+    [diagnostic(7006)],
+    [diagnostic(2322), diagnostic(7006, "WARNING")],
+    [diagnostic(2322), diagnostic(7006, "ERROR", "other.svelte")],
+  ]) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, []) },
+    });
+    assert.match(out, /did not report the planted type errors/);
+  }
+});
+test("svelte: a tsconfig.json TypeScript cannot read cannot be checked, and says why", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      edit("tsconfig.json", "{", '{\n  "extends": "./nope.json",')(root);
+    }),
+    3,
+  );
+  assert.match(out, /TypeScript cannot read tsconfig\.json/);
 });
 test("svelte: another svelte-check version than the pin cannot be checked", () => {
   expect(

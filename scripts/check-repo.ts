@@ -1291,7 +1291,7 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
-// The test seam SVELTE_CHECK_BIN, as for the other pinned tools; unset, the installed svelte-check.
+// The test seam SVELTE_CHECK_BIN, like the <NAME>_BIN seams of binaryOf; unset, the installed svelte-check.
 const svelteCheckBin = (): string =>
   process.env.SVELTE_CHECK_BIN ||
   join(HERE, "..", "node_modules", ".bin", "svelte-check");

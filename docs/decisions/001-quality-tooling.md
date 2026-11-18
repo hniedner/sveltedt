@@ -37,7 +37,7 @@ pages named, or measured with the command named.
 - **Decision:** eslint-plugin-compat 7.0.2, recommended, with the floor in `settings.browsers` (no browserslist file
   to classify), on every `.ts` and `.svelte` file; the TypeScript scripts run on Node and raise nothing, and the
   `.mjs` and `.js` files (scripts and configuration) are not checked by it.
-- **Measured limit** (2026-11-17, the plan's adversarial read): it flags `new IdleDetector()` and
+- **Measured limit** (eslint-plugin-compat 7.0.2, 2026-11-17): it flags `new IdleDetector()` and
   `new PaymentRequest()` in `.ts`, `.mjs` and `.svelte`, but not `navigator.share`, `showOpenFilePicker`,
   `new CloseWatcher()`, `Promise.withResolvers()` or `[].toSorted()`, even with `lintAllEsApis`. The support
   statement says so; the real-browser tests of PRD-E1 are the proof for the floor browsers.
@@ -48,7 +48,9 @@ pages named, or measured with the command named.
 - **Candidates:**
   - jscpd 5 (native, MIT, no install script: `npm view jscpd` shows only optional platform packages);
   - fallow 3 (native, MIT; duplication plus complexity and dead code; its diff mode needs a base ref).
-- **Decision:** jscpd over every non-test script (the dupes class), any clone fails.
+- **Decision:** jscpd over every non-test script (the dupes class), any clone fails. Svelte components are not in
+  the class: jscpd 5.4.3 counts a component as several sources and names none (measured, 2026-11-17), so the step
+  cannot prove each one analysed. Review guards duplicated markup until that is solved (issue #7).
   - The scripts start at zero clones, so "no clone in them" equals "no new block repeats an existing one"
     without a base ref.
   - fallow's complexity check would repeat ESLint's (method section 5, one source).
@@ -92,7 +94,7 @@ Source: apache.org/legal/resolved.html. Category B "may be, under certain condit
 **The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: 0BSD, Apache-2.0,
 BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC-BY-4.0, CC0-1.0, ISC, MIT, MPL-2.0. Another
 Category A licence or a listed Category B one
-joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
+joins both in one commit. Measured with `pnpm licenses list` on 2026-11-17: every development dependency is one of these.
 The gate's licences step reads the list there and fails a licence pnpm cannot detect. Known limit: a licence written
 as an SPDX expression (`MIT OR CC0-1.0`) fails its exact match, though dependency-review accepts it (issue #7).
 
@@ -123,7 +125,8 @@ package is the gate's rule that nothing ships but a `svelte` peer.
   advisory's range and NOT visible to dependency-review, and that copy is only loaded: no glob call exists in it and
   all its file filters are predicates. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config
   file in the tree, which a pull request can add in any folder. The effect is at most a hung gate, which a pull
-  request can already cause. A svelte-check bump re-opens this claim: the probe is run again first.
+  request can already cause. A svelte-check bump re-opens this claim: before it merges, the bundled picomatch is
+  instrumented again and svelte-check run with extglob patterns in tsconfig.json's include and exclude.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.

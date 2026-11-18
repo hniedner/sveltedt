@@ -8,7 +8,7 @@
   const attach = (node: HTMLElement) => node;
   const style = "color: red";
   let el: HTMLElement | undefined = $state();
-  // Above the browser floor (PRD-E1): IdleDetector is in no floor browser.
+  // Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
   const idle = new IdleDetector();
 </script>
 

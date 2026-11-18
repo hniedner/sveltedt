@@ -29,5 +29,5 @@ export function e(x: number): number {
   if (x === 20) return 20;
   return -1;
 }
-// Above the browser floor (PRD-E1): IdleDetector is in no floor browser.
+// Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
 export const idle = new IdleDetector();
