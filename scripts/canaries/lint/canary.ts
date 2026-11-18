@@ -1,4 +1,5 @@
-// Planted violations: the lint step fails could-not-check unless ESLint reports every one of them in a .ts file.
+// Planted violations: the lint step fails could-not-check unless ESLint raises every rule and ban message
+// LINT_CANARY_RULES (scripts/check-repo.ts) lists for this extension; plants that share a message count once.
 export const a: any = eval("1");
 export const b = setTimeout("a()", 1);
 export const c = new Function("return 1");
@@ -31,3 +32,26 @@ export function e(x: number): number {
 }
 // Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
 export const idle = new IdleDetector();
+// Refused by typescript-eslint's ban-ts-comment: a comment that switches type checking off for the next line.
+// @ts-ignore
+export const off: number = "one";
+export function inject(el: HTMLElement, html: string): void {
+  el.setAttribute("style", "color: red");
+  document.head.append(document.createElement("style"));
+  el.innerHTML = html;
+  el.insertAdjacentHTML("beforeend", html);
+  el.setAttribute("srcdoc", html);
+  el.setHTMLUnsafe(html);
+  document.createRange().createContextualFragment(html);
+  document.write(html);
+  new DOMParser().parseFromString(html, "text/html");
+  Document.parseHTMLUnsafe(html);
+  Object.assign(el, { innerHTML: html });
+  el.setHTML(html);
+  document.adoptedStyleSheets = [new CSSStyleSheet()];
+  document.execCommand("insertHTML", false, html);
+  Document.parseHTML(html);
+  el["insertAdjacentHTML"]("beforeend", html);
+  document.createElementNS("http://www.w3.org/2000/svg", "style");
+  document.styleSheets[0]?.insertRule("p {}");
+}

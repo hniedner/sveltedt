@@ -1,6 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
-import { spec } from "../../test/spec.ts";
 import ListPage from "./ListPage.svelte";
 import { orders } from "./orders.ts";
 
@@ -12,7 +11,8 @@ function firstCells(): string[] {
     .map((row) => within(row).getAllByRole("cell")[0]?.textContent ?? "");
 }
 
-describe(spec("LIST-01", "ba29e454"), () => {
+// @spec("LIST-01", "ba29e454")
+describe("LIST-01", () => {
   it("shows one table, named by its caption, with one body row per entry of the fixed list", () => {
     render(ListPage);
     expect(screen.getAllByRole("table")).toHaveLength(1);
@@ -25,7 +25,8 @@ describe(spec("LIST-01", "ba29e454"), () => {
   });
 });
 
-describe(spec("LIST-02", "beb6972b"), () => {
+// @spec("LIST-02", "beb6972b")
+describe("LIST-02", () => {
   it("shows the rows in the order of the fixed list", () => {
     render(ListPage);
     expect(firstCells()).toEqual(

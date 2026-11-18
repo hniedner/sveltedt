@@ -1,10 +1,16 @@
 // @vitest-environment node
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  linkSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { spec } from "../test/spec.ts";
 import { siteServer } from "./server.ts";
 
 interface Answer {
@@ -34,11 +40,13 @@ function put(root: string, path: string, text: string): void {
 // A folder holding a package.json and the build folder `dist` with the given files; the server started on `dist`
 async function serve(
   files: Readonly<Record<string, string>>,
+  plant: (dist: string) => void = () => {},
 ): Promise<{ server: Server; dist: string }> {
   const folder = mkdtempSync(join(tmpdir(), "site-server-"));
   put(folder, "package.json", PARENT);
   const dist = join(folder, "dist");
   for (const [path, text] of Object.entries(files)) put(dist, path, text);
+  plant(dist);
   const server = siteServer(dist);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   started.push({ server, folder });
@@ -67,7 +75,8 @@ function get(server: Server, path: string): Promise<Answer> {
   });
 }
 
-describe(spec("SRV-01", "a3f33248"), () => {
+// @spec("SRV-01", "a3f33248")
+describe("SRV-01", () => {
   let server: Server;
   beforeAll(async () => {
     const site = await serve({ "index.html": INDEX, "assets/app.js": APP });
@@ -103,7 +112,71 @@ describe(spec("SRV-01", "a3f33248"), () => {
   });
 });
 
-describe(spec("SRV-03", "65a24eb7"), () => {
+// @spec("SRV-04", "4c9f2a74")
+describe("SRV-04", () => {
+  // Each row's link, its target written relative to the link, planted before its own server starts
+  const symbolic = (link: string, target: string) => (dist: string) =>
+    symlinkSync(target, join(dist, link));
+  const hard = (dist: string) =>
+    linkSync(join(dist, "assets/app.js"), join(dist, "hard.js"));
+  it.each([
+    [
+      "linkdir to the parent",
+      "/linkdir/package.json",
+      404,
+      null,
+      symbolic("linkdir", ".."),
+    ],
+    [
+      "outside.json to the parent's package.json",
+      "/outside.json",
+      404,
+      null,
+      symbolic("outside.json", "../package.json"),
+    ],
+    [
+      "same.js to assets/app.js",
+      "/same.js",
+      404,
+      null,
+      symbolic("same.js", "assets/app.js"),
+    ],
+    [
+      "same.js to assets/app.js",
+      "/assets/app.js",
+      200,
+      APP,
+      symbolic("same.js", "assets/app.js"),
+    ],
+    ["loop to the build folder", "/", 200, INDEX, symbolic("loop", ".")],
+    [
+      "loop to the build folder",
+      "/loop/index.html",
+      404,
+      null,
+      symbolic("loop", "."),
+    ],
+    ["hard.js, a hard link to assets/app.js", "/hard.js", 200, APP, hard],
+  ] as const)(
+    "with %s, answers GET %s with %i",
+    async (_link, path, status, body, plant) => {
+      const { server } = await serve(
+        { "index.html": INDEX, "assets/app.js": APP },
+        plant,
+      );
+      const answer = await get(server, path);
+      expect(answer.status).toBe(status);
+      if (body === null)
+        expect(
+          [PARENT, INDEX, APP].filter((file) => answer.body.includes(file)),
+        ).toEqual([]);
+      else expect(answer.body).toBe(body);
+    },
+  );
+});
+
+// @spec("SRV-03", "65a24eb7")
+describe("SRV-03", () => {
   const kinds = [
     ["index.html", "text/html; charset=utf-8"],
     ["assets/app.js", "text/javascript; charset=utf-8"],

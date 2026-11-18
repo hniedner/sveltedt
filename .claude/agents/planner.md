@@ -15,7 +15,8 @@ For each step of the plan give:
 3. **The smallest change** that turns it green. Name the KISS and DRY checks it must pass (method section 5): no
    setting, abstraction or dependency without a statement that asks for it.
 4. **Blast radius, measured:** grep for every caller and every test the change touches; give numbers.
-5. **Library first:** if the step builds something reusable, the evaluation it needs (method section 8).
+5. **Library first:** if the step builds something reusable, the evaluation it needs; for a non-trivial decision,
+   the fetched practice of the leading libraries or the standard (method section 8).
 6. **Checks with three outcomes:** every check the step adds says pass, finding and could not check (method
    section 6).
 7. **Stop condition and size cap:** when the step is done, and what observation stops it for a ruling.

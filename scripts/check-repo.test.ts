@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -58,7 +59,8 @@ jobs:
           allow-licenses: ISC, MIT
 `;
 const PASSING_TEST = `import { test } from "node:test";\ntest("one", () => {});\n`;
-/** The fixture's own tsconfig, read by ESLint's type-aware rules for its TypeScript scripts (Prettier's layout). */
+/** The fixture's root tsconfig, for components and the TypeScript beside them (svelte-check); scripts/ has its own
+ * (tsc). ESLint's type-aware rules read the tsconfig.json nearest to each file. */
 const FIXTURE_TSCONFIG = `{
   "compilerOptions": {
     "target": "es2024",
@@ -70,7 +72,13 @@ const FIXTURE_TSCONFIG = `{
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["src", "site", "test"]
+}
+`;
+const SCRIPTS_TSCONFIG = `{
+  "extends": "../tsconfig.json",
+  "include": ["**/*.ts"],
+  "exclude": ["canaries/**"]
 }
 `;
 const NODE_MAJOR = process.versions.node.split(".")[0];
@@ -122,6 +130,7 @@ const PACKAGE: Pkg = {
     prettier: PINS.prettier,
     "svelte-check": PINS["svelte-check"],
     typescript: PINS.typescript,
+    vitest: PINS.vitest,
   },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
@@ -152,6 +161,7 @@ function repo(change: (root: string) => void = () => {}): string {
     "SECURITY.md": "# Security\n",
     ".gitignore": "/tmp/\n/node_modules\n",
     "tsconfig.json": FIXTURE_TSCONFIG,
+    "scripts/tsconfig.json": SCRIPTS_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
     "package.json": `${JSON.stringify(PACKAGE, null, 2)}\n`,
     "pnpm-workspace.yaml": WORKSPACE,
@@ -600,6 +610,85 @@ test("lockfile: a package.json not marked private is a finding", () => {
   // Until the packaging pull request, a stray publish must fail on the manifest.
   expect("lockfile", repo(pkg((p) => delete p.private)), 1);
 });
+/** The fixture with a workspace package `site` whose manifest is `manifest` (none when null). */
+const sitePackage =
+  (manifest: object | null) =>
+  (root: string): void => {
+    workspace("packages:\n  - site")(root);
+    if (manifest) put(root, "site/package.json", JSON.stringify(manifest));
+  };
+test("lockfile: a workspace package with workspace links and exact development versions passes", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*" },
+    devDependencies: { vite: "8.3.8" },
+  });
+  expect("lockfile", repo(site), 0);
+});
+test("lockfile: a workspace package's range or registry dependency is a finding that names its manifest", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*", "left-pad": "1.3.0" },
+    devDependencies: { vite: "^8.3.8" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: dependencies: left-pad is "1\.3\.0"/);
+  assert.match(
+    out,
+    /site\/package\.json: devDependencies: vite is "\^8\.3\.8"/,
+  );
+  assert.doesNotMatch(out, /sveltedt/);
+});
+test("lockfile: a workspace package without a manifest is a finding", () => {
+  assert.match(
+    expect("lockfile", repo(sitePackage(null)), 1),
+    /site\/package\.json is missing or not JSON/,
+  );
+});
+test("lockfile: workspace packages written in a form the step cannot read are a finding, never a pass", () => {
+  for (const form of [
+    "packages: [site]",
+    "packages:\n- site",
+    "packages: # the site",
+  ]) {
+    const site = (root: string): void => {
+      workspace(form)(root);
+      put(root, "site/package.json", "{}");
+    };
+    assert.match(
+      expect("lockfile", repo(site), 1),
+      /pnpm-workspace\.yaml: packages are named in a form this step cannot read/,
+    );
+  }
+});
+test("lockfile: every entry of the packages list is read, and the list ends at the next setting", () => {
+  const list = (root: string): void => {
+    workspace(
+      `packages:\n  - site\n  # the tools\n\n  - "tools/x"\n# exceptions\nminimumReleaseAgeExclude:\n  - prettier@3.9.11 ${GHSA}`,
+    )(root);
+    put(
+      root,
+      "site/package.json",
+      '{ "devDependencies": { "jsdom": "^31.0.1" } }',
+    );
+    put(
+      root,
+      "tools/x/package.json",
+      '{ "devDependencies": { "vite": "^8.3.8" } }',
+    );
+  };
+  const out = expect("lockfile", repo(list), 1);
+  assert.match(out, /tools\/x\/package\.json: devDependencies: vite/);
+  assert.match(out, /site\/package\.json: devDependencies: jsdom/);
+  assert.doesNotMatch(out, /prettier/);
+});
+test("lockfile: an optional or peer dependency of a workspace package other than a workspace link is a finding", () => {
+  const site = sitePackage({
+    optionalDependencies: { "left-pad": "1.3.0" },
+    peerDependencies: { svelte: "^5.0.0" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: optionalDependencies: left-pad/);
+  assert.match(out, /site\/package\.json: peerDependencies: svelte/);
+});
 test("files: a required file on disk but not tracked is a finding", () => {
   const root = repo();
   git(root, "rm", "-q", "--cached", "SECURITY.md"); // CI sees only tracked files
@@ -836,17 +925,15 @@ test("lint: passes when ESLint fails its canaries and accepts every script", () 
   const out = expect("lint", repo(script("export const one = 1;\n")), 0);
   assert.match(out, /\.svelte 0$/m);
 });
-test("lint and format: a .js file is linted and formatted like a script", () => {
+test("lint and format: the Svelte config, the one .js file, is linted and formatted like a script", () => {
+  const config = (text: string) => (root: string) =>
+    put(root, "svelte.config.js", text);
   expect(
     "lint",
-    repo((root) => put(root, "tools/x.js", 'export const a = eval("1");\n')),
+    repo(config('export const a = eval("1");\nexport default {};\n')),
     1,
   );
-  expect(
-    "format",
-    repo((root) => put(root, "tools/x.js", "export const a = 1\n")),
-    1,
-  );
+  expect("format", repo(config("export default {}\n")), 1);
 });
 test("format: an .html or a .css file is formatted", () => {
   expect(
@@ -1001,12 +1088,119 @@ test("dupes: a jscpd that fails on the repository cannot be checked", () => {
     /jscpd exited|no jscpd report/,
   );
 });
-test("dupes: a file jscpd does not analyse cannot be checked", () => {
-  // Under jscpd's 50 tokens: it is left out of the report like a file over its size limit.
-  const short = (root: string) =>
-    put(root, "scripts/short.mjs", "export const one = 1;\n");
-  const out = expect("dupes", repo(short), 3);
-  assert.match(out, /jscpd analysed 2 of 3 file\(s\)/);
+// A component project has small files: an index of two lines, a Vite config of 35 tokens, a barrel of four lines
+// (counts by jscpd 5.4.3). jscpd leaves out a file under its 50 tokens or, measured, 5 lines; such a file cannot hold a
+// clone, so it is set aside by name with jscpd's own count. mid.mjs (65 tokens, 7 lines) must be analysed, so a raised
+// token minimum fails; five.mjs (exactly 5 lines) must be analysed, so a raised line minimum fails.
+const SMALL = {
+  "scripts/index.mjs":
+    'export { one } from "./one.mjs";\nexport const two = 2;\n',
+  "scripts/vite.config.mjs":
+    'import { defineConfig } from "vite";\nexport default defineConfig({\n  root: "site",\n  build: { outDir: "dist" },\n  server: { port: 5173 },\n});\n',
+  "scripts/mid.mjs":
+    'export const settings = {\n  name: "table",\n  rows: [1, 2, 3, 4, 5, 6, 7, 8],\n  columns: ["id", "name", "price"],\n  page: { size: 20, index: 0 },\n  sort: { by: "name", up: true },\n};\n',
+  "scripts/barrel.mjs":
+    'export { alpha, beta, gamma, delta, epsilon, zeta } from "./greek.mjs";\nexport { one, two, three, four, five, six } from "./numbers.mjs";\nexport { red, green, blue, cyan, magenta, yellow } from "./colors.mjs";\nexport { north, south, east, west, up, down } from "./ways.mjs";\n',
+  "scripts/five.mjs":
+    'export const sizes = [10, 20, 50, 100];\nexport const orders = ["asc", "desc", "none"];\nexport const labels = { next: "Next", previous: "Previous" };\nexport const page = { index: 0, size: 20, count: 1 };\nexport const sort = { by: "id", order: "asc", stable: true };\n',
+  "scripts/empty.mjs": "",
+  "scripts/blank.mjs": "\n\n",
+};
+const small = (root: string) => {
+  for (const [path, text] of Object.entries(SMALL)) put(root, path, text);
+};
+test("dupes: a file too small to hold a clone is set aside by name with jscpd's token count", () => {
+  const out = expect("dupes", repo(small), 0);
+  for (const line of [
+    "scripts/index.mjs: 13 tokens in 2 line(s)",
+    "scripts/vite.config.mjs: 35 tokens in 6 line(s)",
+    "scripts/barrel.mjs: 68 tokens in 4 line(s)",
+    "scripts/empty.mjs: blank",
+    "scripts/blank.mjs: blank",
+  ])
+    assert.ok(out.includes(line), `${line}: ${out}`);
+  assert.doesNotMatch(out, /mid\.mjs|five\.mjs/);
+  assert.match(out, /set aside 5 file\(s\) under 50 tokens or 5 lines/);
+});
+test("dupes: a repository whose every file is too small passes, the files set aside", () => {
+  // Measured with jscpd 5.4.3: it exits 0 and writes its report when it analyses no file at all.
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      rmSync(join(root, "scripts", "tool.mjs"));
+      rmSync(join(root, "scripts", "scan-secrets.ts"));
+      small(root);
+      rmSync(join(root, "scripts", "mid.mjs"));
+      rmSync(join(root, "scripts", "five.mjs"));
+    }),
+    0,
+  );
+  assert.match(out, /no clone in 0 of 5 file\(s\); set aside 5 file\(s\)/);
+});
+test("dupes: a name with .d inside a word keeps its class: dupes reads it unless it is a test", () => {
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      for (const f of [
+        "src/x.dom.ts",
+        "src/x.dom.test.ts",
+        "scripts/x.dom.test.ts",
+      ])
+        put(root, f, "export const one = 1;\n");
+    }),
+    0,
+  );
+  assert.match(out, /^ {2}src\/x\.dom\.ts: /m);
+  assert.doesNotMatch(out, /x\.dom\.test\.ts/);
+});
+test("dupes: a clone is still a finding beside the files set aside", () => {
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      small(root);
+      put(root, "scripts/a.mjs", BLOCK);
+      put(root, "scripts/b.mjs", BLOCK);
+    }),
+    1,
+  );
+  assert.match(out, /scripts\/a\.mjs:\d+-\d+ repeats scripts\/b\.mjs/);
+});
+test("dupes: a file jscpd leaves out that could hold a clone cannot be checked, and is named", () => {
+  // Over jscpd's 1mb: left out of both runs, though it holds tokens.
+  const big = (root: string) =>
+    put(root, "scripts/big.mjs", "export const one = 1;\n".repeat(60000));
+  const out = expect("dupes", repo(big), 3);
+  assert.match(out, /scripts\/big\.mjs: not counted/);
+  assert.match(out, /could hold a clone/);
+});
+test("dupes: a summary that names fewer files than jscpd analysed cannot pass: each is measured again and blocks", () => {
+  // jscpd caps its summary list at --summary-top. An analysed file cut from the list is measured like a file left out,
+  // and an analysed file holds a clone's worth of tokens and lines, so it blocks. The fake caps the first run's list.
+  const bin = join(tempDir(), "jscpd");
+  const real = join(here, "..", "node_modules", ".bin", "jscpd");
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const { readFileSync, writeFileSync } = require("node:fs");
+const args = process.argv.slice(2);
+const r = spawnSync(${JSON.stringify(real)}, args, { stdio: "inherit" });
+if (args.includes("--output") && args[args.indexOf("--min-tokens") + 1] !== "1") {
+  const f = args[args.indexOf("--output") + 1] + "/jscpd-report.json";
+  const report = JSON.parse(readFileSync(f, "utf8"));
+  report.summary.files = report.summary.files.slice(0, 1);
+  writeFileSync(f, JSON.stringify(report));
+}
+process.exit(r.status ?? 1);
+`,
+  );
+  chmodSync(bin, 0o755);
+  const out = expect("dupes", repo(), 3, { extraEnv: { JSCPD_BIN: bin } });
+  assert.match(
+    out,
+    /left out 1 file\(s\) that could hold a clone of 50 tokens and 5 lines/,
+  );
+  assert.match(out, /^ {2}scripts\/\S+: \d+ tokens in \d+ line\(s\)$/m);
 });
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
@@ -1059,17 +1253,11 @@ test("types: a type error in a script is a finding that names the file", () => {
     put(root, "scripts/y.ts", 'export const n: number = "one";\n');
   assert.match(expect("types", repo(bad), 1), /scripts\/y\.ts/);
 });
-/** A tracked Svelte component under src/, which the fixture's tsconfig.json then includes. */
+/** A tracked Svelte component under src/, which the fixture's tsconfig.json includes. */
 const component =
   (body: string, path = "src/Count.svelte") =>
-  (root: string): void => {
-    edit(
-      "tsconfig.json",
-      '"include": ["scripts/**/*.ts"]',
-      '"include": ["scripts/**/*.ts", "src/**/*.svelte"]',
-    )(root);
+  (root: string): void =>
     put(root, path, body);
-  };
 const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
 /** A tracked Vitest config and test file; the config runs src/ tests only, like a config that forgot site/. */
 const vitestTest =
@@ -1083,12 +1271,12 @@ const vitestTest =
     put(root, path, `import { expect, test } from "vitest";\n${body}`);
   };
 const PASSING_VITEST = 'test("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n';
-test("test: with no src/ or site/ test file tracked the step is not applicable, after vitest failed its canary", () => {
+test("test: with no test file and no code under src/ or site/ the step is not applicable, after vitest failed its canary", () => {
   const r = run(["test", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
   assert.match(
     r.out.trim().split("\n").at(-1) ?? "",
-    /^NOT APPLICABLE test: vitest failed the canary; no src\/ or site\/ test file is tracked$/,
+    /^NOT APPLICABLE test: vitest failed the canary; no test file and no code under src\/ or site\/$/,
     r.out,
   );
 });
@@ -1104,17 +1292,6 @@ test("test: a failing test is a finding that names the file and the test", () =>
   );
   assert.match(out, /src\/a\.test\.ts: failed/);
   assert.match(out, / {2}adds$/m);
-});
-test("test: a tracked test file the config does not run cannot be checked, and is named", () => {
-  const both = (root: string): void => {
-    vitestTest(PASSING_VITEST)(root);
-    put(
-      root,
-      "site/b.test.ts",
-      `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
-    );
-  };
-  assert.match(expect("test", repo(both), 3), /^ {2}site\/b\.test\.ts$/m);
 });
 test("test: without a tracked vitest.config.ts the step cannot be checked", () => {
   const untracked = (root: string): void => {
@@ -1138,46 +1315,236 @@ test("test: a canary that vitest passes cannot be checked", () => {
     canaries: dir,
   });
   assert.match(out, /did not report the planted failing test/);
+  assert.doesNotMatch(out, /JSON report written/);
 });
-test("theme: with no component under src/lib the step is not applicable", () => {
-  const r = run(["theme", "--root", repo()]);
-  assert.equal(r.code, 0, r.out);
+test("test: a canary run that writes no report cannot be checked, even with no test file to run", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST.replace("toBe(2)", "toBe(3)")}`,
+    "vitest.config.ts": "export default { test: { include: [,,] } ;\n",
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted failing test/);
+});
+const LATE =
+  'test("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
+test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
+  const out = expect("test", repo(vitestTest(LATE)), 1);
+  assert.match(out, /vitest exited 1/);
+  assert.match(out, /late failure/);
+});
+test("test: a test skipped at run time beside a passing one is a finding that names it", () => {
+  const partly = `${PASSING_VITEST}test.skipIf(!process.env.NEVER_SET)("the real check", () => {\n  expect(1).toBe(2);\n});\n`;
+  const out = expect("test", repo(vitestTest(partly)), 1);
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
+  assert.doesNotMatch(out, /^ {4}adds$/m);
+});
+test("test: a skipped test in an untracked file the config includes is a finding that names the file", () => {
+  const root = repo(vitestTest(PASSING_VITEST));
+  put(
+    root,
+    "src/wip.test.ts",
+    `import { test } from "vitest";\ntest.todo("later");\n`,
+  );
   assert.match(
-    r.out,
-    /^NOT APPLICABLE theme: no component is tracked under src\/lib$/m,
+    expect("test", root, 1),
+    /^ {2}src\/wip\.test\.ts:\n {4}later$/m,
   );
 });
-test("theme: a token class with a system-colour fallback passes", () => {
-  const good = '<div class="bg-[var(--sdt-surface,Canvas)]"></div>\n';
-  expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", good)),
-    0,
-  );
-});
-test("theme: a palette class in a component is a finding that names it", () => {
-  const bad = '<div class="bg-blue-500"></div>\n';
+test("test: a test.todo beside a passing test is a finding that names it", () => {
   const out = expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", bad)),
+    "test",
+    repo(vitestTest(`${PASSING_VITEST}test.todo("the real check");\n`)),
     1,
   );
-  assert.match(out, /src\/lib\/T\.svelte:1: bg-blue-500/);
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
 });
-test("theme: a component with no colour class cannot be checked", () => {
-  const none = '<div class="p-2"></div>\n';
-  expect(
-    "theme",
-    repo((root) => put(root, "src/lib/T.svelte", none)),
-    3,
+/** A tracked vitest.config.ts with `options` added to the fixture's include. */
+const vitestConfig =
+  (options: string) =>
+  (root: string): void =>
+    put(
+      root,
+      "vitest.config.ts",
+      `export default { test: { include: ["src/**/*.test.ts"], ${options} } };\n`,
+    );
+test("test: a tracked config that ignores unhandled errors does not hide one: the step overrides it", () => {
+  const ignoring = (root: string): void => {
+    vitestTest(LATE)(root);
+    vitestConfig("dangerouslyIgnoreUnhandledErrors: true")(root);
+  };
+  assert.match(expect("test", repo(ignoring), 1), /late failure/);
+});
+test("test: a tracked config that turns assertions off does not let an empty test pass", () => {
+  const off = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    vitestConfig("expect: { requireAssertions: false }")(root);
+  };
+  assert.match(expect("test", repo(off), 1), /^ {4}nothing$/m);
+});
+test("test: a tracked config that only type-checks the tests does not stop them from running", () => {
+  const typecheckOnly = (root: string): void => {
+    vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))(root);
+    vitestConfig(
+      'typecheck: { enabled: true, only: true, include: ["src/**/*.test.ts"] }',
+    )(root);
+  };
+  assert.match(expect("test", repo(typecheckOnly), 1), /^ {4}adds$/m);
+});
+test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (no flag overrides it)", () => {
+  const handler = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    vitestConfig("onUnhandledError: () => false")(root);
+  };
+  assert.match(
+    expect("test", repo(handler), 3),
+    /lets an unhandled error pass/,
   );
+});
+test("test: a config with projects cannot be checked (the step's flags do not reach a project)", () => {
+  const projects = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { projects: [{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } }] } };\n',
+    );
+  };
+  assert.match(expect("test", repo(projects), 3), /names "projects"/);
+});
+test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
+  const root = repo(
+    vitestTest(
+      'test("renders", () => {\n  expect("<p>6</p>").toMatchSnapshot();\n});\ntest("renders inline", () => {\n  expect("<p>9</p>").toMatchInlineSnapshot();\n});\n',
+    ),
+  );
+  // CI emptied: outside CI vitest writes a missing snapshot and passes, the case the step must refuse
+  const out = expect("test", root, 1, { extraEnv: { CI: "" } });
+  assert.match(out, /^ {4}renders$/m);
+  assert.match(out, /^ {4}renders inline$/m);
+  assert.equal(git(root, "diff", "--name-only"), "");
+  assert.equal(git(root, "ls-files", "--others", "--exclude-standard"), "");
+});
+/** A stand-in for vitest at `version`: the canary run reports a failed test; the real run prints more than the step buffers. */
+function fakeVitest(version = PINS.vitest): string {
+  const bin = join(tempDir(), "vitest");
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs");
+const out = process.argv.find((a) => a.startsWith("--outputFile.json="));
+if (process.argv[2] === "--version") {
+  console.log("vitest/${version} darwin-arm64 node-v26.0.0");
+} else if (!process.argv.includes("--config")) {
+  writeFileSync(out.split("=")[1], JSON.stringify({ numFailedTests: 1 }));
+} else {
+  process.stdout.write(\`\${"x".repeat(1023)}\\n\`.repeat(65 * 1024));
+}
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+test("test: a real run that vitest cannot finish cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest() },
+  });
+  assert.match(out, /cannot run .*vitest: ENOBUFS/);
+});
+test("test: a vitest other than the pinned one cannot be checked, and says which", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest("0.0.1") },
+  });
+  assert.match(
+    out,
+    new RegExp(
+      `vitest 0\\.0\\.1 is installed \\("vitest/0\\.0\\.1 [^"]*"\\), package.json pins ${PINS.vitest}`,
+    ),
+  );
+});
+test("test: a vitest that cannot be started cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: join(tempDir(), "no-vitest") },
+  });
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
+});
+test("test: the reason shown for an unhandled TypeError names it and the file it came from", () => {
+  const typeError =
+    'test("adds", () => {\n  void Promise.resolve().then(() => (undefined as unknown as { x: { y: 1 } }).x.y);\n  expect(1).toBe(1);\n});\n';
+  const out = expect("test", repo(vitestTest(typeError)), 1);
+  assert.match(out, /TypeError/);
+  assert.match(out, /src\/a\.test\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+});
+test("test: a test file that fails to load is a finding that names it, and is counted", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, "src/b.test.ts", 'import "./missing.ts";\n');
+  };
+  const out = expect("test", repo(both), 1);
+  assert.match(out, /src\/b\.test\.ts: .*missing\.ts/);
+  assert.match(out, /1 file\(s\) failed/);
+});
+test("test: a tracked test file whose tests were all skipped cannot be checked, and is named", () => {
+  const skipped = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "src/b.test.ts",
+      `import { describe, expect, test } from "vitest";\ndescribe.skipIf(!process.env.NEVER_SET)("s", () => {\n  ${PASSING_VITEST}});\n`,
+    );
+  };
+  const out = expect("test", repo(skipped), 3);
+  assert.match(out, /^ {2}src\/b\.test\.ts$/m);
+  assert.match(out, /no test passed/);
+});
+test("test: a tracked test file outside src/ and site/, or named .spec.ts, must run too", () => {
+  for (const path of ["test/extra.test.ts", "src/a.spec.ts"]) {
+    const outside = (root: string): void => {
+      vitestTest(PASSING_VITEST)(root);
+      put(
+        root,
+        path,
+        `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+      );
+    };
+    const out = expect("test", repo(outside), 3);
+    assert.ok(out.split("\n").includes(`  ${path}`), out);
+    assert.match(out, /did not run/);
+  }
+});
+test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
+  for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
+    const code = (root: string): void => put(root, path, "<p>a</p>\n");
+    assert.match(expect("test", repo(code), 3), /no test file/);
+  }
+});
+test("test: a config vitest cannot load cannot be checked, and says why", () => {
+  const broken = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "vitest.config.ts",
+      "export default { test: { include: [,,] } ;\n",
+    );
+  };
+  const out = expect("test", repo(broken), 3);
+  assert.match(out, /vitest wrote no report/);
+  assert.match(out, /vitest\.config\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+  assert.doesNotMatch(out, /^\s+at /m); // a stack frame is not a reason
 });
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
   assert.match(
     r.out.trim().split("\n").at(-1) ?? "",
-    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no \.svelte file is tracked$/,
+    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no component and no TypeScript outside scripts\/ is tracked$/,
     r.out,
   );
 });
@@ -1237,13 +1604,131 @@ test("svelte: tsconfig.json is read as TypeScript reads it: comments, a ./ inclu
       put(
         root,
         "tsconfig.json",
-        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["scripts/**/*.ts", "./src/**/*.svelte"],\n}\n`,
+        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["./src/**/*.svelte"],\n}\n`,
       );
     }),
     3,
   );
   assert.match(out, /src\/legacy\/Old\.svelte/);
   assert.doesNotMatch(out, /src\/Count\.svelte/);
+});
+const TABLE = `<script lang="ts" generics="T extends { id: number }">\n  const { rows }: { rows: T[] } = $props();\n</script>\n\n<p>{rows.length}</p>\n`;
+const MOUNT = (row: string) =>
+  `import { mount } from "svelte";\nimport Table from "./Table.svelte";\ninterface Item {\n  id: number;\n  name: string;\n}\nexport const show = (target: HTMLElement) =>\n  mount(Table<Item>, { target, props: { rows: [${row}] } });\n`;
+test("svelte: TypeScript that mounts a generic component is checked against its real type", () => {
+  // tsc would refuse Table<Item> (TS2635: it sees only svelte's ambient module); svelte-check knows the component.
+  const project = (row: string) => (root: string) => {
+    put(root, "src/Table.svelte", TABLE);
+    put(root, "src/show.ts", MOUNT(row));
+  };
+  const ok = expect("svelte", repo(project('{ id: 1, name: "a" }')), 0);
+  assert.match(ok, /accepted 2 file\(s\)/);
+  // Measured: tsc refuses Table<Item> (TS2635); here Item's own field is missing, which only the explicit Item can
+  // say (TS2741).
+  const out = expect("svelte", repo(project("{ id: 1 }")), 1);
+  assert.match(out, /src\/show\.ts:\d+ 2741 /);
+});
+test("svelte: TypeScript in neither program cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => put(root, "tools/z.ts", "export const one = 1;\n")),
+    3,
+  );
+  assert.match(out, /leaves out/);
+  assert.match(out, /tools\/z\.ts/);
+});
+test("svelte: a script in the component program as well as in tsc's cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      edit(
+        "tsconfig.json",
+        '"include": ["src"',
+        '"include": ["scripts", "src"',
+      )(root);
+    }),
+    3,
+  );
+  assert.match(out, /scripts\/scan-secrets\.ts/);
+});
+test("svelte: a test and a rune module beside the components are svelte-check's, their errors found", () => {
+  const COUNTER =
+    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
+  const beside = (file: string, text: string) => (r: string) => {
+    component(COMPONENT)(r);
+    put(r, file, text);
+  };
+  expect("svelte", repo(beside("src/count.svelte.ts", COUNTER)), 0);
+  for (const [file, text, code] of [
+    ["test/x.test.ts", 'export const n: number = "one";\n', 2322],
+    [
+      "src/count.svelte.ts",
+      COUNTER.replace("$state(0)", '$state<number>("zero")'),
+      2345,
+    ],
+  ] as const) {
+    const out = expect("svelte", repo(beside(file, text)), 1);
+    assert.match(out, new RegExp(`${file.replace(".", "\\.")}:\\d+ ${code} `));
+  }
+});
+test("svelte: a component Svelte cannot parse is a finding with Svelte's own message and line", () => {
+  // Measured with svelte-check 4.7.8: it drops a Svelte parse error that says "expected" when the config has no
+  // preprocess and the component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped
+  // script. The step reports the parse error itself, with Svelte's line and message (measured with svelte 5.57.3's
+  // parse).
+  for (const [body, line] of [
+    [
+      '<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n',
+      "2: Unexpected token",
+    ],
+    [
+      '<script lang="js">\n  const a = 1;\n</script>\n\n<p>{a}</p>\n\n<style>\n  p:is() {\n    color: red;\n  }\n</style>\n',
+      "8: \\S",
+    ],
+    [
+      '<p>{1}</p>\n\n<style lang="css">\n  p:is() {\n    color: red;\n  }\n</style>\n',
+      "4: \\S",
+    ],
+  ]) {
+    const out = expect("svelte", repo(component(body)), 1);
+    // Each row pins Svelte's line; row 1 also its message's text, rows 2-3 only that some text follows. The message is
+    // its first line only (the second is a link).
+    assert.match(
+      out,
+      new RegExp(`src/Count\\.svelte: Svelte cannot parse it at line ${line}`),
+      body,
+    );
+    assert.doesNotMatch(out, /svelte\.dev\/e\//, body);
+  }
+});
+test("svelte: TypeScript outside scripts/ with no component cannot be checked: svelte-check needs one", () => {
+  // Measured: svelte-check reports error 100001, no Svelte input, on a program of TypeScript alone.
+  const out = expect(
+    "svelte",
+    repo((r) => put(r, "src/index.ts", "export const one = 1;\n")),
+    3,
+  );
+  assert.match(out, /no component is tracked/);
+  assert.match(out, /src\/index\.ts/);
+});
+test("svelte: a component without a TypeScript script is a finding: svelte-check would check none of it", () => {
+  // Measured: svelte-check reports no error in the markup of a component without a script, nor in a script without
+  // lang="ts"; only a TypeScript file that imports one gets TS7016.
+  for (const body of [
+    "<p>{1}</p>\n",
+    "<script>\n  const n = 1;\n</script>\n\n<p>{n}</p>\n",
+    '<script lang="js">\n  const n = 1;\n</script>\n\n<p>{n}</p>\n',
+    `<script module>\n  export const k = 1;\n</script>\n\n${COMPONENT}`,
+    '<!-- <script lang="ts"></script> -->\n<p>{1}</p>\n',
+  ]) {
+    const out = expect("svelte", repo(component(body)), 1);
+    assert.match(
+      out,
+      /src\/Count\.svelte: a script that is not lang="ts", or none/,
+      body,
+    );
+  }
 });
 test("svelte: a canary that svelte-check accepts cannot be checked", () => {
   const dir = canaryDir("svelte", {
@@ -1340,6 +1825,339 @@ test("lint: a class: directive in a component is a finding that names the ban", 
   );
   assert.match(out, /no-restricted-syntax class: directive/);
 });
+test("lint: a <style> block in a component is a finding that names the ban", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        `${COMPONENT}\n<style>\n  p {\n    margin: 0;\n  }\n</style>\n`,
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax <style> block/);
+});
+test("lint: markup and code beside the injection bans pass in a component (setAttribute once would not: on plus letters, like any handler)", () => {
+  // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
+  // innerHTML; a string holding its name; setAttribute and createElement of other names; a write that is not a
+  // document's; a name that only contains a sink's name; a local parseHTML or addRule; a bracketed name that is no
+  // sink's; setAttribute of open or only-x (not handlers); execCommand of another command.
+  expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "</script>",
+          '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n' +
+            '  const tag = "p";\n  const text = document.body.innerHTML;\n  const box = document.createElement("div");\n' +
+            '  box.setAttribute("title", text);\n  box.setAttribute("open", "");\n  box.setAttribute("only-x", "");\n  box.append(document.createElementNS("http://www.w3.org/2000/svg", "circle"));\n  box["title"] = text;\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
+            '  const parseHTML = (s: string): string => s;\n  const addRule = (s: string): string => s;\n  document.execCommand("copy", false, addRule(parseHTML(text)));\n</script>',
+        ).replace(
+          "<p>{count}</p>",
+          '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>\n' +
+            "<svelte:element this={tag}>{myDOMParserName}{box.title}</svelte:element>",
+        ),
+      ),
+    ),
+    0,
+  );
+});
+// RND-04 (spec/table.md): with the per-name test below, every raw-HTML form its example names is a finding: {@html
+// and srcdoc in a component, the
+// script forms in a script (the script bans run in components too: canary.svelte plants setAttribute style and
+// innerHTML).
+const SINK = (body: string) =>
+  `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
+test("lint: the raw-HTML forms of RND-04 are findings that name their ban", () => {
+  for (const [form, change, ban] of [
+    [
+      "{@html",
+      component(`${COMPONENT}{@html String(count)}\n`),
+      "svelte/no-at-html-tags",
+    ],
+    [
+      "innerHTML",
+      (r: string) => put(r, "scripts/x.ts", SINK("el.innerHTML = html;")),
+      "no-restricted-syntax assigning innerHTML",
+    ],
+    [
+      "outerHTML",
+      (r: string) => put(r, "scripts/x.ts", SINK("el.outerHTML = html;")),
+      "no-restricted-syntax assigning innerHTML, outerHTML",
+    ],
+    [
+      "insertAdjacentHTML",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK('el.insertAdjacentHTML("beforeend", html);'),
+        ),
+      "no-restricted-syntax insertAdjacentHTML",
+    ],
+    [
+      "document.write",
+      (r: string) => put(r, "scripts/x.ts", SINK("document.write(html);")),
+      "no-restricted-syntax document.write",
+    ],
+    [
+      "createContextualFragment",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK("document.createRange().createContextualFragment(html);"),
+        ),
+      "no-restricted-syntax setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
+    ],
+    [
+      "DOMParser",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK('new DOMParser().parseFromString(html, "text/html");'),
+        ),
+      "no-restricted-syntax DOMParser",
+    ],
+    [
+      "srcdoc",
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<iframe title="t" srcdoc={String(count)}></iframe>',
+        ),
+      ),
+      "no-restricted-syntax srcdoc attribute",
+    ],
+  ] as const) {
+    const out = expect("lint", repo(change), 1);
+    assert.ok(out.includes(ban), `${form}: ${out}`);
+  }
+});
+test("lint: every name a ban lists is a finding of that ban", () => {
+  const scripts = [
+    ['document.createElement("style");', "createElement of style"],
+    ['document.createElement("link");', "createElement of style"],
+    ['document.createElement("script");', "createElement of style"],
+    ['el.setAttribute("SRCDOC", html);', "setAttribute srcdoc"],
+    [
+      'el.setAttribute("onclick", html);',
+      "setAttribute srcdoc or an on* handler",
+    ],
+    ["el.setHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+    ["Document.parseHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+    ["el.setHTML(html);", "setHTML or createRawSnippet"],
+    ["void createRawSnippet;", "setHTML or createRawSnippet"],
+    [
+      "(el as HTMLIFrameElement).srcdoc = html;",
+      "assigning innerHTML, outerHTML or srcdoc",
+    ],
+    ['el["innerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      'Object.assign(el, { "outerHTML": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      "Object.assign(el, { srcdoc: html });",
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    ["document.writeln(html);", "document.write"],
+    ["window.document.write(html);", "document.write"],
+    ["el.ownerDocument.write(html);", "document.write"],
+    ["void new CSSStyleSheet();", "constructed or inserted style sheet"],
+    [
+      "void document.adoptedStyleSheets;",
+      "constructed or inserted style sheet",
+    ],
+    [
+      'document.styleSheets[0]?.insertRule("p {}");',
+      "a rule inserted into a style sheet",
+    ],
+    [
+      'document.styleSheets[0]?.addRule("p", "margin: 0");',
+      "a rule inserted into a style sheet",
+    ],
+    [
+      "(el as HTMLIFrameElement).contentDocument?.write(html);",
+      "document.write",
+    ],
+    ["window.Document.parseHTML(html);", "Document.parseHTML"],
+    [
+      'document.createElementNS("http://www.w3.org/2000/svg", "style");',
+      "createElementNS of style",
+    ],
+    ['el["insertAdjacentHTML"]("beforeend", html);', "a sink name in brackets"],
+    ['document["write"](html);', "a sink name in brackets"],
+    ['el["setAttribute"]("style", "");', "a sink name in brackets"],
+    [
+      'document.execCommand("INSERTHTML", false, html);',
+      "execCommand insertHTML",
+    ],
+    ["Document.parseHTML(html);", "Document.parseHTML"],
+    ['document.createElement("SCRIPT");', "createElement of style"],
+    [
+      'document.createElementNS("http://www.w3.org/2000/svg", "script");',
+      "createElementNS of style",
+    ],
+    [
+      'document.createElementNS("http://www.w3.org/1999/xhtml", "link");',
+      "createElementNS of style",
+    ],
+    ['el["outerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      '(el as HTMLIFrameElement)["srcdoc"] = html;',
+      "assigning innerHTML, outerHTML or srcdoc",
+    ],
+    [
+      "Object.assign(el, { outerHTML: html });",
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      'Object.assign(el, { "innerHTML": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      'Object.assign(el, { "srcdoc": html });',
+      "innerHTML, outerHTML or srcdoc in an object literal",
+    ],
+    [
+      "const { ownerDocument } = el;\n  ownerDocument.write(html);",
+      "document.write",
+    ],
+    [
+      "const { contentDocument } = el as HTMLIFrameElement;\n  contentDocument?.write(html);",
+      "document.write",
+    ],
+    ["el.innerHTML += html;", "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      'el.setAttribute("ONCLICK", html);',
+      "setAttribute srcdoc or an on* handler",
+    ],
+    // Every name the bracket ban lists, in brackets: a name dropped from its list cannot stay green.
+    ...[
+      "insertAdjacentHTML",
+      "setHTML",
+      "setHTMLUnsafe",
+      "parseHTML",
+      "parseHTMLUnsafe",
+      "createContextualFragment",
+      "createRawSnippet",
+      "DOMParser",
+      "write",
+      "writeln",
+      "execCommand",
+      "setAttribute",
+      "createElement",
+      "createElementNS",
+      "CSSStyleSheet",
+      "adoptedStyleSheets",
+      "insertRule",
+      "addRule",
+    ].map((name) => [`void el["${name}"];`, "a sink name in brackets"]),
+  ].map(([body, ban], i) => [`scripts/s${i}.ts`, SINK(body), ban]);
+  const markup = [
+    ['<iframe SRCDOC="<p>x</p>" title="t"></iframe>', "srcdoc attribute"],
+    [
+      '<svelte:element this={"STYLE"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    ["<x-raw {outerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
+    ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
+    ["<div><script>alert(1)</script></div>", "style, link or script element"],
+    ["<div><style></style></div>", "style, link or script element"],
+    ["<div><sCRIPT>alert(1)</sCRIPT></div>", "style, link or script element"],
+    [
+      '<svelte:element this="script"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this="link"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this="SCRIPT"></svelte:element>',
+      "svelte:element as style",
+    ],
+    [
+      '<svelte:element this={"style"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    [
+      '<svelte:element this={"link"}></svelte:element>',
+      "svelte:element this={...} as style",
+    ],
+    ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
+    ["<x-raw outerHTML={srcdoc}></x-raw>", "innerHTML or outerHTML attribute"],
+    ["<x-raw {innerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
+  ].map(([tag, ban], i) => [
+    `src/C${i}.svelte`,
+    COMPONENT.replace(
+      "$props();",
+      '$props();\n  const srcdoc = "";\n  const innerHTML = "";\n  const outerHTML = "";',
+    ).replace(
+      "<p>{count}</p>",
+      `<p>{count}{srcdoc}{innerHTML}{outerHTML}</p>\n${tag}`,
+    ),
+    ban,
+  ]);
+  const out = expect(
+    "lint",
+    repo((root) => {
+      component(COMPONENT)(root);
+      for (const [file, text] of [...scripts, ...markup]) put(root, file, text);
+    }),
+    1,
+  );
+  const lines = out.split("\n").map((l) => l.trim());
+  for (const [file, , ban] of [...scripts, ...markup])
+    assert.ok(
+      lines.some(
+        (l) =>
+          l.startsWith(`${file}:`) && l.includes(`no-restricted-syntax ${ban}`),
+      ),
+      `${file} ${ban}: ${out}`,
+    );
+});
+test("lint: a raw-HTML sink named without being called or assigned is a finding", () => {
+  for (const [body, ban] of [
+    ["const Parser = DOMParser;\n  void new Parser();", "DOMParser"],
+    [
+      "const write = document.write.bind(document);\n  write(html);",
+      "document.write",
+    ],
+    [
+      "const fragment = document.createRange().createContextualFragment;\n  void fragment;",
+      "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
+    ],
+  ]) {
+    const out = expect(
+      "lint",
+      repo((r) => put(r, "scripts/x.ts", SINK(body))),
+      1,
+    );
+    assert.ok(out.includes(`no-restricted-syntax ${ban}`), `${body}: ${out}`);
+  }
+});
+test("lint: a raw-HTML sink in a .js or .mjs file is a finding", () => {
+  for (const file of ["svelte.config.js", "scripts/x.mjs"]) {
+    const out = expect(
+      "lint",
+      repo((r) =>
+        put(
+          r,
+          file,
+          "export function sink(el, html) {\n  el.innerHTML = html;\n}\n",
+        ),
+      ),
+      1,
+    );
+    assert.ok(
+      out.includes("no-restricted-syntax assigning innerHTML"),
+      `${file}: ${out}`,
+    );
+  }
+});
 test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
   const out = expect(
     "lint",
@@ -1370,12 +2188,13 @@ test("lint: an HTML disable comment does not switch a rule off in a component", 
   );
   assert.match(out, /no-restricted-syntax style attribute/);
 });
-// The four comments that switch a check off, built from parts so this file does not hold them.
+// The comments that switch a check off, built from parts so this file does not hold them.
 const SUPPRESSIONS = [
   ["svelte-", "ignore"],
   ["@ts-", "expect-error"],
   ["@ts-", "nocheck"],
   ["jscpd:", "ignore"],
+  ["prettier-", "ignore"],
 ].map((parts) => parts.join(""));
 test("text: each suppression comment in a script or a component is a finding that names it", () => {
   for (const word of SUPPRESSIONS) {
@@ -1424,6 +2243,163 @@ test("text: suppression comments on successive lines are each a finding", () => 
   assert.ok(
     out.includes(`scripts/x.ts:2: suppression comment ${SUPPRESSIONS[2]}`),
     out,
+  );
+});
+test("lint: a config block that changes a proven rule for the component's folders cannot be checked", () => {
+  // Measured: a later block that sets no-restricted-syntax for some files replaces the list for them, while every
+  // canary still passes. Each rule the canaries prove must be configured for src/lib and site/src as for its canary.
+  const real = join(here, "..", "eslint.config.mjs");
+  for (const [block, named, file = ""] of [
+    [
+      '{ files: ["src/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/probe.svelte: no-restricted-syntax\n",
+    ],
+    // A block narrower than the probes: the file it reaches is compared too.
+    [
+      '{ files: ["src/lib/components/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/components/Grid.svelte: no-restricted-syntax\n",
+      "src/lib/components/Grid.svelte",
+    ],
+    [
+      '{ files: ["**/DataTable.svelte"], rules: { "svelte/no-at-html-tags": "off" } }',
+      "src/lib/DataTable.svelte: svelte/no-at-html-tags",
+      "src/lib/DataTable.svelte",
+    ],
+    [
+      '{ files: ["src/**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/probe.svelte.ts: no-restricted-syntax\n",
+    ],
+    [
+      '{ files: ["src/**"], linterOptions: { noInlineConfig: false } }',
+      "src/lib/probe.svelte: linterOptions",
+    ],
+    [
+      '{ files: ["site/**"], rules: { "svelte/no-at-html-tags": "off" } }',
+      "site/src/probe.svelte: svelte/no-at-html-tags",
+    ],
+    [
+      '{ files: ["src/**/*.ts"], rules: { "@typescript-eslint/ban-ts-comment": "off" } }',
+      "src/lib/probe.ts: @typescript-eslint/ban-ts-comment",
+    ],
+    [
+      '{ files: ["site/**"], settings: { browsers: ["chrome 140"] } }',
+      "site/src/probe.ts: settings",
+    ],
+    // Each Vitest rule, off for the component's tests only: the tracked test file is compared.
+    ...[
+      "expect-expect",
+      "no-focused-tests",
+      "no-disabled-tests",
+      "valid-expect",
+    ].map((rule) => [
+      `{ files: ["src/**/*.test.ts"], rules: { "vitest/${rule}": "off" } }`,
+      `src/lib/x.test.ts: vitest/${rule}`,
+      "src/lib/x.test.ts",
+    ]),
+  ]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect(
+      "lint",
+      repo(
+        file.endsWith(".test.ts")
+          ? (root) =>
+              put(
+                root,
+                file,
+                `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+              )
+          : file
+            ? component(COMPONENT, file)
+            : () => {},
+      ),
+      3,
+      { extraEnv: { ESLINT_CONFIG: config } },
+    );
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
+  // Adding a block that leaves the proven rules alone is not a finding.
+  const config = join(tempDir(), "eslint.config.mjs");
+  writeFileSync(
+    config,
+    `import base from ${JSON.stringify(real)};\nexport default [...base, { files: ["src/**"], rules: { "no-console": "error" } }];\n`,
+  );
+  expect("lint", repo(), 0, { extraEnv: { ESLINT_CONFIG: config } });
+});
+test("lint: a block that weakens the bans for a whole extension, its canary too, cannot be checked", () => {
+  // Measured (security review of 4528469): a block for **/*.svelte.ts keeping the one ban its canary plants, or a no-op
+  // processor for components, changed canary and file alike, and the step passed with the sink in the file.
+  const real = join(here, "..", "eslint.config.mjs");
+  const RUNE =
+    'export const doc = new DOMParser().parseFromString("<p></p>", "text/html");\nexport const s = document.createElement("style");\n';
+  const RAW =
+    '<script lang="ts">\n  const { html }: { html: string } = $props();\n</script>\n\n{@html html}\n';
+  const allBut = (files: string[]) =>
+    `{ files: ${JSON.stringify(files)}, rules: { "no-restricted-syntax": ["error", ...base.flatMap((b) => b.files?.includes("**/*.svelte.ts") ? (b.rules?.["no-restricted-syntax"] ?? []).slice(1) : []).filter((e) => !/DOMParser/.test(e.message))] } }`;
+  for (const [block, named, change] of [
+    [
+      `{ files: ["**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", { selector: "AssignmentExpression[left.property.name='innerHTML']", message: "assigning innerHTML (PRD-S2)" }] } }`,
+      "scripts/rune.svelte.ts: no-restricted-syntax without each ban of the .ts canary",
+      (root: string) => put(root, "scripts/rune.svelte.ts", RUNE),
+    ],
+    [
+      allBut(["**/*.svelte"]),
+      "src/lib/probe.svelte: no-restricted-syntax without each ban of the .ts canary",
+      () => {},
+    ],
+    [
+      allBut(["**/*.mjs", "**/*.js"]),
+      "src/lib/probe.mjs: no-restricted-syntax without each ban of the .ts canary",
+      () => {},
+    ],
+    [
+      '{ files: ["src/lib/**/*.svelte"], processor: { preprocess: () => [], postprocess: () => [] } }',
+      "src/lib/Raw.svelte: processor",
+      component(RAW, "src/lib/Raw.svelte"),
+    ],
+    [
+      '{ files: ["src/lib/**/*.ts"], languageOptions: { parser: { meta: { name: "other", version: "1.0.0" }, parse: () => { throw new Error("unused"); } } } }',
+      "src/lib/probe.ts: parser",
+      () => {},
+    ],
+  ] as [string, string, (root: string) => void][]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect("lint", repo(change), 3, {
+      extraEnv: { ESLINT_CONFIG: config },
+    });
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
+});
+test("lint: no PostCSS config is loaded for a component, not even one above the root", () => {
+  const parent = tempDir();
+  const root = join(parent, "root");
+  // An ignore comment (SUPPRESSIONS[0]) makes the plugin compile the component, the path that loads PostCSS (measured).
+  const styled = COMPONENT.replace(
+    "<p>{count}</p>",
+    `<!-- ${SUPPRESSIONS[0]} a11y_missing_attribute -->\n<p class="n">{count}</p>\n\n<style lang="postcss">\n  .n {\n    color: red;\n  }\n</style>`,
+  );
+  cpSync(repo(component(styled)), root, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  const marker = join(parent, "MARKER-postcss");
+  put(
+    parent,
+    "postcss.config.cjs",
+    `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran");\nmodule.exports = {};\n`,
+  );
+  const out = expect("lint", root, 1);
+  assert.match(out, /no-restricted-syntax <style> block/);
+  assert.ok(
+    !existsSync(marker),
+    "the PostCSS config above the root was loaded",
   );
 });
 test("text: a suppression word in prose is not a finding", () => {
@@ -1488,7 +2464,11 @@ const diagnostic = (code: number, type = "ERROR", filename = "canary.svelte") =>
     code,
     message: "planted",
   });
-const PLANTED = [diagnostic(2322), diagnostic(7006)];
+const PLANTED = [
+  diagnostic(2322),
+  diagnostic(7006),
+  diagnostic(2322, "ERROR", "canary.ts"),
+];
 test("svelte: output that is not svelte-check's diagnostics cannot be checked, from the canary run or the real one", () => {
   for (const [canary, rest] of [
     [['{"type":"ERROR","filename'], []],
@@ -1506,6 +2486,7 @@ test("svelte: a canary run missing a planted error, reporting it as a warning or
     [diagnostic(7006)],
     [diagnostic(2322), diagnostic(7006, "WARNING")],
     [diagnostic(2322), diagnostic(7006, "ERROR", "other.svelte")],
+    [diagnostic(2322), diagnostic(7006)],
   ]) {
     const out = expect("svelte", repo(component(COMPONENT)), 3, {
       extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, []) },
@@ -1546,29 +2527,105 @@ test("svelte: another svelte-check version than the pin cannot be checked", () =
     3,
   );
 });
-test("types: a rune module (.svelte.ts) type-checks under the repository's tsconfig.json, its errors found", () => {
-  const runes = (body: string) => (root: string) => {
-    put(root, "tsconfig.json", readFileSync(join(here, "..", "tsconfig.json")));
-    put(root, "scripts/count.svelte.ts", body);
+test("types: scripts/ name their own types: the component side's ambient types are not theirs", () => {
+  // The root tsconfig.json declares the component side's types (svelte here; Vite's client in a component project);
+  // scripts/tsconfig.json names its own, so a rune, which only Svelte's types declare, is a type error in a script.
+  const root = repo((r) => {
+    for (const f of ["tsconfig.json", "scripts/tsconfig.json"])
+      put(r, f, readFileSync(join(here, "..", f)));
+    put(r, "scripts/count.ts", "export const n: number = $state(0);\n");
+  });
+  const out = expect("types", root, 1);
+  assert.match(out, /scripts\/count\.ts.*TS2304/);
+});
+test("types: a script scripts/tsconfig.json leaves out cannot be checked", () => {
+  const outside = (root: string): void => {
+    put(root, "scripts/z.ts", "export const one = 1;\n");
+    put(
+      root,
+      "scripts/tsconfig.json",
+      SCRIPTS_TSCONFIG.replace('"canaries/**"]', '"canaries/**", "z.ts"]'),
+    );
   };
-  const COUNTER =
-    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
-  expect("types", repo(runes(COUNTER)), 0);
+  assert.match(expect("types", repo(outside), 3), /scripts\/z\.ts/);
+});
+test("types: a repository without scripts/tsconfig.json cannot be checked", () => {
+  const out = expect("types", repo(remove("scripts/tsconfig.json")), 3);
+  assert.match(out, /tsc could not read/);
+});
+test("types: a scripts/tsconfig.json that turns checking off cannot be checked: the canary runs under it", () => {
+  const root = repo((r) => {
+    put(
+      r,
+      "scripts/tsconfig.json",
+      SCRIPTS_TSCONFIG.replace(
+        "{\n",
+        '{\n  "compilerOptions": { "noCheck": true },\n',
+      ),
+    );
+    for (const f of ["canary.ts", "tsconfig.json"])
+      put(
+        r,
+        `scripts/canaries/types/${f}`,
+        readFileSync(join(here, "canaries", "types", f), "utf8"),
+      );
+  });
+  const out = expect("types", root, 3, {
+    canaries: join(root, "scripts", "canaries"),
+  });
+  assert.match(out, /tsc did not report the planted type errors/);
+});
+test("types: a declaration file, or any .js file but the root svelte.config.js, has no class until one is decided", () => {
+  // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
+  for (const file of [
+    "src/app.d.ts",
+    "scripts/x.d.ts",
+    "src/x.d.css.ts",
+    "src/x.d.test.ts",
+    "scripts/x.d.test.ts",
+    "scripts/a.d.svelte.ts",
+    "src/x.js",
+    "vite.config.js",
+    "docs/svelte.config.js",
+  ]) {
+    const out = expect(
+      "types",
+      repo((r) => put(r, file, "export {};\n")),
+      3,
+    );
+    assert.ok(out.includes(file), `${file}: ${out}`);
+  }
+});
+test("types: a name with .d inside a word keeps its class: only .d. marks a declaration", () => {
+  // tsc must check it: an error in it is a finding.
   const out = expect(
     "types",
-    repo(runes(COUNTER.replace("$state(0)", '$state<number>("zero")'))),
+    repo((r) =>
+      put(r, "scripts/x.dom.ts", 'export const n: number = "one";\n'),
+    ),
     1,
   );
-  assert.match(out, /count\.svelte\.ts/);
+  assert.match(out, /scripts\/x\.dom\.ts/);
+  // ... and it stays tsc's alone: the svelte step has nothing of its own.
+  const svelte = run([
+    "svelte",
+    "--root",
+    repo((r) => put(r, "scripts/x.dom.ts", "export const one = 1;\n")),
+  ]);
+  assert.equal(svelte.code, 0, svelte.out);
+  assert.match(svelte.out, /^NOT APPLICABLE svelte/m);
 });
-test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
-  const outside = (root: string): void =>
-    put(root, "tools/z.ts", "export const one = 1;\n");
-  assert.match(expect("types", repo(outside), 3), /tools\/z\.ts/);
-});
-test("types: a repository without tsconfig.json cannot be checked", () => {
-  const out = expect("types", repo(remove("tsconfig.json")), 3);
-  assert.match(out, /tsc could not read/);
+
+test("types: TypeScript outside scripts/ is not tsc's: an error there is svelte-check's to find", () => {
+  // tsc sees a component only through svelte's ambient module, so it is not asked about the component side.
+  const out = expect(
+    "types",
+    repo((root) =>
+      put(root, "src/bad.ts", 'export const n: number = "one";\n'),
+    ),
+    0,
+  );
+  assert.doesNotMatch(out, /src\/bad\.ts/);
 });
 test("types: another TypeScript version than the pin cannot be checked", () => {
   expect(
@@ -2031,7 +3088,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, theme, secrets$/m,
+    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

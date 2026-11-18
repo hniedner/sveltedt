@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/svelte";
-import { createRawSnippet } from "svelte";
 import { describe, expect, it } from "vitest";
-import { spec } from "../../test/spec.ts";
+import CellSnippetTable from "../../test/CellSnippetTable.svelte";
+import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -35,19 +35,44 @@ function firstCells(): string[] {
     .map((row) => within(row).getAllByRole("cell")[0]?.textContent ?? "");
 }
 
-// Mounts the table with the given props over a one-row base; returns the element that holds the component
+// The text of every cell of each body row, top to bottom
+function cellTexts(): string[][] {
+  return screen
+    .getAllByRole("row")
+    .map((row) =>
+      within(row)
+        .queryAllByRole("cell")
+        .map((cell) => cell.textContent.trim()),
+    )
+    .filter((cells) => cells.length > 0);
+}
+
+// The props every mount starts from: one row, one column
+const base: DataTableProps<Item> = {
+  rows: [{ id: "r1", name: "Beta" }],
+  columns: [nameColumn],
+  getRowId: (row) => row.id,
+  caption: "Orders",
+  regionLabel: "Orders table",
+};
+
+// Mounts the table with the given props over the base; returns the element that holds the component
 function show(props: Partial<DataTableProps<Item>> = {}): HTMLElement {
-  const base: DataTableProps<Item> = {
-    rows: [{ id: "r1", name: "Beta" }],
-    columns: [nameColumn],
-    getRowId: (row) => row.id,
-    caption: "Orders",
-    regionLabel: "Orders table",
-  };
   return render(DataTable<Item>, { ...base, ...props }).container;
 }
 
-describe(spec("A11Y-01", "c91fd776"), () => {
+// As show, through the fixture that declares the heading and actions snippets in markup; the flags pick which
+function showWithSnippets(
+  props: Partial<Omit<DataTableProps<Item>, "heading" | "actions">> & {
+    withHeading?: boolean;
+    withActions?: boolean;
+  },
+): HTMLElement {
+  return render(SnippetsTable, { ...base, ...props }).container;
+}
+
+// @spec("A11Y-01", "c91fd776")
+describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
     show();
     const table = screen.getByRole("table", { name: "Orders" });
@@ -57,7 +82,8 @@ describe(spec("A11Y-01", "c91fd776"), () => {
   });
 });
 
-describe(spec("A11Y-09", "1ea0bceb"), () => {
+// @spec("A11Y-09", "1ea0bceb")
+describe("A11Y-09", () => {
   it("sits inside a region named by regionLabel", () => {
     show();
     const region = screen.getByRole("region", { name: "Orders table" });
@@ -67,7 +93,8 @@ describe(spec("A11Y-09", "1ea0bceb"), () => {
   });
 });
 
-describe(spec("A11Y-02", "bb579ca8"), () => {
+// @spec("A11Y-02", "bb579ca8")
+describe("A11Y-02", () => {
   it("makes every column header a th with scope col", () => {
     show({ columns: [idColumn, nameColumn, noteColumn] });
     expect(
@@ -82,33 +109,33 @@ describe(spec("A11Y-02", "bb579ca8"), () => {
   });
 });
 
-describe(spec("RND-08", "e3e4bdfc"), () => {
+// @spec("RND-08", "e3e4bdfc")
+describe("RND-08", () => {
   it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
-    show();
+    show({ columns: [idColumn, nameColumn] });
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
+    // Each column's own value: the id cell holds r1, not the first column's value repeated
+    expect(cellTexts()).toEqual([["r1", "Beta"]]);
   });
 });
 
-describe(spec("RND-02", "9a4c8ebf"), () => {
+// @spec("RND-02", "9a4c8ebf")
+describe("RND-02", () => {
   it("renders the cell snippet, called with the row and the column id, in each of its cells", () => {
-    const beta = { id: "r1", name: "Beta" };
-    const gamma = { id: "r2", name: "Gamma" };
-    const calls: [Item, string][] = [];
-    const cell = createRawSnippet<[Item, string]>((row, columnId) => {
-      calls.push([row(), columnId()]);
-      return { render: () => `<a href="#${row().id}">Open ${row().name}</a>` };
+    render(CellSnippetTable, {
+      rows: [
+        { id: "r1", name: "Beta" },
+        { id: "r2", name: "Gamma" },
+      ],
     });
-    show({
-      rows: [beta, gamma],
-      columns: [{ id: "name", label: "Name", cell }],
-    });
-    for (const name of ["Open Beta", "Open Gamma"]) {
+    for (const name of ["Open Beta in name", "Open Gamma in name"]) {
       const shown = screen.getByRole("cell", { name });
       expect(within(shown).getByRole("link", { name }).isConnected).toBe(true);
     }
-    expect(calls).toEqual([
-      [beta, "name"],
-      [gamma, "name"],
+    // Only the snippet's own column renders it; the id column keeps its value
+    expect(cellTexts()).toEqual([
+      ["r1", "Open Beta in name"],
+      ["r2", "Open Gamma in name"],
     ]);
   });
 });
@@ -118,7 +145,8 @@ const twentyFive: Item[] = Array.from({ length: 25 }, (_, index) => {
   return { id, name: `Name ${id}` };
 });
 
-describe(spec("RND-01", "4b6167be"), () => {
+// @spec("RND-01", "4b6167be")
+describe("RND-01", () => {
   it.each([
     [
       "r3, r1, r2",
@@ -201,7 +229,8 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-describe(spec("RND-05", "7e95b611"), () => {
+// @spec("RND-05", "7e95b611")
+describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
     [
@@ -289,7 +318,8 @@ describe(spec("RND-05", "7e95b611"), () => {
   });
 });
 
-describe(spec("RND-09", "eb114954"), () => {
+// @spec("RND-09", "eb114954")
+describe("RND-09", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string, string[]]>([
     [
       "two rows with id r2, the second named Hidden-77",
@@ -335,11 +365,10 @@ describe(spec("RND-09", "eb114954"), () => {
   );
 });
 
-const heading = createRawSnippet(() => ({ render: () => "<h2>Orders</h2>" }));
-
-describe(spec("RND-10", "2943a803"), () => {
+// @spec("RND-10", "2943a803")
+describe("RND-10", () => {
   it("still renders the heading snippet beside the alert", () => {
-    const component = show({ columns: [], heading });
+    const component = showWithSnippets({ columns: [], withHeading: true });
     expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
     expect(screen.getByRole("heading", { name: "Orders" }).isConnected).toBe(
       true,
@@ -348,17 +377,13 @@ describe(spec("RND-10", "2943a803"), () => {
   });
 });
 
-const actions = createRawSnippet(() => ({
-  render: () => '<button type="button">Export</button>',
-}));
-
 describe("EXP-02 first examples; the statement's marker arrives with 1c", () => {
   it.each<[string, Partial<DataTableProps<Item>>]>([
     ["status 'ready' (the default), no rows", { rows: [] }],
     ["status 'ready' (the default), with rows", {}],
     ["the alert of RND-05", { columns: [] }],
   ])("renders the actions snippet in %s", (_state, props) => {
-    show({ ...props, actions });
+    showWithSnippets({ ...props, withActions: true });
     expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
       true,
     );

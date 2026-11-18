@@ -197,23 +197,26 @@ consumer project, and leave the committed consumer project unchanged.
 - Traces: PRD-S1, PRD-W8.
 
 **CON-04** The consumer server's HTML responses to the list page and to a page that does not exist MUST each carry a
-`Content-Security-Policy` header that is the strict policy with one fresh nonce added to `script-src` and nothing else
-added.
-- Examples (the test runs every row; `N1` and `N2` are the nonces of the two responses):
+`Content-Security-Policy` header that is the strict policy with one fresh nonce added to `script-src` and, as its only
+other addition, the `style-src-attr` allowance of PRD-W8.
+- Examples (the test runs every row; `N1` and `N2` are the nonces of the two responses; the hash is the one measured on
+  2026-11-17 for the announcer's style, recomputed as PRD-D3 says when SvelteKit changes that style):
 
   | Request | `Content-Security-Policy` |
   |---|---|
-  | `GET /` | `default-src 'self'; script-src 'self' 'nonce-N1'; style-src 'self'` |
-  | `GET /` again | `default-src 'self'; script-src 'self' 'nonce-N2'; style-src 'self'`, with `N2` different from `N1` |
+  | `GET /` | `default-src 'self'; script-src 'self' 'nonce-N1'; style-src 'self'; style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'` |
+  | `GET /` again | the same, with `'nonce-N2'`, `N2` different from `N1` |
   | `GET /no-such-page` (an HTML 404 page) | the same form, with its own nonce |
 
-  The directives may come in any order; `style-src` carries no nonce, no hash and no `'unsafe-inline'`, and no
-  directive carries `'unsafe-eval'`. Break that turns it red: `'unsafe-inline'` added to `style-src` in the
-  consumer's policy configuration.
+  The directives may come in any order; `style-src` carries no nonce, no hash and no `'unsafe-inline'`; `style-src-attr`
+  carries exactly `'unsafe-hashes'`, the hash of SvelteKit's route announcer style and `'report-sample'`; no directive
+  carries `'unsafe-eval'`. Break that turns it red: `'unsafe-inline'` added to `style-src` in the consumer's policy
+  configuration.
 - Reason: the framework's own bootstrap is an inline script, which the strict policy allows only by a nonce; the
   nonce is what the consumer adds for its own scripts (PRD section 4.4), the component needs none, and a nonce that
-  repeats across responses protects nothing. Where the nonce sits is what it allows: in `script-src` only, so no
-  inline style is ever allowed.
+  repeats across responses protects nothing. Where the nonce sits is what it allows: in `script-src` only; the one
+  `style-src-attr` hash allows only the framework's announcer style (PRD-W8, MEASURED in three engines on
+  SvelteKit 2.21.1 and 3.2.0), so no other inline style is allowed.
 - Layer: consumer HTTP.
 - Traces: PRD-W8, PRD-S1.
 
@@ -263,10 +266,10 @@ other script of the page.
 - Traces: PRD-K4.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
-- Examples (the type check is the one the repository uses, `svelte-check`, run in the copy of CON-01 after its build,
-  which also writes SvelteKit's generated type configuration, with the copy's own `svelte.config.js` named as its
-  configuration, so that no configuration outside the copy is read; the second row is a canary planted in a copy of the
-  consumer project):
+- Examples (the type check is the one the repository uses, `svelte-check` 4.7.0 or later, which has `--config`, run in
+  the copy of CON-01 after its build, which also writes SvelteKit's generated type configuration, with the copy's own
+  configuration file (its `vite.config`, since SvelteKit 3 reads no `svelte.config.js`) named as its configuration, so
+  that no configuration outside the copy is read; the second row is a canary planted in a copy of the consumer project):
 
   | Consumer | Type check |
   |---|---|
@@ -350,7 +353,7 @@ package.
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
 | PRD-T3 | CON-10 | in part: the consumer's `@source`; no CSS shipped and the build's variants are `spec/table.md`'s |
-| PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` and its build holding no `eval`, `new Function` or string timers have no statement yet (listed as not yet traced in `spec/table.md`) |
+| PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` is `spec/table.md`'s FOOT-04, and its build holding no `eval`, `new Function` or string timers has no statement yet |
 
 PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8 and PRD-S1 (as above). PRD-W9's three engines
 for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the gates'.

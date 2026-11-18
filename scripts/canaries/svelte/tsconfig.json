@@ -1,5 +1,5 @@
 {
   "extends": "../../../tsconfig.json",
-  "include": ["canary.svelte"],
+  "include": ["canary.svelte", "canary.ts"],
   "exclude": []
 }
