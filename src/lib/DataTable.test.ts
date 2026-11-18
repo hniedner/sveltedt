@@ -36,3 +36,13 @@ describe(spec("A11Y-01", "c91fd776"), () => {
     expect(table.firstElementChild).toBe(caption);
   });
 });
+
+describe(spec("A11Y-09", "1ea0bceb"), () => {
+  it("sits inside a region named by regionLabel", () => {
+    show();
+    const region = screen.getByRole("region", { name: "Orders table" });
+    expect(
+      within(region).getByRole("table", { name: "Orders" }).isConnected,
+    ).toBe(true);
+  });
+});
