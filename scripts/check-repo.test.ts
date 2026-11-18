@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -137,7 +138,7 @@ updates:
 
 /** A repository that passes every check; `change` plants the break before the files are staged. */
 /** The hooks a clone runs, each the same two-line shim into this runner. */
-const HOOKS = ["pre-commit", "commit-msg"];
+const HOOKS = ["pre-commit", "commit-msg", "pre-push"];
 const SHIM = (hook: string): string =>
   `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
 
@@ -175,6 +176,7 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/CODEOWNERS": "* @someone\n",
     ".githooks/pre-commit": SHIM("pre-commit"),
     ".githooks/commit-msg": SHIM("commit-msg"),
+    ".githooks/pre-push": SHIM("pre-push"),
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
   for (const h of HOOKS) chmodSync(join(root, ".githooks", h), 0o755);
@@ -701,6 +703,7 @@ test("text: a repository without a file of its class cannot be checked", () => {
         ".github/CODEOWNERS",
         ".githooks/pre-commit",
         ".githooks/commit-msg",
+        ".githooks/pre-push",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
         "docs/PRD.md",
@@ -1341,28 +1344,40 @@ test("hooks: in CI, where git runs no hook, the step is not applicable", () => {
   });
 });
 
-/** A fixture holding this runner, so `git commit` there runs the real hooks. */
+/** A fixture holding this runner, its configs and canaries, so git runs the real hooks and gate there. */
 function hooked(change: (root: string) => void = () => {}): string {
   const root = repo((r) => {
-    for (const f of ["check-repo.ts", "pinned.ts"])
-      put(r, `scripts/${f}`, readFileSync(join(here, f)));
+    for (const f of [
+      "scripts/check-repo.ts",
+      "scripts/pinned.ts",
+      "eslint.config.mjs",
+      "tsconfig.json", // leaves the canaries to ESLint's default project
+    ])
+      put(r, f, readFileSync(join(here, "..", f)));
+    cpSync(join(here, "canaries"), join(r, "scripts", "canaries"), {
+      recursive: true,
+    });
     change(r);
   });
   commit(root, "chore: add the runner");
   return root;
 }
-/** `git commit` with the hooks on, as a contributor runs it; the tools are the run() fakes, the canaries real. */
-function gitCommit(
+/** git with the hooks on, as a contributor runs it; the tools are the run() fakes. */
+function hookGit(
   root: string,
-  ...args: string[]
+  args: string[],
+  extraEnv: Record<string, string> = {},
 ): { code: number | null; out: string } {
   const env: NodeJS.ProcessEnv = {
     ...GIT_ENV,
+    ACTIONLINT_BIN: fakeLint(),
+    PNPM_BIN: fakePnpm(),
     ZIZMOR_BIN: fakeZizmor(),
     GITLEAKS_BIN: fakeVersion("gitleaks", "9.9.9"),
-    CANARY_DIR: join(here, "canaries"),
+    ...extraEnv,
   };
   delete env.GITHUB_ACTIONS;
+  delete env.CANARY_DIR;
   const r = spawnSync(
     "git",
     [
@@ -1374,14 +1389,14 @@ function gitCommit(
       "user.email=fixture@example.org",
       "-c",
       "commit.gpgsign=false",
-      "commit",
-      "-q",
       ...args,
     ],
     { encoding: "utf8", env },
   );
   return { code: r.status, out: r.stdout + r.stderr };
 }
+const gitCommit = (root: string, ...args: string[]) =>
+  hookGit(root, ["commit", "-q", ...args]);
 const head = (root: string): string =>
   git(root, "log", "-1", "--format=%s").trim();
 /** The secret scan replaced by one that names every file of the folder it is given and passes, or finds `leak`. */
@@ -1480,6 +1495,179 @@ test("commit-msg: git refuses a commit whose header is not conventional", () => 
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^FINDING commit-msg: /m);
   assert.equal(head(root), "chore: add the runner");
+});
+
+/** The secret scan replaced by one that names its range and finds a `leak` line added in it. */
+const rangeScan = (root: string): void =>
+  put(
+    root,
+    "scripts/scan-secrets.ts",
+    // Formatted and typed, since the gate in a pushed fixture checks it like any script.
+    `import { execFileSync } from "node:child_process";
+const [mode, repo, range] = process.argv.slice(2) as [string, string, string];
+const log = execFileSync("git", ["-C", repo, "log", "-p", range]);
+console.log("scan-secrets " + mode + " " + range);
+if (/^\\+.*leak/m.test(String(log))) {
+  console.log("FINDING scan-secrets: 1 leak(s)");
+  process.exitCode = 1;
+}
+`,
+  );
+/** A hooked fixture with a real remote holding main, on a branch with one new commit. */
+function pushable(): string {
+  const root = hooked(rangeScan);
+  const remote = tempDir();
+  execFileSync("git", ["init", "-q", "--bare", remote], { env: GIT_ENV });
+  git(root, "remote", "add", "origin", remote);
+  git(
+    root,
+    "-c",
+    "core.hooksPath=/dev/null",
+    "push",
+    "-q",
+    "origin",
+    "HEAD:refs/heads/main",
+  ); // set-up, no hook
+  git(root, "fetch", "-q", "origin");
+  git(root, "checkout", "-q", "-b", "feat/x");
+  put(root, "notes/a.md", "# A note\n");
+  commit(root, "docs: add a note");
+  return root;
+}
+const gitPush = (root: string, args: string[], env?: Record<string, string>) =>
+  hookGit(root, ["push", "-q", "origin", ...args], env);
+const sha = (root: string, rev = "HEAD"): string =>
+  git(root, "rev-parse", rev).trim();
+/** A lock script with heavy-lock.sh's interface (take|release <holder>) that logs each call next to itself. */
+function fakeLock(held = false): { lock: string; log: string } {
+  const dir = tempDir();
+  const lock = join(dir, "lock.sh");
+  writeFileSync(
+    lock,
+    `#!/bin/sh
+echo "$1 $2" >> "${dir}/log"
+case "$1" in
+  take) mkdir "${dir}/HELD" 2>/dev/null && { echo "TAKEN by $2"; exit 0; }; echo "REFUSED: held"; exit 1;;
+  release) rmdir "${dir}/HELD" && echo "RELEASED by $2";;
+esac
+`,
+  );
+  if (held) mkdirSync(join(dir, "HELD"));
+  return { lock, log: join(dir, "log") };
+}
+
+test("pre-push: a new branch scans its commits after origin/main, runs the gate under the lock and releases it", () => {
+  const root = pushable();
+  const { lock, log } = fakeLock();
+  git(root, "config", "sveltedt.lock", lock);
+  const base = sha(root, "origin/main");
+  const r = gitPush(root, ["feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`scan-secrets git ${base}\\.\\.${sha(root)}`));
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE words .*: word scan not set up in this clone/m,
+  );
+  assert.match(r.out, /^PASS gate: /m);
+  assert.match(r.out, /^PASS pre-push: /m);
+  const calls = readFileSync(log, "utf8").trim().split("\n");
+  assert.deepEqual(
+    calls.map((l) => l.split(" ")[0]),
+    ["take", "release"],
+    calls.join("\n"),
+  );
+  assert.equal(calls[0].split(" ")[1], calls[1].split(" ")[1]);
+});
+test("pre-push: an update scans only the commits after the remote's sha", () => {
+  const root = pushable();
+  assert.equal(gitPush(root, ["feat/x"]).code, 0);
+  const old = sha(root);
+  put(root, "notes/b.md", "# B note\n");
+  commit(root, "docs: add another note");
+  const r = gitPush(root, ["feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`scan-secrets git ${old}\\.\\.${sha(root)}`));
+});
+test("pre-push: a failing gate blocks the push and still releases the lock", () => {
+  const root = pushable();
+  const { lock, log } = fakeLock();
+  git(root, "config", "sveltedt.lock", lock);
+  const r = gitPush(root, ["feat/x"], { PNPM_BIN: fakePnpm("0.0.1") });
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK gate: /m);
+  assert.deepEqual(
+    readFileSync(log, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => l.split(" ")[0]),
+    ["take", "release"],
+  );
+  assert.equal(git(root, "ls-remote", "origin", "feat/x"), "");
+});
+test("pre-push: a lock held by another holder cannot be checked, and the gate does not run", () => {
+  const root = pushable();
+  git(root, "config", "sveltedt.lock", fakeLock(true).lock);
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^COULD NOT CHECK gate: the heavy-work lock is not free/m,
+  );
+});
+test("pre-push: a secret in a pushed commit blocks the push before the gate", () => {
+  const root = pushable();
+  put(root, "notes/b.md", "# A leak\n");
+  commit(root, "docs: add a note");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING secrets /m);
+  assert.doesNotMatch(r.out, /gate: /);
+});
+test("pre-push: the word scan set up in git config runs on the range and its finding blocks the push", () => {
+  const root = pushable();
+  const scan = join(tempDir(), "scan-words.ts");
+  writeFileSync(
+    scan,
+    'console.log("scan-words " + process.argv.slice(2).join(" "));\nprocess.exitCode = 1;\n',
+  );
+  git(root, "config", "sveltedt.wordScan", scan);
+  git(root, "config", "sveltedt.wordList", "/lists/words.txt");
+  git(root, "config", "sveltedt.wordAllow", "/lists/allow.txt");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /scan-words git \S+ \S+\.\.\S+ --list \/lists\/words\.txt --allow \/lists\/allow\.txt/,
+  );
+  assert.match(r.out, /^FINDING words /m);
+});
+test("pre-push: a work tree with uncommitted changes cannot be checked, since the gate reads it", () => {
+  const root = pushable();
+  put(root, "README.md", "# Changed\n");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK pre-push: .*not the pushed commit/m);
+});
+test("pre-push: pushing a branch other than the one checked out cannot be checked", () => {
+  const root = pushable();
+  git(root, "checkout", "-q", "-b", "feat/y", "HEAD~1");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK pre-push: .*not the pushed commit/m);
+});
+test("pre-push: a deletion, a tag and a branch with no new commit have nothing to check", () => {
+  const root = pushable();
+  assert.equal(gitPush(root, ["feat/x"]).code, 0);
+  let r = gitPush(root, [":feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE pre-push: .*deletion/m);
+  git(root, "tag", "v0.0.1");
+  r = gitPush(root, ["v0.0.1"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE pre-push: .*tag/m);
+  r = gitPush(root, ["origin/main:refs/heads/copy"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE pre-push: .*no new commit/m);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
