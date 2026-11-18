@@ -1283,7 +1283,8 @@ test("svelte: a test and a rune module beside the components are svelte-check's,
 test("svelte: a component Svelte cannot parse is a finding with Svelte's own message and line", () => {
   // Measured with svelte-check 4.7.8: it drops a Svelte parse error that says "expected" when the config has no
   // preprocess and the component has any lang attribute, so a style Svelte rejects (p:is()) would hide an untyped
-  // script. The step reports the parse error itself, with Svelte's line and message (measured with svelte 5.57.3's parse).
+  // script. The step reports the parse error itself, with Svelte's line and message (measured with svelte 5.57.3's
+  // parse).
   for (const [body, line] of [
     [
       '<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n',
@@ -1299,8 +1300,8 @@ test("svelte: a component Svelte cannot parse is a finding with Svelte's own mes
     ],
   ]) {
     const out = expect("svelte", repo(component(body)), 1);
-    // Svelte's own line (each row) and its message's text (row 1; rows 2-3 only that one follows), first line only
-    // (the second is a link).
+    // Each row pins Svelte's line; row 1 also its message's text, rows 2-3 only that some text follows. The message is
+    // its first line only (the second is a link).
     assert.match(
       out,
       new RegExp(`src/Count\\.svelte: Svelte cannot parse it at line ${line}`),
