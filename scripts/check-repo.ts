@@ -941,6 +941,7 @@ const JS_RULES = [
   "no-implied-eval",
   "no-new-func",
   "no-undef",
+  "no-restricted-syntax|assigning innerHTML",
 ];
 const LINT_CANARY_RULES: Record<string, string[]> = {
   ".mjs": JS_RULES,

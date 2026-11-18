@@ -29,3 +29,6 @@ export function e(x) {
   if (x === 20) return 20;
   return -1;
 }
+export function inject(el, html) {
+  el.innerHTML = html;
+}

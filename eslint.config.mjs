@@ -99,18 +99,15 @@ const scriptBans = [
     "innerHTML, outerHTML or srcdoc in an object literal (PRD-S2)",
   ],
   [
-    "CallExpression[callee.property.name=/^(setHTMLUnsafe|parseHTMLUnsafe|createContextualFragment)$/]",
+    "Identifier[name=/^(setHTMLUnsafe|parseHTMLUnsafe|createContextualFragment)$/]",
     "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment (PRD-S2)",
   ],
-  ["NewExpression[callee.name='DOMParser']", "DOMParser (PRD-S2)"],
+  ["Identifier[name='DOMParser']", "DOMParser (PRD-S2)"],
   [
-    "CallExpression[callee.property.name=/^(write|writeln)$/]:matches([callee.object.name=/document$/i], [callee.object.property.name=/document$/i])",
+    "MemberExpression[property.name=/^(write|writeln)$/]:matches([object.name=/document$/i], [object.property.name=/document$/i])",
     "document.write (PRD-S2)",
   ],
-  [
-    "CallExpression[callee.property.name='insertAdjacentHTML']",
-    "insertAdjacentHTML (PRD-S2)",
-  ],
+  ["Identifier[name='insertAdjacentHTML']", "insertAdjacentHTML (PRD-S2)"],
 ].map(([selector, message]) => ({ selector, message }));
 
 export default [
@@ -119,7 +116,7 @@ export default [
     files: ["**/*.mjs", "**/*.js"],
     languageOptions: { globals: node },
     linterOptions,
-    rules: shared,
+    rules: { ...shared, "no-restricted-syntax": ["error", ...scriptBans] },
   },
   ...ts.configs.recommendedTypeChecked.map((config) => ({
     ...config,

@@ -1222,23 +1222,132 @@ test("lint: a <style> block in a component is a finding that names the ban", () 
   assert.match(out, /no-restricted-syntax <style> block/);
 });
 test("lint: markup and code beside the injection bans pass in a component", () => {
-  // Near misses: another element through svelte:element, an iframe without srcdoc, reading innerHTML, a write that
-  // is not document's.
+  // Near misses: another element through svelte:element, an iframe without srcdoc, reading innerHTML, a string
+  // holding its name, a write that is not document's.
   expect(
     "lint",
     repo(
       component(
         COMPONENT.replace(
           "</script>",
-          "  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n</script>",
+          '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n</script>',
         ).replace(
           "<p>{count}</p>",
-          '<svelte:element this="p">{count}{log.write(innerHTML)}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>',
+          '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>',
         ),
       ),
     ),
     0,
   );
+});
+// RND-04 (spec/table.md): every raw-HTML form its example names is a finding, in a component and in a script.
+const SINK = (body: string) =>
+  `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
+test("lint: each raw-HTML form RND-04 names is a finding that names its ban", () => {
+  for (const [form, change, ban] of [
+    [
+      "{@html",
+      component(`${COMPONENT}{@html String(count)}\n`),
+      "svelte/no-at-html-tags",
+    ],
+    [
+      "innerHTML",
+      (r: string) => put(r, "scripts/x.ts", SINK("el.innerHTML = html;")),
+      "assigning innerHTML",
+    ],
+    [
+      "outerHTML",
+      (r: string) => put(r, "scripts/x.ts", SINK("el.outerHTML = html;")),
+      "assigning innerHTML, outerHTML",
+    ],
+    [
+      "insertAdjacentHTML",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK('el.insertAdjacentHTML("beforeend", html);'),
+        ),
+      "insertAdjacentHTML",
+    ],
+    [
+      "document.write",
+      (r: string) => put(r, "scripts/x.ts", SINK("document.write(html);")),
+      "document.write",
+    ],
+    [
+      "createContextualFragment",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK("document.createRange().createContextualFragment(html);"),
+        ),
+      "createContextualFragment",
+    ],
+    [
+      "DOMParser",
+      (r: string) =>
+        put(
+          r,
+          "scripts/x.ts",
+          SINK('new DOMParser().parseFromString(html, "text/html");'),
+        ),
+      "DOMParser",
+    ],
+    [
+      "srcdoc",
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<iframe title="t" srcdoc={String(count)}></iframe>',
+        ),
+      ),
+      "srcdoc attribute",
+    ],
+  ] as const) {
+    const out = expect("lint", repo(change), 1);
+    assert.ok(out.includes(ban), `${form}: ${out}`);
+  }
+});
+test("lint: a raw-HTML sink named without being called or assigned is a finding", () => {
+  for (const [body, ban] of [
+    ["const Parser = DOMParser;\n  void new Parser();", "DOMParser"],
+    [
+      "const write = document.write.bind(document);\n  write(html);",
+      "document.write",
+    ],
+    [
+      "const fragment = document.createRange().createContextualFragment;\n  void fragment;",
+      "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
+    ],
+  ]) {
+    const out = expect(
+      "lint",
+      repo((r) => put(r, "scripts/x.ts", SINK(body))),
+      1,
+    );
+    assert.ok(out.includes(`no-restricted-syntax ${ban}`), `${body}: ${out}`);
+  }
+});
+test("lint: a raw-HTML sink in a .js or .mjs file is a finding", () => {
+  for (const file of ["scripts/x.js", "scripts/x.mjs"]) {
+    const out = expect(
+      "lint",
+      repo((r) =>
+        put(
+          r,
+          file,
+          "export function sink(el, html) {\n  el.innerHTML = html;\n}\n",
+        ),
+      ),
+      1,
+    );
+    assert.ok(
+      out.includes("no-restricted-syntax assigning innerHTML"),
+      `${file}: ${out}`,
+    );
+  }
 });
 test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
   const out = expect(
