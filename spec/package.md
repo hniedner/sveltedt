@@ -23,10 +23,10 @@
 - **Test layers.**
   - **pack**: the package built and packed from the test's own checkout in the test's run, then the tarball read, or
     handed to the named tool. A tarball left over from an earlier run is never read.
-  - **consumer**: the consumer project given that tarball as CON-01 states and built for production in the test's run,
-    then read as files (**consumer files**), started and sent real requests through `node:http` and read as status,
-    headers and body (**consumer HTTP**), or opened in a real engine, in Chromium, Firefox and WebKit unless the
-    statement names fewer and says why (**consumer browser**).
+  - **consumer**: a copy of the consumer project with that tarball installed as CON-01 states, built for production in
+    the test's run, then read as files (**consumer files**), started and sent real requests through `node:http` and read
+    as status, headers and body (**consumer HTTP**), or opened in a real engine, in Chromium, Firefox and WebKit unless
+    the statement names fewer and says why (**consumer browser**).
   - A row that the test runs as a canary is a manifest or a file planted in a copy, which must be found.
 - **The tarball** is the file the package manager's pack command writes for the repository's root package after the
   package build. **The packed manifest** is the `package.json` inside it.
@@ -67,8 +67,8 @@
   Other conditions beside these two are not this statement's; neither is any subpath other than `.`; that each
   condition names a file the tarball holds is publint's check (PKG-02). Break that turns it red: the `types` condition
   left out of the root export.
-- Reason: a Svelte-aware bundler resolves the component through `svelte`, and TypeScript resolves its types through
-  `types`; a condition that names a file the tarball lacks breaks every install while the repository's own tests pass.
+- Reason: without `types` TypeScript finds no types for the package, and without `svelte` a Svelte-aware bundler
+  cannot resolve the component; the repository's own tests pass either way.
 - Layer: pack.
 - Traces: PRD-K2.
 
@@ -132,49 +132,35 @@ ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.s
 - Layer: pack.
 - Traces: PRD-L1, PRD-K2.
 
-**PKG-05** The packed manifest's `peerDependencies.svelte` range MUST admit the Svelte version that the consumer
-project's committed lockfile holds.
-- Examples (the first row is the real tarball against the real `consumer/pnpm-lock.yaml`; the others are canaries, a
-  packed manifest planted in a copy of the tarball's contents, read against a lockfile that holds Svelte 5.33.1):
-
-  | `peerDependencies.svelte` | Result |
-  |---|---|
-  | the real tarball's range | passes |
-  | `^5.20.0` | passes |
-  | `^5.40.0` (above the lockfile's version) | finding |
-  | `^6.0.0` | finding |
-
-  When the lockfile holds no `svelte` or the packed manifest no `peerDependencies.svelte`, the check reports "could
-  not check". Break that turns it red: the peer range raised above the version the consumer's lockfile holds.
-- Reason: CON-01 puts the package into the consumer by extracting the tarball, which checks no peer range, as an
-  install would; this statement is that check, so a consumer whose Svelte the range refuses cannot pass unseen.
-- Layer: pack.
-- Traces: PRD-K2, PRD-W8.
-
 ## 2. The consumer project (CON)
 
-**CON-01** The consumer project MUST get SvelteDT only from the tarball, extracted into its installed tree after its
-frozen install, with its committed files left unchanged.
-- Examples (the first two rows are the real consumer project after its install and the extraction; the others are
-  canaries, each planted in a copy of the consumer project, which must be found):
+**CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
+consumer project, and leave the committed consumer project unchanged.
+- Examples (the test copies `consumer/` to a temporary folder, installs the copy from its copied lockfile unchanged,
+  then adds the tarball with one package-manager command that fetches nothing from the registry (`pnpm add -D --offline`
+  and the tarball's path); the first three rows are read after that, the others are canaries, each planted in a copy,
+  which must be found):
 
   | What is read | Result |
   |---|---|
-  | `consumer/node_modules/@hniedner/sveltedt` | a real directory, not a link, holding exactly the tarball's files, with the same names and bytes |
-  | `consumer/package.json` and `consumer/pnpm-lock.yaml` | unchanged against the commit (`git status` lists neither) |
-  | `@hniedner/sveltedt` named in `consumer/package.json` (any dependency field) | finding |
-  | `@hniedner/sveltedt` named in `consumer/pnpm-lock.yaml` | finding |
-  | `consumer/node_modules/@hniedner/sveltedt` a link to the repository | finding |
+  | the copy's `node_modules/@hniedner/sveltedt`, links followed | lies inside the copy's own package store, and holds exactly the tarball's files, with the same names and bytes |
+  | the copy's lockfile | records the tarball as the source of `@hniedner/sveltedt` |
+  | `consumer/package.json` and `consumer/pnpm-lock.yaml` in the checkout | unchanged against the commit (`git status` lists neither), and neither names `@hniedner/sveltedt` |
+  | `@hniedner/sveltedt` named in the committed `consumer/package.json` (any dependency field) | finding |
+  | the copy's installed package resolving to a folder of the repository outside the copy | finding |
 
-  When `consumer/node_modules/@hniedner/sveltedt` does not exist, the check reports "could not check". Break that
-  turns it red: the tarball added with the package manager's `add` command, which writes it into both files.
-- Reason: a linked install reads the repository, not the package, so broken `exports`, missing files or types that
-  only resolve inside the repository pass unseen; and a tarball named in the committed files would change the
-  committed lockfile with every build, which a frozen install refuses. Extraction equals an install here because the
-  package has no dependency of its own and no install script (SUP-04 and SUP-06 of `spec/release.md` keep it so), so
-  a package manager would add nothing but the files; the one thing an install would check and an extraction does
-  not, the peer range, is PKG-05's. If the package ever gains a runtime dependency or an install script, this
-  statement is wrong and must be rewritten.
+  When the copy holds no installed `@hniedner/sveltedt`, the check reports "could not check". These installs run
+  inside the test, not as steps of a workflow, so SUP-05 of `spec/release.md`, which governs workflow steps, stays as
+  it is. Break that turns it red: the committed `consumer/package.json` given `"@hniedner/sveltedt": "link:.."`.
+- Reason: a package is tested as a consumer gets it: packed, then installed by the package manager into a project of
+  its own; a linked install reads the repository instead, so broken `exports`, missing files or types that only
+  resolve inside the repository pass unseen. The committed project names no tarball, so its frozen install never
+  meets a tarball whose checksum changes with every build, and no `file:` entry is committed. A reader of the README
+  quick start adds the package the same way, with the same command form (`pnpm add -D @hniedner/sveltedt`): as a
+  development dependency, which the Node adapter bundles into the app's server build ("Development dependencies will
+  be bundled into your app", READ, svelte.dev/docs/kit/adapter-node); the Svelte documentation recommends neither
+  form, so this one is stated here once. The two installs run in the consumer test itself; if they ever move into a
+  workflow step, SUP-05 applies to them and this statement must be revisited.
 - Layer: consumer files.
 - Traces: PRD-W8.
 
@@ -262,7 +248,7 @@ other script of the page.
   | Consumer | Warnings |
   |---|---|
   | the real consumer project | none |
-  | a copy whose list page renders an element only in the browser, before the table | at least one `[svelte] hydration_mismatch`, found |
+  | a copy whose list page renders an `img` whose `src` differs between the server and the browser | at least one `[svelte] hydration_attribute_changed`, found |
 
   The second row shows the test sees a warning when there is one. Messages the browser itself logs (a failed request,
   a policy report) are not warnings in this sense. Break that turns it red: the second row's change made to the real
@@ -293,15 +279,39 @@ other script of the page.
 
 **CON-10** The component's styles MUST apply in the consumer through its Tailwind `@source` line naming the installed
 package.
-- Example: the consumer's stylesheet holds `@source` with the path of the installed package folder; open `/` in each
-  engine: the caption is visually hidden as A11Y-13 of `spec/table.md` measures (its bounding box at most 1 by 1 CSS
-  px), which only a class Tailwind generated from the package's files can do, since the package ships no CSS
-  (PRD-T3). Break that turns it red: the `@source` line removed, so Tailwind, which skips `node_modules`, generates
-  none of the component's classes.
+- Examples (the consumer's stylesheet holds `@source` with the path of the installed package folder; the test opens
+  `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a canary, a copy
+  without the `@source` line, which must be found):
+
+  | Consumer | Caption |
+  |---|---|
+  | the real consumer project | visually hidden: its bounding box at most 1 by 1 CSS px |
+  | a copy without the `@source` line | larger than 1 by 1 CSS px, found |
+
+  Only a class Tailwind generated from the package's files hides the caption, since the package ships no CSS
+  (PRD-T3); the second row shows that no class of the consumer's own files does it instead. Break that turns it red:
+  the `@source` line removed, so Tailwind, which skips `node_modules`, generates none of the component's classes.
 - Reason: a consumer who installs the package and forgets the line gets an unstyled table; the consumer project must
   show the line the documentation will tell consumers to write, and show that it is enough.
 - Layer: consumer browser.
 - Traces: PRD-T3, PRD-W8.
+
+**CON-11** The package manager's peer check in the consumer copy MUST report no issue.
+- Examples (the test runs `pnpm peers check` in the copy of CON-01 after the tarball is added; the second row is a
+  canary, a tarball whose packed manifest is planted with the range, added to its own copy, which must be found):
+
+  | `peerDependencies.svelte` of the added tarball | `pnpm peers check` |
+  |---|---|
+  | the real tarball's range | exit 0, "No peer dependency issues found" |
+  | a range above the Svelte version the copy installs (`^6.0.0` against 5.x) | exit 1, an unmet peer `svelte`, found |
+
+  Break that turns it red: the packed manifest's peer range raised above the Svelte version the consumer's lockfile
+  holds.
+- Reason: the add command only warns when the installed Svelte is outside the peer range and still exits 0
+  (MEASURED with pnpm 12.19.0); the peer check is the package manager's own command that fails on it, so a consumer
+  whose Svelte the range refuses cannot pass unseen.
+- Layer: consumer files.
+- Traces: PRD-K2, PRD-W8.
 
 ## Trace
 
@@ -313,7 +323,6 @@ package.
 | PKG-02 | PRD-K2 |
 | PKG-03 | PRD-K2 |
 | PKG-04 | PRD-L1, PRD-K2 |
-| PKG-05 | PRD-K2, PRD-W8 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
 | CON-03 | PRD-S1 |
@@ -324,14 +333,15 @@ package.
 | CON-08 | PRD-K4 |
 | CON-09 | PRD-K2, PRD-W8 |
 | CON-10 | PRD-T3, PRD-W8 |
+| CON-11 | PRD-K2, PRD-W8 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, CON-09 | in part: the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces "Are the types wrong?"; the amendment's pull request must merge first): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
-| PRD-W8 | PKG-05, CON-01, CON-02, CON-04, CON-05, CON-07, CON-09, CON-10 | in part: "its files are the README quick start" comes with PRD-D1 |
+| PRD-W8 | CON-01, CON-02, CON-04, CON-05, CON-07, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
 | PRD-T3 | CON-10 | in part: the consumer's `@source`; no CSS shipped and the build's variants are `spec/table.md`'s |
 | PRD-S1 | CON-03, CON-04, CON-05, CON-07 | in part: the server-rendered half; the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` and its build holding no `eval`, `new Function` or string timers have no statement yet (listed as not yet traced in `spec/table.md`) |
