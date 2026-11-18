@@ -48,7 +48,9 @@
   writes a new statement with the next free id in its own group, which may cite the earlier one ("as POL-04, for
   page full"). A statement's test arrives with the pull request that makes its last example runnable.
 - **What a statement covers.** A statement covers what its examples show; an earlier statement is never widened to
-  anticipate a later part's pages.
+  anticipate a later part's pages. POL-01 and POL-04 are the deliberate exception: their rows name every `.html` file
+  of the build, so a page joins them by existing; a later part whose page cannot meet their rows (a page with no
+  table) says so in a statement of its own before that page is built.
 
 ## 1. Serving (SRV)
 
@@ -161,7 +163,8 @@ the strict policy.
 **POL-01** Each HTML page the build folder holds MUST load the listener from the site's own origin so that it runs
 before every other script of the page.
 - Examples (the test runs every row against the site's real build; it lists the build folder's `.html` files, reads
-  each as the server answers it at its path, and reports "could not check" when it lists none):
+  each as the server answers it at its path, and reports "could not check" when the list lacks `index.html` or
+  `canary.html`):
 
   | Page | The listener | Every other `script` element |
   |---|---|---|
@@ -213,8 +216,9 @@ before every other script of the page.
 - Traces: PRD-W4.
 
 **POL-04** Each HTML page the build folder holds, other than the canary page, MUST raise no policy violation by the
-time it has loaded and shows its table.
-- Examples (the test lists the build folder's `.html` files and reports "could not check" when it lists none; it runs
+time it has loaded and its table has rendered.
+- Examples (the test lists the build folder's `.html` files and reports "could not check" when the list lacks
+  `index.html`; it runs
   every row in each engine, in this order: the response carries the strict policy (SRV-02); the listener's list
   exists; the page has loaded; the page shows what the row names; then the list holds 0 entries):
 
