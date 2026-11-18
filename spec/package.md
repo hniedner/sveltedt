@@ -199,7 +199,8 @@ consumer project, and leave the committed consumer project unchanged.
 **CON-04** The consumer server's HTML responses to the list page and to a page that does not exist MUST each carry a
 `Content-Security-Policy` header that is the strict policy with one fresh nonce added to `script-src` and, as its only
 other addition, the `style-src-attr` allowance of PRD-W8.
-- Examples (the test runs every row; `N1` and `N2` are the nonces of the two responses):
+- Examples (the test runs every row; `N1` and `N2` are the nonces of the two responses; the hash is the one measured on
+  2026-11-17 for the announcer's style, recomputed as PRD-D3 says when SvelteKit changes that style):
 
   | Request | `Content-Security-Policy` |
   |---|---|
