@@ -105,6 +105,11 @@ function gitleaks(args: string[], config: string): Scan {
       report,
       "--no-banner",
       "--no-color",
+      // No line or file may silence a finding: allow comments are ignored, and the ignore file is looked for in
+      // this run's empty work folder instead of the working folder.
+      "--ignore-gitleaks-allow",
+      "--gitleaks-ignore-path",
+      work,
       "--log-level",
       "info",
     ]);
@@ -140,12 +145,8 @@ function canary(config: string): void {
   for (let i = 0; i < 36; i++) s += a[Math.floor(Math.random() * a.length)];
   writeFileSync(join(d, "canary.txt"), `token = "gh${"p"}_${s}"\n`); // assembled so no token-shaped literal is committed
   try {
-    let found = false;
-    try {
-      found = gitleaks(["dir", d], config).leaks.length > 0;
-    } catch {
-      found = false;
-    }
+    // A failure of the run itself is reported with its own cause.
+    const found = gitleaks(["dir", d], config).leaks.length > 0;
     if (!found)
       cannot("canary not found: the planted fake token was not reported");
   } finally {
@@ -153,7 +154,10 @@ function canary(config: string): void {
   }
 }
 
-function preflight(config: string): void {
+function preflight(config: string, source: string): void {
+  // gitleaks reads a .gitleaksignore in the scanned folder whatever --gitleaks-ignore-path says.
+  if (existsSync(join(source, ".gitleaksignore")))
+    cannot(`${source}/.gitleaksignore would silence findings: remove it`);
   const versionFile = join(import.meta.dirname, "gitleaks.version");
   const pinned = pinnedVersion(versionFile);
   if (!pinned) cannot(`no line "version <x>" in ${versionFile}`);
@@ -194,7 +198,7 @@ function scanDir(target: string, config: string): number {
     cannot(`not a directory: ${target}`);
   const w = walk(root);
   if (w.files === 0 || w.bytes === 0) cannot(`nothing to scan in ${target}`);
-  preflight(config);
+  preflight(config, root);
   const s = gitleaks(["dir", root], config);
   if (s.bytes === 0) cannot(`scanner read 0 bytes of a ${w.bytes}-byte tree`);
   if (s.leaks.length)
@@ -223,7 +227,7 @@ function scanGit(target: string, range: string, config: string): number {
   const total = rl.out.split("\n").filter(Boolean).length;
   if (total === 0) cannot(`commit range ${range} is empty`);
   const adding = commitsAddingText(repo, range);
-  preflight(config);
+  preflight(config, repo);
   // gitleaks counts only commits that yield text to scan, so the count lies between those and the whole range.
   const s = gitleaks(
     ["git", repo, `--log-opts=--diff-merges=first-parent ${range}`],

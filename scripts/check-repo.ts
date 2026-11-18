@@ -461,6 +461,9 @@ function toolchain(root: string): Result {
   const node = process.versions.node;
   if (wanted.split(".")[0] !== node.split(".")[0])
     return result(CANNOT, `node is ${node}, .node-version pins ${wanted}`);
+  // The secret scanner too: missing, selftest's scan tests would report it as failures, not as could-not-check.
+  const scanner = pinnedBinary(root, "gitleaks", "version");
+  if (isResult(scanner)) return scanner;
   const v = versionOf(binaryOf("pnpm"), "--version");
   if (isResult(v)) return v;
   if (v.line !== pin[1])

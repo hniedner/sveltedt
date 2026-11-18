@@ -103,8 +103,10 @@ function run(
   args: string[],
   env: Record<string, string> = {},
   wrapper = WRAPPER,
+  cwd?: string,
 ): { code: number; out: string } {
   const r = spawnSync(process.execPath, [wrapper, ...args], {
+    cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -287,6 +289,20 @@ test("git: a range ending in a merge commit passes", () => {
   git(r, "merge", "-q", "--no-edit", "side");
   const out = run(["git", r, "HEAD~1..HEAD"]);
   assert.equal(out.code, 0, out.out);
+});
+test("dir: a gitleaks:allow comment does not hide a token", () => {
+  const d = tree(tempDir(), {
+    "k.txt": `t = "${fakeToken()}" # gitleaks:allow\n`,
+  });
+  assert.equal(run(["dir", d]).code, 1);
+});
+test("dir: a .gitleaksignore where the scan runs does not hide a token", () => {
+  // gitleaks reads the file from its working folder; the fingerprint holds the path it was given.
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  writeFileSync(join(d, ".gitleaksignore"), `${d}/k.txt:github-pat:1\n`);
+  const r = run(["dir", d], {}, WRAPPER, d);
+  assert.notEqual(r.code, 0, r.out); // a finding, or could-not-check naming the file
+  assert.match(r.out, /leak|\.gitleaksignore would silence/);
 });
 test("git: a range holding a delete-only and an empty commit passes", () => {
   const r = repoWith({ "a.txt": "x\n", "b.txt": "y\n" });

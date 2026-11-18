@@ -245,6 +245,14 @@ exit 2
   return bin;
 }
 
+/** A stand-in that only reports its version, as `<name> version` does. */
+function fakeVersion(name: string, version: string): string {
+  const bin = join(tempDir(), name);
+  writeFileSync(bin, `#!/bin/sh\necho "${version}"\n`);
+  chmodSync(bin, 0o755);
+  return bin;
+}
+
 /** A stand-in for zizmor: reports `version`; finds a file holding `canary` (exit 13) or `bad` (exit 12). */
 function fakeZizmor({
   version = "9.9.9",
@@ -271,6 +279,7 @@ interface RunOptions {
   lint?: string;
   pnpm?: string;
   zizmor?: string;
+  gitleaks?: string;
   canaries?: string;
   extraEnv?: Record<string, string>;
 }
@@ -281,6 +290,7 @@ function run(
     lint = fakeLint(),
     pnpm = fakePnpm(),
     zizmor = fakeZizmor(),
+    gitleaks = fakeVersion("gitleaks", "9.9.9"),
     canaries = undefined,
     extraEnv = {},
   }: RunOptions = {},
@@ -290,6 +300,7 @@ function run(
     ACTIONLINT_BIN: lint,
     PNPM_BIN: pnpm,
     ZIZMOR_BIN: zizmor,
+    GITLEAKS_BIN: gitleaks,
     ...extraEnv,
   };
   for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
@@ -398,6 +409,13 @@ test("toolchain: a package.json that is not JSON cannot be checked", () => {
     3,
   );
   assert.match(out, /package\.json is missing or not JSON/);
+});
+test("toolchain: a missing gitleaks cannot be checked", () => {
+  // Before selftest, whose secret-scan tests would otherwise report it as failures.
+  const out = expect("toolchain", repo(), 3, {
+    gitleaks: join(tempDir(), "absent"),
+  });
+  assert.match(out, /cannot run .*absent/);
 });
 test("toolchain: a missing pnpm cannot be checked", () => {
   const out = expect("toolchain", repo(), 3, {
