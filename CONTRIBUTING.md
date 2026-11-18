@@ -17,7 +17,6 @@ One command runs every check that exists today, in order, stopping at the first 
 
 ```sh
 pnpm install --frozen-lockfile
-git config core.hooksPath .githooks   # once per clone; replaces your global hooks here (Commit headers)
 pnpm gate
 ```
 
@@ -144,8 +143,14 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-Once `core.hooksPath` is set (by hand for now; nothing checks the setting yet), git runs `.githooks/commit-msg` when
-`git commit` (also `--amend`) writes a message or `git merge` makes a merge commit. The hook needs the Node version of
+To run the header check before each commit, set once per clone, by choice (nothing checks the setting yet):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
+commit. The hook needs the Node version of
 `.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
 setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
 place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
