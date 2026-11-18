@@ -373,8 +373,6 @@ function runTestFile(
   root: string,
   file: string,
 ): { code: number; line: string } {
-  if (!existsSync(join(root, file)))
-    return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
   const r = spawnSync(
     process.execPath,
