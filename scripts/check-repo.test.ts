@@ -970,12 +970,53 @@ test("dupes: a jscpd that fails on the repository cannot be checked", () => {
     /jscpd exited|no jscpd report/,
   );
 });
-test("dupes: a file jscpd does not analyse cannot be checked", () => {
-  // Under jscpd's 50 tokens: it is left out of the report like a file over its size limit.
-  const short = (root: string) =>
-    put(root, "scripts/short.mjs", "export const one = 1;\n");
-  const out = expect("dupes", repo(short), 3);
-  assert.match(out, /jscpd analysed 2 of 3 file\(s\)/);
+// A component project has small files: an index of two lines, a Vite config of 35 tokens. jscpd leaves out a file
+// under its 50 tokens; one that small cannot hold a clone of 50 tokens, so it is set aside by name with jscpd's own
+// count. mid.mjs (65 tokens) must be analysed: it pins one minimum for jscpd and for the comparison.
+const SMALL = {
+  "scripts/index.mjs":
+    'export { one } from "./one.mjs";\nexport const two = 2;\n',
+  "scripts/vite.config.mjs":
+    'import { defineConfig } from "vite";\nexport default defineConfig({\n  root: "site",\n  build: { outDir: "dist" },\n  server: { port: 5173 },\n});\n',
+  "scripts/mid.mjs":
+    'export const settings = {\n  name: "table",\n  rows: [1, 2, 3, 4, 5, 6, 7, 8],\n  columns: ["id", "name", "price"],\n  page: { size: 20, index: 0 },\n  sort: { by: "name", up: true },\n};\n',
+  "scripts/empty.mjs": "",
+  "scripts/blank.mjs": "\n\n",
+};
+const small = (root: string) => {
+  for (const [path, text] of Object.entries(SMALL)) put(root, path, text);
+};
+test("dupes: a file too small to hold a clone is set aside by name with jscpd's token count", () => {
+  const out = expect("dupes", repo(small), 0);
+  for (const line of [
+    "scripts/index.mjs: 13 tokens",
+    "scripts/vite.config.mjs: 35 tokens",
+    "scripts/empty.mjs: 0 tokens",
+    "scripts/blank.mjs: 0 tokens",
+  ])
+    assert.ok(out.includes(line), `${line}: ${out}`);
+  assert.doesNotMatch(out, /mid\.mjs/);
+  assert.match(out, /set aside 4 file\(s\) under 50 tokens/);
+});
+test("dupes: a clone is still a finding beside the files set aside", () => {
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      small(root);
+      put(root, "scripts/a.mjs", BLOCK);
+      put(root, "scripts/b.mjs", BLOCK);
+    }),
+    1,
+  );
+  assert.match(out, /scripts\/a\.mjs:\d+-\d+ repeats scripts\/b\.mjs/);
+});
+test("dupes: a file jscpd leaves out that could hold a clone cannot be checked, and is named", () => {
+  // Over jscpd's 1mb: left out of both runs, though it holds tokens.
+  const big = (root: string) =>
+    put(root, "scripts/big.mjs", "export const one = 1;\n".repeat(60000));
+  const out = expect("dupes", repo(big), 3);
+  assert.match(out, /scripts\/big\.mjs/);
+  assert.match(out, /could hold a clone/);
 });
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);

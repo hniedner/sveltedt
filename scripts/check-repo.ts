@@ -1043,10 +1043,19 @@ interface CloneSide {
 interface JscpdReport {
   duplicates: { firstFile: CloneSide; secondFile: CloneSide }[];
   statistics: { total: { sources: number } };
+  summary: { files: { path: string; tokens: number }[] };
 }
 
-/** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. */
-function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
+/** The smallest clone jscpd reports, in tokens: its --min-tokens, and the size a file needs to hold a clone. */
+const MIN_TOKENS = 50;
+
+/** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. Its
+ * summary names every file analysed with its token count; `minTokens` 1 measures files too small for a clone. */
+function jscpdReport(
+  root: string,
+  files: string[],
+  minTokens = MIN_TOKENS,
+): JscpdReport | ToolError {
   const bin = join(HERE, "..", "node_modules", ".bin", "jscpd");
   const out = mkdtempSync(join(tmpdir(), "jscpd-"));
   try {
@@ -1055,11 +1064,14 @@ function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
       "--no-gitignore",
       "--absolute",
       "--min-tokens",
-      "50",
+      String(minTokens),
       "--min-lines",
-      "5",
+      minTokens === MIN_TOKENS ? "5" : "1",
       "--max-size",
       "1mb",
+      "--summary",
+      "--summary-top",
+      String(files.length),
     ];
     const r = spawnSync(
       bin,
@@ -1085,6 +1097,7 @@ function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
     for (const d of report.duplicates)
       for (const side of [d.firstFile, d.secondFile])
         side.name = given(side.name);
+    for (const f of report.summary.files) f.path = given(f.path);
     return report;
   } catch (e) {
     return { error: `no jscpd report: ${(e as Error).message.split("\n")[0]}` };
@@ -1108,7 +1121,9 @@ const DUPES_EXTENSIONS = [".mjs", ".ts"];
 
 // Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
 // starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd leaves out, without a word,
-// a file under its minimum clone (50 tokens) or over its size limit (1mb): every file given must be in its report.
+// a file under its minimum clone (MIN_TOKENS) or over its size limit (1mb). Its summary names the files it analysed;
+// each file left out is measured by jscpd itself: under MIN_TOKENS it cannot hold a clone and is set aside by name,
+// anything else cannot be checked. A file with no token at all is left out of both runs: it must be blank.
 function dupes(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "dupes");
   if (isResult(inputs)) return inputs;
@@ -1138,19 +1153,39 @@ function dupes(root: string, list: Set<string>): Result {
   const report = jscpdReport(root, mine);
   if ("error" in report) return result(CANNOT, report.error);
   const sources = report.statistics.total.sources;
-  if (sources !== mine.length)
+  const analysed = new Set(report.summary.files.map((f) => f.path));
+  if (analysed.size !== sources)
     return result(
       CANNOT,
-      `jscpd analysed ${sources} of ${mine.length} file(s): one under 50 tokens or over 1mb is left out`,
+      `jscpd named ${analysed.size} of the ${sources} file(s) it analysed`,
     );
+  const left = mine.filter((f) => !analysed.has(f));
+  const small = left.length ? jscpdReport(root, left, 1) : null;
+  if (small && "error" in small) return result(CANNOT, small.error);
+  const tokens = new Map(small?.summary.files.map((f) => [f.path, f.tokens]));
+  const count = (f: string): number | undefined =>
+    tokens.get(f) ??
+    (readFileSync(join(root, f), "utf8").trim() ? undefined : 0);
+  const blocked = left.filter((f) => (count(f) ?? MIN_TOKENS) >= MIN_TOKENS);
+  if (blocked.length)
+    return result(
+      CANNOT,
+      `jscpd left out ${blocked.length} file(s) that could hold a clone of ${MIN_TOKENS} tokens`,
+      blocked.map((f) => `${f}: ${count(f) ?? "no"} tokens counted`),
+    );
+  const aside = left.map((f) => `${f}: ${count(f)} tokens`);
   const details = report.duplicates.map(
     (d) => `${at(d.firstFile)} repeats ${at(d.secondFile)}`,
   );
   if (details.length)
     return result(FINDING, `${details.length} clone(s)`, details);
+  const asideNote = aside.length
+    ? `; set aside ${aside.length} file(s) under ${MIN_TOKENS} tokens`
+    : "";
   return result(
     PASS,
-    `jscpd ${version} found the canary clone and no clone in ${sources} of ${mine.length} file(s)`,
+    `jscpd ${version} found the canary clone and no clone in ${sources} of ${mine.length} file(s)${asideNote}`,
+    aside,
   );
 }
 

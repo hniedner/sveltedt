@@ -44,7 +44,8 @@ The checks today:
   and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks the scripts, jscpd finds copied
-  code outside tests and components. Not yet banned, following in its own pull request: a style attribute in
+  code outside tests and components (a file under its 50 tokens cannot hold a clone: it is set aside and named, with
+  jscpd's own token count). Not yet banned, following in its own pull request: a style attribute in
   another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
   `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
