@@ -1190,12 +1190,12 @@ const vitestTest =
     put(root, path, `import { expect, test } from "vitest";\n${body}`);
   };
 const PASSING_VITEST = 'test("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n';
-test("test: with no src/ or site/ test file tracked the step is not applicable, after vitest failed its canary", () => {
+test("test: with no test file and no code under src/ or site/ the step is not applicable, after vitest failed its canary", () => {
   const r = run(["test", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
   assert.match(
     r.out.trim().split("\n").at(-1) ?? "",
-    /^NOT APPLICABLE test: vitest failed the canary; no src\/ or site\/ test file is tracked$/,
+    /^NOT APPLICABLE test: vitest failed the canary; no test file and no code under src\/ or site\/$/,
     r.out,
   );
 });
@@ -1245,6 +1245,97 @@ test("test: a canary that vitest passes cannot be checked", () => {
     canaries: dir,
   });
   assert.match(out, /did not report the planted failing test/);
+});
+test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
+  const late =
+    'test("adds", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
+  const out = expect("test", repo(vitestTest(late)), 1);
+  assert.match(out, /vitest exited 1/);
+  assert.match(out, /late failure/);
+});
+test("test: a test file that fails to load is a finding that names it, and is counted", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, "src/b.test.ts", 'import "./missing.ts";\n');
+  };
+  const out = expect("test", repo(both), 1);
+  assert.match(out, /src\/b\.test\.ts: /);
+  assert.match(out, /1 file\(s\) failed/);
+});
+test("test: a tracked test file whose tests were all skipped cannot be checked, and is named", () => {
+  const skipped = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "src/b.test.ts",
+      `import { describe, expect, test } from "vitest";\ndescribe.skipIf(!process.env.NEVER_SET)("s", () => {\n  ${PASSING_VITEST}});\n`,
+    );
+  };
+  const out = expect("test", repo(skipped), 3);
+  assert.match(out, /^ {2}src\/b\.test\.ts$/m);
+  assert.match(out, /no test passed/);
+});
+test("test: a tracked test file outside src/ and site/, or named .spec.ts, must run too", () => {
+  for (const path of ["test/extra.test.ts", "src/a.spec.ts"]) {
+    const outside = (root: string): void => {
+      vitestTest(PASSING_VITEST)(root);
+      put(
+        root,
+        path,
+        `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+      );
+    };
+    const out = expect("test", repo(outside), 3);
+    assert.match(out, new RegExp(`^ {2}${path.replace(/\./g, "\\.")}$`, "m"));
+  }
+});
+test("test: tracked source under src/ with no test file cannot be checked", () => {
+  const code = (root: string): void =>
+    put(root, "src/lib/a.ts", "export const a = 1;\n");
+  assert.match(expect("test", repo(code), 3), /no test file/);
+});
+test("test: a config vitest cannot load cannot be checked, and says why", () => {
+  const broken = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "vitest.config.ts",
+      "export default { test: { include: [,,] } ;\n",
+    );
+  };
+  const out = expect("test", repo(broken), 3);
+  assert.match(out, /vitest wrote no report/);
+  assert.match(out, /vitest\.config\.ts/);
+});
+test("theme: a scan that crashes is a usage error that shows why, never a finding", () => {
+  const scripts = tempDir();
+  for (const f of ["check-repo.ts", "pinned.ts"])
+    writeFileSync(join(scripts, f), readFileSync(join(here, f)));
+  writeFileSync(
+    join(scripts, "check-theme-classes.ts"),
+    'import { nope } from "./pinned.ts";\nconsole.log(nope);\n',
+  );
+  const root = repo((r) =>
+    put(
+      r,
+      "src/lib/T.svelte",
+      '<div class="bg-[var(--sdt-a,Canvas)]"></div>\n',
+    ),
+  );
+  const r = spawnSync(
+    process.execPath,
+    [join(scripts, "check-repo.ts"), "theme", "--root", root],
+    {
+      encoding: "utf8",
+      env: GIT_ENV,
+    },
+  );
+  assert.equal(r.status, 2, r.stdout);
+  assert.match(
+    r.stdout,
+    /^USAGE theme: check-theme-classes\.ts printed no result line/m,
+  );
+  assert.match(r.stdout, /nope/);
 });
 test("theme: with no component under src/lib the step is not applicable", () => {
   const r = run(["theme", "--root", repo()]);

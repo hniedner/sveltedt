@@ -1620,11 +1620,28 @@ function svelte(root: string, list: Set<string>): Result {
 
 const vitestBin = (): string =>
   join(HERE, "..", "node_modules", ".bin", "vitest");
-const VITEST_TESTS = /^(?:src|site)\/.+\.test\.ts$/;
+/** A tracked Vitest test file: any *.test.ts or *.spec.ts outside scripts/ (whose tests run under node:test). */
+const isVitestTest = (f: string): boolean =>
+  /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/");
+/** Tracked code a test should cover: TypeScript and components under src/ and site/. */
+const isTestedCode = (f: string): boolean =>
+  /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f) && !isVitestTest(f);
+/** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
+function tail(text: string): string[] {
+  const lines = text
+    .split("\n")
+    .filter(
+      (l) => l.trim() && !/^\s+(?:at |❯ |\d+\||\|)|JSON report written/.test(l),
+    );
+  const errors = lines.filter((l) => /\bError\b.*:/.test(l));
+  return [...errors, ...lines.filter((l) => !errors.includes(l))].slice(0, 8);
+}
 
 interface VitestReport {
   numTotalTests: number;
   numFailedTests: number;
+  numPendingTests: number;
+  numTodoTests: number;
   testResults: {
     name: string;
     status: string;
@@ -1633,62 +1650,104 @@ interface VitestReport {
   }[];
 }
 
-/** Vitest's JSON report of one run in `cwd` (with `args`), or null when it wrote none. */
-function vitest(cwd: string, args: string[]): VitestReport | null {
+/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status and output. */
+function vitest(
+  cwd: string,
+  args: string[],
+): { report: VitestReport | null; status: number | null; out: string } {
   const dir = mkdtempSync(join(tmpdir(), "vitest-"));
   try {
     const file = join(dir, "report.json");
-    spawnSync(
+    const r = spawnSync(
       vitestBin(),
-      ["run", ...args, "--reporter=json", `--outputFile=${file}`],
-      { cwd, encoding: "utf8", env: childEnv() },
+      // dot prints what the JSON report leaves out: errors thrown outside a test
+      [
+        "run",
+        ...args,
+        "--reporter=dot",
+        "--reporter=json",
+        `--outputFile.json=${file}`,
+      ],
+      { cwd, encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
     );
-    return existsSync(file)
+    const report = existsSync(file)
       ? (JSON.parse(readFileSync(file, "utf8")) as VitestReport)
       : null;
+    return { report, status: r.status, out: `${r.stdout}${r.stderr}` };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-// Vitest over the component and site tests (PRD-G1), with the one tracked vitest.config.ts. A planted failing test
-// must be reported first; then every tracked test file must have run, at least one test, and none failed.
+// Vitest over every tracked test file outside scripts/, with the one tracked vitest.config.ts. A planted
+// failing test must be reported first; then every tracked test file must have run with at least one passing test,
+// no test may fail, and vitest itself must exit 0 (an error thrown after a test's assertions is in no report).
 function test(root: string, list: Set<string>): Result {
   const canary = vitest(canaries("test"), []);
-  if (!canary || canary.numFailedTests < 1)
+  if (!canary.report || canary.report.numFailedTests < 1)
     return result(
       CANNOT,
       "vitest did not report the planted failing test (canary.test.ts)",
+      tail(canary.out),
     );
-  const mine = [...list].filter((f) => VITEST_TESTS.test(f)).sort();
+  const mine = [...list].filter(isVitestTest).sort();
   if (!mine.length)
-    return result(
-      NA,
-      "vitest failed the canary; no src/ or site/ test file is tracked",
-    );
+    return [...list].some(isTestedCode)
+      ? result(
+          CANNOT,
+          "no test file is tracked for the code under src/ or site/",
+        )
+      : result(
+          NA,
+          "vitest failed the canary; no test file and no code under src/ or site/",
+        );
   if (!list.has("vitest.config.ts"))
     return result(CANNOT, "vitest.config.ts is not tracked");
-  const run = vitest(root, ["--config", join(root, "vitest.config.ts")]);
-  if (!run) return result(CANNOT, "vitest wrote no report");
+  const {
+    report: run,
+    status,
+    out,
+  } = vitest(root, ["--config", join(root, "vitest.config.ts")]);
+  if (!run) return result(CANNOT, "vitest wrote no report", tail(out));
   // Vitest names each file by its real path; the root may reach it through a link (macOS: /var -> /private/var).
   const real = realpathSync(root);
-  const ran = new Set(run.testResults.map((r) => relative(real, r.name)));
-  const missed = mine.filter((f) => !ran.has(f));
+  const byFile = new Map(
+    run.testResults.map((r) => [relative(real, r.name), r]),
+  );
+  const missed = mine.filter((f) => !byFile.has(f));
   if (missed.length)
     return result(CANNOT, "tracked test files did not run", missed);
-  const failed = run.testResults
-    .filter((r) => r.status !== "passed")
-    .flatMap((r) => [
-      `${relative(real, r.name)}: ${r.message || r.status}`,
-      ...r.assertionResults
-        .filter((a) => a.status === "failed")
-        .map((a) => `  ${a.fullName}`),
-    ]);
-  if (failed.length || run.numFailedTests > 0)
-    return result(FINDING, `${run.numFailedTests} test(s) failed`, failed);
+  const failedFiles = run.testResults.filter((r) => r.status !== "passed");
+  if (failedFiles.length || run.numFailedTests > 0)
+    return result(
+      FINDING,
+      `${failedFiles.length} file(s) failed, ${run.numFailedTests} test(s) failed`,
+      failedFiles.flatMap((r) => [
+        `${relative(real, r.name)}: ${r.message || r.status}`,
+        ...r.assertionResults
+          .filter((a) => a.status === "failed")
+          .map((a) => `  ${a.fullName}`),
+      ]),
+    );
+  if (status !== 0)
+    return result(
+      FINDING,
+      `vitest exited ${status} though no test failed`,
+      tail(out),
+    );
+  const idle = mine.filter(
+    (f) => !byFile.get(f)?.assertionResults.some((a) => a.status === "passed"),
+  );
+  if (idle.length)
+    return result(
+      CANNOT,
+      "no test passed in tracked test files (all skipped?)",
+      idle,
+    );
+  const skipped = run.numPendingTests + run.numTodoTests;
   return result(
     PASS,
-    `vitest failed the canary; ${run.numTotalTests} test(s) in ${ran.size} file(s) passed`,
+    `vitest failed the canary; ${run.numTotalTests - skipped} test(s) in ${byFile.size} file(s) passed, ${skipped} skipped`,
   );
 }
 
@@ -1703,12 +1762,23 @@ function theme(root: string, list: Set<string>): Result {
     { encoding: "utf8", env: childEnv() },
   );
   const lines = (r.stdout ?? "").trim().split("\n");
+  const last =
+    /^(?:PASS|FINDING|USAGE|COULD NOT CHECK) check-theme-classes: (.*)$/.exec(
+      lines.at(-1) ?? "",
+    );
+  // A scan that crashed before printing its result line (a broken import) is a crash, not a finding
+  if (!last)
+    return result(
+      USAGE,
+      "check-theme-classes.ts printed no result line",
+      tail(`${r.stdout ?? ""}${r.stderr ?? ""}`),
+    );
   const code = [PASS, FINDING, CANNOT].includes(r.status ?? -1)
     ? (r.status as number)
     : USAGE;
   return result(
     code,
-    (lines.at(-1) ?? "").replace(/^.*? check-theme-classes: /, ""),
+    last[1],
     lines.slice(0, -1).map((l) => l.trim()),
   );
 }
