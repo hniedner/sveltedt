@@ -72,3 +72,10 @@ describe(spec("A11Y-02", "bb579ca8"), () => {
     ]);
   });
 });
+
+describe(spec("RND-08", "e3e4bdfc"), () => {
+  it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
+    show();
+    expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
+  });
+});
