@@ -14,7 +14,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, normalize, posix } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   binaryOf,
@@ -685,11 +686,21 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
+    match: /\.js$/,
+    steps: ["format", "lint"],
+    why: "dupes: configuration that tools read (svelte.config.js), no logic to copy",
+  },
+  {
     match: /\.test\.ts$/,
     steps: ["format", "lint", "types"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
+  {
+    match: /\.svelte$/,
+    steps: ["format", "lint", "svelte"],
+    why: "dupes: jscpd 5 counts a component as several sources and lists none, so no file can be proven analysed (#7)",
+  },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
@@ -724,9 +735,21 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
 
 // The opening and closing markers only: a line of seven "=" is also a Markdown heading underline.
 const CONFLICT = /^(<{7}|>{7})( |$)/;
+// Comments that switch a check off; refused in code (the files ESLint lints). Built from parts, or this file would
+// hold them.
+const SUPPRESSION = new RegExp(
+  [
+    ["svelte-", "ignore"],
+    ["@ts-", "expect-error"],
+    ["@ts-", "nocheck"],
+    ["jscpd:", "ignore"],
+  ]
+    .map((parts) => parts.join(""))
+    .join("|"),
+);
 
 // For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
-// no conflict marker (Prettier keeps one in Markdown as text).
+// no conflict marker (Prettier keeps one in Markdown as text). In code: no suppression comment.
 function text(root: string, list: Set<string>): Result {
   const mine = ofClass(list, "text");
   if (isResult(mine)) return mine;
@@ -734,6 +757,7 @@ function text(root: string, list: Set<string>): Result {
   for (const f of list) {
     const t = readFileSync(join(root, f), "utf8");
     const plain = mine.includes(f);
+    const code = CLASSES.find((k) => k.match.test(f))?.steps.includes("lint");
     if (plain && t && !t.endsWith("\n")) details.push(`${f}: no final newline`);
     t.split("\n").forEach((line, i) => {
       if (plain && line.endsWith("\r"))
@@ -742,18 +766,21 @@ function text(root: string, list: Set<string>): Result {
         details.push(`${f}:${i + 1}: trailing whitespace`);
       if (CONFLICT.test(line))
         details.push(`${f}:${i + 1}: merge-conflict marker`);
+      const word = code && SUPPRESSION.exec(line)?.[0];
+      if (word) details.push(`${f}:${i + 1}: suppression comment ${word}`);
     });
   }
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
     PASS,
-    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s)`,
+    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s), no suppression comment in code`,
   );
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Test seams, unset in normal use: CANARY_DIR (planted folders) and <NAME>_BIN (fakes, see binaryOf in pinned.ts).
+// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts) and
+// SVELTE_CHECK_BIN.
 // An empty value counts as unset in both.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -907,14 +934,16 @@ function format(root: string, list: Set<string>): Result {
 
 // The rules each extension's planted canary must raise. TypeScript files get typescript-eslint's type-aware
 // twin of no-implied-eval, and no no-undef (TypeScript checks names itself).
+const JS_RULES = [
+  "complexity",
+  "no-eval",
+  "no-implied-eval",
+  "no-new-func",
+  "no-undef",
+];
 const LINT_CANARY_RULES: Record<string, string[]> = {
-  ".mjs": [
-    "complexity",
-    "no-eval",
-    "no-implied-eval",
-    "no-new-func",
-    "no-undef",
-  ],
+  ".mjs": JS_RULES,
+  ".js": JS_RULES,
   ".ts": [
     "complexity",
     "no-eval",
@@ -922,6 +951,21 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-new-func",
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
+    "compat/compat",
+  ],
+  // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
+  ".svelte": [
+    "@typescript-eslint/no-explicit-any",
+    "svelte/no-at-html-tags",
+    "compat/compat",
+    "no-restricted-syntax|class: directive",
+    "no-restricted-syntax|use: action",
+    "no-restricted-syntax|bind: other than bind:this",
+    "no-restricted-syntax|style: directive",
+    "no-restricted-syntax|spread attribute",
+    "no-restricted-syntax|{@attach}",
+    "no-restricted-syntax|style attribute",
+    "no-restricted-syntax|{style} shorthand",
   ],
 };
 
@@ -930,10 +974,13 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
   return Object.entries(LINT_CANARY_RULES).flatMap(([ext, rules]) => {
     const files = canary.files.filter((c) => c.f.endsWith(ext));
     if (!files.length) return [`no canary for ${ext}`];
-    const raised = new Set(files.flatMap((c) => c.messages.map((m) => m.rule)));
+    const messages = files.flatMap((c) => c.messages);
     return rules
-      .filter((rule) => !raised.has(rule))
-      .map((rule) => `${ext}: ${rule}`);
+      .filter((entry) => {
+        const [rule, text = ""] = entry.split("|");
+        return !messages.some((m) => m.rule === rule && m.text.includes(text));
+      })
+      .map((entry) => `${ext}: ${entry}`);
   });
 }
 
@@ -978,9 +1025,13 @@ function lint(root: string, list: Set<string>): Result {
       `${details.length} message(s) in ${mine.length} file(s)`,
       details,
     );
+  // Per extension, so a kind with no real file shows 0 instead of hiding behind its canary.
+  const counts = Object.keys(LINT_CANARY_RULES).map(
+    (ext) => `${ext} ${mine.filter((f) => f.endsWith(ext)).length}`,
+  );
   return result(
     PASS,
-    `ESLint ${rec.version} raised every planted rule (${Object.keys(LINT_CANARY_RULES).join(", ")}) and accepted ${mine.length} file(s)`,
+    `ESLint ${rec.version} raised every planted rule (${Object.keys(LINT_CANARY_RULES).join(", ")}) and accepted ${mine.length} file(s): ${counts.join(", ")}`,
   );
 }
 
@@ -1240,6 +1291,179 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
+// The test seam SVELTE_CHECK_BIN, like the <NAME>_BIN seams of binaryOf; unset, the installed svelte-check.
+const svelteCheckBin = (): string =>
+  process.env.SVELTE_CHECK_BIN ||
+  join(HERE, "..", "node_modules", ".bin", "svelte-check");
+
+interface SvelteDiagnostic {
+  type: string;
+  filename: string;
+  start: { line: number };
+  code: number | string;
+  message: string;
+}
+const isDiagnostic = (d: unknown): d is SvelteDiagnostic =>
+  typeof d === "object" &&
+  d !== null &&
+  typeof (d as SvelteDiagnostic).type === "string" &&
+  typeof (d as SvelteDiagnostic).filename === "string" &&
+  typeof (d as SvelteDiagnostic).start?.line === "number";
+const asDiagnostic = (line: string): SvelteDiagnostic | null => {
+  try {
+    const d: unknown = JSON.parse(line);
+    return isDiagnostic(d) ? d : null;
+  } catch {
+    return null;
+  }
+};
+
+/** svelte-check's diagnostics over `tsconfig`, from its machine-verbose lines (one JSON object each), and the lines
+ * that should be one and are not. */
+// --config names the one Svelte config: svelte-check otherwise imports, and so runs, every svelte.config.* and
+// vite.config.* below the tsconfig's folder, gitignored ones included, and, with no root config, those above it.
+function svelteCheck(cwd: string, tsconfig: string, config: string) {
+  const r = spawnSync(
+    svelteCheckBin(),
+    [
+      "--tsconfig",
+      tsconfig,
+      "--config",
+      config,
+      "--fail-on-warnings",
+      "--output",
+      "machine-verbose",
+    ],
+    { cwd, encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
+  );
+  const lines = (r.stdout ?? "")
+    .split("\n")
+    .map((l) => l.replace(/^\d+ /, ""))
+    .filter((l) => l.startsWith("{"));
+  const found = lines.map(asDiagnostic).filter((d) => d !== null);
+  const broken = r.error
+    ? [`svelte-check could not run: ${errorCode(r.error)}`]
+    : lines.filter((l) => !asDiagnostic(l));
+  return { status: r.status, found, broken, out: `${r.stdout}${r.stderr}` };
+}
+
+// The files tsconfig.json puts in the program, components included, as TypeScript itself reads the config (and as
+// svelte-check reads it): extends, comments, "./" and directory excludes follow TypeScript's rules, not ours.
+function projectFiles(root: string): Result | Set<string> {
+  let ts: typeof import("typescript");
+  try {
+    ts = createRequire(join(HERE, "..", "package.json"))(
+      "typescript",
+    ) as typeof import("typescript");
+  } catch {
+    return result(CANNOT, "typescript is not installed (run pnpm install)");
+  }
+  const file = join(root, "tsconfig.json");
+  const read = ts.readConfigFile(file, (p) => ts.sys.readFile(p));
+  const parsed = ts.parseJsonConfigFileContent(
+    read.config ?? {},
+    ts.sys,
+    root,
+    undefined,
+    file,
+    undefined,
+    [
+      {
+        extension: ".svelte",
+        isMixedContent: true,
+        scriptKind: ts.ScriptKind.Deferred,
+      },
+    ],
+  );
+  const errors = [read.error, ...parsed.errors].flatMap((e) =>
+    e ? [ts.flattenDiagnosticMessageText(e.messageText, " ")] : [],
+  );
+  if (errors.length)
+    return result(CANNOT, "TypeScript cannot read tsconfig.json", errors);
+  return new Set(parsed.fileNames.map((f) => relative(root, f)));
+}
+
+// svelte-check, strict, over every tracked Svelte component (PRD-G3); `types` keeps tsc for the scripts. svelte-check
+// lists no checked file and silently skips one tsconfig.json leaves out, so each component must be in the program.
+// With no component tracked the step is not applicable, after the planted errors were found.
+function svelte(root: string, list: Set<string>): Result {
+  const pin = readJson(root, "package.json")?.devDependencies?.["svelte-check"];
+  const v = versionOf(svelteCheckBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.replace("svelte-check, ", "");
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `svelte-check ${got} is installed, package.json pins ${pin}`,
+    );
+  const config = join(root, "svelte.config.js");
+  if (!list.has("svelte.config.js") || !existsSync(config))
+    return result(
+      CANNOT,
+      "svelte.config.js is not tracked: without it svelte-check imports any Svelte or Vite config it finds",
+    );
+  const dir = canaries("svelte");
+  const canary = svelteCheck(dir, join(dir, "tsconfig.json"), config);
+  if (canary.broken.length)
+    return result(
+      CANNOT,
+      "svelte-check printed lines that are not its diagnostics",
+      canary.broken.slice(0, 5),
+    );
+  const planted = (code: number) =>
+    canary.found.some(
+      (d) =>
+        d.type === "ERROR" &&
+        d.code === code &&
+        d.filename.endsWith("canary.svelte"),
+    );
+  if (!planted(2322) || !planted(7006))
+    return result(
+      CANNOT,
+      "svelte-check did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.svelte)",
+      canary.out.trim().split("\n").slice(0, 5),
+    );
+  const mine = [...list].filter((f) =>
+    CLASSES.find((k) => k.match.test(f))?.steps.includes("svelte"),
+  );
+  if (!mine.length)
+    return result(
+      NA,
+      `svelte-check ${got} failed the canary; no .svelte file is tracked`,
+    );
+  const program = projectFiles(root);
+  if (isResult(program)) return program;
+  const outside = mine.filter((f) => !program.has(f));
+  if (outside.length)
+    return result(
+      CANNOT,
+      "tsconfig.json leaves out tracked Svelte components",
+      outside,
+    );
+  const run = svelteCheck(root, join(root, "tsconfig.json"), config);
+  if (run.broken.length)
+    return result(
+      CANNOT,
+      "svelte-check printed lines that are not its diagnostics",
+      run.broken.slice(0, 5),
+    );
+  const details = run.found.map(
+    (d) => `${d.filename}:${d.start.line + 1} ${d.code} ${d.message}`,
+  );
+  if (run.status === 0 && !details.length)
+    return result(
+      PASS,
+      `svelte-check ${got} failed the canary and accepted ${mine.length} component(s)`,
+    );
+  if (run.status === 1 && details.length)
+    return result(FINDING, `${details.length} problem(s)`, details);
+  return result(
+    CANNOT,
+    `svelte-check exited ${run.status}`,
+    run.out.trim().split("\n").slice(0, 5),
+  );
+}
+
 function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
@@ -1324,6 +1548,7 @@ const CHECKS: Record<string, Check> = {
   format,
   lint,
   types,
+  svelte,
   dupes,
   pins,
   "gate-needs": gateNeeds,

@@ -37,11 +37,25 @@ The checks today:
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
   detect is a finding.
 - **text, format, lint, types, dupes:** every tracked file has a class in `scripts/check-repo.ts` that names the
-  steps that check it; a file of no class blocks the gate. Prettier formats (fix with
-  `pnpm exec prettier --write <file>`), ESLint lints the scripts, TypeScript type-checks them, jscpd finds copied
-  code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
+  (named in `package.json`; fix with
+  `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a lowercase `style` attribute or `{style}`: PRD-G2
+  and PRD-S1; no browser
+  API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
+  type-checks the scripts, jscpd finds copied
+  code outside tests and components. Not yet banned, following in its own pull request: a style attribute in
+  another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
+  `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
+- **svelte:** svelte-check type-checks every tracked `.svelte` component, strict, through `tsconfig.json`; a
+  component outside its `include` blocks the gate, since svelte-check would skip it silently. With no component
+  tracked the step is NOT APPLICABLE, after its planted error was found. It names `svelte.config.js` as the one
+  config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
+  (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
+  it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
+  added; that file is edited.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
@@ -75,9 +89,10 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions (`@ts-expect-error`, `jscpd:ignore`, a zizmor ignore comment) are not yet refused; ESLint
-  ignores its inline configuration, gitleaks ignores its allow comments, and the scan refuses a
-  folder holding a `.gitleaksignore`. A ban list for the rest comes with the Svelte checks.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
+  `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. Not yet refused: a zizmor
+  ignore comment in a workflow, and `prettier-ignore`.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.

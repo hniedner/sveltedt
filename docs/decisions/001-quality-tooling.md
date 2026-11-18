@@ -30,13 +30,28 @@ pages named, or measured with the command named.
   - ESLint's `complexity` stays at its documented default of 20 (eslint.org, rules/complexity) and is an error.
 - **Reopens when:** Biome's Svelte support is stable and has the rules the Svelte checks need.
 
+## Browser floor
+
+- **Need:** PRD-E1: JavaScript APIs above the support floor (Chrome and Edge 111, Firefox 128, Safari 16.4) are
+  flagged, and the support statement says the floor is covered by that check only.
+- **Decision:** eslint-plugin-compat 7.0.2, recommended, with the floor in `settings.browsers` (no browserslist file
+  to classify), on every `.ts` and `.svelte` file; the TypeScript scripts run on Node and raise nothing, and the
+  `.mjs` and `.js` files (scripts and configuration) are not checked by it.
+- **Measured limit** (eslint-plugin-compat 7.0.2, 2026-11-17): it flags `new IdleDetector()` and
+  `new PaymentRequest()` in `.ts`, `.mjs` and `.svelte`, but not `navigator.share`, `showOpenFilePicker`,
+  `new CloseWatcher()`, `Promise.withResolvers()` or `[].toSorted()`, even with `lintAllEsApis`. The support
+  statement says so; the real-browser tests of PRD-E1 are the proof for the floor browsers.
+
 ## Duplication
 
 - **Need:** copy detection, a new block repeating an existing one fails (method section 5).
 - **Candidates:**
   - jscpd 5 (native, MIT, no install script: `npm view jscpd` shows only optional platform packages);
   - fallow 3 (native, MIT; duplication plus complexity and dead code; its diff mode needs a base ref).
-- **Decision:** jscpd over every non-test script (the dupes class), any clone fails.
+- **Decision:** jscpd over every non-test script (the dupes class), any clone fails. Svelte components are not in
+  the class: jscpd 5.4.3 counts a component as several sources and names none (measured, 2026-11-17), so the step
+  cannot prove each one analysed. Review guards duplicated markup until that is solved (issue #7, the remaining
+  gate checks).
   - The scripts start at zero clones, so "no clone in them" equals "no new block repeats an existing one"
     without a base ref.
   - fallow's complexity check would repeat ESLint's (method section 5, one source).
@@ -77,9 +92,10 @@ pages named, or measured with the command named.
 
 Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included".
 
-**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: Apache-2.0,
-BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC0-1.0, ISC, MIT. Another Category A licence or a listed Category B one
-joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
+**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: 0BSD, Apache-2.0,
+BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC-BY-4.0, CC0-1.0, ISC, MIT, MPL-2.0. Another
+Category A licence or a listed Category B one
+joins both in one commit. Measured with `pnpm licenses list` on 2026-11-17: every development dependency is one of these.
 The gate's licences step reads the list there and fails a licence pnpm cannot detect. Known limit: a licence written
 as an SPDX expression (`MIT OR CC0-1.0`) fails its exact match, though dependency-review accepts it (issue #7).
 
@@ -87,19 +103,31 @@ BSD-2-Clause-Views joined the list by the owner's decision, 2026-11-17, for uri-
 development only). It is BSD-2-Clause plus a disclaimer that the views are the authors' own. Category A as a variant
 of "BSD (without advertising clause)" (INFERRED: the ASF page names that family's variants but not this one).
 
-Category B licences in use: none today. Expected:
+Three more joined the list by the owner's decision, 2026-11-17, all development only:
 
-- MPL-2.0 (lightningcss, under Tailwind 4 and Vite 8);
-- CC-BY-4.0 (caniuse-lite, under the browser-floor check).
-  Both are development-only and listed here when they enter.
+- CC-BY-4.0 (Category B, READ): caniuse-lite, through browserslist under eslint-plugin-compat; needed from the
+  pull request that brings the Svelte checks on.
+- MPL-2.0 (Category B, READ): lightningcss, through Vite and @tailwindcss/node; needed from the first build of the
+  component on.
+- 0BSD (Category A, READ: "Zero-Clause BSD"): tslib, through an optional WebAssembly part of Vite's bundler; needed
+  from the first build of the component on.
+
+A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
+package is the gate's rule that nothing ships but a `svelte` peer.
 
 ## Accepted advisories
 
 - **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
-  through typescript-eslint, typescript-estree and tinyglobby; development only. Owner's decision, 2026-11-17: allowed
-  by its id in `dependency-review.yml`. Why: "No pattern reaches the vulnerable picomatch 4.0.7 that dependency-review
-  reports. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config file in the tree, which a
-  pull request can add in any folder; the effect is at most a hung gate, which a pull request can already cause."
+  through typescript-eslint (typescript-estree, tinyglobby, fdir) and svelte-check (fdir); development only. Owner's
+  decision, 2026-11-17: allowed by its id in `dependency-review.yml`. Why, measured on 2026-11-17 with svelte-check
+  4.7.8: no pattern reaches the vulnerable picomatch 4.0.7 that dependency-review reports. Through typescript-eslint,
+  `allowDefaultProject` goes to minimatch. Through svelte-check, the installed fdir and picomatch are never run:
+  svelte-check bundles its own fdir and picomatch 4.0.3 (found by comparing with the published versions), inside the
+  advisory's range and NOT visible to dependency-review, and that copy is only loaded: no glob call exists in it and
+  all its file filters are predicates. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config
+  file in the tree, which a pull request can add in any folder. The effect is at most a hung gate, which a pull
+  request can already cause. A svelte-check bump re-opens this claim: before it merges, the bundled picomatch is
+  instrumented again and svelte-check run with extglob patterns in tsconfig.json's include and exclude.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
@@ -143,7 +171,9 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
   `include: scope`: the commit-message check, from the next pull request (issue #6), needs conventional headers;
-- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`).
+- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`);
+- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
+  TypeScript parser.
 
 **To take with the layer that needs it:**
 
@@ -152,8 +182,6 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
   - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
-- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
-  TypeScript parser;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -62,10 +63,12 @@ const FIXTURE_TSCONFIG = `{
   "compilerOptions": {
     "target": "es2024",
     "module": "nodenext",
+    "moduleResolution": "nodenext",
     "strict": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["node"]
+    "types": ["node"],
+    "skipLibCheck": true
   },
   "include": ["scripts/**/*.ts"]
 }
@@ -94,8 +97,10 @@ const TOOL_TS = `export function gross(prices: number[], rate: number): number {
 interface Pkg {
   name: string;
   private?: boolean;
+  type?: string;
   license: string;
   packageManager?: string;
+  prettier?: { plugins: string[] };
   devDependencies: Record<string, string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -107,12 +112,15 @@ const PINS = (
 const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
+  type: "module", // as the repository's
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
+  prettier: { plugins: ["prettier-plugin-svelte"] },
   devDependencies: {
     eslint: PINS.eslint,
     jscpd: PINS.jscpd,
     prettier: PINS.prettier,
+    "svelte-check": PINS["svelte-check"],
     typescript: PINS.typescript,
   },
 };
@@ -166,6 +174,7 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/workflows/scorecard.yml": "on: [push]\n",
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
+    "svelte.config.js": "export default {};\n",
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
@@ -824,7 +833,20 @@ const BRANCHES = Array.from(
 ).join("\n");
 
 test("lint: passes when ESLint fails its canaries and accepts every script", () => {
-  expect("lint", repo(script("export const one = 1;\n")), 0);
+  const out = expect("lint", repo(script("export const one = 1;\n")), 0);
+  assert.match(out, /\.svelte 0$/m);
+});
+test("lint and format: a .js file is linted and formatted like a script", () => {
+  expect(
+    "lint",
+    repo((root) => put(root, "tools/x.js", 'export const a = eval("1");\n')),
+    1,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "tools/x.js", "export const a = 1\n")),
+    1,
+  );
 });
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
@@ -1005,6 +1027,407 @@ test("types: a type error in a script is a finding that names the file", () => {
   const bad = (root: string): void =>
     put(root, "scripts/y.ts", 'export const n: number = "one";\n');
   assert.match(expect("types", repo(bad), 1), /scripts\/y\.ts/);
+});
+/** A tracked Svelte component under src/, which the fixture's tsconfig.json then includes. */
+const component =
+  (body: string, path = "src/Count.svelte") =>
+  (root: string): void => {
+    edit(
+      "tsconfig.json",
+      '"include": ["scripts/**/*.ts"]',
+      '"include": ["scripts/**/*.ts", "src/**/*.svelte"]',
+    )(root);
+    put(root, path, body);
+  };
+const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
+  const r = run(["svelte", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no \.svelte file is tracked$/,
+    r.out,
+  );
+});
+test("svelte: passes when svelte-check fails its canary and accepts every tracked component", () => {
+  expect("svelte", repo(component(COMPONENT)), 0);
+});
+test("svelte: a type error in a component is a finding that names the file and the code", () => {
+  const out = expect(
+    "svelte",
+    repo(
+      component(
+        COMPONENT.replace("<p>{count}</p>", "<p>{count.toUpperCase()}</p>"),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte:\d+ 2339 /);
+});
+test("svelte: a component outside tsconfig.json's include cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      put(root, "lib/Other.svelte", COMPONENT);
+    }),
+    3,
+  );
+  assert.match(out, /lib\/Other\.svelte/);
+});
+test("svelte: a component in a folder tsconfig.json excludes cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      put(root, "src/legacy/Old.svelte", COMPONENT);
+      edit(
+        "tsconfig.json",
+        '"include"',
+        '"exclude": ["src/legacy"],\n  "include"',
+      )(root);
+    }),
+    3,
+  );
+  assert.match(out, /src\/legacy\/Old\.svelte/);
+});
+test("svelte: tsconfig.json is read as TypeScript reads it: comments, a ./ include and an inherited exclude", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      put(root, "src/Count.svelte", COMPONENT);
+      put(root, "src/legacy/Old.svelte", COMPONENT);
+      put(root, "tsconfig.base.json", '{ "exclude": ["src/legacy"] }\n');
+      const options = JSON.stringify(
+        (JSON.parse(FIXTURE_TSCONFIG) as { compilerOptions: object })
+          .compilerOptions,
+      );
+      put(
+        root,
+        "tsconfig.json",
+        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["scripts/**/*.ts", "./src/**/*.svelte"],\n}\n`,
+      );
+    }),
+    3,
+  );
+  assert.match(out, /src\/legacy\/Old\.svelte/);
+  assert.doesNotMatch(out, /src\/Count\.svelte/);
+});
+test("svelte: a canary that svelte-check accepts cannot be checked", () => {
+  const dir = canaryDir("svelte", {
+    "tsconfig.json": `${JSON.stringify({
+      ...(JSON.parse(FIXTURE_TSCONFIG) as object),
+      include: ["canary.svelte"],
+    })}\n`,
+    "canary.svelte": COMPONENT,
+  });
+  // svelte-check must be able to accept it: the folder finds svelte's types as a real canary folder does.
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "svelte", "node_modules"),
+  );
+  const out = expect("svelte", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted type errors/);
+});
+test("svelte: without a tracked svelte.config.js the step cannot be checked", () => {
+  const out = expect("svelte", repo(remove("svelte.config.js")), 3);
+  assert.match(out, /svelte\.config\.js is not tracked/);
+});
+test("svelte: no Svelte config below the root is imported, only the root's", () => {
+  // svelte-check searches above the root and imports vite.config.* only while no root config exists (measured with
+  // svelte-check 4.7.8, 2026-11-17); the step refuses to run without one, so the nested case is the one a run can meet.
+  const root = repo(component(COMPONENT));
+  const marker = join(root, "MARKER-nested");
+  put(
+    root,
+    "docs/deep/svelte.config.js",
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default {};\n`,
+  );
+  expect("svelte", root, 0);
+  assert.ok(!existsSync(marker), "the nested svelte.config.js was imported");
+});
+test("format: a formatted Svelte component passes through Prettier's Svelte plugin", () => {
+  expect("format", repo(component(COMPONENT)), 0);
+});
+test("format: an unformatted Svelte component is a finding that names it", () => {
+  const out = expect(
+    "format",
+    repo(component(COMPONENT.replace("<p>{count}</p>", "<p>{ count }</p>"))),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte/);
+});
+test("format: the Svelte canary is checked only while Prettier's config loads the Svelte plugin", () => {
+  // Prettier infers a file's parser from the config it finds above the file, so the canary folder gets its own.
+  const canaries = (prettier: object) => {
+    const dir = canaryDir("format", {
+      "canary.svelte": readFileSync(
+        join(here, "canaries", "format", "canary.svelte"),
+        "utf8",
+      ),
+    });
+    put(dir, "package.json", `${JSON.stringify(prettier)}\n`);
+    symlinkSync(join(here, "..", "node_modules"), join(dir, "node_modules"));
+    return dir;
+  };
+  const plugin = { prettier: { plugins: ["prettier-plugin-svelte"] } };
+  expect("format", repo(), 0, { canaries: canaries(plugin) });
+  const out = expect("format", repo(), 3, { canaries: canaries({}) });
+  assert.match(out, /canary\.svelte/);
+});
+test("lint: a component in allowed markup passes, and the summary counts it per extension", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "</script>",
+          "  let el: HTMLElement | undefined = $state();\n</script>",
+        ).replace(
+          "<p>{count}</p>",
+          "<p bind:this={el} class={count > 1 ? 'many' : 'one'}>{count}</p>",
+        ),
+      ),
+    ),
+    0,
+  );
+  assert.match(out, /\.svelte 1$/m);
+});
+test("lint: a class: directive in a component is a finding that names the ban", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          "<p class:many={count > 1}>{count}</p>",
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax class: directive/);
+});
+test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "</script>",
+          "  const share = new PaymentRequest([], { total: { label: 'x', amount: { currency: 'EUR', value: '1' } } });\n</script>",
+        ).replace("{count}</p>", "{count}{String(share)}</p>"),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /compat\/compat/);
+});
+test("lint: an HTML disable comment does not switch a rule off in a component", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<!-- eslint-disable -->\n<p style="color: red">{count}</p>',
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax style attribute/);
+});
+// The four comments that switch a check off, built from parts so this file does not hold them.
+const SUPPRESSIONS = [
+  ["svelte-", "ignore"],
+  ["@ts-", "expect-error"],
+  ["@ts-", "nocheck"],
+  ["jscpd:", "ignore"],
+].map((parts) => parts.join(""));
+test("text: each suppression comment in a script or a component is a finding that names it", () => {
+  for (const word of SUPPRESSIONS) {
+    const out = expect(
+      "text",
+      repo((root) => {
+        put(
+          root,
+          "scripts/x.ts",
+          `// ${word} for a reason\nexport const one = 1;\n`,
+        );
+        put(root, "scripts/y.mjs", `export const one = 1; // ${word}\n`);
+        put(root, "scripts/z.svelte.ts", `export const one = 1;\n// ${word}\n`);
+        component(COMPONENT.replace("<p>", `<!-- ${word} -->\n<p>`))(root);
+      }),
+      1,
+    );
+    for (const at of [
+      "scripts/x.ts:1",
+      "scripts/y.mjs:1",
+      "scripts/z.svelte.ts:2",
+    ])
+      assert.ok(out.includes(`${at}: suppression comment ${word}`), out);
+    assert.ok(
+      out.includes(`src/Count.svelte:5: suppression comment ${word}`),
+      out,
+    );
+  }
+});
+test("text: suppression comments on successive lines are each a finding", () => {
+  const out = expect(
+    "text",
+    repo((root) =>
+      put(
+        root,
+        "scripts/x.ts",
+        `// ${SUPPRESSIONS[1]}\n// ${SUPPRESSIONS[2]}\nexport const one = 1;\n`,
+      ),
+    ),
+    1,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:1: suppression comment ${SUPPRESSIONS[1]}`),
+    out,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:2: suppression comment ${SUPPRESSIONS[2]}`),
+    out,
+  );
+});
+test("text: a suppression word in prose is not a finding", () => {
+  const prose = `# Notes\n\nNever use ${SUPPRESSIONS[0]}.\n`;
+  expect(
+    "text",
+    repo((root) => put(root, "docs/notes.md", prose)),
+    0,
+  );
+});
+test("svelte: a warning is a finding that names its code", () => {
+  const out = expect(
+    "svelte",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<p>{count}</p>\n<img src="count.png" />',
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte:\d+ a11y_missing_attribute /);
+});
+test("svelte: a canary that reports only the wrong type, as a non-strict config would, cannot be checked", () => {
+  const options = (JSON.parse(FIXTURE_TSCONFIG) as { compilerOptions: object })
+    .compilerOptions;
+  const dir = canaryDir("svelte", {
+    "tsconfig.json": `${JSON.stringify({ compilerOptions: { ...options, strict: false }, include: ["canary.svelte"] })}\n`,
+    "canary.svelte": readFileSync(
+      join(here, "canaries", "svelte", "canary.svelte"),
+      "utf8",
+    ),
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "svelte", "node_modules"),
+  );
+  const out = expect("svelte", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted type errors/);
+});
+/** A stand-in for svelte-check: the canary folder (.../svelte) prints `canary`, the repository `rest`, each line a
+ * machine-verbose line; the canary run exits 1, the repository run `status`. */
+function fakeSvelteCheck(canary: string[], rest: string[], status = 1): string {
+  const bin = join(tempDir(), "svelte-check");
+  const say = (lines: string[]) =>
+    lines.map((l) => `echo '1 ${l}'`).join("; ") || ":";
+  writeFileSync(
+    bin,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\ncase "$(pwd)" in\n  */svelte) ${say(canary)};;\n  *) ${say(rest)}; exit ${status};;\nesac\nexit 1\n`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+/** One diagnostic line as svelte-check prints it. */
+const diagnostic = (code: number, type = "ERROR", filename = "canary.svelte") =>
+  JSON.stringify({
+    type,
+    filename,
+    start: { line: 1 },
+    code,
+    message: "planted",
+  });
+const PLANTED = [diagnostic(2322), diagnostic(7006)];
+test("svelte: output that is not svelte-check's diagnostics cannot be checked, from the canary run or the real one", () => {
+  for (const [canary, rest] of [
+    [['{"type":"ERROR","filename'], []],
+    [PLANTED, ['{"type":"ERROR","filename']],
+    [PLANTED, ['{"type":"ERROR"}']],
+  ]) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, rest) },
+    });
+    assert.match(out, /not its diagnostics/);
+  }
+});
+test("svelte: a canary run missing a planted error, reporting it as a warning or on another file cannot be checked", () => {
+  for (const canary of [
+    [diagnostic(7006)],
+    [diagnostic(2322), diagnostic(7006, "WARNING")],
+    [diagnostic(2322), diagnostic(7006, "ERROR", "other.svelte")],
+  ]) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(canary, []) },
+    });
+    assert.match(out, /did not report the planted type errors/);
+  }
+});
+test("svelte: a status and output other than exit 0 clean or exit 1 with diagnostics cannot be checked, and is named", () => {
+  const found = [diagnostic(2322, "ERROR", "src/Count.svelte")];
+  for (const [rest, status] of [
+    [[], 1],
+    [found, 0],
+    [found, 2],
+  ] as const) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: {
+        SVELTE_CHECK_BIN: fakeSvelteCheck(PLANTED, [...rest], status),
+      },
+    });
+    assert.match(out, new RegExp(`svelte-check exited ${status}$`, "m"));
+  }
+});
+test("svelte: a tsconfig.json TypeScript cannot read cannot be checked, and says why", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      edit("tsconfig.json", "{", '{\n  "extends": "./nope.json",')(root);
+    }),
+    3,
+  );
+  assert.match(out, /TypeScript cannot read tsconfig\.json/);
+});
+test("svelte: another svelte-check version than the pin cannot be checked", () => {
+  expect(
+    "svelte",
+    repo(pkg((p) => (p.devDependencies["svelte-check"] = "0.0.1"))),
+    3,
+  );
+});
+test("types: a rune module (.svelte.ts) type-checks under the repository's tsconfig.json, its errors found", () => {
+  const runes = (body: string) => (root: string) => {
+    put(root, "tsconfig.json", readFileSync(join(here, "..", "tsconfig.json")));
+    put(root, "scripts/count.svelte.ts", body);
+  };
+  const COUNTER =
+    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
+  expect("types", repo(runes(COUNTER)), 0);
+  const out = expect(
+    "types",
+    repo(runes(COUNTER.replace("$state(0)", '$state<number>("zero")'))),
+    1,
+  );
+  assert.match(out, /count\.svelte\.ts/);
 });
 test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
   const outside = (root: string): void =>
@@ -1474,7 +1897,10 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
   const out = expect("all", repo(), 0);
-  assert.match(out, /^PASS all: 15 checks passed, 1 not applicable: secrets$/m);
+  assert.match(
+    out,
+    /^PASS all: 15 checks passed, 2 not applicable: svelte, secrets$/m,
+  );
 });
 test("all: returns the failing step's finding and names the step", () => {
   const out = expect(
