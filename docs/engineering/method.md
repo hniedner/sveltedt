@@ -55,8 +55,9 @@ Cost is measured (section 12) only to plan; it is never a reason to skip a check
 6. **Work inward with TDD:** red, minimal green, refactor. Add a unit test only where the acceptance test cannot
    pin the logic down by itself; a unit test that repeats its proof is padding. A test written only as scaffolding is
    removed before the commit; a test is kept when it is the owning test of a statement, an example-table row, a
-   contract check, or a regression test that failed before the fix, each under its statement. One statement is one
-   commit, holding its tests and its code, so no commit ever holds a failing test.
+   contract check, or a regression test that failed before the fix, each under its statement; a test that alone pins
+   logic or kills a mutant is not scaffolding. One statement is one commit, holding its tests and its code, so no
+   commit ever holds a failing test.
 7. **Trace.** A check (`trace`, G6) reads the test results. Every statement must have a test that ran and passed, with
    one exception: a statement that no test names yet may be merged, and the check then lists it as *not yet tested*,
    never as a pass. An untested statement blocks the close of its milestone, and blocks 1.0 and every release after
@@ -269,4 +270,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-17 | Reuse: the owner's own earlier work (code, tests, set-up, workflows) is ported through the method instead of rebuilt where it fits; third-party code only through section 8; every plan states a reuse check; a decision record may name a public source (sections 2, 8, 9; companion G12) | Owner decision, 2026-11-17 |
 | 2026-11-17 | Step 7 and G6: a statement may be merged before its test and is listed as *not yet tested*, never as a pass; it blocks the milestone close, 1.0 and every later release | Owner's decision, 2026-11-17 |
 | 2026-11-17 | Companion G10: the concurrency group is keyed on the pull-request number, not the branch name, which pull requests from forks can share | Fact correction; owner's decision, 2026-11-17 |
-| 2026-11-18 | Step 6: a test written only as scaffolding is removed before the commit; the tests that are kept are named | The method said what padding is but not what happens to the tests that drive the work inward, so scaffolding tests landed with the commit; the practice the owner follows removes them and keeps behaviour, table, contract and regression tests. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Step 6: a test written only as scaffolding is removed before the commit; the tests that are kept are named, each under its statement; a test that alone pins logic or kills a mutant is not scaffolding | The method said what padding is but not what happens to the tests that drive the work inward, so scaffolding tests landed with the commit; the practice the owner follows removes them and keeps behaviour, table, contract and regression tests. Owner's decision, 2026-11-18 |
