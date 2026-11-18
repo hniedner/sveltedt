@@ -1,7 +1,8 @@
 # Notes for coding agents
 
-SvelteDT is a data table component for Svelte 5 with Tailwind 4, built statement by statement: the component in
-`src/lib/`, a test site that uses it in `site/`.
+SvelteDT is a data table component for Svelte 5, built statement by statement: the component in `src/lib/`, a test
+site that uses it in `site/`. Its styling target is one stylesheet with prefixed tokens (docs/PRD.md); the code built
+so far still uses Tailwind 4 classes until that change.
 
 - **The rules:** [the engineering method](docs/engineering/method.md) binds every change; [the companion](docs/engineering/gates.md)
   says how each check works. Read them before planning a change.

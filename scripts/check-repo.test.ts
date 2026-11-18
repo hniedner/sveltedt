@@ -207,8 +207,13 @@ const git = (root: string, ...args: string[]): string =>
     encoding: "utf8",
   });
 
-/** Commits everything under `root` with a synthetic identity; the fixture runs no hook. */
-function commit(root: string, message: string): void {
+/**
+ * Commits everything under `root` with a synthetic identity; the fixture runs no hook. The message goes through a
+ * file: Linux refuses a single argument over 128 KiB, which the long-header rows need.
+ */
+function commit(root: string, message: string, ...flags: string[]): void {
+  const file = join(tempDir(), "message");
+  writeFileSync(file, message);
   git(root, "add", "-A");
   git(
     root,
@@ -223,9 +228,19 @@ function commit(root: string, message: string): void {
     "commit",
     "-q",
     "--allow-empty",
-    "-m",
-    message,
+    ...flags,
+    "-F",
+    file,
   );
+}
+
+/** Makes `root` sign with a new ssh key and show signatures in its log, as a contributor's configuration may. */
+function signing(root: string): void {
+  const key = join(tempDir(), "key");
+  execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
+  git(root, "config", "gpg.format", "ssh");
+  git(root, "config", "user.signingkey", key);
+  git(root, "config", "log.showSignature", "true");
 }
 
 /**
@@ -2789,6 +2804,307 @@ test("workflows: a missing zizmor cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: join(tempDir(), "absent") });
 });
 
+test("commits: passes when every commit after origin/main has a conventional header", () => {
+  expect(
+    "commits",
+    branch("feat: add a thing", "fix(table)!: change a thing"),
+    0,
+  );
+});
+test("commits: a type outside the list is a finding", () => {
+  expect("commits", branch("feature: add a thing"), 1);
+});
+test("commits: a header over 100 characters is a finding", () => {
+  expect("commits", branch(`feat: ${"x".repeat(95)}`), 1);
+});
+/** Makes `side` from `from` with one commit `subject`, then merges it into the branch with git's own header. */
+function mergeSide(root: string, from: string, subject: string): void {
+  git(root, "checkout", "-q", "-b", "side", from);
+  commit(root, subject);
+  git(root, "checkout", "-q", "-");
+  git(
+    root,
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.org",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "merge",
+    "-q",
+    "--no-ff",
+    "-m",
+    "Merge branch 'side'",
+    "side",
+  );
+}
+test("commits: a merge commit is not checked", () => {
+  const root = branch("feat: on the branch");
+  mergeSide(root, "HEAD~1", "fix: on the side");
+  expect("commits", root, 0);
+});
+test("commits: a branch that merged main is not judged by main's plain subjects", () => {
+  // Older main history has plain subjects. Only commits after the merge base with origin/main count.
+  const root = branch("feat: on the branch");
+  mergeSide(root, "refs/remotes/origin/main", "Add a plain subject on main");
+  git(root, "update-ref", "refs/remotes/origin/main", "side");
+  const main = git(root, "rev-parse", "side").trim();
+  assert.match(expect("commits", root, 0), /^PASS commits: 1 commit\(s\)/m);
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: main, GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a branch with no commit after origin/main is not applicable", () => {
+  notApplicable(["commits", "--root", repo()]);
+});
+test("commits: in CI, an empty range cannot be checked, never NOT APPLICABLE", () => {
+  expect("commits", repo(), 3, {
+    extraEnv: { GITHUB_ACTIONS: "true", GATE_BASE: "HEAD", GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a repository without origin/main cannot be checked", () => {
+  const root = branch("feat: x");
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  expect("commits", root, 3);
+});
+test("commits: CI's range from GATE_BASE and GATE_HEAD is the one checked", () => {
+  const root = branch("Add a thing", "feat: fine");
+  const base = git(root, "rev-parse", "HEAD~1").trim();
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: base, GATE_HEAD: "HEAD" },
+  });
+});
+// Pins: the step never judges commits it cannot read. A base of all zeros (a new branch pushed in CI) and a base git
+// does not know (a shallow clone, a force-pushed base) both stop the step.
+test("commits: a GATE_BASE of all zeros cannot be checked", () => {
+  const out = expect("commits", branch("feat: x"), 3, {
+    extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
+  });
+  assert.match(out, /GATE_BASE is all zeros/);
+});
+test("commits: a GATE_BASE git does not know cannot be checked", () => {
+  const out = expect("commits", branch("feat: x"), 3, {
+    extraEnv: { GATE_BASE: "1".repeat(40), GATE_HEAD: "HEAD" },
+  });
+  assert.match(out, /^COULD NOT CHECK commits: git log /m);
+});
+// Pins: a refusal names the bad commit only, counts it against the range, and prints the allowed types.
+test("commits: a refused header is named alone, with the count and the allowed types", () => {
+  const out = expect("commits", branch("feat: fine", "Add the thing"), 1);
+  assert.match(out, /^FINDING commits: 1 of 2 commit\(s\)$/m);
+  assert.match(
+    out,
+    /build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test/,
+  );
+  assert.doesNotMatch(out, /feat: fine/);
+});
+// Pins: only a real merge is left out; a one-parent commit that only looks like one is judged.
+test("commits: a commit headed like a merge but with one parent is a finding", () => {
+  expect("commits", branch("Merge the thing"), 1);
+});
+// Pins: the header is the first line as git reads it. A body line right below the subject is not part of it (git's
+// %s would join them).
+test("commits: the header is the first line, even with a body line right below it", () => {
+  expect("commits", branch(`feat: one\n${"x".repeat(100)}`), 0);
+});
+// Pins: git's own revert headers are judged by the header they wrap; autosquash commits never reach a pull request.
+test("commits: git's Revert and Reapply headers pass when the header they wrap does", () => {
+  expect(
+    "commits",
+    branch('Revert "feat: a thing"', 'Reapply "feat: a thing"'),
+    0,
+  );
+  expect("commits", branch('Revert "Add a thing"'), 1);
+});
+test("commits: a fixup, squash or amend commit is a finding", () => {
+  for (const h of ["fixup! feat: x", "squash! feat: x", "amend! feat: x"]) {
+    const out = expect("commits", branch(h), 1);
+    assert.match(out, /squash it before the pull request/);
+  }
+});
+// Pins: the header prefixes configured for Dependabot (.github/dependabot.yml) pass the grammar.
+test("commits: Dependabot's headers pass", () => {
+  expect(
+    "commits",
+    branch(
+      "ci(deps): bump actions/checkout from 4 to 5",
+      "build(deps-dev): bump x from 1.0.0 to 1.0.1",
+    ),
+    0,
+  );
+});
+// Pins: the length limit is at most 100 characters, not fewer.
+test("commits: a header of exactly 100 characters passes", () => {
+  expect("commits", branch(`feat: ${"x".repeat(94)}`), 0);
+});
+
+// Pins: a commit with an empty message (`--allow-empty-message`) is refused, shown as an empty header.
+test("commits: a commit with an empty message is a finding", () => {
+  const root = repo();
+  commit(root, "", "--allow-empty-message");
+  assert.match(expect("commits", root, 1), /^ {2}\w+ "": not /m);
+});
+// Pins: a first line starting with "#" is the header, not a comment the step skips.
+test("commits: a stored first line starting with # is refused, whatever follows", () => {
+  expect("commits", branch("#123 fix the thing\n\nfeat: in the body"), 1);
+});
+test("commits: git's Revert of a merge header and a nested Revert pass", () => {
+  expect(
+    "commits",
+    branch(
+      'Revert "Merge pull request #43 from a/b"',
+      'Revert "Revert "feat: x""',
+    ),
+    0,
+  );
+});
+test("commits: a message holding a control separator is judged, not a crash", () => {
+  expect("commits", branch("feat: a\u001eb"), 0);
+});
+test("commits: the finding names the bad commit's own hash", () => {
+  // The bad commit is the older one: git log lists the newest first, so naming the first record would be wrong.
+  const root = branch(
+    "Add the thing\n\nA body line.",
+    "feat: fine\n\nAnother body line.",
+  );
+  const out = expect("commits", root, 1);
+  assert.match(
+    out,
+    new RegExp(
+      `^  ${git(root, "rev-parse", "--short", "HEAD~1").trim()} "Add the thing"`,
+      "m",
+    ),
+  );
+});
+// Pins: every type of TYPES passes the step.
+test("commits: every allowed type passes", () => {
+  const types = [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "revert",
+    "style",
+    "test",
+  ];
+  expect("commits", branch(...types.map((t) => `${t}: a change`)), 0);
+});
+// Pins: the header grammar. Each is a normal contributor's slip, refused, and so are a leading space or byte-order
+// mark, which git keeps in the stored header.
+test("commits: a malformed header is a finding", () => {
+  const slips = [
+    "feat(): x",
+    "fix(Table): x",
+    "fix(a/b): x",
+    "feat:x",
+    "feat:  x",
+    " feat: x",
+    "\uFEFFfeat: x",
+  ];
+  assert.match(
+    expect("commits", branch(...slips), 1),
+    new RegExp(
+      `^FINDING commits: ${slips.length} of ${slips.length} commit\\(s\\)$`,
+      "m",
+    ),
+  );
+});
+// Pins: a bad first line is not rescued by a conventional line below it.
+test("commits: a bad first line is a finding even with a conventional line below it", () => {
+  expect("commits", branch("Add a thing\n\nfeat: in the body"), 1);
+});
+// Pins: in a message stored as written (`--cleanup=verbatim`, or a commit made through an API), blank lines before
+// the header, trailing blanks and a Windows line end are not part of it; git's own clean-up would remove them first.
+test("commits: blank lines before the header, trailing blanks and CRLF are not part of it", () => {
+  const root = repo();
+  commit(root, `\n \t\nfeat: ${"x".repeat(94)}   \r\n`, "--cleanup=verbatim");
+  expect("commits", root, 0);
+});
+// Pins: only ASCII blanks make a line blank, as in git; a line of a no-break space or a byte-order mark is the header.
+test("commits: a first line of a no-break space or a byte-order mark is the header", () => {
+  const out = expect(
+    "commits",
+    branch("\u00a0\nfeat: x", "\ufeff\nfeat: y"),
+    1,
+  );
+  assert.match(out, /2 of 2 commit\(s\)/);
+});
+// Pins: the 100 characters count the header as written, a revert's wrapping included; nesting and quotes inside are
+// judged by the innermost header.
+test("commits: git's Revert headers: nesting, quotes, and the length as written", () => {
+  expect(
+    "commits",
+    branch('Revert "fix: stop "null" ids"', `Revert "feat: ${"x".repeat(85)}"`),
+    0,
+  );
+  const out = expect(
+    "commits",
+    branch('Revert "Revert "Add x""', `Revert "feat: ${"x".repeat(86)}"`),
+    1,
+  );
+  assert.match(out, /2 of 2 commit\(s\)/);
+});
+// Pins: a refused header is printed with its control characters escaped.
+test("commits: control characters in a refused header are printed escaped", () => {
+  const raw = [
+    "\u001b",
+    "\u007f",
+    "\u009b",
+    "\u00ad",
+    "\u061c",
+    "\u200b",
+    "\u200f",
+    "\u2028",
+    "\u202e",
+    "\u2060",
+    "\u2066",
+    "\ufeff",
+  ];
+  const out = expect("commits", branch(`Add x${raw.join("")}[2K\rspoof`), 1);
+  for (const c of raw) {
+    assert.ok(!out.includes(c), JSON.stringify(c));
+    assert.ok(
+      out.includes(`\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`),
+      JSON.stringify(c),
+    );
+  }
+});
+// Pins: a contributor's `log.showSignature` does not change what the step reads: a signed commit is judged by its
+// header, not by the signature text git prints before it.
+test("commits: a signed commit is judged by its header when git shows signatures", () => {
+  const root = repo();
+  signing(root);
+  commit(root, "feat: signed", "-S");
+  expect("commits", root, 0);
+});
+// Pins: GATE_BASE is read as a revision, never as a git option.
+test("commits and secrets: a GATE_BASE shaped like a git option cannot be checked", () => {
+  for (const step of ["commits", "secrets"]) {
+    const written = join(tempDir(), "written");
+    expect(step, branch("feat: x"), 3, {
+      extraEnv: { GATE_BASE: `--output=${written}`, GATE_HEAD: "HEAD" },
+    });
+    assert.ok(!existsSync(`${written}..HEAD`), step);
+  }
+});
+// Pins: a header is read in time linear in its length, so a long run of blanks cannot stall the gate.
+test("commits: a header of 200,000 blanks and one character is judged at once", () => {
+  const root = branch(`${" ".repeat(200_000)}x`);
+  const start = Date.now();
+  expect("commits", root, 1);
+  assert.ok(Date.now() - start < 5000, `${Date.now() - start} ms`);
+});
+// Pins: a header too long to read is shown cut short, with its full length named.
+test("commits: a very long header is shown shortened, with its length", () => {
+  const out = expect("commits", branch(`feat: ${"x".repeat(19994)}`), 1);
+  assert.match(out, /20000 characters, more than 100/);
+  assert.ok(out.length < 1000, `${out.length} characters of output`);
+});
+
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
@@ -3084,11 +3400,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
+  // The fixture has no component, no test file and no commit after origin/main: svelte, test, commits and secrets
+  // have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
+    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

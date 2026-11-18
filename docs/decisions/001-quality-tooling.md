@@ -193,9 +193,10 @@ Development dependencies on the same terms as the test toolchain.
   - commitlint 21 with its conventional config (8 direct dependencies; body lines over 100 characters are errors,
     which Dependabot's bodies exceed);
   - a header rule in the gate's runner.
-- **Decision:** the header rule, with the types `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
-  `refactor`, `revert`, `style` and `test`.
-- **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule.
+- **Decision:** the header rule. The allowed types are listed once, in `TYPES` in `scripts/check-repo.ts`; a
+  header of the wrong shape is refused with that list. No document copies the list.
+- **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule, and a
+  test proves that the types its configuration knows equal `TYPES`.
 
 ## Reuse check against ontoprism
 
@@ -206,7 +207,7 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 **Taken now:**
 
 - Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
-  `include: scope`: the commit-message check, from the next pull request (issue #6), needs conventional headers;
+  `include: scope`: the `commits` step needs conventional headers;
 - `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`);
 - with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
   TypeScript parser.

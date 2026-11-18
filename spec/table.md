@@ -243,6 +243,29 @@ every state.
 - Layer: component.
 - Traces: PRD-A3, PRD-B16.
 
+**RND-15** After `rows` changes to the same row ids in another order, each row MUST be rendered by the same element as
+before.
+- Example: `rows` r1, r2, r3 (by `getRowId`) are rendered; the consumer passes new row objects with the same ids and
+  data in the order r3, r1, r2. For each id, the `tr` that rendered it before is the same element (`===`) that renders
+  it after, now in the new order. Break that turns it red: the rows' key changed to the index (or to the row object).
+- Reason: a server answer brings new objects for the same rows; without a stable element per row, the element at a
+  place would show another row's data, and focus, a text selection or a cell snippet's own state held there would pass
+  to that other row.
+- Layer: component.
+- Traces: PRD-B1.
+
+**RND-16** After `columns` changes to the same column ids in another order, each column's header cell and each of its
+cells MUST be rendered by the same element as before.
+- Example: columns `name`, `city` over rows r1 and r2 are rendered; the consumer passes new column objects with the
+  same ids in the order `city`, `name`. For each column id, its `th` and its `td` in r1 and in r2 are the same elements
+  (`===`) as before, now in the new order. Breaks that turn it red: the header cells' key changed to the index (or to
+  the column object); the cells' key changed to the index (or to the column object).
+- Reason: column order is app state the consumer changes; without a stable element per column, the header cell at a
+  place would show another column, and focus on its sort button (which sits inside the header cell) or a cell
+  snippet's own state would pass to that other column.
+- Layer: component.
+- Traces: PRD-B1.
+
 **RND-06** Every fixed word the table shows or announces MUST come from a prop with an English default.
 - Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
   replacement appears where the row says and that no English default is left on the page, in an accessible name or
@@ -1570,6 +1593,8 @@ receives that number.
 | RND-10 | PRD-B16 |
 | RND-13 | PRD-B16, PRD-B15 |
 | RND-14 | PRD-A3, PRD-B16 |
+| RND-15 | PRD-B1 |
+| RND-16 | PRD-B1 |
 | RND-06 | PRD-I1, PRD-I2 |
 | RND-07 | PRD-B3 |
 | RND-11 | PRD-B3 |
@@ -1682,7 +1707,7 @@ state in their own statements.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05, SORT-14 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered |
+| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
