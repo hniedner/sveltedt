@@ -79,9 +79,11 @@
 ## 2. Imports (IMP)
 
 **IMP-01** The site's source MUST import SvelteDT only through the package's public exports.
-- Examples (the scan covers every `.ts`, `.js` and `.svelte` file under `site/` except its build folder and
-  `node_modules`, and the site's Vite and TypeScript configuration. An import of SvelteDT is a specifier that starts
-  with `@hniedner/sveltedt` or a relative path that leaves `site/`. It is allowed only when it is written
+- Examples (the scan covers every `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` and `.svelte` file under `site/`
+  except its build folder and `node_modules`, the site's Vite and TypeScript configuration included. An import of
+  SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a relative path that
+  resolves into the repository's `src/` folder; a relative path to anything else, such as a shared test fixture, is
+  not one. It is allowed only when it is written
   `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
   `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary
   that must be found):
