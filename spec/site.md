@@ -2,12 +2,13 @@
 
 - **Name:** the test site in `site/`, a private package that shows SvelteDT on pages a real browser can open. It is
   served by a TypeScript server on Node that uses only `node:http` (PRD section 5.3).
-- **Status:** part 1 of the site spec. Later parts add their statements to this file; the trace at the end says which
-  requirements the statements so far cover.
+- **Status:** parts 1 and 2 of the site spec. Later parts add their statements to this file; the trace at the end says
+  which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
-  shows the table with a fixed list of rows. Other request methods, the policy header, the JSON endpoint and the
-  real-browser runs come with later parts.
+  shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, the listener, the
+  canary page, no inline bootstrap, no violation on the list page) and the view without tokens. Other request
+  methods, the JSON endpoint, the dataset and the other views come with later parts.
 
 ## Conventions
 
@@ -27,14 +28,27 @@
   - **component**: a site page component mounted in a simulated DOM.
   - **real browser**: a site page opened in a real engine, in Chromium, Firefox and WebKit unless the statement names
     fewer and says why.
-  - **static check**: a scan of the site's source, run in the gate, behind a wrapper that must find a planted canary.
+  - **static check**: a scan of the site's source or of its build folder, run in the gate, behind a wrapper that must
+    find a planted canary.
 - **The build folder** is the folder the site's build writes and the server serves.
+- **The strict policy** is the one of PRD section 4.4, sent as the value
+  `default-src 'self'; script-src 'self'; style-src 'self'`.
+- **The listener** is the site's script of PRD-S1: it adds each `securitypolicyviolation` event of its page to a list
+  on the page's `window`, which a test reads.
+- **The canary page** is a site page that breaks the strict policy on purpose (PRD-W4). It is built and served like
+  every other page.
+- **Loaded.** A page has loaded when its `load` event has fired.
 - **The list page** is the site's first page; it grows into page "plain" of PRD-W5 as later parts add sort, filters
   and the pager.
 - **Data.** Example data is synthetic.
-- **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group;
-  SRV-02 is reserved for the policy header on every response, which arrives with the strict-policy statements. A
+- **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group. A
   requirement id from `docs/PRD.md` is written `PRD-W5`.
+- **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
+  statement. A part written for a later milestone never adds a row, a page or a view to an earlier statement; it
+  writes a new statement with the next free id in its own group, which may cite the earlier one ("as POL-04, for
+  page full"). A statement's test arrives with the pull request that makes its last example runnable.
+- **What a statement covers.** A statement covers what its examples show; an earlier statement is never widened to
+  anticipate a later part's pages.
 
 ## 1. Serving (SRV)
 
@@ -61,6 +75,23 @@
   answering only the files listed at start means no request text ever becomes a file path.
 - Layer: HTTP.
 - Traces: PRD-W5.
+
+**SRV-02** Every response of the site server MUST carry exactly one `Content-Security-Policy` header, whose value is
+the strict policy.
+- Examples (the test runs every row, with the build folder of SRV-01; the value is compared as a string, exactly):
+
+  | Request | Status | `Content-Security-Policy` |
+  |---|---|---|
+  | `GET /` | 200 | `default-src 'self'; script-src 'self'; style-src 'self'` |
+  | `GET /assets/app.js` | 200 | `default-src 'self'; script-src 'self'; style-src 'self'` |
+  | `GET /no-such-page` | 404 | `default-src 'self'; script-src 'self'; style-src 'self'` |
+  | `GET /../package.json` | 404 | `default-src 'self'; script-src 'self'; style-src 'self'` |
+
+  A `Content-Security-Policy-Report-Only` header in its place fails: the browser then reports and blocks nothing.
+  Break that turns it red: the header set only on answers with status 200.
+- Reason: the policy is proven only where the browser enforces it, and that is every response, a 404 page included.
+- Layer: HTTP.
+- Traces: PRD-W4.
 
 **SRV-03** Each file the site server answers MUST carry the content type of its kind.
 - Examples (the test runs every row, with a build folder holding one file of each kind; later parts add a row for each
@@ -128,6 +159,90 @@
 - Layer: component.
 - Traces: PRD-W5.
 
+## 4. The strict policy on the site (POL)
+
+**POL-01** Each HTML page of the site MUST load the listener as its first script, from the site's own origin, so
+that it runs before every other script of the page.
+- Examples (the test runs every row against the site's real build; the HTML is read as the server answers it):
+
+  | Page | First `script` element | Every other `script` element |
+  |---|---|---|
+  | the list page (`GET /`) | the listener | after the listener |
+  | the canary page | the listener | after the listener |
+
+  "The listener" here means: a `script` element with a `src` that is a path on the site (it starts with one `/` and
+  names no scheme or host), which the server answers with 200 and `text/javascript; charset=utf-8`, and which has no
+  `async`, no `defer` and no `type` attribute (so it runs as the parser reaches it, before any module or deferred
+  script). Break that turns it red: the listener's element moved after the bundle's, or given `defer`.
+- Reason: the listener must record every violation the bundle causes from its first statement; a listener that
+  starts late misses them, and the 0 of POL-04 would then prove nothing.
+- Layer: HTTP.
+- Traces: PRD-W4, PRD-S1.
+
+**POL-02** On the canary page, the listener's list MUST hold at least one policy violation once the page has loaded.
+- Example: the canary page, whose own script sets a `style` attribute on one of its elements when it starts (a write
+  the strict policy blocks). In each engine, in this order: the response carries the strict policy (SRV-02); the
+  listener's list exists; after the page has loaded, the list holds at least one entry. Break that turns it red: the
+  canary's write removed.
+- Reason: it proves the proof can fail. The listener listens, and a list read once the page has loaded already holds
+  a violation that a script causes as it starts, the latest point at which the list page's own bundle could break
+  the policy before POL-04 reads its list.
+- Layer: real browser.
+- Traces: PRD-W4, PRD-S1.
+
+**POL-03** The HTML files of the site's build MUST NOT hold an inline script or an inline style element.
+- Examples (the scan reads every `.html` file of the build folder; the test runs every row as a canary planted in a
+  copy of the built `index.html`, which must be found):
+
+  | Canary |
+  |---|
+  | `<script>window.start = 1</script>` |
+  | `<script type="module">import './assets/app.js'</script>` |
+  | `<script type="importmap">{"imports":{}}</script>` |
+  | `<style>body { margin: 0 }</style>` |
+  | `<body onload="start()">` (an event-handler attribute) |
+  | `<a href="javascript:start()">Start</a>` |
+
+  A `script` element with a `src` and no text, and a `link rel="stylesheet"` to a file of the build, pass. A `style`
+  attribute is not this scan's: POL-04 finds it in the browser. The scan reports how many HTML files it read; when it
+  reads none, it reports "could not check", which blocks like a finding. Break that turns it red: the build writes
+  its entry script into `index.html` instead of a file.
+- Reason: the strict policy blocks inline script and style, so an inline bootstrap either leaves the page blank or
+  pushes someone to add `'unsafe-inline'`, which voids the policy; the scan names the file before a browser run does.
+- Layer: static check.
+- Traces: PRD-W4.
+
+**POL-04** Each page of the site other than the canary page MUST raise no policy violation by the time it has loaded
+and shows its table.
+- Examples (the test runs every row in each engine, in this order: the response carries the strict policy (SRV-02);
+  the listener's list exists; the page has loaded; the table shows its rows; then the list holds 0 entries):
+
+  | Page | The table shows |
+  |---|---|
+  | the list page (`GET /`) | its 20 body rows (LIST-01) |
+  | the list page without tokens (`GET /?tokens=none`, VIEW-01) | its 20 body rows |
+
+  Break that turns it red: a `style` attribute written into the list page's `index.html`.
+- Reason: the component claims 0 violations under the strict policy on a client-rendered page (PRD-S1); the order of
+  the reads means a 0 cannot come from a page without the header, without the listener or without the table.
+- Layer: real browser.
+- Traces: PRD-S1, PRD-W4.
+
+## 5. Views (VIEW)
+
+**VIEW-01** The list page opened with the URL parameter `tokens=none` MUST define no `--sdt-*` custom property and
+keep the site's other styles.
+- Example: `GET /?tokens=none` in each engine: for every `--sdt-*` name that a `var(` of the site's built CSS reads,
+  the computed value on the table and on every element inside it is the empty string; and the caption's bounding box
+  is at most 1 by 1 CSS px, as A11Y-13 measures, which only the site's Tailwind styles make so. The test reports how
+  many `--sdt-*` names it read; when it reads none, it reports "could not check". Break that turns it red: a
+  stylesheet of the site that defines one `--sdt-*` property on `:root` for every view.
+- Reason: THEME-03 and THEME-06 prove the system-colour fallbacks on a site page with Tailwind and no token
+  definitions; this view is that page, and it must stay free of tokens when the site gains its example token set
+  (PRD-T4) without losing the styles that the fallbacks are measured with.
+- Layer: real browser.
+- Traces: PRD-W7.
+
 ## Trace
 
 ### Statement -> PRD
@@ -135,16 +250,25 @@
 | Statement | PRD ids |
 |---|---|
 | SRV-01 | PRD-W5 |
+| SRV-02 | PRD-W4 |
 | SRV-03 | PRD-W5 |
 | IMP-01 | PRD-W1 |
 | LIST-01 | PRD-W5 |
 | LIST-02 | PRD-W5 |
+| POL-01 | PRD-W4, PRD-S1 |
+| POL-02 | PRD-W4, PRD-S1 |
+| POL-03 | PRD-W4 |
+| POL-04 | PRD-S1, PRD-W4 |
+| VIEW-01 | PRD-W7 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
+| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: the header on responses to other methods comes with the endpoint part |
 | PRD-W5 | SRV-01, SRV-03, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
+| PRD-W7 | VIEW-01 | in part: the light, dark, `dir=rtl`, spacing, slowdown and two-table views come with the parts that need them |
+| PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half on the list page; later pages with their parts; the server-rendered half with the consumer project (PRD-W8) |
 
-PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W4, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
+PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W8, PRD-W9, PRD-W10.
