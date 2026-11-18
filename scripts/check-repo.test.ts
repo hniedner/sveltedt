@@ -229,6 +229,15 @@ function commit(root: string, message: string, ...flags: string[]): void {
   );
 }
 
+/** Makes `root` sign with a new ssh key and show signatures in its log, as a contributor's configuration may. */
+function signing(root: string): void {
+  const key = join(tempDir(), "key");
+  execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
+  git(root, "config", "gpg.format", "ssh");
+  git(root, "config", "user.signingkey", key);
+  git(root, "config", "log.showSignature", "true");
+}
+
 /**
  * A stand-in for actionlint: reports `version`; fails a file holding `nope` (the expression canary); reports SC2086
  * for an unquoted `$FOO` as shellcheck would (the shell canary); fails a file holding `bad`.
@@ -2718,10 +2727,6 @@ test("commits: passes when every commit after origin/main has a conventional hea
     0,
   );
 });
-test("commits: a header without a type is a finding that names it", () => {
-  const out = expect("commits", branch("feat: fine", "Add the thing"), 1);
-  assert.match(out, /Add the thing/);
-});
 test("commits: a type outside the list is a finding", () => {
   expect("commits", branch("feature: add a thing"), 1);
 });
@@ -2813,8 +2818,8 @@ test("commits: a refused header is named alone, with the count and the allowed t
 test("commits: a commit headed like a merge but with one parent is a finding", () => {
   expect("commits", branch("Merge the thing"), 1);
 });
-// Pins: the header is the first line as git stores it. A body line right below the subject is not part of it (git's
-// %s would join them), and a subject beginning with "#" is judged as stored.
+// Pins: the header is the first line as git reads it. A body line right below the subject is not part of it (git's
+// %s would join them).
 test("commits: the header is the first line, even with a body line right below it", () => {
   expect("commits", branch(`feat: one\n${"x".repeat(100)}`), 0);
 });
@@ -2833,7 +2838,7 @@ test("commits: a fixup, squash or amend commit is a finding", () => {
     assert.match(out, /squash it before the pull request/);
   }
 });
-// Pins: Dependabot's configured headers (.github/dependabot.yml) pass, so its pull requests are never blocked.
+// Pins: the header prefixes configured for Dependabot (.github/dependabot.yml) pass the grammar.
 test("commits: Dependabot's headers pass", () => {
   expect(
     "commits",
@@ -2849,6 +2854,7 @@ test("commits: a header of exactly 100 characters passes", () => {
   expect("commits", branch(`feat: ${"x".repeat(94)}`), 0);
 });
 
+// Pins: a first line starting with "#" is the header, not a comment the step skips.
 test("commits: a stored first line starting with # is refused, whatever follows", () => {
   expect("commits", branch("#123 fix the thing\n\nfeat: in the body"), 1);
 });
@@ -2880,7 +2886,7 @@ test("commits: the finding names the bad commit's own hash", () => {
     ),
   );
 });
-// Pins (moved from the hook's rows when the hook left this branch): every type of TYPES passes the step.
+// Pins: every type of TYPES passes the step.
 test("commits: every allowed type passes", () => {
   const types = [
     "build",
@@ -2945,11 +2951,12 @@ test("commits: git's Revert headers: nesting, quotes, and the length as written"
     branch('Revert "fix: stop "null" ids"', `Revert "feat: ${"x".repeat(85)}"`),
     0,
   );
-  expect(
+  const out = expect(
     "commits",
     branch('Revert "Revert "Add x""', `Revert "feat: ${"x".repeat(86)}"`),
     1,
   );
+  assert.match(out, /2 of 2 commit\(s\)/);
 });
 // Pins: a refused header is printed with its control characters escaped.
 test("commits: control characters in a refused header are printed escaped", () => {
@@ -2957,11 +2964,14 @@ test("commits: control characters in a refused header are printed escaped", () =
     "\u001b",
     "\u007f",
     "\u009b",
+    "\u00ad",
     "\u061c",
     "\u200f",
     "\u2028",
     "\u202e",
+    "\u2060",
     "\u2066",
+    "\ufeff",
   ];
   const out = expect("commits", branch(`Add x${raw.join("")}[2K\rspoof`), 1);
   for (const c of raw) {
@@ -2971,6 +2981,31 @@ test("commits: control characters in a refused header are printed escaped", () =
       JSON.stringify(c),
     );
   }
+});
+// Pins: a contributor's `log.showSignature` does not change what the step reads: a signed commit is judged by its
+// header, not by the signature text git prints before it.
+test("commits: a signed commit is judged by its header when git shows signatures", () => {
+  const root = repo();
+  signing(root);
+  commit(root, "feat: signed", "-S");
+  expect("commits", root, 0);
+});
+// Pins: GATE_BASE and GATE_HEAD are read as revisions, never as git options.
+test("commits and secrets: a GATE_BASE shaped like a git option cannot be checked", () => {
+  for (const step of ["commits", "secrets"]) {
+    const written = join(tempDir(), "written");
+    expect(step, branch("feat: x"), 3, {
+      extraEnv: { GATE_BASE: `--output=${written}`, GATE_HEAD: "HEAD" },
+    });
+    assert.ok(!existsSync(`${written}..HEAD`), step);
+  }
+});
+// Pins: a header is read in time linear in its length, so a long run of blanks cannot stall the gate.
+test("commits: a header of 200,000 blanks and one character is judged at once", () => {
+  const root = branch(`${" ".repeat(200_000)}x`);
+  const start = Date.now();
+  expect("commits", root, 1);
+  assert.ok(Date.now() - start < 5000, `${Date.now() - start} ms`);
 });
 // Pins: a header too long to read is shown cut short, with its full length named.
 test("commits: a very long header is shown shortened, with its length", () => {

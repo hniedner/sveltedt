@@ -6,6 +6,10 @@ works. This page is the short version.
 
 ## The gate
 
+An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
+runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
+`git diff origin/main...<ref>`, and check it out only in a separate clone.
+
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
 ```sh
@@ -116,22 +120,19 @@ find it, so a tool that silently checks nothing cannot pass.
 
 ## Commit headers
 
-The `commits` step judges every non-merge commit of the branch by its header: the first non-blank line, as written.
+The `commits` step judges every non-merge commit of the branch by its header: the first non-blank line, without its
+trailing blanks.
 
-- The header is `<type>(<scope>): <subject>`, at most 100 characters. The scope is optional, in lower-case letters,
-  digits and hyphens; `!` before the colon marks a breaking change; the subject starts right after one space. The
-  types are the list `TYPES` in `scripts/check-repo.ts`; a header of the wrong shape is refused with that list. The
-  changelog will be generated from these headers (PRD-K3).
+- The header is `<type>(<scope>): <subject>`, at most 100 characters (UTF-16 code units: an emoji counts as two). The
+  scope is optional, in lower-case letters, digits and hyphens; `!` before the colon marks a breaking change; the
+  subject starts right after one space. The types are the list `TYPES` in `scripts/check-repo.ts`; a header of the
+  wrong shape is refused with that list. The changelog will be generated from these headers (PRD-K3).
 - git's own `Revert "<header>"` and `Reapply "<header>"` pass when the header they wrap does, or wraps git's own
   `Merge ...` (a reverted pull request). The 100 characters count the header as written, wrapping included: reword a
   revert of a long header.
 - `fixup!`, `squash!` and `amend!` commits are refused: squash them before the pull request.
 - A suggestion applied or a file edited on GitHub's website asks for a commit message: give it a conventional header.
 - Real merge commits are left out, whatever their message; a one-parent commit that only looks like a merge is judged.
-
-An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
-runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff main...<ref>`, and check it out only in a separate clone.
 
 ## How a change is made
 

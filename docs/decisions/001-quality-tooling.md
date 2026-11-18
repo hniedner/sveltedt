@@ -179,7 +179,7 @@ picomatch entry below.
     which Dependabot's bodies exceed);
   - a header rule in the gate's runner.
 - **Decision:** the header rule. The allowed types are listed once, in `TYPES` in `scripts/check-repo.ts`; a
-  rejected header prints them. No document copies the list.
+  header of the wrong shape is refused with that list. No document copies the list.
 - **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule, and a
   test proves that the types its configuration knows equal `TYPES`.
 

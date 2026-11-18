@@ -1977,7 +1977,8 @@ function secrets(root: string): Result {
   if (isResult(range)) return range;
   const count = spawnSync(
     "git",
-    ["-C", root, "rev-list", "--count", range.range],
+    // --end-of-options: a range from the environment is a revision, never an option.
+    ["-C", root, "rev-list", "--count", "--end-of-options", range.range, "--"],
     {
       encoding: "utf8",
       env: childEnv(),
@@ -2013,7 +2014,7 @@ function secrets(root: string): Result {
   );
 }
 
-// The commit header the changelog is generated from (method section 7; docs/decisions/001-quality-tooling.md).
+// The commit types; the changelog will be generated from these headers (method section 7; decision 001).
 const TYPES = [
   "build",
   "chore",
@@ -2039,7 +2040,7 @@ const AUTOSQUASH = /^(fixup|squash|amend)! /;
 // What JSON.stringify leaves as it is but a terminal or log viewer acts on: DEL, the C1 controls, the bidi marks and
 // U+2028/9.
 const UNPRINTABLE =
-  /[\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g;
+  /[\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
 /** A header for output: its first 100 characters if longer, quoted, control characters and bidi marks escaped. */
 const shownHeader = (written: string): string =>
   JSON.stringify(
@@ -2066,14 +2067,19 @@ function headerProblem(written: string): string | null {
 }
 
 /**
- * A message's header as git stores it: its first non-blank line, trailing ASCII blanks and a carriage return removed.
+ * A message's header as git reads it: its first non-blank line, trailing ASCII blanks and a carriage return removed.
+ * A message stored verbatim (an API commit, `--cleanup=verbatim`) keeps them; git's default clean-up removes them.
  * Blank means ASCII blanks only, as in git: a line of a no-break space or a byte-order mark is a header.
  */
-const headerOf = (message: string): string =>
-  message
-    .split("\n")
-    .map((l) => l.replace(/[ \t\r]+$/, ""))
-    .find(Boolean) ?? "";
+function headerOf(message: string): string {
+  // A scan from the end, not a regular expression: /[ \t\r]+$/ takes quadratic time on a long run of blanks.
+  for (const line of message.split("\n")) {
+    let end = line.length;
+    while (end > 0 && " \t\r".includes(line[end - 1])) end--;
+    if (end) return line.slice(0, end);
+  }
+  return "";
+}
 
 // Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
 function commits(root: string): Result {
@@ -2083,7 +2089,11 @@ function commits(root: string): Result {
     "git",
     // The whole message, not %s: git's %s joins a body line written right below the subject into it. -z ends each
     // commit with a NUL, which no commit message can hold.
-    ["-C", root, "log", "-z", "--no-merges", "--format=%h%n%B", range.range],
+    // --no-show-signature: a contributor's log.showSignature would print signature text before the hash.
+    [
+      ...["-C", root, "log", "-z", "--no-merges", "--no-show-signature"],
+      ...["--format=%h%n%B", "--end-of-options", range.range, "--"],
+    ],
     { encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
   );
   if (r.status !== 0)

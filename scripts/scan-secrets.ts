@@ -230,7 +230,13 @@ function scanGit(target: string, range: string, config: string): number {
   preflight(config, repo);
   // gitleaks counts only commits that yield text to scan, so the count lies between those and the whole range.
   const s = gitleaks(
-    ["git", repo, `--log-opts=--diff-merges=first-parent ${range}`],
+    // --no-show-signature: a contributor's log.showSignature makes git verify signatures; without an allowed-signers
+    // file it logs an error and the scan stops.
+    [
+      "git",
+      repo,
+      `--log-opts=--no-show-signature --diff-merges=first-parent ${range}`,
+    ],
     config,
   );
   if (s.commits === null || s.commits < adding || s.commits > total) {
