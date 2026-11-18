@@ -1381,6 +1381,12 @@ test("svelte: a canary run missing a planted error, reporting it as a warning or
     assert.match(out, /did not report the planted type errors/);
   }
 });
+test("svelte: an exit status outside the pass and finding pairs cannot be checked, and is named", () => {
+  const out = expect("svelte", repo(component(COMPONENT)), 3, {
+    extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(PLANTED, []) },
+  });
+  assert.match(out, /svelte-check exited 1/);
+});
 test("svelte: a tsconfig.json TypeScript cannot read cannot be checked, and says why", () => {
   const out = expect(
     "svelte",
