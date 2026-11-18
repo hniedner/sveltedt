@@ -9,10 +9,21 @@ interface Item {
   name: string;
 }
 
+const idColumn: DataTableColumn<Item> = {
+  id: "id",
+  label: "Id",
+  value: (row) => row.id,
+};
 const nameColumn: DataTableColumn<Item> = {
   id: "name",
   label: "Name",
   value: (row) => row.name,
+};
+
+const noteColumn: DataTableColumn<Item> = {
+  id: "note",
+  label: "Note",
+  value: () => "",
 };
 
 // Mounts the table with the given props over a one-row base; returns the element that holds the component
@@ -44,5 +55,20 @@ describe(spec("A11Y-09", "1ea0bceb"), () => {
     expect(
       within(region).getByRole("table", { name: "Orders" }).isConnected,
     ).toBe(true);
+  });
+});
+
+describe(spec("A11Y-02", "bb579ca8"), () => {
+  it("makes every column header a th with scope col", () => {
+    show({ columns: [idColumn, nameColumn, noteColumn] });
+    expect(
+      screen
+        .getAllByRole("columnheader")
+        .map((th) => [th.tagName, th.getAttribute("scope")]),
+    ).toEqual([
+      ["TH", "col"],
+      ["TH", "col"],
+      ["TH", "col"],
+    ]);
   });
 });
