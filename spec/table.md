@@ -52,8 +52,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
-- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty. A number is
-  never empty.
+- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty. A row id that
+  is a number is never empty; a column id or a text that is not a string counts as empty (RND-05).
 - **Same row id.** Two row ids are the same when their text forms are equal: the number 1 and the string "1" are the
   same id.
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
