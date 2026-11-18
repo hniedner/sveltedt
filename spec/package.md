@@ -350,6 +350,24 @@ public specifier.
 - Layer: consumer files.
 - Traces: PRD-K2, PRD-W8.
 
+**CON-12** In the consumer's Tailwind 4 app, every element of the table MUST have the computed values of THEME-10's
+literal table.
+- Example: the Tailwind 4 app of the consumer project (PRD-W8), its stylesheet as CON-10 states, Tailwind's Preflight
+  on, renders THEME-10's table; every row of THEME-10's literal table holds there, and the caption measures at most 1
+  by 1 CSS px. Not yet tested until the consumer project's build step (PRD-W8).
+- Reason: the third host of PRD-T11 (a); Preflight is a reset loaded first, as Bootstrap's reboot is.
+- Layer: consumer browser.
+- Traces: PRD-T11, PRD-W8.
+
+**CON-13** In the consumer's Tailwind 4 app, a utility on a wrapper MUST override the stylesheet's cell padding
+without `!`.
+- Example: the table of THEME-10 inside `<div class="[&_td]:p-2">`: every body cell's padding computes to `8px` on each
+  side; the app's built CSS holds no `!important` for it. Not yet tested until the consumer project's build step.
+- Reason: a Tailwind application restyles the table with its own utilities, which the layered import puts above the
+  stylesheet (PRD-T11 (b), PRD-T3).
+- Layer: consumer browser.
+- Traces: PRD-T11, PRD-T3.
+
 ## Trace
 
 ### Statement -> PRD
@@ -370,6 +388,8 @@ public specifier.
 | CON-08 | PRD-K4 |
 | CON-09 | PRD-K2, PRD-W8 |
 | CON-10 | PRD-T3, PRD-W8 |
+| CON-12 | PRD-T11, PRD-W8 |
+| CON-13 | PRD-T11, PRD-T3 |
 | CON-11 | PRD-K2, PRD-W8 |
 
 ### PRD must -> statements
