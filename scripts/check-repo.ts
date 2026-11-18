@@ -89,12 +89,18 @@ interface PackageJson {
   peerDependencies?: Record<string, string>;
 }
 
+/** The tracked files, less those deleted from the working tree without `git rm` (nothing left to read). */
 function tracked(root: string): Set<string> | null {
-  const r = spawnSync("git", ["-C", root, "ls-files", "-z"], {
-    encoding: "utf8",
-  });
-  if (r.status !== 0) return null;
-  const files = r.stdout.split("\0").filter(Boolean);
+  const ls = (...flags: string[]) =>
+    spawnSync("git", ["-C", root, "ls-files", "-z", ...flags], {
+      encoding: "utf8",
+      env: childEnv(),
+    });
+  const all = ls(),
+    deleted = ls("--deleted");
+  if (all.status !== 0 || deleted.status !== 0) return null;
+  const gone = new Set(deleted.stdout.split("\0"));
+  const files = all.stdout.split("\0").filter((f) => f && !gone.has(f));
   return files.length ? new Set(files) : null;
 }
 
@@ -103,16 +109,15 @@ function files(root: string, list: Set<string>): Result {
   for (const f of REQUIRED)
     if (!list.has(f) || !existsSync(join(root, f)))
       details.push(`missing: ${f}`);
-  const read = (f: string) =>
-    existsSync(join(root, f)) ? readFileSync(join(root, f)) : Buffer.alloc(0);
+  const read = (f: string) => readText(root, f);
   if (
     createHash("sha256").update(read("LICENSE")).digest("hex") !==
     LICENSE_SHA256
   )
     details.push("LICENSE: not the Apache-2.0 text");
-  if (!read("NOTICE").toString().includes(COPYRIGHT))
+  if (!read("NOTICE").includes(COPYRIGHT))
     details.push(`NOTICE: no line "${COPYRIGHT}"`);
-  if (!read(".gitignore").toString().split("\n").includes("/tmp/"))
+  if (!read(".gitignore").split("\n").includes("/tmp/"))
     details.push(".gitignore: no line /tmp/");
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
@@ -161,8 +166,9 @@ function gateNeeds(root: string, list: Set<string>): Result {
   const jobs = new Map<string, string[]>();
   let current: string | null = null;
   for (const line of lines.slice(start + 1)) {
+    if (/^\s*(#|$)/.test(line)) continue; // a comment or blank line ends nothing
     if (/^\S/.test(line)) break;
-    const id = /^ {2}([\w-]+):\s*$/.exec(line);
+    const id = /^ {2}([\w-]+):\s*(#.*)?$/.exec(line);
     if (id) jobs.set((current = id[1]), []);
     else if (current) jobs.get(current)?.push(line);
   }
@@ -220,7 +226,12 @@ function links(root: string, list: Set<string>): Result {
     readFileSync(join(root, f), "utf8")
       .split("\n")
       .forEach((line, i) => {
-        for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
+        // Inline links, with or without a title, and reference definitions.
+        const links = [
+          ...line.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g),
+          ...line.matchAll(/^ {0,3}\[[^\]]+\]:\s+(\S+)/g),
+        ];
+        for (const m of links) {
           const target = m[1].replace(/[#?].*$/, "");
           if (!target || /^[a-z][a-z0-9+.-]*:/i.test(m[1])) continue;
           count += 1;
@@ -461,7 +472,7 @@ function toolchain(root: string): Result {
 const EXACT = /^\d+\.\d+\.\d+$/;
 const ADVISORY = /#\s*GHSA(-[23456789cfghjmpqrvwx]{4}){3}\b/;
 
-/** The value of `key: <digits>` in YAML lines, or null. */
+/** The value of `key: <digits>` in YAML lines, or NaN. */
 const yamlNumber = (lines: string[], key: string): number =>
   Number(
     lines
@@ -614,7 +625,8 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
   return mine;
 }
 
-const CONFLICT = /^(<{7} |={7}$|>{7} )/;
+// The opening and closing markers only: a line of seven "=" is also a Markdown heading underline.
+const CONFLICT = /^(<{7}|>{7})( |$)/;
 
 // For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
 // no conflict marker (Prettier keeps one in Markdown as text).
@@ -958,7 +970,9 @@ function dupes(root: string, list: Set<string>): Result {
   if (version !== pin)
     return result(
       CANNOT,
-      `jscpd ${version} is installed, package.json pins ${pin}`,
+      version
+        ? `jscpd ${version} is installed, package.json pins ${pin}`
+        : "jscpd is not installed (run pnpm install)",
     );
   const canary = jscpdReport(dir, planted);
   if ("error" in canary) return result(CANNOT, canary.error);
@@ -1051,15 +1065,15 @@ function workflows(root: string, list: Set<string>): Result {
 
 const tscBin = (): string => join(HERE, "..", "node_modules", ".bin", "tsc");
 
+/** `tsc -p <dir>/tsconfig.json` with `flags`. */
+const tsc = (dir: string, ...flags: string[]) =>
+  spawnSync(tscBin(), ["-p", join(dir, "tsconfig.json"), ...flags], {
+    encoding: "utf8",
+  });
+
 /** The files `tsc -p <dir>/tsconfig.json` puts in its program, or a could-not-check result. */
 function tscProgram(dir: string): Result | string[] {
-  const r = spawnSync(
-    tscBin(),
-    ["-p", join(dir, "tsconfig.json"), "--listFilesOnly"],
-    {
-      encoding: "utf8",
-    },
-  );
+  const r = tsc(dir, "--listFilesOnly");
   if (r.error || r.status !== 0)
     return result(
       CANNOT,
@@ -1071,13 +1085,7 @@ function tscProgram(dir: string): Result | string[] {
 
 /** `tsc -p <dir>/tsconfig.json`'s exit code and its error lines. */
 function tscRun(dir: string): { status: number | null; lines: string[] } {
-  const r = spawnSync(
-    tscBin(),
-    ["-p", join(dir, "tsconfig.json"), "--pretty", "false"],
-    {
-      encoding: "utf8",
-    },
-  );
+  const r = tsc(dir, "--pretty", "false");
   return {
     status: r.status,
     lines: r.stdout.trim().split("\n").filter(Boolean),
@@ -1230,12 +1238,13 @@ function main(argv: string[]): number {
         `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
-  const at = rest.indexOf("--root");
-  const root =
-    at >= 0
-      ? rest[at + 1]
-      : join(dirname(fileURLToPath(import.meta.url)), "..");
-  if (!root) return report(name, result(USAGE, "--root needs a folder"));
+  const [flag, given, ...extra] = rest;
+  const unknown = flag !== undefined && flag !== "--root" ? flag : extra[0];
+  if (unknown !== undefined)
+    return report(name, result(USAGE, `unknown argument ${unknown}`));
+  if (flag && !given)
+    return report(name, result(USAGE, "--root needs a folder"));
+  const root = given ?? join(dirname(fileURLToPath(import.meta.url)), "..");
   const list = tracked(normalize(root));
   if (!list)
     return report(

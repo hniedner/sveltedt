@@ -1328,6 +1328,48 @@ test("all: returns could-not-check from a step that could not check", () => {
   assert.match(out, /^COULD NOT CHECK toolchain\b/m);
   assert.match(out, /stopped at toolchain/);
 });
+test("text: a tracked file deleted without git rm is left out, not a crash", () => {
+  const root = repo();
+  rmSync(join(root, "NOTICE")); // still listed by git ls-files
+  expect("text", root, 0);
+});
+test("text: a seven-equals heading underline is not a conflict marker", () => {
+  // Prettier keeps a setext heading, so Markdown can hold one.
+  const setext = (root: string) =>
+    put(root, "CONTRIBUTING.md", "Contributing\n=======\n");
+  expect("text", repo(setext), 0);
+});
+test("links: a link with a title to a missing file is a finding", () => {
+  const titled = (root: string) =>
+    put(
+      root,
+      "README.md",
+      '# Fixture\n\nSee [x](docs/missing.md "Missing").\n',
+    );
+  assert.match(expect("links", repo(titled), 1), /docs\/missing\.md/);
+});
+test("links: a reference definition to a missing file is a finding", () => {
+  const reference = (root: string) =>
+    put(
+      root,
+      "README.md",
+      "# Fixture\n\nSee [x][m].\n\n[m]: docs/missing.md\n",
+    );
+  assert.match(expect("links", repo(reference), 1), /docs\/missing\.md/);
+});
+test("gate-needs: a comment line between jobs does not hide the jobs after it", () => {
+  const commented = edit(
+    ".github/workflows/ci.yml",
+    "  gate:\n",
+    "# the checks\n  lint:\n    runs-on: ubuntu-latest\n  gate:\n",
+  );
+  assert.match(expect("gate-needs", repo(commented), 1), /lint/);
+});
+test("an unknown argument is a usage error", () => {
+  const r = run(["text", "--root", repo(), "--rot", "x"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /unknown argument --rot/);
+});
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
 });
