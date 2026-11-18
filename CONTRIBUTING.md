@@ -42,16 +42,20 @@ The checks today:
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
   `{@attach}`, spread attribute, `bind:` other than `bind:this`, a `style` attribute in any case or `{style}`,
   `svelte:head`, a `<style>` block or a `style`, `link` or `script` element, written or through `svelte:element`
-  with a literal `this`; no style or `srcdoc` set by `setAttribute`, no `style`, `link` or `script` created by
+  with a literal `this`; no style, `srcdoc` or `on*` handler set by `setAttribute`, no `style`, `link` or `script`
+  created by
   `createElement` or `createElementNS`, no `innerHTML`, `outerHTML` or `srcdoc` assigned, in an object literal or
-  as an attribute, no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
+  as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
   `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
   constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
-  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names written with a
-  dot and plain string arguments. They do not catch a name built at run time, a template literal, a cast of the
-  object or the argument (`(document as Document).write`), an alias (`const d = document; d.write`, or one
-  destructured), a method reached through `.call`, `Reflect.set`, `Object.defineProperty`, `setAttributeNS`,
-  `setAttributeNode` or a computed `svelte:element` `this`: review is the guard for these. TypeScript
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
+  run time or written as a template literal; a cast or non-null assertion on the object a ban reads
+  (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as
+string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
+  `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
+  `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
+  `svelte:element` `this`: review is the guard for these. TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from

@@ -1224,7 +1224,8 @@ test("lint: a <style> block in a component is a finding that names the ban", () 
 test("lint: markup and code beside the injection bans pass in a component", () => {
   // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
   // innerHTML; a string holding its name; setAttribute and createElement of other names; a write that is not a
-  // document's; a name that only contains a sink's name; a local parseHTML; execCommand of another command.
+  // document's; a name that only contains a sink's name; a local parseHTML or addRule; a bracketed name that is no
+  // sink's; setAttribute of open or only-x (not handlers); execCommand of another command.
   expect(
     "lint",
     repo(
@@ -1233,7 +1234,7 @@ test("lint: markup and code beside the injection bans pass in a component", () =
           "</script>",
           '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n' +
             '  const tag = "p";\n  const text = document.body.innerHTML;\n  const box = document.createElement("div");\n' +
-            '  box.setAttribute("title", text);\n  box.append(document.createElementNS("http://www.w3.org/2000/svg", "circle"));\n  box["title"] = text;\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
+            '  box.setAttribute("title", text);\n  box.setAttribute("open", "");\n  box.setAttribute("only-x", "");\n  box.append(document.createElementNS("http://www.w3.org/2000/svg", "circle"));\n  box["title"] = text;\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
             '  const parseHTML = (s: string): string => s;\n  const addRule = (s: string): string => s;\n  document.execCommand("copy", false, addRule(parseHTML(text)));\n</script>',
         ).replace(
           "<p>{count}</p>",
@@ -1245,12 +1246,13 @@ test("lint: markup and code beside the injection bans pass in a component", () =
     0,
   );
 });
-// RND-04 (spec/table.md): every raw-HTML form its example names is a finding: {@html and srcdoc in a component, the
+// RND-04 (spec/table.md): with the per-name test below, every raw-HTML form its example names is a finding: {@html
+// and srcdoc in a component, the
 // script forms in a script (the script bans run in components too: canary.svelte plants setAttribute style and
 // innerHTML).
 const SINK = (body: string) =>
   `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
-test("lint: each raw-HTML form RND-04 names is a finding that names its ban", () => {
+test("lint: the raw-HTML forms of RND-04 are findings that name their ban", () => {
   for (const [form, change, ban] of [
     [
       "{@html",
@@ -1354,11 +1356,11 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ],
     [
       'document.styleSheets[0]?.insertRule("p {}");',
-      "constructed or inserted style sheet",
+      "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
     ],
     [
       'document.styleSheets[0]?.addRule("p", "margin: 0");',
-      "constructed or inserted style sheet",
+      "constructed or inserted style sheet (PRD-S1, PRD-T3): a rule inserted",
     ],
     [
       "(el as HTMLIFrameElement).contentDocument?.write(html);",
@@ -1407,6 +1409,15 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       "const { ownerDocument } = el;\n  ownerDocument.write(html);",
       "document.write",
     ],
+    [
+      "const { contentDocument } = el as HTMLIFrameElement;\n  contentDocument?.write(html);",
+      "document.write",
+    ],
+    ["el.innerHTML += html;", "assigning innerHTML, outerHTML or srcdoc"],
+    [
+      'el.setAttribute("ONCLICK", html);',
+      "setAttribute srcdoc or an on* handler",
+    ],
     // Every name the bracket ban lists, in brackets: a name dropped from its list cannot stay green.
     ...[
       "insertAdjacentHTML",
@@ -1439,6 +1450,7 @@ test("lint: every name a ban lists is a finding of that ban", () => {
     ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
     ["<div><script>alert(1)</script></div>", "style, link or script element"],
     ["<div><style></style></div>", "style, link or script element"],
+    ["<div><sCRIPT>alert(1)</sCRIPT></div>", "style, link or script element"],
     [
       '<svelte:element this="script"></svelte:element>',
       "svelte:element as style",
@@ -1560,7 +1572,7 @@ test("lint: an HTML disable comment does not switch a rule off in a component", 
   );
   assert.match(out, /no-restricted-syntax style attribute/);
 });
-// The four comments that switch a check off, built from parts so this file does not hold them.
+// The comments that switch a check off, built from parts so this file does not hold them.
 const SUPPRESSIONS = [
   ["svelte-", "ignore"],
   ["@ts-", "expect-error"],

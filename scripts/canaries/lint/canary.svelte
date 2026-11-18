@@ -8,6 +8,9 @@
   const act = (node: HTMLElement) => node;
   const attach = (node: HTMLElement) => node;
   const style = "color: red";
+  // Refused by ban-ts-comment in a component too.
+  // @ts-ignore
+  const off: number = "one";
   let el: HTMLElement | undefined = $state();
   // Above the browser floor (PRD-E1): IdleDetector is missing from Firefox and Safari.
   const idle = new IdleDetector();
@@ -44,7 +47,7 @@
 <svelte:element this={"script"}></svelte:element>
 <iframe srcdoc="<p>raw</p>" title="srcdoc"></iframe>
 <x-raw innerHTML={rest.html}></x-raw>
-<p>{String(idle)}</p>
+<p>{String(idle)}{off}</p>
 
 <style>
   p {

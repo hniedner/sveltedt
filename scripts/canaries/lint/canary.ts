@@ -52,4 +52,6 @@ export function inject(el: HTMLElement, html: string): void {
   document.execCommand("insertHTML", false, html);
   Document.parseHTML(html);
   el["insertAdjacentHTML"]("beforeend", html);
+  document.createElementNS("http://www.w3.org/2000/svg", "style");
+  document.styleSheets[0]?.insertRule("p {}");
 }

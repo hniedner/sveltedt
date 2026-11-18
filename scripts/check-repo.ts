@@ -968,6 +968,8 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|document.write",
     "no-restricted-syntax|setHTML or createRawSnippet",
     "no-restricted-syntax|constructed or inserted style sheet",
+    "no-restricted-syntax|a rule inserted",
+    "no-restricted-syntax|: createElementNS",
     "no-restricted-syntax|execCommand insertHTML",
     "no-restricted-syntax|Document.parseHTML",
     "no-restricted-syntax|a sink name in brackets",
@@ -975,6 +977,7 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
   ".svelte": [
     "@typescript-eslint/no-explicit-any",
     "svelte/no-at-html-tags",
+    "@typescript-eslint/ban-ts-comment",
     "compat/compat",
     "no-restricted-syntax|class: directive",
     "no-restricted-syntax|use: action",

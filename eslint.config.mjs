@@ -99,7 +99,7 @@ const scriptBans = [
   ],
   [
     "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(srcdoc|on\\w+)$/i]",
-    "setAttribute srcdoc or an on* handler (PRD-S2): script or markup from a string",
+    "setAttribute srcdoc or an on* handler (PRD-S1, PRD-S2): script or markup from a string",
   ],
   [
     "AssignmentExpression:matches([left.property.name=/^(innerHTML|outerHTML|srcdoc)$/], [left.property.value=/^(innerHTML|outerHTML|srcdoc)$/])",
@@ -139,10 +139,11 @@ const scriptBans = [
     "MemberExpression[property.name='parseHTML']:matches([object.name='Document'], [object.property.name='Document'])",
     "Document.parseHTML (PRD-S2): markup from a value",
   ],
-  // Every sink name of the bans above, in brackets: keep the list in step with them.
+  // Every sink name of the bans above, in brackets, except innerHTML, outerHTML and srcdoc, whose bans read the quoted
+  // form themselves (reading them is allowed): keep the list in step with them.
   [
     "MemberExpression[computed=true][property.value=/^(insertAdjacentHTML|setHTML|setHTMLUnsafe|parseHTML|parseHTMLUnsafe|createContextualFragment|createRawSnippet|DOMParser|write|writeln|execCommand|setAttribute|createElement|createElementNS|CSSStyleSheet|adoptedStyleSheets|insertRule|addRule)$/]",
-    "a sink name in brackets (PRD-S1, PRD-S2): write it with a dot, so the bans can read it",
+    "a sink name in brackets (PRD-S1, PRD-S2, PRD-T3): write it with a dot, so the bans can read it",
   ],
 ].map(([selector, message]) => ({ selector, message }));
 
