@@ -15,7 +15,8 @@ and `docs/engineering/gates.md` (how each check works). Where this page and the 
 5. No check may pass without having checked: "could not check" blocks like a finding (section 6).
 6. KISS and DRY are review checks: no setting, abstraction or dependency without a statement that asks for it
    (section 5).
-7. Library first: a one-page evaluation before building anything reusable (section 8).
+7. Library first: a one-page evaluation before building anything reusable, and the fetched practice of the leading
+   libraries or the standard before any non-trivial decision (section 8).
 8. Public repository: synthetic data only; no secret, private name, host or path; scans before every push
    (section 9).
 9. The local gate runs first; CI's `gate` check is the record that counts; merge commits only; nothing merges
