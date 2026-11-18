@@ -94,6 +94,7 @@ const TOOL_TS = `export function gross(prices: number[], rate: number): number {
 interface Pkg {
   name: string;
   private?: boolean;
+  type?: string;
   license: string;
   packageManager?: string;
   devDependencies: Record<string, string>;
@@ -107,6 +108,7 @@ const PINS = (
 const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
+  type: "module", // as the repository's: the runner the hooks call is an ES module
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
   devDependencies: {
@@ -134,6 +136,11 @@ updates:
 `;
 
 /** A repository that passes every check; `change` plants the break before the files are staged. */
+/** The hooks a clone runs, each the same two-line shim into this runner. */
+const HOOKS = ["pre-commit", "commit-msg"];
+const SHIM = (hook: string): string =>
+  `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
+
 function repo(change: (root: string) => void = () => {}): string {
   const root = tempDir();
   const files = {
@@ -166,11 +173,15 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/workflows/scorecard.yml": "on: [push]\n",
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
+    ".githooks/pre-commit": SHIM("pre-commit"),
+    ".githooks/commit-msg": SHIM("commit-msg"),
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
+  for (const h of HOOKS) chmodSync(join(root, ".githooks", h), 0o755);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
+  git(root, "config", "core.hooksPath", ".githooks"); // as `git config core.hooksPath .githooks` sets it up
   commit(root, "chore: the fixture's first commit");
   git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   change(root);
@@ -688,6 +699,8 @@ test("text: a repository without a file of its class cannot be checked", () => {
         "node_modules", // the link .gitignore kept untracked
         ".node-version",
         ".github/CODEOWNERS",
+        ".githooks/pre-commit",
+        ".githooks/commit-msg",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
         "docs/PRD.md",
@@ -1289,6 +1302,186 @@ test("commit-msg: a message file that cannot be read is a usage error", () => {
   assert.equal(r.code, 2, r.out);
 });
 
+test("hooks: passes when core.hooksPath is .githooks and every hook is the executable shim", () => {
+  expect("hooks", repo(), 0);
+});
+test("hooks: an unset core.hooksPath is a finding that gives the command", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  assert.match(
+    expect("hooks", root, 1),
+    /core\.hooksPath is unset: run git config core\.hooksPath \.githooks/,
+  );
+});
+test("hooks: a hook that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "commit-msg"), 0o644)),
+    1,
+  );
+  assert.match(out, /\.githooks\/commit-msg: not executable/);
+});
+test("hooks: a hook that is not the shim is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo(edit(".githooks/pre-commit", "exec ", "true || exec ")),
+    1,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not the two-line shim/);
+});
+test("hooks: a missing hook is a finding", () => {
+  const out = expect("hooks", repo(remove(".githooks/pre-commit")), 1);
+  assert.match(out, /\.githooks\/pre-commit: missing/);
+});
+test("hooks: in CI, where git runs no hook, the step is not applicable", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  notApplicable(["hooks", "--root", root], {
+    extraEnv: { GITHUB_ACTIONS: "true" },
+  });
+});
+
+/** A fixture holding this runner, so `git commit` there runs the real hooks. */
+function hooked(change: (root: string) => void = () => {}): string {
+  const root = repo((r) => {
+    for (const f of ["check-repo.ts", "pinned.ts"])
+      put(r, `scripts/${f}`, readFileSync(join(here, f)));
+    change(r);
+  });
+  commit(root, "chore: add the runner");
+  return root;
+}
+/** `git commit` with the hooks on, as a contributor runs it; the tools are the run() fakes, the canaries real. */
+function gitCommit(
+  root: string,
+  ...args: string[]
+): { code: number | null; out: string } {
+  const env: NodeJS.ProcessEnv = {
+    ...GIT_ENV,
+    ZIZMOR_BIN: fakeZizmor(),
+    GITLEAKS_BIN: fakeVersion("gitleaks", "9.9.9"),
+    CANARY_DIR: join(here, "canaries"),
+  };
+  delete env.GITHUB_ACTIONS;
+  const r = spawnSync(
+    "git",
+    [
+      "-C",
+      root,
+      "-c",
+      "user.name=Fixture",
+      "-c",
+      "user.email=fixture@example.org",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-q",
+      ...args,
+    ],
+    { encoding: "utf8", env },
+  );
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+const head = (root: string): string =>
+  git(root, "log", "-1", "--format=%s").trim();
+/** The secret scan replaced by one that names every file of the folder it is given and passes, or finds `leak`. */
+const listingScan = (root: string): void =>
+  put(
+    root,
+    "scripts/scan-secrets.ts",
+    `import { readdirSync, readFileSync } from "node:fs";
+const [mode, dir] = process.argv.slice(2);
+const files = readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile());
+console.log("scan-secrets " + mode + " " + files.map((e) => e.name).sort().join(","));
+if (files.some((e) => readFileSync(e.parentPath + "/" + e.name, "utf8").includes("leak"))) {
+  console.log("FINDING scan-secrets: 1 leak(s)");
+  process.exitCode = 1;
+}
+`,
+  );
+
+test("pre-commit: a formatted staged file commits; the scan sees only the staged files; stages without a file of their kind are not applicable", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/a.md", "# A note\n");
+  put(root, "notes/unstaged.md", "#  Not staged\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(head(root), "docs: add a note");
+  assert.match(r.out, /^PASS format: /m);
+  assert.match(r.out, /^NOT APPLICABLE lint: /m);
+  assert.match(r.out, /^NOT APPLICABLE lockfile: /m);
+  assert.match(r.out, /^NOT APPLICABLE workflows: /m);
+  assert.match(r.out, /^\s*scan-secrets dir a\.md$/m);
+  assert.match(r.out, /^PASS pre-commit: /m);
+});
+test("pre-commit: an unformatted staged file blocks the commit", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "#  A note\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING format: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: git commit -a checks the changes -a stages", () => {
+  const root = hooked();
+  put(root, "README.md", "#  Fixture\n");
+  const r = gitCommit(root, "-a", "-m", "docs: reword the readme");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*README\.md\b/m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a staged file changed again before the commit cannot be checked, and is named", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  put(root, "notes/a.md", "#  A note\n");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK pre-commit: .*changed after staging/m);
+  assert.match(r.out, /^\s*notes\/a\.md$/m);
+});
+test("pre-commit: a secret in a staged file blocks the commit", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/a.md", "# A leak\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a staged workflow and a staged package.json run the workflow and lockfile checks", () => {
+  const root = hooked();
+  put(root, ".github/workflows/scorecard.yml", "on: [push, pull_request]\n");
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "-A");
+  const r = gitCommit(root, "-m", "ci: run on pull requests");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^PASS workflows: /m);
+  assert.match(r.out, /^PASS lockfile: /m);
+});
+test("pre-commit: a commit that only deletes files has nothing to check", () => {
+  const root = hooked();
+  git(root, "rm", "-q", "AGENTS.md");
+  const r = gitCommit(root, "-m", "docs: drop the agents file");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE pre-commit: /m);
+});
+test("commit-msg: git refuses a commit whose header is not conventional", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "Add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING commit-msg: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
   expect("pins", repo(), 0);
 });
@@ -1588,7 +1781,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 2 not applicable: commits, secrets$/m,
+    /^PASS all: 16 checks passed, 2 not applicable: commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

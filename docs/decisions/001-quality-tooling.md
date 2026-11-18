@@ -11,6 +11,8 @@ pages named, or measured with the command named.
   - husky 9 (a `prepare` script sets `core.hooksPath`);
   - lefthook 2 and simple-git-hooks 2 (both install from a `postinstall` script).
 - **Decision:** `core.hooksPath`, no runner.
+  - The setup step is one command, `git config core.hooksPath .githooks`; the gate's `hooks` step fails until it
+    has run, and prints it.
   - The companion already prescribes it.
   - husky only wraps the same setting.
   - lefthook and simple-git-hooks need an install-script exception that PRD-S5 forbids. pnpm blocks dependency
