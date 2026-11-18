@@ -8,8 +8,8 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "types": ["node", "svelte"],
+    "types": ["node", "svelte", "vite/client"],
     "skipLibCheck": true
   },
-  "include": ["src", "site", "test"]
+  "include": ["src", "site", "test", "vitest.config.ts"]
 }

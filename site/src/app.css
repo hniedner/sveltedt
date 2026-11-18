@@ -1,0 +1,5 @@
+@import "tailwindcss";
+/* The folder the package's exports point at, through its installed name. Narrower than a consumer's line
+   (`@source "../node_modules/@hniedner/sveltedt"`): in this workspace that link leads to the repository root,
+   so Tailwind would read every tracked text. The consumer's form is to be proven by the consumer project (CON-10), which reads only the packed files. */
+@source "../node_modules/@hniedner/sveltedt/src/lib";

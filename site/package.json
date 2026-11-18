@@ -1,0 +1,8 @@
+{
+  "name": "sveltedt-site",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hniedner/sveltedt": "workspace:*"
+  }
+}
