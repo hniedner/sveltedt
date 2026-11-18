@@ -8,9 +8,8 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"],
+    "types": ["node", "svelte"],
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts"],
-  "exclude": ["scripts/canaries/**"]
+  "include": ["src", "site", "test"]
 }

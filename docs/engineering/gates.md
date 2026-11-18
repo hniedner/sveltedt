@@ -365,7 +365,7 @@ Sources (2026-11-17): *dbot-ecosystems* docs.github.com/en/code-security/dependa
 | Semver, 0.x then 1.0, generated changelog, tags | method §7 |
 | Local link in development, published pin on main and releases | method §7; G5 |
 | Rust components ship prebuilt; release target matrix | method §7; G10 |
-| Library-first one-page evaluation; probe beats README | method §8 |
+| Library-first one-page evaluation; probe beats README; fetched practice before a non-trivial decision | method §8 |
 | Synthetic data only, reserved identifier shape, checked | method §9; G11 |
 | Secret scan before every push and in CI | method §9; G2, G10 |
 | Private word list before every push, local only, allowlist for the owner's name | method §9; G3, G11 |
