@@ -350,6 +350,24 @@ public specifier.
 - Layer: consumer files.
 - Traces: PRD-K2, PRD-W8.
 
+**CON-12** In the consumer's Tailwind 4 app, every element of the table MUST have the computed values of THEME-10's
+literal table.
+- Example: the Tailwind 4 app of the consumer project (PRD-W8), its stylesheet as CON-10 states, Tailwind's Preflight
+  on, renders THEME-10's table; every row of THEME-10's literal table holds there, and the caption measures at most 1
+  by 1 CSS px. Not yet tested until the consumer project's build step (PRD-W8).
+- Reason: the third host of PRD-T11 (a); Preflight is a reset loaded first, as Bootstrap's reboot is.
+- Layer: consumer browser.
+- Traces: PRD-T11, PRD-W8.
+
+**CON-13** In the consumer's Tailwind 4 app, a utility on a wrapper MUST override the stylesheet's cell padding
+without `!`.
+- Example: the table of THEME-10 inside `<div class="[&_td]:p-2">`: every body cell's padding computes to `8px` on each
+  side; the app's built CSS holds no `!important` for it. Not yet tested until the consumer project's build step.
+- Reason: a Tailwind application restyles the table with its own utilities, which the layered import puts above the
+  stylesheet (PRD-T11 (b), PRD-T3).
+- Layer: consumer browser.
+- Traces: PRD-T11, PRD-T3.
+
 ## Trace
 
 ### Statement -> PRD
@@ -371,6 +389,8 @@ public specifier.
 | CON-09 | PRD-K2, PRD-W8 |
 | CON-10 | PRD-T3, PRD-W8 |
 | CON-11 | PRD-K2, PRD-W8 |
+| CON-12 | PRD-T11, PRD-W8 |
+| CON-13 | PRD-T11, PRD-T3 |
 
 ### PRD must -> statements
 
@@ -378,10 +398,12 @@ public specifier.
 |---|---|---|
 | PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
-| PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
+| PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11, CON-12 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
-| PRD-T3 | PKG-05, CON-10 | in part: the export (PKG-05) and the consumer's layered import (CON-10); one static, unlayered stylesheet is THEME-04 of `spec/table.md`; the import line for an application without Tailwind arrives with PRD-D1 |
+| PRD-T3 | PKG-05, CON-10, CON-13 | in part: the export (PKG-05) and the consumer's layered import (CON-10); one static, unlayered stylesheet is THEME-04 of `spec/table.md`; the import line for an application without Tailwind arrives with PRD-D1 |
+| PRD-T11 | CON-12, CON-13 | in part: the Tailwind 4 host; the none and Bootstrap 5.3 hosts are THEME-10 and THEME-11 of `spec/table.md` |
 | PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` is `spec/table.md`'s FOOT-04, and its build holding no `eval`, `new Function` or string timers has no statement yet |
 
-PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8 and PRD-S1 (as above). PRD-W9's three engines
-for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the gates'.
+PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8, PRD-S1, PRD-T3 and PRD-T11 (as above). PRD-W9's
+three engines for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the
+gates'.
