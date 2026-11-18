@@ -6,8 +6,8 @@
   which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
-  shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, the listener, the
-  canary page, no inline bootstrap, no violation on any page of the build). Other request methods, the JSON
+  shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, SRV-02; the listener,
+  the canary page, no inline bootstrap, no violation on any page of the build). Other request methods, the JSON
   endpoint, the dataset and the views by URL parameter come with later parts.
 
 ## Conventions
@@ -33,13 +33,13 @@
 - **The build folder** is the folder the site's build writes and the server serves.
 - **The strict policy** is the one of PRD section 4.4, sent as the value
   `default-src 'self'; script-src 'self'; style-src 'self'`.
-- **The listener** is the site's script of PRD-S1: it adds each `securitypolicyviolation` event of its page to a list
-  on the page's `window`, which a test reads.
+- **The listener** is the site's script of PRD-S1: it adds each `securitypolicyviolation` event of its page, one entry
+  per event, to the array `window.__csp`, which it creates and a test reads. "The listener's list" is that array.
 - **The canary page** is a site page that breaks the strict policy on purpose (PRD-W4), served at `/canary.html`. It
   is built and served like every other page.
 - **Loaded.** A page has loaded when its `load` event has fired.
-- **The list page** is the site's first page; it grows into page "plain" of PRD-W5 as later parts add sort, filters
-  and the pager.
+- **The list page** is the site's first page, the build's `index.html`, served at `/`; it grows into page "plain" of
+  PRD-W5 as later parts add sort, filters and the pager.
 - **Data.** Example data is synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group. A
   requirement id from `docs/PRD.md` is written `PRD-W5`.
@@ -89,8 +89,10 @@ the strict policy.
   | `GET /assets/app.js` | 200 | `default-src 'self'; script-src 'self'; style-src 'self'` |
   | `GET /no-such-page` | 404 | `default-src 'self'; script-src 'self'; style-src 'self'` |
   | `GET /../package.json` | 404 | `default-src 'self'; script-src 'self'; style-src 'self'` |
+  | `POST /` | whatever status the server answers | `default-src 'self'; script-src 'self'; style-src 'self'` |
 
-  A `Content-Security-Policy-Report-Only` header in its place fails: the browser then reports and blocks nothing.
+  The responses of the endpoint that a later part adds are responses of the site server, so this statement binds them
+  too. A `Content-Security-Policy-Report-Only` header in its place fails: the browser then reports and blocks nothing.
   Break that turns it red: the header set only on answers with status 200.
 - Reason: the policy is proven only where the browser enforces it, and that is every response, a 404 page included.
 - Layer: HTTP.
@@ -114,14 +116,16 @@ the strict policy.
 ## 2. Imports (IMP)
 
 **IMP-01** The site's source MUST import SvelteDT only through the package's public exports.
-- Examples (the scan covers every `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` and `.svelte` file under `site/`
-  except its build folder and `node_modules`, the site's Vite and TypeScript configuration included. An import of
-  SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a relative path that
-  resolves into the repository's `src/` folder or into the package's build output (`dist/`); a relative path to
-  anything else, such as a shared test fixture, is not one. It is allowed only when it is written
-  `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
-  `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary
-  that must be found; each file canary is planted in `site/src/`, where `../../` reaches the repository root):
+- Examples (the scan covers every `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` and `.svelte` file under `site/` except
+  its build folder and `node_modules`, the site's Vite and TypeScript configuration included, and every `.css` file
+  there, whose path-taking at-rules (`@import`, `@source`, `@plugin`, `@config`, `@reference`) it reads as imports. An
+  import of SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a relative
+  path that resolves, as written and without following links, into the repository's `src/` folder or into the package's
+  build output (`dist/`); a relative path to anything else, such as a shared test fixture, is not one. It is allowed
+  only when it is written `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the
+  repository's root `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every
+  row as a canary that must be found; each file canary is planted in `site/src/`, where `../../` reaches the repository
+  root):
 
   | Canary |
   |---|
@@ -133,10 +137,12 @@ the strict policy.
   | `import { DataTable } from '@hniedner/sveltedt/src/lib/DataTable.svelte'`, a subpath `exports` does not name |
   | an alias in the site's Vite configuration that points `@hniedner/sveltedt` at a folder of the repository |
   | a `paths` entry in the site's TypeScript configuration that points `@hniedner/sveltedt` at a folder of the repository |
+  | `@source '../../src';` in a `.css` file |
 
-  A site that imports only `@hniedner/sveltedt` and resolves it as a consumer does, with no alias, passes. The scan
-  reports how many files it read; with no root `package.json`, no `exports` field in it, or no file read, it reports
-  "could not check", which blocks like a finding.
+  A site that imports only `@hniedner/sveltedt` and resolves it as a consumer does, with no alias, passes, and so does a
+  `@source` that names the installed package as a consumer's does (`@source '../node_modules/@hniedner/sveltedt';`). The
+  scan reports how many files it read; with no root `package.json`, no `exports` field in it, or no file read, it
+  reports "could not check", which blocks like a finding.
 - Reason: the site may use only what a consumer can; a deep import hides a missing or broken export.
 - Layer: static check.
 - Traces: PRD-W1.
@@ -184,17 +190,19 @@ before every other script of the page.
 - Traces: PRD-W4, PRD-S1.
 
 **POL-02** On the canary page, the listener's list MUST hold at least one policy violation once the page has loaded.
-- Example: the canary page, whose own script sets a `style` attribute on one of its elements when it starts (a write
-  the strict policy blocks). In each engine, in this order: the response carries the strict policy (SRV-02); the
+- Example: the canary page, whose own script, a file of the build loaded by `src`, calls `setAttribute('style', ...)`
+  on one of its elements when it starts (a write the strict policy blocks; a write to one property of `element.style`
+  is not blocked and would not do). In each engine, in this order: the response carries the strict policy (SRV-02); the
   listener's list exists; after the page has loaded, the list holds at least one entry. Break that turns it red: the
   canary's write removed.
-- Reason: it proves the proof can fail. The listener listens, and a list read once the page has loaded already holds
-  a violation that a script causes as it starts, the latest point at which the list page's own bundle could break
-  the policy before POL-04 reads its list.
+- Reason: it proves the proof can fail. A violation raised by a script that runs as the page starts is in the list once
+  the page has loaded, so a listener that records late, or never, shows up here before it can make POL-04's 0
+  meaningless.
 - Layer: real browser.
 - Traces: PRD-W4, PRD-S1.
 
-**POL-03** The HTML files of the site's build MUST NOT hold an inline script or an inline style element.
+**POL-03** The HTML files of the site's build MUST NOT hold an inline script (a `script` element with text, an
+event-handler attribute or a `javascript:` URL) or an inline `style` element.
 - Examples (the scan reads every `.html` file of the build folder; the test runs every row as a canary planted in a
   copy of the built `index.html`, which must be found):
 
@@ -219,9 +227,9 @@ before every other script of the page.
 **POL-04** Each HTML page the build folder holds, other than the canary page, MUST raise no policy violation by the
 time it has loaded and its table has rendered.
 - Examples (the test lists the build folder's `.html` files and reports "could not check" when the list lacks
-  `index.html`; it runs
-  every row in each engine, in this order: the response carries the strict policy (SRV-02); the listener's list
-  exists; the page has loaded; the page shows what the row names; then the list holds 0 entries):
+  `index.html`; it runs every row in each engine, in this order: the response carries the strict policy (SRV-02);
+  the listener's list exists; the page has loaded; the page shows what the row names; then the list holds 0 entries.
+  A page that does not show it within the test's time limit fails):
 
   | Page | The page shows |
   |---|---|
