@@ -54,13 +54,21 @@ to the consumer as one callback (stated with the statements that add user action
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector; never a test id or a class.
-- **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, PAGE-19).
+- **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group; SORT-07, SORT-08 and A11Y-11 are reserved for the draft statements of
   those numbers, which later groups write. A requirement id from `docs/PRD.md` is written `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
+- **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
+  statement. A group written for a later milestone never adds a row, a prop or a component to an earlier statement;
+  it writes a new statement with the next free id in its own group, which may cite the earlier one ("as RND-05, for
+  the sort props"). A statement's test arrives with the pull request that makes its last example runnable. Reason: a
+  statement is not yet tested until all its examples run, and that blocks the close of its milestone (the method,
+  section 2, step 7).
+- **What a statement covers.** A statement covers what its examples show. Where a later group's controls or states
+  need the same rule, that group's own statement states it; an earlier statement is never widened to anticipate them.
 
 ---
 
@@ -74,7 +82,6 @@ to the consumer as one callback (stated with the statements that add user action
   | r3 "Gamma", r1 "Alpha", r2 "Beta" | r3, r1, r2 |
   | r1 "Beta", r2 "Beta", r3 "" | r1, r2, r3 |
   | 25 rows r01 ... r25 | the same 25 rows, r01 first, r25 last |
-  | r3 "Gamma", r1 "Alpha", r2 "Beta", Name sortable, `sort` `[name asc]`, `onsort` given | r3, r1, r2 |
 
 - Reason: the server orders and pages the rows; a reorder or a cut in the browser would show rows the server did not
   put there.
@@ -103,10 +110,10 @@ its cells.
   | `caption` |
   | a column `label` |
   | a default cell (`value(row)`) |
-  | each entry of `messages`, the returned text of every function included |
+  | each entry of `messages`, the returned text of `rowCount` included |
 
   In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
-  component holds no `img` and no `none` element. Later groups add their props to this table. (`regionLabel` has no
+  component holds no `img` and no `none` element. Later groups state their own props in their own statements (SORT-23 for sort, PAGE-20 for the pager). (`regionLabel` has no
   row: an attribute value has no markup path.)
 - Reason: the values come from a server and may hold anything; any markup path is a cross-site scripting path.
 - Layer: component.
@@ -137,23 +144,17 @@ its cells.
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
-  | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
-  | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
-  | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
-  | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
-  | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
-  | `sort` names a column twice | `sortColumnDuplicate` | "The sort names a column twice." |
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
-  an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups add the rows for
-  their own props (filters, hidden columns).
+  an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
+  their own props in their own statements (SORT-15 for sort).
 - Reason: a wrong table is worse than none; the user would read, and later select or export, the wrong rows.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3.
 
-**RND-09** The alert MUST hold no value taken from the rows, the column definitions, the `sort` prop or a thrown
-error.
-- Examples (the test runs every row):
+**RND-09** The alert MUST hold no value taken from the rows, the column definitions or a thrown error.
+- Examples (the test runs every row, and in each it first finds the alert holding the RND-05 message for that
+  input):
 
   | Invalid input | Text that must not appear in the alert |
   |---|---|
@@ -161,8 +162,6 @@ error.
   | a `getRowId` that throws an error saying "token-9" | "token-9" |
   | two columns with id `col-x9` | "col-x9" |
   | a column with id `col-y7` and an empty label | "col-y7" |
-  | `sort` `[col-z3 asc]`, no column `col-z3` | "col-z3" |
-  | `sort` names the column `col-w4`, labelled "Secret-5", twice | "col-w4", "Secret-5" |
 
 - Reason: alerts are often logged or screenshotted, and row values may be confidential.
 - Layer: component.
@@ -220,12 +219,10 @@ every state.
   | `empty` | "No records." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
-  | `sortBy` (a function of the label) | "Sort by Name" for the label "Name" | SORT-09 |
-  | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
-  | `sortDescription` (a function of `{ direction, rank }`, SORT-06) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
-  `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups add their words to this table.
+  `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups state their own words in their own
+  statements (SORT-17 for sort, PAGE-19 for the pager).
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
 - Traces: PRD-I1, PRD-I2.
@@ -239,14 +236,14 @@ every state.
 
 **RND-11** A column without a filter MUST NOT show a filter button.
 - Example: the columns Name and Note, neither with a filter: no button whose name starts with "Filter" exists. (The
-  filter group adds the positive half.)
+  filter group states the positive half in its own statement.)
 - Reason: a control that does nothing misleads.
 - Layer: component.
 - Traces: PRD-B3.
 
 **RND-12** The "Reset table" button MUST NOT be shown while no column is sortable or has a filter.
 - Example: two columns with neither: no button "Reset table" exists, in every state (STATE-01 to STATE-07 and the
-  alert). (The filter group adds the positive half.)
+  alert). (The filter group states the positive half in its own statement.)
 - Reason: read-only tables are a common use and should carry no dead controls.
 - Layer: component.
 - Traces: PRD-B3, PRD-B8.
@@ -268,8 +265,8 @@ every state.
 **STATE-03** With `status 'ready'` and no rows, the body MUST show the empty message in one cell that spans every
 shown column.
 - Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records."; the same with
-  `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements add the row
-  where the selection column is counted too.)
+  `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements state
+  that the selection column is counted too, in their own statement.)
 - Reason: a message squeezed into one column reads as a value in that column.
 - Layer: component.
 - Traces: PRD-B15.
@@ -350,7 +347,8 @@ otherwise.
   | the 3-column table in a 600 px viewport, then rerendered with 30 columns | yes |
   | the 30-column table with an `actions` snippet holding "Export" and a cell link "Open Beta" in its first column | yes: Tab from "Export" lands on the region, the next Tab on "Open Beta" |
 
-  (The sticky group adds the row for `stickyHeader`, where the region is no scroll container and so never a stop.)
+  (The sticky group states `stickyHeader` in its own statement: the region is then no scroll container and so never a
+  stop.)
 - Reason: a keyboard user needs a focus stop to scroll a wide table, and a stop that scrolls nothing is noise.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A2, PRD-A3.
@@ -364,7 +362,7 @@ otherwise.
 
 **A11Y-02** Every column header MUST be a `th` with `scope="col"`.
 - Example: three columns give three `th` elements in the header row, each with `scope="col"`. (The selection group
-  adds the row for the selection column's header.)
+  states the selection column's header in its own statement.)
 - Reason: the screen reader reads each cell with its column header.
 - Layer: component.
 - Traces: PRD-A2.
@@ -382,8 +380,8 @@ role `grid`, `treegrid` or `gridcell`, and no row, header cell or cell is focusa
 snippet's controls, then the region while it is a stop, then the controls in the cells row by row, each row from its first column to its last.
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
-  start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
-  this order; the filter group places the sort buttons (SORT-10) together with "Reset table".) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
+  start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups state the order of
+  their own controls in their own statements.) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
   orders", "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". Where the region is a stop needs layout,
   so A11Y-12 proves its place between the actions and the cells.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
@@ -423,40 +421,27 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Layer: component.
 - Traces: PRD-A4, PRD-B15.
 
-**A11Y-16** Hovering or focusing any part of the table or the pager MUST NOT make content appear, other than the focused element's
+**A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
 - Example: the 30-column, 25-row table with a link in one column: hover every header cell and every body cell in turn,
   and focus the region and each link; after each step the page's visible text and the set of visible elements equal
   those before the step. Visible means rendered and not hidden by CSS (`display`, `visibility`, `opacity`, `hidden`),
-  whatever the scroll position, so a region that scrolls a focused link into view changes nothing. The same holds
-  with three columns sortable and the order `[code asc, name desc]`, hovering and focusing each sort button, and for
-  a `Pagination` of 20 pages, hovering and focusing each of its controls. (The skip-link group adds its exception: the skip link becomes visible on focus.)
+  whatever the scroll position, so a region that scrolls a focused link into view changes nothing.
 - Reason: content that appears on hover or focus can cover what the user reads and must be dismissable; showing none
   meets WCAG 1.4.13 by design.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A10, PRD-A1.
 
-**A11Y-07** The region and every control of the table and the pager MUST show a visible focus indicator when it is
-focused by keyboard.
-- Examples (the test runs every row; Tab to the element; its computed outline, or at least one entry of its computed box
-  shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour whose alpha is above
-  0, and differs from its unfocused style; a transparent outline fails;
-  its contrast is a later statement, PRD-A12):
-
-  | Element |
-  |---|
-  | the region of the 30-column table of A11Y-12 |
-  | "Sort by Name" |
-  | each step button and a page number button of a `Pagination` of 20 pages on page 11, with `sizes` |
-  | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 (`offset 0`) |
-  | the page-size select |
-
-  Later groups add their controls.
+**A11Y-07** The region MUST show a visible focus indicator when it is focused by keyboard.
+- Example: the region of the 30-column table of A11Y-12: Tab to it; its computed outline, or at least one entry of its
+  computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour whose
+  alpha is above 0, and differs from its unfocused style; a transparent outline fails. Its contrast is a later
+  statement (PRD-A12).
 - Reason: keyboard users must see where they are (WCAG 2.4.7).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
 
-**A11Y-06** axe MUST find no serious or critical violation in any state of the table and the pager.
+**A11Y-06** axe MUST find no serious or critical violation in any state of the table.
 - Examples (the test runs every row, at scroll 0; an axe *incomplete* item is listed for the maintainer's manual
   "contrast review of the listed nodes" and never counts as a pass):
 
@@ -469,13 +454,8 @@ focused by keyboard.
   | `status 'ready'`, 25 rows, `busy true` |
   | the 30-column table of A11Y-12, region focused |
   | the alert of RND-05, with a `heading` and an `actions` snippet |
-  | three sortable columns, order `[]` |
-  | three sortable columns, order `[code asc, name desc]` |
-  | a `Pagination` of 20 pages on page 11, with `sizes` |
-  | a `Pagination` with `total 0` |
-  | the alert of PAGE-16 |
 
-  Later groups add their states.
+  Later groups state their own states in their own statements.
 - Reason: an automated check catches regressions in names, roles and contrast that the statements above do not name.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
@@ -492,7 +472,7 @@ focused by keyboard.
   | press each of "First page", "Previous page", "Next page", "Last page" and a page number |
   | choose another page size |
 
-  Later groups add their intents. Break that turns it red: the table calls `scrollIntoView` on its first row when
+  Later groups state their own intents in their own statements. Break that turns it red: the table calls `scrollIntoView` on its first row when
   new rows arrive, or the pager scrolls itself into view after a press.
 - Reason: users keep their place; a jump after a sort or a page change loses it.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -568,36 +548,31 @@ that does not focus a button on a click.
 
 ## 5. No global footprint (FOOT)
 
-**FOOT-01** Mounting, rerendering and unmounting the table or the pager MUST leave the root element's attributes and inline style
+**FOOT-01** Mounting, rerendering and unmounting the table MUST leave the root element's attributes and inline style
 unchanged.
 - Example: snapshot the attributes and the inline style of `document.documentElement`; mount the table, rerender it
   through `loading`, `failed`, `ready` with rows, `ready` with `busy true` and the alert, then unmount it: after mount,
-  after each rerender and after unmount, both equal the snapshot. The same for a `Pagination` with `sizes`, mounted,
-  rerendered to another offset and unmounted.
+  after each rerender and after unmount, both equal the snapshot.
 - Reason: the root element belongs to the app; a component that writes there fights the app's own layout and other
   components.
 - Layer: component.
 - Traces: PRD-B19.
 
-**FOOT-02** While mounted and after unmount, the table and the pager MUST hold no event listener on `document` or `window` beyond
+**FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
-  and unmount a control component that handles every event type the table's own elements handle (so far `click`,
-  `keydown`, `input` and `change`; a group that adds a handler adds its type here) to measure the listeners Svelte itself
+  and unmount a control component that handles every event type the table's own elements handle to measure the listeners Svelte itself
   delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is
   mounted, the listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
-  The same for a `Pagination` with `sizes` through the steps of FOOT-01.
 - Reason: a global listener outlives the component or fights the app's own handlers.
 - Layer: component.
 - Traces: PRD-B19.
 
-**FOOT-03** Mounting the table or the pager, giving it new rows or a new offset, changing its state and unmounting it
-MUST NOT scroll the window.
+**FOOT-03** Mounting the table, giving it new rows, changing its state and unmounting it MUST NOT scroll the window.
 - Example: a test page whose table sits in a wrapper of fixed height between two 2000 px spacers, with
   `overflow-anchor: none`; the window starts scrolled to 1200 px. Mount the table, give it a new set of 20 rows (the
   row count stays 20), rerender it through `loading`, `ready` and `busy true` to `busy false`, then unmount it: after
-  each step the window's `scrollX` and `scrollY` are unchanged. The same for a `Pagination` in place of the table,
-  mounted, given a new offset and unmounted.
+  each step the window's `scrollX` and `scrollY` are unchanged.
 - Reason: users keep their place; a table that scrolls the page to itself on every new page takes the reader away
   from what they were reading.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -646,7 +621,7 @@ use.
 - Traces: PRD-T1.
 
 **THEME-03** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
-table and the pager.
+table.
 - Example: a site page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
   critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
@@ -654,8 +629,8 @@ table and the pager.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
-**THEME-06** With no `--sdt-*` property defined, a keyboard-focused control MUST show a visible focus indicator.
-- Example: the same page, measured as A11Y-07 measures and on each row of A11Y-07's table: Tab to the element; its
+**THEME-06** With no `--sdt-*` property defined, the keyboard-focused region MUST show a visible focus indicator.
+- Example: the same page, measured as A11Y-07 measures, on the region of A11Y-07: Tab to it; its
   outline, or at least one entry of its box shadow, has a width (outline) or a spread or blur (shadow) of at least
   1 CSS px with a colour whose alpha is above 0, and differs from its unfocused style.
 - Reason: the focus indicator must not depend on a token the consumer may not define.
@@ -798,7 +773,7 @@ after it passes the new order and rows, or a failure.
   | `[name desc]` | no `aria-sort` | `aria-sort="descending"` |
   | `[]` | no `aria-sort` | no `aria-sort` |
 
-  The column group adds the row where the lead column is hidden.
+  The column group states the case where the lead column is hidden in its own statement.
 - Reason: the APG sortable table puts `aria-sort` on one header at a time; several would announce conflicting orders.
 - Layer: component.
 - Traces: PRD-A2.
@@ -861,13 +836,143 @@ how to add a column.
   | `[code asc]` | Sort by Name | "H" |
 
   The whole description is one message, `sortDescription({ direction, rank })`, so a translation can order and
-  punctuate it freely (RND-06). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
+  punctuate it freely (SORT-17). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
   in the order while two or more columns are sorted, else `null`. The four rows above call it with
   `{ direction: 'asc', rank: null }`, `{ direction: 'desc', rank: 1 }`, `{ direction: 'desc', rank: 3 }` and
   `{ direction: null, rank: null }`.
 - Reason: `aria-sort` is on one header only (A11Y-03), so the other sorted columns need words.
 - Layer: component.
 - Traces: PRD-B5, PRD-A2.
+
+**SORT-14** The table MUST render the rows in exactly the order given also while a `sort` prop names an order.
+- Example (as RND-01, for the sort props): rows r3 "Gamma", r1 "Alpha", r2 "Beta", Name sortable, `sort` `[name asc]`,
+  `onsort` given: the body shows r3, r1, r2.
+- Reason: `sort` describes the order the server applied; the table showing another order would contradict the server.
+- Layer: component.
+- Traces: PRD-B1.
+
+**SORT-15** For invalid sort input the table MUST render the alert of RND-05 with the fixed message the examples below
+list.
+- Examples (as RND-05, for the sort props; the test runs every row: one element with `role="alert"` holding the
+  default text, and no `table` element):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
+  | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
+  | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
+  | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
+  | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
+  | `sort` names a column twice | `sortColumnDuplicate` | "The sort names a column twice." |
+
+  With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
+  the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
+  empty.").
+- Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
+- Layer: component.
+- Traces: PRD-B16, PRD-B3, PRD-B4.
+
+**SORT-16** The alert MUST hold no value taken from the `sort` prop or from the definitions of the columns it names.
+- Examples (as RND-09, for the sort props; the test runs every row, and in each it first finds the alert holding the
+  SORT-15 message for that input):
+
+  | Invalid input | Text that must not appear in the alert |
+  |---|---|
+  | `sort` `[col-z3 asc]`, no column `col-z3` | "col-z3" |
+  | `sort` names the column `col-w4`, labelled "Secret-5", twice | "col-w4", "Secret-5" |
+
+- Reason: alerts are often logged or screenshotted, and column ids and labels can name confidential things.
+- Layer: component.
+- Traces: PRD-S4, PRD-B16.
+
+**SORT-17** Every fixed word of sort MUST come from a prop with an English default.
+- Examples (as RND-06, for the sort words; the test runs every row in the set-up of its "Shown by" statement, the
+  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
+  checks that each replacement appears where the row says and that no English default is left on the page, in an
+  accessible name or in a description):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `sortBy` (a function of the label) | "Sort by Name" for the label "Name" | SORT-09 |
+  | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
+  | `sortDescription` (a function of `{ direction, rank }`, SORT-06) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
+  | each alert message of SORT-15 | its default in SORT-15 | SORT-15 |
+
+- Reason: consumers translate and reword without forking the component.
+- Layer: component.
+- Traces: PRD-I1, PRD-I2.
+
+**SORT-18** Hovering or focusing a sort button MUST NOT make content appear, other than its own focus indicator.
+- Example (as A11Y-16, for the sort buttons): three sortable columns and the order `[code asc, name desc]`: hover and
+  focus each sort button in turn; after each step the page's visible text and the set of visible elements equal those
+  before the step (visible as A11Y-16 defines it).
+- Reason: content that appears on hover or focus can cover what the user reads (WCAG 1.4.13).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A10, PRD-A1.
+
+**SORT-19** A sort button MUST show a visible focus indicator when it is focused by keyboard.
+- Example (as A11Y-07, for the sort buttons): Tab to "Sort by Name"; its computed outline, or at least one entry of
+  its computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour
+  whose alpha is above 0, and differs from its unfocused style; a transparent outline fails. Its contrast is a later
+  statement (PRD-A12).
+- Reason: keyboard users must see where they are (WCAG 2.4.7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**SORT-20** axe MUST find no serious or critical violation in a table with sortable columns.
+- Examples (as A11Y-06, for the sort controls; the test runs every row, at scroll 0; an axe *incomplete* item is
+  listed for the maintainer's manual "contrast review of the listed nodes" and never counts as a pass):
+
+  | State |
+  |---|
+  | three sortable columns, order `[]` |
+  | three sortable columns, order `[code asc, name desc]` |
+
+- Reason: an automated check catches regressions in names, roles and contrast that the statements above do not name.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**SORT-21** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in the states of
+SORT-20.
+- Example (as THEME-03, for the sort controls): a site page with Tailwind and no token definitions, in each state of
+  SORT-20: axe reports 0 serious or critical violations (its colour-contrast rule included).
+- Reason: the system-colour fallbacks are what make "usable without tokens" true for the sort controls too.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
+**SORT-22** With no `--sdt-*` property defined, a keyboard-focused sort button MUST show a visible focus indicator.
+- Example (as THEME-06, for the sort buttons): the page of SORT-21, measured as SORT-19 measures.
+- Reason: the focus indicator must not depend on a token the consumer may not define.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
+**SORT-23** Every text of sort MUST render as text, never as markup.
+- Examples (as RND-03, for the sort words; the test runs every row, once with the value `<img src=x onerror=alert(1)>`
+  and once with `<none>`, in the set-up of the statement the row names):
+
+  | Prop that carries the text | Set-up |
+  |---|---|
+  | the returned text of `sortBy`, `sortRank` and `sortDescription` | SORT-17 |
+  | each alert message of SORT-15 | SORT-15 |
+
+  In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
+  component holds no `img` and no `none` element.
+- Reason: a translation can come from anywhere, and any markup path is a cross-site scripting path.
+- Layer: component.
+- Traces: PRD-S2.
+
+**SORT-24** While mounted and after unmount, a table with sortable columns MUST hold no event listener on `document`
+or `window` beyond those Svelte adds for any component.
+- Example (as FOOT-02, for the sort buttons): before the first mount, wrap `addEventListener` and
+  `removeEventListener` on `document` and `window`; mount and unmount a control component that handles every event
+  type the sort buttons handle to measure the listeners Svelte itself delegates to the
+  document, which are excluded. Then mount a table with three sortable columns and the order `[code asc, name desc]`,
+  press "Sort by Name" with and without Shift, rerender it with a new order, and unmount it: while it is mounted, the
+  listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
+- Reason: a global listener (for example one that tracks the Shift key) outlives the component or fights the app's own
+  handlers.
+- Layer: component.
+- Traces: PRD-B19.
 
 ## 8. The pager (PAGE)
 
@@ -1219,6 +1324,88 @@ new `limit` and offset.
 - Layer: component.
 - Traces: PRD-S2.
 
+**PAGE-28** Hovering or focusing any control of the pager MUST NOT make content appear, other than the focused
+control's own focus indicator.
+- Example (as A11Y-16, for the pager): a `Pagination` of 20 pages on page 11, with `sizes`: hover and focus each of its
+  controls in turn; after each step the page's visible text and the set of visible elements equal those before the
+  step (visible as A11Y-16 defines it).
+- Reason: content that appears on hover or focus can cover what the user reads (WCAG 1.4.13).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A10, PRD-A1.
+
+**PAGE-29** Every control of the pager MUST show a visible focus indicator when it is focused by keyboard.
+- Examples (as A11Y-07, for the pager; the test runs every row; Tab to the element; its computed outline, or at least
+  one entry of its computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a
+  colour whose alpha is above 0, and differs from its unfocused style; a transparent outline fails; its contrast is a
+  later statement, PRD-A12):
+
+  | Element |
+  |---|
+  | each step button and a page number button of a `Pagination` of 20 pages on page 11, with `sizes` |
+  | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 (`offset 0`) |
+  | the page-size select |
+
+- Reason: keyboard users must see where they are (WCAG 2.4.7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**PAGE-30** axe MUST find no serious or critical violation in any state of the pager.
+- Examples (as A11Y-06, for the pager; the test runs every row, at scroll 0; an axe *incomplete* item is listed for the
+  maintainer's manual "contrast review of the listed nodes" and never counts as a pass):
+
+  | State |
+  |---|
+  | a `Pagination` of 20 pages on page 11, with `sizes` |
+  | a `Pagination` with `total 0` |
+  | the alert of PAGE-16 |
+
+- Reason: an automated check catches regressions in names, roles and contrast that the statements above do not name.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**PAGE-31** Mounting, rerendering and unmounting the pager MUST leave the root element's attributes and inline style
+unchanged.
+- Example (as FOOT-01, for the pager): snapshot the attributes and the inline style of `document.documentElement`;
+  mount a `Pagination` with `sizes`, rerender it to another offset, then unmount it: after mount, after the rerender
+  and after unmount, both equal the snapshot.
+- Reason: the root element belongs to the app; a component that writes there fights the app's own layout.
+- Layer: component.
+- Traces: PRD-B19.
+
+**PAGE-32** While mounted and after unmount, the pager MUST hold no event listener on `document` or `window` beyond
+those Svelte adds for any component.
+- Example (as FOOT-02, for the pager): before the first mount, wrap `addEventListener` and `removeEventListener` on
+  `document` and `window`; mount and unmount a control component that handles every event type the pager's own
+  elements handle (`click`, `keydown` and `change`) to measure the listeners Svelte itself delegates to the document,
+  which are excluded. Then take a `Pagination` with `sizes` through the steps of PAGE-31: while it is mounted, the
+  listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
+- Reason: a global listener outlives the component or fights the app's own handlers.
+- Layer: component.
+- Traces: PRD-B19.
+
+**PAGE-33** Mounting the pager, giving it a new offset and unmounting it MUST NOT scroll the window.
+- Example (as FOOT-03, for the pager): the test page of FOOT-03 with a `Pagination` in place of the table, the window
+  scrolled to 1200 px: mount it, give it a new offset, unmount it: after each step the window's `scrollX` and
+  `scrollY` are unchanged.
+- Reason: users keep their place; a pager that scrolls the page to itself takes the reader away from what they read.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B19, PRD-A3.
+
+**PAGE-34** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
+pager.
+- Example (as THEME-03, for the pager): a site page with Tailwind and no token definitions, in each state of PAGE-30:
+  axe reports 0 serious or critical violations (its colour-contrast rule included).
+- Reason: the system-colour fallbacks are what make "usable without tokens" true for the pager too.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
+**PAGE-35** With no `--sdt-*` property defined, a keyboard-focused control of the pager MUST show a visible focus
+indicator.
+- Example (as THEME-06, for the pager): the page of PAGE-34, measured as PAGE-29 measures, on each row of PAGE-29.
+- Reason: the focus indicator must not depend on a token the consumer may not define.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
+
 ## 9. Ids across instances and server rendering (ID)
 
 The examples of this section use four instances: two `DataTable`s with the same sortable columns, both sorted
@@ -1341,6 +1528,17 @@ receives that number.
 | SORT-13 | PRD-B5, PRD-A1 |
 | SORT-05 | PRD-B5 |
 | SORT-06 | PRD-B5, PRD-A2 |
+| SORT-14 | PRD-B1 |
+| SORT-15 | PRD-B16, PRD-B3, PRD-B4 |
+| SORT-16 | PRD-S4, PRD-B16 |
+| SORT-17 | PRD-I1, PRD-I2 |
+| SORT-18 | PRD-A10, PRD-A1 |
+| SORT-19 | PRD-A1 |
+| SORT-20 | PRD-A1 |
+| SORT-21 | PRD-T2, PRD-A1 |
+| SORT-22 | PRD-T2, PRD-A1 |
+| SORT-23 | PRD-S2 |
+| SORT-24 | PRD-B19 |
 | PAGE-09 | PRD-B9, PRD-A1 |
 | PAGE-10 | PRD-B9, PRD-A3 |
 | PAGE-01 | PRD-B9, PRD-B2 |
@@ -1365,6 +1563,14 @@ receives that number.
 | PAGE-16 | PRD-B9, PRD-S4 |
 | PAGE-19 | PRD-I1 |
 | PAGE-20 | PRD-S2 |
+| PAGE-28 | PRD-A10, PRD-A1 |
+| PAGE-29 | PRD-A1 |
+| PAGE-30 | PRD-A1 |
+| PAGE-31 | PRD-B19 |
+| PAGE-32 | PRD-B19 |
+| PAGE-33 | PRD-B19, PRD-A3 |
+| PAGE-34 | PRD-T2, PRD-A1 |
+| PAGE-35 | PRD-T2, PRD-A1 |
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
@@ -1378,36 +1584,37 @@ receives that number.
 
 ### PRD must -> statements (the musts the statements so far touch)
 
-"In full" means the statements so far are every statement the requirement needs; "in part" names what later groups add.
+"In full" means the statements so far are every statement the requirement needs; "in part" names what later groups
+state in their own statements.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05 | in part: the filter group adds the row where filters are given and the rows are still not filtered |
+| PRD-B1 | RND-01, STATE-05, SORT-14 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10 | in part: the filter group adds the positive halves of RND-11 and RND-12 |
-| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12 | in part: the column group adds "hidden columns keep their place" |
-| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group adds ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
+| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
+| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, A11Y-15, RND-13, A11Y-05 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02 | in full for the props so far; later groups add their rows to RND-05 |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
-| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference adds its instances to the section 9 examples |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, PAGE-09, PAGE-11, PAGE-04, PAGE-24 | in part: "with none" (no tokens) is THEME-03 and THEME-06; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
-| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group adds the hidden-lead row of A11Y-03; the sticky group adds the `stickyHeader` row of A11Y-12 |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table" |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group adds the column-move announcement |
-| PRD-A10 | A11Y-16 | in part: the skip-link and dialog groups add their rows |
-| PRD-I1 | RND-06, PAGE-19, I18N-01 | in part: later groups add their words |
-| PRD-I2 | RND-06, I18N-01 | in part: later groups add the numbers they show |
-| PRD-S2 | RND-03, RND-04, PAGE-20 | in part: later groups add their props to the RND-03 table |
+| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group states the column-move announcement |
+| PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
+| PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
+| PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
-| PRD-S4 | RND-09, PAGE-16 | in part: the filter group's refusal messages add rows |
+| PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
-| PRD-T2 | THEME-03, THEME-06 | in part: the sticky group adds "the header is opaque over rows" |
+| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, THEME-05 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
 
 ### PRD musts not yet traced
