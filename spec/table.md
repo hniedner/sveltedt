@@ -805,8 +805,9 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
 **THEME-10** On each host page, every element of the table MUST have, for each property of PRD-T11's named set
 listed for it below, the computed value that the literal table of its test states.
 - Examples (the test loads each host page in its own browser context and first asserts the order of
-  `document.styleSheets`; then it runs every row on both hosts, with a table of 2 columns and 2 rows, `status
-  'ready'`, and again with 0 rows):
+  `document.styleSheets`; then it runs every row on both hosts, with a table of `caption` "Orders", `regionLabel`
+  "Orders table", 2 columns, the first sortable with an `onsort`, and 2 rows, `status 'ready'`, then again with 0
+  rows; beside the table each page holds a `Pagination` with `offset 0, limit 10, total 25` and `sizes [10, 25]`):
 
   | Host page | Its stylesheets, in this order, each a static file linked unbundled |
   |---|---|
@@ -818,23 +819,28 @@ listed for it below, the computed value that the literal table of its test state
   | the region of A11Y-09 | `display`, `position`, `box-sizing`, `margin-*`, `padding-*`, `border-*-width`, `border-*-style` |
   | `table` | the region's, and `border-collapse` |
   | `caption` | the region's, `caption-side`, `text-align`, `clip`, `clip-path`, `overflow`, `white-space`, `width`, `height` |
-  | the header row and each body row | the region's |
+  | the header row and each body row (the empty message's row included) | the region's |
   | each header cell, each body cell, the empty message's cell (STATE-03) | the region's, and `text-align` |
+  | each sort button (SORT-10) | the region's, `appearance` and `text-align` |
+  | the pager's `nav` | the region's |
+  | each button of the pager and its page-size `select` | the region's, and `appearance` |
   | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
 
   The builder writes each expected value literally: the computed form of the stylesheet's declaration for that element
-  and property (lengths in CSS px at a 16 px root), or, where the stylesheet sets nothing for it, the value computed
-  on the "none" page. The default row divider (no `row-border` variant, `docs/departures.md`) is in these rows: the
-  body cells' block-end border. The caption also measures at most 1 by 1 CSS px on both hosts, as A11Y-13 measures.
-  The test arrives with the real-browser step of the first milestone; until then this statement is not yet tested.
+  and property (lengths in CSS px at a 16 px root), or, where the stylesheet sets nothing for it, the value computed on
+  the "none" page in each engine; where the engines differ, the row gives one value per engine. The default row divider
+  (no `row-border` variant, `docs/departures.md`) is in these rows: each body data row but the last has a block-end
+  border on its cells; the last row and the empty message's cell have none. The caption also measures at most 1 by 1 CSS
+  px on both hosts, as A11Y-13 measures. The test lands with the first stylesheet commit (PRD-T11), so that commit comes
+  with or after the real-browser step of the first milestone; until then this statement is not yet tested.
 - Reason: the table must look the same whatever the application loaded first (PRD-T11 (a)); a literal table makes the
   "none" host able to fail, where a comparison with it could not. Bootstrap's reboot changed caption padding, `th`
   alignment and the dividers of a seed table (MEASURED 2026-11-18 in an earlier probe). Loaded in the reverse order (the
-  stylesheet before Bootstrap), a stub of the stylesheet whose selectors are at most one class kept every property it
-  sets, with no difference from the advised order, while the properties it set nowhere (the caption's and rows'
-  `box-sizing`, the `caption-side` the table parts inherit) took Bootstrap's values in both orders (MEASURED 2026-11-18,
-  Chromium only, one stub): so the reverse order is supported as far as measured, and the unset properties are why every
-  named property is a row.
+  stylesheet before Bootstrap 5.3.9), a stub of the stylesheet whose selectors are at most one class, on that seed table
+  (a caption, a header row and 20 body rows), gave computed values with 0 differences from the advised order in 22
+  properties of the table, caption, header cell, body cell and first and last body rows (MEASURED 2026-11-18, headless
+  Chrome 157 only); the properties the stub set nowhere took Bootstrap's values in both orders (among them the caption's
+  and rows' `box-sizing` and the inherited `caption-side`, font and colour), which is why every named property is a row.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T11.
 
@@ -842,16 +848,16 @@ listed for it below, the computed value that the literal table of its test state
 stylesheet's padding.
 - Example: each host page of THEME-10 with, after the package's stylesheet, one application file holding
   `.app td { padding: 4px }`, and the table of THEME-10 inside an element with class `app`: every body cell's
-  `padding-top`, `padding-right`, `padding-bottom` and `padding-left` compute to `4px`. A second table outside `.app`
-  on the same page keeps the stylesheet's padding. These are their own pages: THEME-10's pages hold no application
-  file. Not yet tested until the real-browser step, as THEME-10.
+  `padding-top`, `padding-right`, `padding-bottom` and `padding-left` compute to `4px`. A second table outside
+  `.app`, `regionLabel` "Other table", on the same page keeps the stylesheet's padding. These are their own pages:
+  THEME-10's pages hold no application file. Not yet tested until the real-browser step, as THEME-10.
 - Reason: an application restyles the table with an ordinary rule, without `!important` (PRD-T11 (b), PRD-D9); the
   stylesheet's one-class selectors (THEME-12) make that hold in this load order.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T11, PRD-D9.
 
-**THEME-12** No selector of the package's stylesheet MUST have a specificity above one class (0,1,0), counted
-without its pseudo-elements, and no declaration MUST carry `!important`.
+**THEME-12** A selector of the package's stylesheet MUST NOT have a specificity above one class (0,1,0), counted
+without its pseudo-elements, and a declaration MUST NOT carry `!important`.
 - Examples (the check runs every row against a canary stylesheet holding it):
 
   | Rule in a canary stylesheet | Result |
@@ -874,35 +880,6 @@ without its pseudo-elements, and no declaration MUST carry `!important`.
   `!important` in the shipped sheet would beat every override (PRD-T16, PRD-D9).
 - Layer: static check.
 - Traces: PRD-T16.
-
-**THEME-13** Every rule of the package's stylesheet MUST be preceded, immediately, by a comment naming the id of a
-statement that exists in `spec/`.
-- Examples (the check runs every row against a canary stylesheet; the rule inside an at-rule counts as a rule):
-
-  | Canary | Result |
-  |---|---|
-  | `/* THEME-10 */` then `.sdt-cell { padding: 0 }` | passes |
-  | `.sdt-cell { padding: 0 }` with no comment before it | finding |
-  | `/* THEME-99 */` then `.sdt-cell { padding: 0 }` (no such statement) | finding |
-  | one header comment `/* THEME-10 */`, then two rules | finding (the second rule) |
-  | `@media (forced-colors: active) { .sdt-x { outline-color: Highlight } }` with no comment before the inner rule | finding |
-
-  The check reports how many rules it read, and with 0 reports "could not check".
-- Reason: the gate's coverage and mutation checks cannot see the stylesheet; naming the statement whose test proves a
-  rule is what lets THEME-14 test each rule (PRD-G4).
-- Layer: static check.
-- Traces: PRD-G4.
-
-**THEME-14** At a step boundary, removing any one changed rule of the package's stylesheet MUST turn the test of the
-statement its comment names (THEME-13) red.
-- Example: a rule whose selector or any declaration differs from the step's base is a changed rule; the check
-  removes it alone, runs its named statement's test, and finds it red; a canary rule `/* THEME-10 */
-  .sdt-cell { letter-spacing: 1px }`, which no row of THEME-10 measures, stays green when removed and is found. The
-  check comes with the gate's step-boundary wrappers; until then this statement is not yet tested.
-- Reason: a rule no test notices is untested CSS; this is the stylesheet's analogue of mutation testing (PRD-G4, which
-  found no established practice for it).
-- Layer: static check, run at step boundaries.
-- Traces: PRD-G4.
 
 **THEME-07** The component source MUST NOT give an element a `style` attribute, in markup or through
 `setAttribute`, nor a `style:` directive.
@@ -1798,8 +1775,6 @@ receives that number.
 | THEME-10 | PRD-T11 |
 | THEME-11 | PRD-T11, PRD-D9 |
 | THEME-12 | PRD-T16 |
-| THEME-13 | PRD-G4 |
-| THEME-14 | PRD-G4 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -1905,7 +1880,6 @@ state in their own statements.
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
 | PRD-T11 | THEME-10, THEME-11 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`; the sort controls, the pager and later parts add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
-| PRD-G4 | THEME-13, THEME-14 | in full (THEME-14 not yet tested until the step-boundary wrappers) |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 
@@ -1921,7 +1895,9 @@ state in their own statements.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
-- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
+- Gate: PRD-G1, PRD-G3, PRD-G4 (PRD-G2 in part, see above). PRD-G4's statements are written with the gate's
+  step-boundary wrappers; until then a comment naming the proving statement before each stylesheet rule is the build's
+  own convention, and the stylesheet does not wait for them.
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
