@@ -1,3 +1,5 @@
 @import "tailwindcss";
-/* The component is an installed package, which Tailwind's automatic source detection skips: named as a consumer names it. */
-@source "../node_modules/@hniedner/sveltedt";
+/* The folder the package's exports point at, through its installed name. Narrower than a consumer's line
+   (`@source "../node_modules/@hniedner/sveltedt"`): in this workspace that link leads to the repository root,
+   so Tailwind would read every tracked text. The consumer's form is proven by the packed consumer project. */
+@source "../node_modules/@hniedner/sveltedt/src/lib";
