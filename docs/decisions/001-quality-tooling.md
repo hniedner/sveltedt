@@ -120,9 +120,9 @@ package is the gate's rule that nothing ships but a `svelte` peer.
 Development dependencies, exact versions, MIT, no install script (`allowBuilds: {}`); their advisories are the
 picomatch entry below.
 
-- **vitest 5.1.0:** runs PRD-G1 and G2 and the companion's component layer (gates.md); chosen before this change.
-- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; three are used (no test without an assertion, no
-  focused and no skipped test), each with a canary.
+- **vitest 5.1.0:** runs PRD-G1 and G2 and the companion's component layer (gates.md).
+- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; four are used (no test without an assertion, no
+  expect without a matcher, no focused and no skipped test), each with a canary.
 
 ## Accepted advisories
 
@@ -144,7 +144,8 @@ picomatch entry below.
   that writes an extglob into a Vite, Vitest or Svelte config and adds a matching file name can slow it down; the
   effect is at most a hung test step, bounded by the job timeout, which that pull request can already cause. How it
   was measured: a module hook that replaced `picomatch` with a wrapper logging every pattern, its `noextglob` flag,
-  its caller and any match slower than 50 ms, run with a test run, the site build and the dev server. Not run under
+  its caller and any match slower than 50 ms, run with a test run and, in the set-up that adds the site, its build
+  and the dev server. Not run under
   it, and inferred to take their patterns from the same tracked config: coverage and a mutation runner once they are
   added, and vite's server-side resolve paths. A bump of vite, vitest, @sveltejs/vite-plugin-svelte or
   @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
@@ -198,7 +199,7 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 **To take with the layer that needs it:**
 
 - with the first component test:
-  - Vitest's `expect.requireAssertions: true` (method section 4: a test without an assertion fails);
+  - Vitest's `expect.requireAssertions: true` for local runs (the gate already forces it; method section 4);
   - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;

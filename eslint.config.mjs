@@ -227,8 +227,8 @@ export default [
     },
   },
   // Vitest's rules fire on test calls imported from "vitest" or used as globals; calls imported from node:test
-  // (scripts/) are left alone. Not scoped by path: a block for test files only would give them a configuration the
-  // .ts canary does not prove, which the lint step's self-proof refuses; the rules are silent where no Vitest test is.
+  // (scripts/) are left alone. Not scoped by path: a block for test files only would give them a configuration
+  // canary.ts does not prove, which the lint step's self-proof refuses; the rules are silent where no Vitest test is.
   {
     files: ["**/*.ts"],
     plugins: { vitest },

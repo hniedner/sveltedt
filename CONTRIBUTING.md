@@ -83,15 +83,16 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
   it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
   added; that file is edited.
-- **test:** Vitest runs every tracked test file outside `scripts/` (`*.test.ts`, `*.spec.ts`) with the one
-  `vitest.config.ts`. Every such file must run with at least one passing test, no test may fail, and vitest itself
-  must exit 0 (an error thrown outside a test is in no report). With no test file and no code under `src/` or `site/`
-  the step is NOT APPLICABLE, after its planted failing test was reported; code with no test file cannot be checked.
+- **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
+  outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
+  fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
+  or `.svelte` file under `src/` or `site/` the step is NOT APPLICABLE, after its planted failing test was reported;
+  such code with no test file cannot be checked.
   A skipped or `test.todo` test beside a passing one is a finding; a file whose tests were all skipped cannot be
   checked. The step overrides four config settings on the command line (each flag wins, measured with Vitest
   5.1.0): an unhandled error fails the run, a test with no assertion fails, the tests run rather than only being
   type-checked, and a snapshot with nothing stored fails instead of being written (outside CI, vitest would write
-  it and pass). The expect and typecheck flags do not reach a project in `test.projects` (measured), so the step
+  it and pass); a stored snapshot no test uses any more fails too. The expect and typecheck flags do not reach a project in `test.projects` (measured), so the step
   refuses a `vitest.config.ts` that names `projects`. The lint step adds Vitest's `expect-expect`, `valid-expect`,
   `no-focused-tests` and `no-disabled-tests`; a bare `expect(a === b)` counts as an assertion at run time, so only
   `valid-expect` catches it. Limits, measured: no flag overrides an `onUnhandledError` function, so the step refuses
@@ -100,7 +101,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `unhandledRejection` listener in a setup file still hides an unhandled error; and a `test.each` table that is empty
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
-  assertion still fails, and a skipped one is still a finding.
+  assertion still fails, and a skipped one still stops the step.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

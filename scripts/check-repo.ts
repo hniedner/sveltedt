@@ -801,7 +801,7 @@ function text(root: string, list: Set<string>): Result {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
-// SVELTE_CHECK_BIN, JSCPD_BIN and ESLINT_CONFIG.
+// SVELTE_CHECK_BIN, VITEST_BIN, JSCPD_BIN and ESLINT_CONFIG.
 // An empty value counts as unset in each.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -1732,20 +1732,13 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
-// The test seam VITEST_BIN, like SVELTE_CHECK_BIN; unset, the installed vitest.
 const vitestBin = (): string =>
   process.env.VITEST_BIN || join(HERE, "..", "node_modules", ".bin", "vitest");
-/** A tracked Vitest test file: any *.test.ts or *.spec.ts outside scripts/ (whose tests run under node:test). */
-const isVitestTest = (f: string): boolean =>
-  /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/");
-/** Tracked code a test should cover: TypeScript and components under src/ and site/ (asked only when no test file is). */
-const isTestedCode = (f: string): boolean =>
-  /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f);
 const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, "g");
 /** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
 function tail(text: string): string[] {
   const lines = text
-    // Colour codes: the config loader prints them even with NO_COLOR set (measured), so they are cut here
+    // Colour codes are cut, not turned off: the config loader prints them even when NO_COLOR is set (measured)
     .replace(COLOUR, "")
     .split("\n")
     .filter(
@@ -1770,7 +1763,7 @@ interface VitestReport {
   }[];
 }
 
-/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status and output. */
+/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn error. */
 function vitest(
   cwd: string,
   args: string[],
@@ -1814,21 +1807,32 @@ function vitest(
   }
 }
 
-// Vitest over every tracked test file outside scripts/, with the one tracked vitest.config.ts. A planted
-// failing test must be reported first; then every tracked test file must have run with at least one passing test,
-// no test may fail, and vitest itself must exit 0 (an error thrown after a test's assertions is in no report).
+// Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
+// test file outside scripts/ (node:test files and canaries) must have run with at least one passing test, no test
+// may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
 function test(root: string, list: Set<string>): Result {
+  const pin = readJson(root, "package.json")?.devDependencies?.vitest;
+  const v = versionOf(vitestBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.split(/[/ ]/)[1]; // "vitest/5.1.0 darwin-arm64 node-v26.13.0"
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `vitest ${got} is installed, package.json pins ${pin}`,
+    );
   const canary = vitest(canaries("test"), []);
-  if (canary.error) return result(CANNOT, canary.error);
   if (!canary.report || canary.report.numFailedTests < 1)
     return result(
       CANNOT,
       "vitest did not report the planted failing test (canary.test.ts)",
       tail(canary.out),
     );
-  const mine = [...list].filter(isVitestTest).sort();
+  const mine = [...list]
+    .filter((f) => /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/"))
+    .sort();
   if (!mine.length)
-    return [...list].some(isTestedCode)
+    // code a test should cover: TypeScript and components under src/ and site/
+    return [...list].some((f) => /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f))
       ? result(
           CANNOT,
           "no test file is tracked for the code under src/ or site/",
@@ -1844,7 +1848,10 @@ function test(root: string, list: Set<string>): Result {
   const config = readFileSync(join(root, "vitest.config.ts"), "utf8");
   const unchecked = [
     ["onUnhandledError", "lets an unhandled error pass"],
-    ["projects", "has projects, which the step's flags do not reach"],
+    [
+      "projects",
+      `names "projects" (read as text), which the step's flags do not reach`,
+    ],
   ].filter(([name]) => config.includes(name));
   if (unchecked.length)
     return result(
@@ -1905,16 +1912,17 @@ function test(root: string, list: Set<string>): Result {
       "no test passed in tracked test files (all skipped?)",
       idle,
     );
-  // A test skipped at run time (skipIf, runIf, ctx.skip()) or left as test.todo did not check its statement
+  // A test skipped at run time (skipIf, runIf, ctx.skip()) or left as test.todo did not check its statement; every
+  // file in the run is named, an untracked one too
   const skipped = run.numPendingTests + run.numTodoTests;
   if (skipped)
     return result(
       FINDING,
       `${skipped} test(s) skipped`,
-      mine.flatMap((f) =>
-        (byFile.get(f)?.assertionResults ?? [])
+      run.testResults.flatMap((r) =>
+        r.assertionResults
           .filter((a) => a.status !== "passed")
-          .map((a) => `${f}:\n    ${a.fullName}`),
+          .map((a) => `${relative(real, r.name)}:\n    ${a.fullName}`),
       ),
     );
   return result(

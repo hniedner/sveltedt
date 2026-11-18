@@ -130,6 +130,7 @@ const PACKAGE: Pkg = {
     prettier: PINS.prettier,
     "svelte-check": PINS["svelte-check"],
     typescript: PINS.typescript,
+    vitest: PINS.vitest,
   },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
@@ -1248,10 +1249,10 @@ test("test: a canary run that writes no report cannot be checked, even with no t
   const out = expect("test", repo(), 3, { canaries: dir });
   assert.match(out, /did not report the planted failing test/);
 });
+const LATE =
+  'test("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
 test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
-  const late =
-    'test("adds", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
-  const out = expect("test", repo(vitestTest(late)), 1);
+  const out = expect("test", repo(vitestTest(LATE)), 1);
   assert.match(out, /vitest exited 1/);
   assert.match(out, /late failure/);
 });
@@ -1260,6 +1261,18 @@ test("test: a test skipped at run time beside a passing one is a finding that na
   const out = expect("test", repo(vitestTest(partly)), 1);
   assert.match(out, /1 test\(s\) skipped/);
   assert.match(out, /^ {4}the real check$/m);
+});
+test("test: a skipped test in an untracked file the config includes is a finding that names the file", () => {
+  const root = repo(vitestTest(PASSING_VITEST));
+  put(
+    root,
+    "src/wip.test.ts",
+    `import { test } from "vitest";\ntest.todo("later");\n`,
+  );
+  assert.match(
+    expect("test", root, 1),
+    /^ {2}src\/wip\.test\.ts:\n {4}later$/m,
+  );
 });
 test("test: a test.todo beside a passing test is a finding that names it", () => {
   const out = expect(
@@ -1279,8 +1292,6 @@ const vitestConfig =
       "vitest.config.ts",
       `export default { test: { include: ["src/**/*.test.ts"], ${options} } };\n`,
     );
-const LATE =
-  'test("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
 test("test: a tracked config that ignores unhandled errors does not hide one: the step overrides it", () => {
   const ignoring = (root: string): void => {
     vitestTest(LATE)(root);
@@ -1325,24 +1336,27 @@ test("test: a config with projects cannot be checked (the step's flags do not re
 test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
   const root = repo(
     vitestTest(
-      'test("renders", () => {\n  expect("<p>6</p>").toMatchSnapshot();\n  expect("<p>9</p>").toMatchInlineSnapshot();\n});\n',
+      'test("renders", () => {\n  expect("<p>6</p>").toMatchSnapshot();\n});\ntest("renders inline", () => {\n  expect("<p>9</p>").toMatchInlineSnapshot();\n});\n',
     ),
   );
   // CI emptied: outside CI vitest writes a missing snapshot and passes, the case the step must refuse
   const out = expect("test", root, 1, { extraEnv: { CI: "" } });
   assert.match(out, /^ {4}renders$/m);
+  assert.match(out, /^ {4}renders inline$/m);
   assert.equal(git(root, "diff", "--name-only"), "");
   assert.equal(git(root, "ls-files", "--others", "--exclude-standard"), "");
 });
-/** A stand-in for vitest: the canary run reports a failed test; the real run prints more than the step buffers. */
-function fakeVitest(): string {
+/** A stand-in for vitest at `version`: the canary run reports a failed test; the real run prints more than the step buffers. */
+function fakeVitest(version = PINS.vitest): string {
   const bin = join(tempDir(), "vitest");
   writeFileSync(
     bin,
     `#!/usr/bin/env node
 const { writeFileSync } = require("node:fs");
 const out = process.argv.find((a) => a.startsWith("--outputFile.json="));
-if (!process.argv.includes("--config")) {
+if (process.argv[2] === "--version") {
+  console.log("vitest/${version} darwin-arm64 node-v26.0.0");
+} else if (!process.argv.includes("--config")) {
   writeFileSync(out.split("=")[1], JSON.stringify({ numFailedTests: 1 }));
 } else {
   process.stdout.write(\`\${"x".repeat(1023)}\\n\`.repeat(65 * 1024));
@@ -1357,6 +1371,17 @@ test("test: a real run that vitest cannot finish cannot be checked, and says why
     extraEnv: { VITEST_BIN: fakeVitest() },
   });
   assert.match(out, /cannot run .*vitest: ENOBUFS/);
+});
+test("test: a vitest other than the pinned one cannot be checked, and says which", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest("0.0.1") },
+  });
+  assert.match(
+    out,
+    new RegExp(
+      `vitest 0\\.0\\.1 is installed, package.json pins ${PINS.vitest}`,
+    ),
+  );
 });
 test("test: a vitest that cannot be started cannot be checked, and says why", () => {
   const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
