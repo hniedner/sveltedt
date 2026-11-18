@@ -262,9 +262,10 @@ the packages of the reviewed allow-list.
   | the file missing | could not check |
 
   Break that turns it red: `esbuild: true` with no reason in the consumer's settings.
-- Reason: without settings of its own the consumer's install refuses `esbuild`'s script (MEASURED in this project's
-  probe), and settings that allow every script would run code nobody reviewed before any test; SUP-06 reads only the
-  root's file.
+- Reason: with settings like the root's (no build allowed, unlisted builds failing) the consumer's install refuses
+  `esbuild`'s script until `esbuild` is refused by name (MEASURED in this project's probe), and settings that allow
+  every script would run code nobody reviewed before any test; SUP-06 states the rule for the repository's own settings,
+  this statement for the consumer's file.
 - Layer: static check.
 - Traces: PRD-S5.
 

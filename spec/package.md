@@ -44,8 +44,8 @@
   browser; a page is hydrated when `body` has that attribute.
 - **Data.** Example data is synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
-  CON-07 is reserved for the server-rendered zero-violation statement, which waits for the owner's decision on PRD-S1.
-  A requirement id from `docs/PRD.md` is written `PRD-K2`.
+  A requirement id from `docs/PRD.md` is written `PRD-K2`. CON-07 is reserved for the server-rendered zero-violation
+  statement, which waits for the owner's decision on PRD-S1; a reserved id is not free.
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
   statement. A part written for a later milestone never adds a row, a path or a page to an earlier statement; it
   writes a new statement with the next free id in its own group, which may cite the earlier one ("as PKG-01, for the
@@ -196,8 +196,9 @@ consumer project, and leave the committed consumer project unchanged.
 - Layer: consumer HTTP.
 - Traces: PRD-S1, PRD-W8.
 
-**CON-04** Every HTML response of the consumer's server MUST carry a `Content-Security-Policy` header that is the
-strict policy with one fresh nonce added to `script-src` and nothing else added.
+**CON-04** The consumer server's HTML responses to the list page and to a page that does not exist MUST each carry a
+`Content-Security-Policy` header that is the strict policy with one fresh nonce added to `script-src` and nothing else
+added.
 - Examples (the test runs every row; `N1` and `N2` are the nonces of the two responses):
 
   | Request | `Content-Security-Policy` |
@@ -244,7 +245,7 @@ other script of the page.
 **CON-08** Opening the consumer's list page on its development server MUST raise no hydration warning.
 - Examples (the test runs every row in each engine, records the console from the start, and reads it once the page is
   hydrated, or fails at the test's time limit; a warning is a console message that the page's scripts write and whose
-  text contains `[svelte]`; the second row shows, in each engine, that the test reads such a message):
+  text contains `[svelte] hydration_`; the second row shows, in each engine, that the test reads such a message):
 
   | Consumer | Warnings |
   |---|---|
@@ -262,9 +263,10 @@ other script of the page.
 - Traces: PRD-K4.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
-- Examples (the type check is the one the repository uses, `svelte-check`, run in the copy of CON-01 after its install,
-  with the copy's own `svelte.config.js` named as its configuration, so that no configuration outside the copy is
-  read; the second row is a canary planted in a copy of the consumer project):
+- Examples (the type check is the one the repository uses, `svelte-check`, run in the copy of CON-01 after its build,
+  which also writes SvelteKit's generated type configuration, with the copy's own `svelte.config.js` named as its
+  configuration, so that no configuration outside the copy is read; the second row is a canary planted in a copy of the
+  consumer project):
 
   | Consumer | Type check |
   |---|---|
@@ -282,8 +284,8 @@ other script of the page.
 **CON-10** The component's styles MUST apply in the consumer through its Tailwind `@source` line naming the installed
 package.
 - Examples (the consumer's stylesheet holds `@source` with the relative path from the stylesheet to
-  `node_modules/@hniedner/sveltedt`, a link the package manager made, which Tailwind follows (READ, Tailwind's issue
-  tracker); the test opens
+  `node_modules/@hniedner/sveltedt`, a link the package manager made, which Tailwind follows (READ by this spec's
+  review in tailwindlabs/tailwindcss issues 20203 and 20347; the first row decides it); the test opens
   `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a canary, a copy
   without the `@source` line, which must be found):
 
@@ -344,7 +346,7 @@ package.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part; PKG-03 holds the shape of what the build packs (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
