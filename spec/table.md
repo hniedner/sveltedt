@@ -52,6 +52,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
 - **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
+- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and attributes
+  of an element so found.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -104,7 +106,7 @@ its cells.
   | a default cell (`value(row)`) |
   | each entry of `messages`, the returned text of every function included |
 
-  In every row the literal text appears on the page or in the accessible name, and the component holds no `img`
+  In every row the literal text appears on the page, in an accessible name or in an accessible description, and the component holds no `img`
   and no `none` element. Later groups add their props to this table.
 - Reason: the values come from a server and may hold anything; any markup path is a cross-site scripting path.
 - Layer: component.
@@ -130,6 +132,7 @@ its cells.
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
+  | two columns share a label | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
@@ -380,7 +383,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
   start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups add their controls to
-  this order; the filter group places the sort buttons of group 2 together with "Reset table".) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
+  this order; the filter group places the sort buttons (SORT-10) together with "Reset table".) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
   orders", "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". Where the region is a stop needs layout,
   so A11Y-12 proves its place between the actions and the cells.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
@@ -444,7 +447,7 @@ focused by keyboard.
   |---|
   | the region of the 30-column table of A11Y-12 |
   | "Sort by Name" |
-  | each step button and a page number button of a `Pagination` of 20 pages on page 11 |
+  | each step button and a page number button of a `Pagination` of 20 pages on page 11, with `sizes` |
   | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 |
   | the page-size select |
 
@@ -569,7 +572,8 @@ that does not focus a button on a click.
 unchanged.
 - Example: snapshot the attributes and the inline style of `document.documentElement`; mount the table, rerender it
   through `loading`, `failed`, `ready` with rows, `ready` with `busy true` and the alert, then unmount it: after mount,
-  after each rerender and after unmount, both equal the snapshot.
+  after each rerender and after unmount, both equal the snapshot. The same for a `Pagination` with `sizes`, mounted,
+  rerendered to another offset and unmounted.
 - Reason: the root element belongs to the app; a component that writes there fights the app's own layout and other
   components.
 - Layer: component.
@@ -579,9 +583,10 @@ unchanged.
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
   and unmount a control component that handles every event type the table's own elements handle (so far `click`,
-  `keydown` and `input`; a group that adds a handler adds its type here) to measure the listeners Svelte itself
+  `keydown`, `input` and `change`; a group that adds a handler adds its type here) to measure the listeners Svelte itself
   delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is
   mounted, the listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
+  The same for a `Pagination` with `sizes` through the steps of FOOT-01.
 - Reason: a global listener outlives the component or fights the app's own handlers.
 - Layer: component.
 - Traces: PRD-B19.
@@ -590,7 +595,8 @@ those Svelte adds for any component.
 - Example: a test page whose table sits in a wrapper of fixed height between two 2000 px spacers, with
   `overflow-anchor: none`; the window starts scrolled to 1200 px. Mount the table, give it a new set of 20 rows (the
   row count stays 20), rerender it through `loading`, `ready` and `busy true` to `busy false`, then unmount it: after
-  each step the window's `scrollX` and `scrollY` are unchanged.
+  each step the window's `scrollX` and `scrollY` are unchanged. The same for a `Pagination` in place of the table,
+  mounted, given a new offset and unmounted.
 - Reason: users keep their place; a table that scrolls the page to itself on every new page takes the reader away
   from what they were reading.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -639,7 +645,7 @@ use.
 - Traces: PRD-T1.
 
 **THEME-03** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
-table.
+table and the pager.
 - Example: a site page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
   critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
@@ -648,8 +654,9 @@ table.
 - Traces: PRD-T2, PRD-A1.
 
 **THEME-06** With no `--sdt-*` property defined, a keyboard-focused control MUST show a visible focus indicator.
-- Example: the same page: Tab to the region of the 30-column table of A11Y-12; its computed outline is not `none` and
-  differs from its unfocused outline.
+- Example: the same page, measured as A11Y-07 measures and on each row of A11Y-07's table: Tab to the element; its
+  outline, or at least one entry of its box shadow, has a width (outline) or a spread or blur (shadow) of at least
+  1 CSS px with a colour whose alpha is above 0, and differs from its unfocused style.
 - Reason: the focus indicator must not depend on a token the consumer may not define.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
@@ -773,8 +780,8 @@ after it passes the new order and rows, or a failure.
   | `status 'loading'`; then `status 'failed'` |
   | `sort [name asc]`, then 25 new rows |
 
-  While loading or failed the header with its sort buttons stays; STATE-06 and STATE-07 hide the rows, not the
-  header.
+  While loading or failed the table with its header and sort buttons stays (the `table` carries `aria-busy` in both
+  states, STATE-04); STATE-06 and STATE-07 hide the rows, not the header.
 
 - Reason: a keyboard user who sorts twice in a row must not have to find the button again, and focus must never fall
   to the page body (WCAG 2.4.3).
@@ -864,7 +871,9 @@ how to add a column.
 ## 8. The pager (PAGE)
 
 `Pagination` is a separate component, so a consumer can place it anywhere or leave it out. The current page is
-`offset / limit` rounded down, plus 1; the number of pages is `total / limit` rounded up, and at least 1.
+`offset / limit` rounded down, plus 1, except while `offset` is above 0 and at or past `total`, when no page is
+current (PAGE-25); the number of pages is `total / limit` rounded up, and at least 1. "First page" and "Previous page"
+can move unless `offset` is 0; "Next page" and "Last page" can move while a page follows the current page.
 
 **PAGE-09** The pager MUST be a `nav` element named by its `label` prop.
 - Example: `label="Pages of orders"` gives exactly one element found by role `navigation` and name "Pages of orders".
@@ -969,7 +978,7 @@ current page.
   | `offset` | `total` | Places shown |
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
-  | 90 | 90 | `1 2 3 4 5 6 7 8 9` |
+  | 90 | 90 | `1 … 5 6 7 8 9` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -977,34 +986,39 @@ current page.
 - Layer: component.
 - Traces: PRD-B9.
 
-**PAGE-26** With an `offset` above 0 at or past `total`, "First page" and "Previous page" MUST emit the first and the
-last page's offsets, and "Next page" and "Last page" MUST be `aria-disabled`.
-- Examples (the test runs every row; `limit 10`):
+**PAGE-26** With an `offset` above 0 at or past `total`, "Previous page" MUST emit the last page's offset.
+- Examples (the test runs every row; `limit 10`; "Next page" and "Last page" are `aria-disabled` here, PAGE-05):
 
-  | `offset` | `total` | "First page" emits | "Previous page" emits | `aria-disabled="true"` on |
-  |---|---|---|---|---|
-  | 100 | 95 | 0 | 90 | Next page, Last page |
-  | 90 | 90 | 0 | 80 | Next page, Last page |
-  | 25 | 0 | 0 | 0 | Next page, Last page |
+  | `offset` | `total` | "Previous page" emits |
+  |---|---|---|
+  | 100 | 95 | 90 |
+  | 200 | 95 | 90 |
+  | 25 | 0 | 0 |
 
-- Reason: the user's step back lands on real rows, and a step forward has nowhere to go.
+  The second row tells the last page's offset from `offset` minus `limit` (190).
+- Reason: the user's step back lands on real rows.
 - Layer: component.
 - Traces: PRD-B9.
 
 **PAGE-27** With an `offset` that is not a multiple of `limit`, the step buttons and the page numbers MUST emit
 offsets on the page grid.
-- Examples (the test runs every row; `offset 25, limit 10, total 95`: page 3 of 10 is current, places
-  `1 2 3 4 5 … 10`):
+- Examples (the test runs every row; an enabled button only, PAGE-05):
 
-  | Press | `onpage` receives |
-  |---|---|
-  | First page | 0 |
-  | Previous page | 10 |
-  | Next page | 30 |
-  | Last page | 90 |
-  | Page 5 | 40 |
+  | `offset`, `limit`, `total` | Current page, places | Press | `onpage` receives |
+  |---|---|---|---|
+  | 25, 10, 95 | 3, `1 2 3 4 5 … 10` | First page | 0 |
+  | 25, 10, 95 | 3 | Previous page | 10 |
+  | 25, 10, 95 | 3 | Next page | 30 |
+  | 25, 10, 95 | 3 | Last page | 90 |
+  | 25, 10, 95 | 3 | Page 5 | 40 |
+  | 25, 10, 95 | 3 | Page 3 (the current page) | 20 |
+  | 25, 50, 95 | 1, `1 2` | First page | 0 |
+  | 25, 50, 95 | 1 | Previous page | 0 |
+  | 91, 10, 95 | 10, `1 … 6 7 8 9 10` | Previous page | 80 |
+  | 91, 10, 95 | 10 | Page 10 (the current page) | 90 |
 
-- Reason: a consumer that keeps its offset after a size change still gets whole pages back.
+- Reason: a consumer that keeps its offset after a size change still gets whole pages back, and the rows it skipped
+  stay reachable.
 - Layer: component.
 - Traces: PRD-B9.
 
@@ -1015,7 +1029,7 @@ offsets on the page grid.
 - Layer: component.
 - Traces: PRD-B9, PRD-A1.
 
-**PAGE-12** A press on the current page's button MUST emit nothing.
+**PAGE-12** A press on the current page's button MUST emit nothing while `offset` is that page's own offset.
 - Example: `offset 25, limit 25, total 130`: pressing "Page 2" calls neither `onpage` nor `onsize`.
 - Reason: asking again for the page on screen is a wasted query.
 - Layer: component.
@@ -1031,6 +1045,9 @@ offsets on the page grid.
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
+  | `offset 100, total 95` (past the last page) | Next page, Last page |
+  | `offset 25, limit 50, total 95` (off the grid, on page 1) | Next page, Last page |
+  | `offset 91, total 95` (off the grid, on the last page) | Next page, Last page |
 
   In every row no step button has the `disabled` attribute (PAGE-21 shows that focus stays on one). Break that
   turns it red: the button gets `disabled` instead.
