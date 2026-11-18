@@ -248,7 +248,8 @@ lockfiles)*; the pages read did not show its release status or how Dependabot up
 
 **Release workflows: trusted publishing, no stored tokens.** On a `v*` tag. Job `build` (no cache) runs the full
 gate, `trace --release` (G6), the full mutation run and `release-links` (G5), and uploads the package. Job
-`publish` runs in the environment `release`, whose required reviewer is the owner (method §1: the owner decides releases); required reviewers are
+`publish` runs in the environment `release`, whose required reviewer is the owner (method §1: the owner decides
+releases); required reviewers are
 available on public repos on every plan *(fetched, environments)*.
 - npm, `@hniedner/sveltedt`: trusted publishing over OIDC; npm CLI 11.5.1+ and Node 22.14.0+; GitHub-hosted runner; the
   workflow file name entered exactly; provenance is generated automatically for a public package from a public repo
