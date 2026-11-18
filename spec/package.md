@@ -9,8 +9,8 @@
 - **Scope:** part 1: the root export of the packed package, what the tarball holds and its licence files (PRD-K2,
   PRD-L1), and the consumer project's install, peer check, type check, stylesheet import, server rendering,
   hydration, server HTML and policy header (PRD-K2, PRD-K4, PRD-T3, PRD-W8, part of PRD-S1). The server-rendered
-  zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). The `./styles.css` export
-  (PKG-05). Further `exports` subpaths,
+  zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Part 1 also states the
+  `./styles.css` export (PKG-05). Further `exports` subpaths,
   the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
   dependency and that there is no runtime dependency is SUP-04 of `spec/release.md`, not restated here.
 
@@ -139,8 +139,6 @@ target of the `./styles.css` export (PKG-05).
 - Layer: pack.
 - Traces: PRD-L1, PRD-K2.
 
-## 2. The consumer project (CON)
-
 **PKG-05** The packed manifest's `exports` MUST map `./styles.css` to the package's stylesheet under exactly the
 conditions `style` and `default`, both naming the same file in the tarball.
 - Examples (the first row is the real manifest; every other row is a canary planted in a copy of it, which must be
@@ -160,9 +158,12 @@ conditions `style` and `default`, both naming the same file in the tarball.
   specifier `@hniedner/sveltedt/styles.css` resolves from a JavaScript import, from a CSS `@import`, and from a
   Tailwind 4 `@import ... layer(components)`, landing inside that layer; with `style` alone the JavaScript import
   fails; `default` alone resolved in all three, and `style` stays for tools that resolve CSS by that condition
-  (INFERRED: not measured beyond these three).
+  (INFERRED: not measured beyond these three). This probe stands in for PRD-T3's probe in the consumer project until
+  CON-10 runs there.
 - Layer: pack.
 - Traces: PRD-K2, PRD-T3.
+
+## 2. The consumer project (CON)
 
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
 consumer project, and leave the committed consumer project unchanged.
@@ -311,9 +312,9 @@ other script of the page.
 
 **CON-10** The component's styles MUST apply in the consumer through one import of the package's stylesheet by its
 public specifier.
-- Examples (the consumer's stylesheet holds `@import "tailwindcss";` and then
-  `@import "@hniedner/sveltedt/styles.css" layer(components);`, as PRD-T3 tells a Tailwind 4 application to write; the
-  test opens `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a
+- Examples (in the Tailwind 4 app of the consumer project (PRD-W8), whose stylesheet holds `@import "tailwindcss";` and
+  then `@import "@hniedner/sveltedt/styles.css" layer(components);`, as PRD-T3 tells a Tailwind 4 application to write;
+  the test opens `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a
   canary, a copy without the second import, which must be found):
 
   | Consumer | Caption |
@@ -322,8 +323,9 @@ public specifier.
   | a copy without the import of `@hniedner/sveltedt/styles.css` | larger than 1 by 1 CSS px, found |
 
   Only the package's stylesheet hides the caption; the second row shows that no rule of the consumer's own files does
-  it instead. Break that turns it red: the import removed. The consumer project arrives with its own build step
-  (PRD-W8); until then this statement is listed as not yet tested.
+  it instead. Break that turns it red: the import removed. The other two apps' import lines arrive with their own
+  statements. The consumer project arrives with its own build step (PRD-W8); until then this statement is listed as
+  not yet tested.
 - Reason: a consumer who installs the package and leaves out the line gets an unstyled table; the consumer project
   must show the line the documentation will tell consumers to write, and show that it is enough.
 - Layer: consumer browser.

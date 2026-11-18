@@ -54,7 +54,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
-  element of a named tag or selector; never a test id or a class.
+  element of a named tag or selector; never a test id or a class, except THEME-09, which tests the public classes
+  of PRD-K3 themselves.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -683,13 +684,15 @@ border, and declarations inside `@media (forced-colors: active)`.
   | `.sdt-x { color: var(--sdt-text, #333) }` (fallback is not a system colour) | finding |
   | `.sdt-x { color: var(--sdt-text) }` (no fallback) | finding |
   | `.sdt-x { color: var(--app-text, CanvasText) }` (not the `--sdt-` prefix) | finding |
+  | `.sdt-x { color: Canvas }` (a system colour outside `forced-colors` and outside a fallback) | finding |
   | `.sdt-x { color: var(--sdt-text, CanvasText) }` | pass |
   | `.sdt-x { color: currentColor; border: 0 solid red }` (a keyword; a zero-width border) | pass |
   | `@media (forced-colors: active) { .sdt-x { outline-color: Highlight } }` | pass |
   | `.sdt-x { background: transparent }` | pass |
 
   A colour value is a CSS Color 4 colour anywhere in a property's value: a named colour, a hex colour or a colour
-  function (`rgb()`, `hsl()`, `oklch()`, `color-mix()` and the others of CSS Color 4 and 5). A system colour is one of
+  function (`rgb()`, `hsl()`, `oklch()`, `color-mix()` and the others of CSS Color 4 and 5), or a system colour
+  anywhere but as the fallback of a `--sdt-*` property. A system colour is one of
   the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`). The scan
   reads the package's stylesheet (THEME-04) in the source and, once the package is built (PRD-K2), in the tarball; it
   reports how many declarations it read, and with no stylesheet or 0 declarations it reports "could not check", which
@@ -744,35 +747,39 @@ table.
   `./styles.css` export (PKG-05 of `spec/package.md`). An added `<style>` element is FOOT-04's.
 - Reason: PRD-T3 asks for one static, unlayered file: an unlayered file held under Bootstrap 5.3's unlayered reboot
   where a layered copy failed (MEASURED 2026-11-18, PRD-T3), the application chooses the layer when it imports the
-  file, and an `@import` would make the consumer's bundler fetch a second file; a `<style>` block is compiled by the
-  application's Svelte settings (PRD-T15).
+  file, and an `@import` would make the consumer's bundler fetch a second file (INFERRED); a `<style>` block is
+  compiled by the application's Svelte settings (PRD-T15, INFERRED).
 - Layer: static check.
 - Traces: PRD-T3, PRD-T15.
 
 **THEME-08** Every class the component writes MUST be `sdt` or start with `sdt-`, or come from a hook prop.
-- Examples (the scan runs every row as a canary planted in a copy of the source, which must be found; the real
-  source passes):
+- Examples (the scan runs every row as a canary planted in a copy of the source, which must be found unless the row
+  says it passes; the real source passes):
 
   | Canary | Result |
   |---|---|
   | `<td class="app-x">` in a `.svelte` file | finding |
   | ``<td class={`x-${kind}`}>`` in a `.svelte` file | finding |
   | `<td class={["sdt-cell", "app-x"]}>` in a `.svelte` file | finding |
-  | `const cls = "app-x";` used as a class in a `.ts` file under `src/lib` | finding |
-  | `<td class={["sdt-cell", column.class]}>` (a hook prop) | passes |
+  | `<td class={{ "app-x": on }}>` in a `.svelte` file | finding |
+  | `export const stripe = "app-x";` in `src/lib/classes.ts` | finding |
+  | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` (a hook prop) | passes |
 
-  The scan reads every `class` attribute in the `.svelte` files under `src/lib` and every class string the `.ts` and
-  `.svelte.ts` files there return or hold for markup (PRD-G2 (e)): each string literal, and each fixed part of a
-  template literal, must consist of class names that are `sdt` or start with `sdt-`; every other operand must be a
-  hook prop: a column's `class` or `headerClass` (PRD-T7, PRD-T14), or what `rowClass` or `cellClass` returns
-  (PRD-T8). Once the package is built (PRD-K2), the same holds for the tarball. The scan reports how many class
-  attributes it read; with 0 it reports "could not check".
+  The scan reads every `class` attribute of the `.svelte` files under `src/lib` and takes its leaves: a string, each
+  fixed part of a template literal, each element of an array, each branch of a conditional, the right side of `&&`,
+  and each key of an object. A string leaf must consist of class names that are `sdt` or start with `sdt-`; a
+  template literal's interpolation and any other leaf must be a hook prop: a column's `class` or `headerClass`
+  (PRD-T7, PRD-T14), or what `rowClass` or `cellClass` returns (PRD-T8). A class string the component keeps outside
+  markup lives in `src/lib/classes.ts`, where every string is read as a leaf; a `.ts` file elsewhere holds none
+  (review, PRD-G2 (e)). Once the package is built (PRD-K2), the same holds for the tarball. The scan reports how many
+  class attributes it read; with 0 it reports "could not check".
 - Reason: one prefix keeps the component's classes from colliding with an application's or a framework's (PRD-T15),
   and the application's own classes enter only where it put them.
 - Layer: static check.
 - Traces: PRD-T15.
 
-**THEME-09** The public classes MUST sit exactly on these elements: `sdt` on the table component's root element,
+**THEME-09** The public classes MUST sit exactly on these elements: `sdt` on the one element that holds everything
+the table component renders (the `heading` and `actions` snippets, the region, and the alert of RND-13),
 `sdt-table` on the `table`, `sdt-head-row` on the header row, `sdt-th` on every header cell, `sdt-row` on every body
 data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
 - Examples (the test counts the elements carrying each class, and checks each sits on the element named):
@@ -781,7 +788,6 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
   |---|---|---|---|---|---|---|
   | `status 'ready'`, 3 rows, 2 columns | 1 | 1 | 1 | 2 | 3 | 6 |
   | `status 'ready'`, 0 rows, 2 columns (the empty text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
-  | `status 'loading'`, 2 columns (the loading text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
 
   A `Pagination` with `offset 0, limit 10, total 25` has exactly one element with `sdt-pager`, its `nav`. No other
   element carries one of the seven classes.
@@ -1797,11 +1803,11 @@ state in their own statements.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T11, PRD-T13, PRD-T14,
   PRD-T16.
 - Internationalisation: PRD-I3.
-- Large pages and size: PRD-P1, PRD-P3.
+- Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
-- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7.
+- Gate: PRD-G1, PRD-G3, PRD-G4 (PRD-G2 in part, see above).
+- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
