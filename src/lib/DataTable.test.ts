@@ -187,3 +187,103 @@ describe("RND-03 first examples; the statement's marker arrives with 1c", () => 
     expect(component.querySelector("img, none")).toBeNull();
   });
 });
+
+const twoRows: Item[] = [
+  { id: "r1", name: "Alpha" },
+  { id: "r2", name: "Beta" },
+];
+
+function column(id: string, label: string): DataTableColumn<Item> {
+  return { id, label, value: (row) => row.name };
+}
+
+function unreadable(): string {
+  throw new Error("unreadable");
+}
+
+describe(spec("RND-05", "7e95b611"), () => {
+  it.each<[string, Partial<DataTableProps<Item>>, string]>([
+    ["caption is empty", { caption: " " }, "Table caption must not be empty."],
+    [
+      "regionLabel is empty",
+      { regionLabel: "" },
+      "Table region label must not be empty.",
+    ],
+    ["columns is empty", { columns: [] }, "Table has no columns."],
+    [
+      "a column id is empty",
+      { columns: [column("", "Name")] },
+      "A column id is empty.",
+    ],
+    [
+      "two columns share an id",
+      { columns: [column("c", "Name"), column("c", "Code")] },
+      "Two columns share an id.",
+    ],
+    [
+      "a column label is empty",
+      { columns: [column("a", "")] },
+      "A column label is empty.",
+    ],
+    [
+      "two column labels are equal after trimming",
+      { columns: [column("a", "Name"), column("b", "Name ")] },
+      "Two columns share a label.",
+    ],
+    [
+      "a column has neither value nor cell",
+      // A caller the type does not reach (plain JavaScript): a column with neither value nor cell
+      {
+        columns: [
+          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "A column has no value and no cell.",
+    ],
+    ["a row id is empty", { getRowId: () => "" }, "A row id is empty."],
+    [
+      "two rows share an id",
+      { rows: twoRows, getRowId: () => "same" },
+      "Two rows share an id.",
+    ],
+    [
+      "getRowId throws",
+      { getRowId: unreadable },
+      "A row id could not be read.",
+    ],
+    [
+      "several faults: an empty caption and two rows sharing an id",
+      { caption: "", rows: twoRows, getRowId: () => "same" },
+      "Table caption must not be empty.",
+    ],
+    [
+      "several faults: two empty column ids",
+      { columns: [column("", "Name"), column("", "Code")] },
+      "A column id is empty.",
+    ],
+    [
+      "several faults: two empty column labels",
+      { columns: [column("a", ""), column("b", "")] },
+      "A column label is empty.",
+    ],
+    [
+      "several faults: two empty row ids",
+      { rows: twoRows, getRowId: () => "" },
+      "A row id is empty.",
+    ],
+    [
+      "several faults: an empty row id, then a row id that throws",
+      {
+        rows: twoRows,
+        getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
+      },
+      "A row id is empty.",
+    ],
+  ])("shows only one alert, no table, when %s", (_fault, props, message) => {
+    const component = show(props);
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([message]);
+    expect(component.querySelector("table")).toBeNull();
+  });
+});
