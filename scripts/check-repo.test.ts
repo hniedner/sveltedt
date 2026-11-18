@@ -1,5 +1,5 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
-// and asserts the exit code and the word its last line starts with; usage errors, exit 2 and their message.
+// and asserts the exit code and the word its last line starts with; a usage case asserts exit 2.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
