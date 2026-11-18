@@ -389,3 +389,27 @@ describe("EXP-02 first examples; the statement's marker arrives with 1c", () => 
     );
   });
 });
+
+// True when A and B are the same type, read-only modifiers included
+type Same<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+// True when field K of T is read-only
+type ReadOnlyField<T, K extends keyof T> = Same<
+  Pick<T, K>,
+  Readonly<Pick<T, K>>
+>;
+
+describe("DataTableColumn's type", () => {
+  it("keeps every field read-only", () => {
+    // Each line compiles only while its field is read-only: the types and svelte steps check it
+    const fields: [
+      ReadOnlyField<DataTableColumn<Item>, "id">,
+      ReadOnlyField<DataTableColumn<Item>, "label">,
+      ReadOnlyField<DataTableColumn<Item>, "value">,
+      ReadOnlyField<DataTableColumn<Item>, "cell">,
+    ] = [true, true, true, true];
+    expect(fields).toEqual([true, true, true, true]);
+  });
+});

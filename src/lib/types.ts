@@ -3,11 +3,17 @@ import type { Snippet } from "svelte";
 // A column shows its `cell` snippet when it has one, else the text `value(row)` returns; it has at least one of
 // the two (RND-05 refuses a column with neither, for callers the type does not reach).
 export type DataTableColumn<Row> = {
-  id: string;
-  label: string;
+  readonly id: string;
+  readonly label: string;
 } & (
-  | { value: (row: Row) => string; cell?: Snippet<[Row, string]> }
-  | { value?: (row: Row) => string; cell: Snippet<[Row, string]> }
+  | {
+      readonly value: (row: Row) => string;
+      readonly cell?: Snippet<[Row, string]>;
+    }
+  | {
+      readonly value?: (row: Row) => string;
+      readonly cell: Snippet<[Row, string]>;
+    }
 );
 
 export interface DataTableProps<Row> {
