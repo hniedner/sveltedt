@@ -94,9 +94,10 @@ consumer project that install the packed package.
   (PRD-B20), and maps options with the migration guide (PRD-D8).
 - **Server implementer.** Maps intents to queries: offsets, direction words, the order list, filter shapes, what
   "reset" restores, and how to answer out of order. Needs PRD-D6.
-- **End user, pointer, touch or keyboard.** Sorts by one or more columns, searches the whole table, filters by text (applied after a pause in typing, PRD-B6) or by fixed
-  options, reads the information line, opens child rows, clears filters, pages, picks a page size, shows, hides, moves and resizes columns, selects rows (a range
-  with Shift). Focus stays where they acted while the next page loads.
+- **End user, pointer, touch or keyboard.** Sorts by one or more columns, searches the whole table, filters by text
+  (applied after a pause in typing, PRD-B6) or by fixed options, reads the information line, opens child rows, clears
+  filters, pages, picks a page size, shows, hides, moves and resizes columns, selects rows (a range with Shift). Focus
+  stays where they acted while the next page loads.
 - **End user with a screen reader, voice control, zoom, text spacing, high-contrast mode or a right-to-left
   language.** Does all of the above, hears loading, failure, a stopped load and the row count, keeps the screen
   reader's table commands.
