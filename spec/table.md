@@ -21,15 +21,17 @@ to the consumer as one callback (stated with the statements that add user action
   a hash of the statement text.
 - **Test layers.**
   - **component**: the component mounted in a simulated DOM, queried through roles, accessible names and visible
-    text only. No test ids and no internals.
+    text only. No test ids and no internals. A test finds elements by role, name and text, and may read the tag and
+    the ARIA and HTML attributes of an element so found, never a test id or a class.
   - **real browser**: the component mounted on a test-site page in a real engine, in Chromium, Firefox and WebKit
     unless the statement names fewer and says why. Used for what needs an engine: layout, scrolling, focus
     indicators, hover, axe.
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
-  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`); `busy`;
-  `messages` (the words); the snippets `heading` and `actions`. Later groups add their own props.
+  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
+  `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`. Later groups
+  add their own props.
 - **The region** is the element with `role="region"` that holds the table (A11Y-09). **The alert** is the alert of
   RND-05. **The failed notice** is the element of A11Y-15 that holds the failed message (it also has
   `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
@@ -86,13 +88,13 @@ its cells.
   | Prop that carries the text |
   |---|
   | `caption` |
-  | `regionLabel` |
   | a column `label` |
   | a default cell (`value(row)`) |
   | each entry of `messages`, the returned text of `rowCount` included |
 
   In every row the literal text appears on the page or in the accessible name, and the component holds no `img`
-  and no `none` element. Later groups add their props to this table.
+  and no `none` element. Later groups add their props to this table. (`regionLabel` has no row: an attribute value
+  has no markup path.)
 - Reason: the values come from a server and may hold anything; any markup path is a cross-site scripting path.
 - Layer: component.
 - Traces: PRD-S2.
