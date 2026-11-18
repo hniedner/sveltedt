@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
+import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -46,16 +47,28 @@ function cellTexts(): string[][] {
     .filter((cells) => cells.length > 0);
 }
 
-// Mounts the table with the given props over a one-row base; returns the element that holds the component
+// The props every mount starts from: one row, one column
+const base: DataTableProps<Item> = {
+  rows: [{ id: "r1", name: "Beta" }],
+  columns: [nameColumn],
+  getRowId: (row) => row.id,
+  caption: "Orders",
+  regionLabel: "Orders table",
+};
+
+// Mounts the table with the given props over the base; returns the element that holds the component
 function show(props: Partial<DataTableProps<Item>> = {}): HTMLElement {
-  const base: DataTableProps<Item> = {
-    rows: [{ id: "r1", name: "Beta" }],
-    columns: [nameColumn],
-    getRowId: (row) => row.id,
-    caption: "Orders",
-    regionLabel: "Orders table",
-  };
   return render(DataTable<Item>, { ...base, ...props }).container;
+}
+
+// As show, through the fixture that declares the heading and actions snippets in markup; the flags pick which
+function showWithSnippets(
+  props: Partial<Omit<DataTableProps<Item>, "heading" | "actions">> & {
+    withHeading?: boolean;
+    withActions?: boolean;
+  },
+): HTMLElement {
+  return render(SnippetsTable, { ...base, ...props }).container;
 }
 
 // @spec("A11Y-01", "c91fd776")
@@ -200,5 +213,323 @@ describe("RND-03 first examples; the statement's marker arrives with 1c", () => 
     const component = show(props(text));
     expect(find(text).isConnected).toBe(true);
     expect(component.querySelector("img, none")).toBeNull();
+  });
+});
+
+const twoRows: Item[] = [
+  { id: "r1", name: "Alpha" },
+  { id: "r2", name: "Beta" },
+];
+
+function column(id: string, label: string): DataTableColumn<Item> {
+  return { id, label, value: (row) => row.name };
+}
+
+function unreadable(): string {
+  throw new Error("unreadable");
+}
+
+// @spec("RND-05", "c6e0387c")
+describe("RND-05", () => {
+  it.each<[string, Partial<DataTableProps<Item>>, string]>([
+    ["caption is empty", { caption: " " }, "Table caption must not be empty."],
+    // The "not a string" rows: a caller the type does not reach (plain JavaScript, untyped server JSON) passes one
+    [
+      "caption is not a string",
+      { caption: undefined },
+      "Table caption must not be empty.",
+    ],
+    [
+      "regionLabel is empty",
+      { regionLabel: "" },
+      "Table region label must not be empty.",
+    ],
+    ["columns is empty", { columns: [] }, "Table has no columns."],
+    [
+      "a column id is empty",
+      { columns: [column("ok", "Ok"), column("", "Name")] },
+      "A column id is empty.",
+    ],
+    [
+      "a column id is not a string",
+      { columns: [column("ok", "Ok"), column(7 as unknown as string, "Name")] },
+      "A column id is empty.",
+    ],
+    [
+      "two columns share an id",
+      { columns: [column("c", "Name"), column("c", "Code")] },
+      "Two columns share an id.",
+    ],
+    [
+      "a column label is empty",
+      { columns: [column("ok", "Ok"), column("a", "")] },
+      "A column label is empty.",
+    ],
+    [
+      "a column label is not a string",
+      {
+        columns: [
+          column("ok", "Ok"),
+          column("a", undefined as unknown as string),
+        ],
+      },
+      "A column label is empty.",
+    ],
+    [
+      "two column labels are equal after trimming",
+      { columns: [column("a", "Name"), column("b", "Name ")] },
+      "Two columns share a label.",
+    ],
+    [
+      "a column has neither value nor cell",
+      // A caller the type does not reach (plain JavaScript): a column with neither value nor cell
+      {
+        columns: [
+          column("ok", "Ok"),
+          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "A column has no value and no cell.",
+    ],
+    ["a row id is empty", { getRowId: () => "" }, "A row id is empty."],
+    [
+      "two rows share an id",
+      { rows: twoRows, getRowId: () => "same" },
+      "Two rows share an id.",
+    ],
+    [
+      'two rows share an id in its text form, 1 and "1"',
+      { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
+      "Two rows share an id.",
+    ],
+    [
+      "getRowId throws",
+      { getRowId: unreadable },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns NaN",
+      { getRowId: () => Number.NaN },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns Infinity",
+      { getRowId: () => Number.POSITIVE_INFINITY },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns null",
+      { getRowId: () => null as unknown as string },
+      "A row id could not be read.",
+    ],
+    [
+      "several faults: an empty caption and two rows sharing an id",
+      { caption: "", rows: twoRows, getRowId: () => "same" },
+      "Table caption must not be empty.",
+    ],
+    [
+      "several faults: two empty column ids",
+      { columns: [column("", "Name"), column("", "Code")] },
+      "A column id is empty.",
+    ],
+    [
+      "several faults: two empty column labels",
+      { columns: [column("a", ""), column("b", "")] },
+      "A column label is empty.",
+    ],
+    [
+      "several faults: two empty row ids",
+      { rows: twoRows, getRowId: () => "" },
+      "A row id is empty.",
+    ],
+    [
+      "several faults: an empty row id, then a row id that throws",
+      {
+        rows: twoRows,
+        getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
+      },
+      "A row id is empty.",
+    ],
+    // The pairs below are adjacent in RND-05's order of faults: each fails if its two checks swap order
+    [
+      "several faults: an empty caption and an empty region label",
+      { caption: "", regionLabel: "" },
+      "Table caption must not be empty.",
+    ],
+    [
+      "several faults: an empty region label and no columns",
+      { regionLabel: "", columns: [] },
+      "Table region label must not be empty.",
+    ],
+    [
+      "several faults: two columns sharing an id, one with an empty label",
+      { columns: [column("c", "Name"), column("c", "")] },
+      "Two columns share an id.",
+    ],
+    [
+      "several faults: two columns sharing a label, one with neither value nor cell",
+      {
+        columns: [
+          column("a", "Name"),
+          { id: "b", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "Two columns share a label.",
+    ],
+    [
+      "several faults: a column with neither value nor cell and an empty row id",
+      {
+        columns: [
+          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+        getRowId: () => "",
+      },
+      "A column has no value and no cell.",
+    ],
+    [
+      "several faults: two rows sharing an id, then a row id that throws",
+      {
+        rows: [...twoRows, { id: "r3", name: "Gamma" }],
+        getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
+      },
+      "Two rows share an id.",
+    ],
+  ])("shows only one alert, no table, when %s", (_fault, props, message) => {
+    const component = show(props);
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([message]);
+    expect(component.querySelector("table")).toBeNull();
+  });
+
+  it("takes finite numbers as row ids: the table and no alert", () => {
+    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(firstCells()).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("follows the props: the alert gives way to the table and comes back", async () => {
+    const { rerender } = render(DataTable<Item>, { ...base, columns: [] });
+    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    await rerender({ columns: [nameColumn] });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(firstCells()).toEqual(["Beta"]);
+    await rerender({ caption: "" });
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Table caption must not be empty.",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+// @spec("RND-09", "eb114954")
+describe("RND-09", () => {
+  it.each<[string, Partial<DataTableProps<Item>>, string, string[]]>([
+    [
+      "two rows with id r2, the second named Hidden-77",
+      {
+        rows: [
+          { id: "r2", name: "Alpha" },
+          { id: "r2", name: "Hidden-77" },
+        ],
+      },
+      "Two rows share an id.",
+      ["r2", "Hidden-77"],
+    ],
+    [
+      "a getRowId that throws an error saying token-9",
+      {
+        getRowId: () => {
+          throw new Error("token-9");
+        },
+      },
+      "A row id could not be read.",
+      ["token-9"],
+    ],
+    [
+      "two columns with id col-x9",
+      { columns: [column("col-x9", "Name"), column("col-x9", "Code")] },
+      "Two columns share an id.",
+      ["col-x9"],
+    ],
+    [
+      "a column with id col-y7 and an empty label",
+      { columns: [column("col-y7", "")] },
+      "A column label is empty.",
+      ["col-y7"],
+    ],
+  ])(
+    "keeps the value out of the alert for %s",
+    (_input, props, message, forbidden) => {
+      show(props);
+      const text = screen.getByRole("alert").textContent ?? "";
+      expect(text).toContain(message);
+      for (const word of forbidden) expect(text).not.toContain(word);
+    },
+  );
+});
+
+// @spec("RND-10", "2943a803")
+describe("RND-10", () => {
+  it("still renders the heading snippet beside the alert", () => {
+    const component = showWithSnippets({ columns: [], withHeading: true });
+    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    expect(screen.getByRole("heading", { name: "Orders" }).isConnected).toBe(
+      true,
+    );
+    expect(component.querySelector("table")).toBeNull();
+  });
+});
+
+describe("EXP-02 first examples; the statement's marker arrives with 1c", () => {
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ["status 'ready' (the default), no rows", { rows: [] }],
+    ["status 'ready' (the default), with rows", {}],
+    ["the alert of RND-05", { columns: [] }],
+  ])("renders the actions snippet in %s", (_state, props) => {
+    showWithSnippets({ ...props, withActions: true });
+    expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
+      true,
+    );
+  });
+});
+
+// True when A and B are the same type, read-only modifiers included
+type Same<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+// True when A can be passed where B is expected
+type Fits<A, B> = [A] extends [B] ? true : false;
+// True when field K is read-only in every member of the union T (a Pick over the whole union would hide one
+// member that drops it)
+type ReadOnlyField<T, K extends PropertyKey> = Same<
+  T extends unknown
+    ? K extends keyof T
+      ? Same<Pick<T, K>, Readonly<Pick<T, K>>>
+      : true
+    : never,
+  true
+>;
+
+describe("DataTableColumn's type", () => {
+  it("keeps every field read-only", () => {
+    // Each line compiles only while its field is read-only: the types and svelte steps check it
+    const fields: [
+      ReadOnlyField<DataTableColumn<Item>, "id">,
+      ReadOnlyField<DataTableColumn<Item>, "label">,
+      ReadOnlyField<DataTableColumn<Item>, "value">,
+      ReadOnlyField<DataTableColumn<Item>, "cell">,
+    ] = [true, true, true, true];
+    expect(fields).toEqual([true, true, true, true]);
+  });
+
+  it("requires value or cell", () => {
+    // Compiles only while a column with neither is refused: the types and svelte steps check it
+    const neither: Fits<
+      { id: string; label: string },
+      DataTableColumn<Item>
+    > = false;
+    expect(neither).toBe(false);
   });
 });
