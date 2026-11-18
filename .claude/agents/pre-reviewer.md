@@ -9,6 +9,7 @@ You review a change before the human review. Read `.claude/agents/CONTEXT.md` fi
 and the spec statements it claims.
 
 Check the change against the method:
+
 - every changed behaviour has its statement and a test that was red first (section 2);
 - each new test can fail, and you can name the break that turns it red (section 4);
 - KISS and DRY: second caller, requested setting, complexity, smaller diff, new dependency, duplication, one source
