@@ -115,20 +115,26 @@ Three more joined the list by the owner's decision, 2026-11-17, all development 
 A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
 package is the gate's rule that nothing ships but a `svelte` peer.
 
-## Component toolchain (build 1a)
+## Test toolchain
 
-All development dependencies, exact versions, MIT, no install script (`allowBuilds: {}`); their advisories are the
+Development dependencies, exact versions, MIT, no install script (`allowBuilds: {}`); their advisories are the
 picomatch entry below.
 
-- **vite 8.3.8, vitest 5.1.0, jsdom 31.0.1, tailwindcss 4.3.5, @testing-library/svelte 5.4.2:** chosen before this
-  build: Vite builds PRD-P3's size probe, Vitest runs PRD-G1 and G2, Tailwind 4 is PRD-T3's, jsdom is the component
-  layer of risk R3, and Vitest with Testing Library is the companion's component layer (gates.md, mutation).
+- **vitest 5.1.0:** runs PRD-G1 and G2 and the companion's component layer (gates.md).
+- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; four are used (no test without an assertion, no
+  expect without a matcher, no focused and no skipped test), each with a canary.
+
+## Component toolchain (build 1a)
+
+Development dependencies on the same terms as the test toolchain.
+
+- **vite 8.3.8, jsdom 31.0.1, tailwindcss 4.3.5, @testing-library/svelte 5.4.2:** chosen before this build: Vite
+  builds PRD-P3's size probe, Tailwind 4 is PRD-T3's, jsdom is the component layer of risk R3, and Vitest with
+  Testing Library is the companion's component layer (gates.md, mutation).
 - **@sveltejs/vite-plugin-svelte 7.3.1:** the Svelte team's plugin that compiles components for Vite and Vitest; the
   alternative is none (Svelte's own compiler has no Vite integration of its own).
 - **@tailwindcss/vite 4.3.5:** Tailwind's own Vite integration for version 4 (the PostCSS route would add a PostCSS
   config, which the Svelte lint's settings keep out).
-- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; three are used (no test without an assertion, no
-  focused and no skipped test), each with a canary.
 
 ## Accepted advisories
 
@@ -203,9 +209,9 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 **To take with the layer that needs it:**
 
-- with the first component test (taken in build 1a): Vitest's `expect.requireAssertions: true` (method section 4: a
-  test without an assertion fails), `resolve.conditions: ['browser']`, and a setup file with `cleanup()` after each
-  test;
+- with the first component test (taken in build 1a): `expect.requireAssertions: true` for local runs (the gate forces
+  it, and refuses `projects`; method section 4), `resolve.conditions: ['browser']`, and a setup file with `cleanup()`
+  after each test;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**

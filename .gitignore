@@ -1,5 +1,6 @@
 /tmp/
-# Every node_modules: the site's workspace link and the Vite cache Vitest writes beside a canary run.
+# Every node_modules: the install, the site's workspace link, and the Vite cache Vitest writes beside a canary
+# run (scripts/canaries/test/).
 node_modules/
 /site/dist/
 /.claude/settings.local.json
