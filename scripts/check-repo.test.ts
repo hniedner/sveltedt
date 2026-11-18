@@ -1261,6 +1261,7 @@ test("test: a test skipped at run time beside a passing one is a finding that na
   const out = expect("test", repo(vitestTest(partly)), 1);
   assert.match(out, /1 test\(s\) skipped/);
   assert.match(out, /^ {4}the real check$/m);
+  assert.doesNotMatch(out, /^ {4}adds$/m);
 });
 test("test: a skipped test in an untracked file the config includes is a finding that names the file", () => {
   const root = repo(vitestTest(PASSING_VITEST));
@@ -1320,7 +1321,10 @@ test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (n
     vitestTest(PASSING_VITEST)(root);
     vitestConfig("onUnhandledError: () => false")(root);
   };
-  assert.match(expect("test", repo(handler), 3), /onUnhandledError/);
+  assert.match(
+    expect("test", repo(handler), 3),
+    /lets an unhandled error pass/,
+  );
 });
 test("test: a config with projects cannot be checked (the step's flags do not reach a project)", () => {
   const projects = (root: string): void => {
@@ -1331,7 +1335,7 @@ test("test: a config with projects cannot be checked (the step's flags do not re
       'export default { test: { projects: [{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } }] } };\n',
     );
   };
-  assert.match(expect("test", repo(projects), 3), /projects/);
+  assert.match(expect("test", repo(projects), 3), /names "projects"/);
 });
 test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
   const root = repo(
@@ -1379,7 +1383,7 @@ test("test: a vitest other than the pinned one cannot be checked, and says which
   assert.match(
     out,
     new RegExp(
-      `vitest 0\\.0\\.1 is installed, package.json pins ${PINS.vitest}`,
+      `vitest 0\\.0\\.1 is installed \\("vitest/0\\.0\\.1 [^"]*"\\), package.json pins ${PINS.vitest}`,
     ),
   );
 });
@@ -1434,10 +1438,11 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
     assert.match(out, /did not run/);
   }
 });
-test("test: tracked source under src/ with no test file cannot be checked", () => {
-  const code = (root: string): void =>
-    put(root, "src/lib/a.ts", "export const a = 1;\n");
-  assert.match(expect("test", repo(code), 3), /no test file/);
+test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
+  for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
+    const code = (root: string): void => put(root, path, "<p>a</p>\n");
+    assert.match(expect("test", repo(code), 3), /no test file/);
+  }
 });
 test("test: a config vitest cannot load cannot be checked, and says why", () => {
   const broken = (root: string): void => {

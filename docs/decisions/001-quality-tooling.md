@@ -145,10 +145,10 @@ picomatch entry below.
   effect is at most a hung test step, bounded by the job timeout, which that pull request can already cause. How it
   was measured: a module hook that replaced `picomatch` with a wrapper logging every pattern, its `noextglob` flag,
   its caller and any match slower than 50 ms, run with a test run and, in the set-up that adds the site, its build
-  and the dev server. Not run under
-  it, and inferred to take their patterns from the same tracked config: coverage and a mutation runner once they are
-  added, and vite's server-side resolve paths. A bump of vite, vitest, @sveltejs/vite-plugin-svelte or
-  @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
+  and the dev server. Not run under it, and inferred to take their patterns from the same tracked config: coverage
+  and a mutation runner once they are added, and vite's server-side resolve paths. A bump of vite, vitest,
+  @sveltejs/vite-plugin-svelte or @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again
+  the same way.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
@@ -199,8 +199,9 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 **To take with the layer that needs it:**
 
 - with the first component test:
-  - Vitest's `expect.requireAssertions: true` for local runs (the gate already forces it; method section 4);
-  - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
+  - `expect.requireAssertions: true` for local runs (the gate forces it, and refuses `projects`; method section 4);
+  - Node-side tests beside jsdom ones: decided in the plan that first needs them, with the practice check, since
+    the gate refuses `projects` (leaning: a per-file `// @vitest-environment node`, if an empty test there fails);
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.

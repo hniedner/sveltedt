@@ -1808,8 +1808,8 @@ function vitest(
 }
 
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
-// test file outside scripts/ (node:test files and canaries) must have run with at least one passing test, no test
-// may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
+// test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
+// test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
 function test(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.vitest;
   const v = versionOf(vitestBin(), "--version");
@@ -1818,7 +1818,7 @@ function test(root: string, list: Set<string>): Result {
   if (got !== pin)
     return result(
       CANNOT,
-      `vitest ${got} is installed, package.json pins ${pin}`,
+      `vitest ${got} is installed ("${v.line}"), package.json pins ${pin}`,
     );
   const canary = vitest(canaries("test"), []);
   if (!canary.report || canary.report.numFailedTests < 1)
@@ -1850,7 +1850,7 @@ function test(root: string, list: Set<string>): Result {
     ["onUnhandledError", "lets an unhandled error pass"],
     [
       "projects",
-      `names "projects" (read as text), which the step's flags do not reach`,
+      `names "projects" (read as text), which two of the step's flags do not reach`,
     ],
   ].filter(([name]) => config.includes(name));
   if (unchecked.length)
@@ -1912,8 +1912,8 @@ function test(root: string, list: Set<string>): Result {
       "no test passed in tracked test files (all skipped?)",
       idle,
     );
-  // A test skipped at run time (skipIf, runIf, ctx.skip()) or left as test.todo did not check its statement; every
-  // file in the run is named, an untracked one too
+  // A test skipped at run time (skipIf, runIf, ctx.skip()) or left as test.todo did not check its statement; each
+  // is named with its file, an untracked file too
   const skipped = run.numPendingTests + run.numTodoTests;
   if (skipped)
     return result(

@@ -1,5 +1,5 @@
 /tmp/
-# Every node_modules: the Vite cache Vitest writes beside a canary run (scripts/canaries/test/node_modules).
+# Every node_modules: the install, and the Vite cache Vitest writes beside a canary run (scripts/canaries/test/).
 node_modules/
 /.claude/settings.local.json
 .DS_Store
