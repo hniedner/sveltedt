@@ -780,7 +780,8 @@ function text(root: string, list: Set<string>): Result {
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Test seams, unset in normal use: CANARY_DIR (planted folders) and <NAME>_BIN (fakes, see binaryOf in pinned.ts).
+// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts) and
+// SVELTE_CHECK_BIN.
 // An empty value counts as unset in both.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -1299,12 +1300,37 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
+// The test seam SVELTE_CHECK_BIN, as for the other pinned tools; unset, the installed svelte-check.
 const svelteCheckBin = (): string =>
+  process.env.SVELTE_CHECK_BIN ||
   join(HERE, "..", "node_modules", ".bin", "svelte-check");
 
-/** svelte-check's diagnostics over `tsconfig`, from its machine-verbose lines (one JSON object each). */
+interface SvelteDiagnostic {
+  type: string;
+  filename: string;
+  start: { line: number };
+  code: number | string;
+  message: string;
+}
+const isDiagnostic = (d: unknown): d is SvelteDiagnostic =>
+  typeof d === "object" &&
+  d !== null &&
+  typeof (d as SvelteDiagnostic).type === "string" &&
+  typeof (d as SvelteDiagnostic).filename === "string" &&
+  typeof (d as SvelteDiagnostic).start?.line === "number";
+const asDiagnostic = (line: string): SvelteDiagnostic | null => {
+  try {
+    const d: unknown = JSON.parse(line);
+    return isDiagnostic(d) ? d : null;
+  } catch {
+    return null;
+  }
+};
+
+/** svelte-check's diagnostics over `tsconfig`, from its machine-verbose lines (one JSON object each), and the lines
+ * that should be one and are not. */
 // --config names the one Svelte config: svelte-check otherwise imports, and so runs, every svelte.config.* and
-// vite.config.* below the tsconfig's folder, gitignored ones included, and searches above the root.
+// vite.config.* below the tsconfig's folder, gitignored ones included, and, with no root config, those above it.
 function svelteCheck(cwd: string, tsconfig: string, config: string) {
   const r = spawnSync(
     svelteCheckBin(),
@@ -1317,23 +1343,17 @@ function svelteCheck(cwd: string, tsconfig: string, config: string) {
       "--output",
       "machine-verbose",
     ],
-    { cwd, encoding: "utf8", env: childEnv() },
+    { cwd, encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
   );
-  const found = r.stdout
+  const lines = (r.stdout ?? "")
     .split("\n")
     .map((l) => l.replace(/^\d+ /, ""))
-    .filter((l) => l.startsWith("{"))
-    .map(
-      (l) =>
-        JSON.parse(l) as {
-          type: string;
-          filename: string;
-          start: { line: number };
-          code: number | string;
-          message: string;
-        },
-    );
-  return { status: r.status, found, out: `${r.stdout}${r.stderr}` };
+    .filter((l) => l.startsWith("{"));
+  const found = lines.map(asDiagnostic).filter((d) => d !== null);
+  const broken = r.error
+    ? [`svelte-check could not run: ${errorCode(r.error)}`]
+    : lines.filter((l) => !asDiagnostic(l));
+  return { status: r.status, found, broken, out: `${r.stdout}${r.stderr}` };
 }
 
 // The files tsconfig.json puts in the program, components included, as TypeScript itself reads the config (and as
@@ -1393,6 +1413,12 @@ function svelte(root: string, list: Set<string>): Result {
     );
   const dir = canaries("svelte");
   const canary = svelteCheck(dir, join(dir, "tsconfig.json"), config);
+  if (canary.broken.length)
+    return result(
+      CANNOT,
+      "svelte-check printed lines that are not its diagnostics",
+      canary.broken.slice(0, 5),
+    );
   const planted = (code: number) =>
     canary.found.some(
       (d) =>
@@ -1424,6 +1450,12 @@ function svelte(root: string, list: Set<string>): Result {
       outside,
     );
   const run = svelteCheck(root, join(root, "tsconfig.json"), config);
+  if (run.broken.length)
+    return result(
+      CANNOT,
+      "svelte-check printed lines that are not its diagnostics",
+      run.broken.slice(0, 5),
+    );
   const details = run.found.map(
     (d) => `${d.filename}:${d.start.line + 1} ${d.code} ${d.message}`,
   );

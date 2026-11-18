@@ -35,7 +35,8 @@ pages named, or measured with the command named.
 - **Need:** PRD-E1: JavaScript APIs above the support floor (Chrome and Edge 111, Firefox 128, Safari 16.4) are
   flagged, and the support statement says the floor is covered by that check only.
 - **Decision:** eslint-plugin-compat 7.0.2, recommended, with the floor in `settings.browsers` (no browserslist file
-  to classify), on every `.ts` and `.svelte` file; the Node scripts use no browser API, and the lint step proves it.
+  to classify), on every `.ts` and `.svelte` file; the TypeScript scripts run on Node and raise nothing, and the
+  `.mjs` and `.js` files (scripts and configuration) are not checked by it.
 - **Measured limit** (2026-11-17, the plan's adversarial read): it flags `new IdleDetector()` and
   `new PaymentRequest()` in `.ts`, `.mjs` and `.svelte`, but not `navigator.share`, `showOpenFilePicker`,
   `new CloseWatcher()`, `Promise.withResolvers()` or `[].toSorted()`, even with `lintAllEsApis`. The support

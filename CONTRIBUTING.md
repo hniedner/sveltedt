@@ -52,7 +52,8 @@ The checks today:
   component outside its `include` blocks the gate, since svelte-check would skip it silently. With no component
   tracked the step is NOT APPLICABLE, after its planted error was found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
-  (ignored folders too) and above it. A second Svelte or Vite config is not added; that file is edited.
+  (ignored folders too), and with no root config those above it (measured). A second Svelte or Vite config is not
+  added; that file is edited.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

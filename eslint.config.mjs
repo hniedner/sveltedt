@@ -1,4 +1,5 @@
-// ESLint for the repository's own scripts. The reasons are in docs/decisions/001-quality-tooling.md or beside the rule.
+// ESLint for the repository's scripts and Svelte components. The reasons are in
+// docs/decisions/001-quality-tooling.md or beside the rule.
 // This file stays JavaScript: ESLint would need a further dependency (jiti) to load a TypeScript config.
 import js from "@eslint/js";
 import compat from "eslint-plugin-compat";

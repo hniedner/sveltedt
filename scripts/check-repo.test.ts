@@ -834,7 +834,20 @@ const BRANCHES = Array.from(
 ).join("\n");
 
 test("lint: passes when ESLint fails its canaries and accepts every script", () => {
-  expect("lint", repo(script("export const one = 1;\n")), 0);
+  const out = expect("lint", repo(script("export const one = 1;\n")), 0);
+  assert.match(out, /\.svelte 0$/m);
+});
+test("lint and format: a .js file is linted and formatted like a script", () => {
+  expect(
+    "lint",
+    repo((root) => put(root, "tools/x.js", 'export const a = eval("1");\n')),
+    1,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "tools/x.js", "export const a = 1\n")),
+    1,
+  );
 });
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
@@ -1121,27 +1134,19 @@ test("svelte: without a tracked svelte.config.js the step cannot be checked", ()
   const out = expect("svelte", repo(remove("svelte.config.js")), 3);
   assert.match(out, /svelte\.config\.js is not tracked/);
 });
-test("svelte: no Svelte or Vite config is imported but the root's, from below it or above it", () => {
-  const parent = tempDir();
-  const root = join(parent, "root");
-  cpSync(repo(component(COMPONENT)), root, {
-    recursive: true,
-    verbatimSymlinks: true,
-  });
-  // Each planted config writes its marker when imported. The Vite one can only be imported where vite resolves;
-  // the probe that measured it with vite installed is kept with the evidence of this step.
-  const planted = (marker: string) =>
-    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default {};\n`;
-  put(parent, "svelte.config.js", planted(join(parent, "MARKER-above")));
-  put(root, "docs/deep/svelte.config.js", planted(join(root, "MARKER-nested")));
-  put(root, "docs/deep/vite.config.mjs", planted(join(root, "MARKER-vite")));
+test("svelte: no Svelte config below the root is imported, only the root's", () => {
+  // svelte-check searches above the root and imports vite.config.* only while no root config exists (measured by
+  // the probe kept with this step's evidence); the step refuses to run without one, so the nested case is the one
+  // a run can meet.
+  const root = repo(component(COMPONENT));
+  const marker = join(root, "MARKER-nested");
+  put(
+    root,
+    "docs/deep/svelte.config.js",
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default {};\n`,
+  );
   expect("svelte", root, 0);
-  for (const m of [
-    join(parent, "MARKER-above"),
-    join(root, "MARKER-nested"),
-    join(root, "MARKER-vite"),
-  ])
-    assert.ok(!existsSync(m), `${m} exists: its config was imported`);
+  assert.ok(!existsSync(marker), "the nested svelte.config.js was imported");
 });
 test("format: a formatted Svelte component passes through Prettier's Svelte plugin", () => {
   expect("format", repo(component(COMPONENT)), 0);
@@ -1178,8 +1183,11 @@ test("lint: a component in allowed markup passes, and the summary counts it per 
     repo(
       component(
         COMPONENT.replace(
+          "</script>",
+          "  let el: HTMLElement | undefined = $state();\n</script>",
+        ).replace(
           "<p>{count}</p>",
-          "<p class={count > 1 ? 'many' : 'one'}>{count}</p>",
+          "<p bind:this={el} class={count > 1 ? 'many' : 'one'}>{count}</p>",
         ),
       ),
     ),
@@ -1320,6 +1328,50 @@ test("text: a suppression word in prose is not a finding", () => {
     repo((root) => put(root, "docs/notes.md", prose)),
     0,
   );
+});
+test("svelte: a warning is a finding that names its code", () => {
+  const out = expect(
+    "svelte",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<p>{count}</p>\n<img src="count.png" />',
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte:\d+ a11y_missing_attribute /);
+});
+test("svelte: a canary that reports only the wrong type, as a non-strict config would, cannot be checked", () => {
+  const options = (JSON.parse(FIXTURE_TSCONFIG) as { compilerOptions: object })
+    .compilerOptions;
+  const dir = canaryDir("svelte", {
+    "tsconfig.json": `${JSON.stringify({ compilerOptions: { ...options, strict: false }, include: ["canary.svelte"] })}\n`,
+    "canary.svelte": readFileSync(
+      join(here, "canaries", "svelte", "canary.svelte"),
+      "utf8",
+    ),
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "svelte", "node_modules"),
+  );
+  const out = expect("svelte", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted type errors/);
+});
+test("svelte: output that is not svelte-check's diagnostics cannot be checked", () => {
+  const bin = join(tempDir(), "svelte-check");
+  writeFileSync(
+    bin,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\necho '1 {"type":"ERROR","filename'\nexit 1\n`,
+  );
+  chmodSync(bin, 0o755);
+  const out = expect("svelte", repo(), 3, {
+    extraEnv: { SVELTE_CHECK_BIN: bin },
+  });
+  assert.match(out, /not its diagnostics/);
 });
 test("svelte: another svelte-check version than the pin cannot be checked", () => {
   expect(
