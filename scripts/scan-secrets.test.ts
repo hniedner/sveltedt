@@ -47,6 +47,8 @@ function git(repo: string, ...args: string[]): string {
     "user.email=t@example.invalid",
     "-c",
     "commit.gpgsign=false",
+    "-c",
+    "core.hooksPath=/dev/null",
   ];
   const r = spawnSync("git", [...id, "-C", repo, ...args], {
     encoding: "utf8",

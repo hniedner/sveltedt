@@ -217,10 +217,17 @@ function fakeLint({
   version = "9.9.9",
   canary = true,
   shell = true,
-}: { version?: string; canary?: boolean; shell?: boolean } = {}): string {
+  crash = false,
+}: {
+  version?: string;
+  canary?: boolean;
+  shell?: boolean;
+  crash?: boolean;
+} = {}): string {
   const bin = join(tempDir(), "actionlint");
   const script = `#!/bin/sh
 if [ "$1" = "-version" ]; then echo "${version}"; exit 0; fi
+${crash ? 'case "$*" in *.github*) echo "panic"; exit 3;; esac' : ""}
 ${canary ? 'if grep -q nope "$@"; then echo "canary found"; exit 1; fi' : ""}
 ${shell ? 'if grep -q "echo \\$FOO" "$@"; then echo "shellcheck reported issue in this script: SC2086:info:1:6"; exit 1; fi' : ""}
 if grep -q bad "$@"; then echo "bad workflow"; exit 1; fi
@@ -231,7 +238,6 @@ exit 0
   return bin;
 }
 
-/** A stand-in for pnpm that reports `version`. */
 /** A stand-in for pnpm: reports `version`; `licenses list --json` prints `licences` and exits `listExit`. */
 function fakePnpm(
   version = "12.19.0",
@@ -270,6 +276,7 @@ function fakeZizmor({
     bin,
     `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "zizmor ${version}"; exit 0; fi
+case " $* " in *" --offline "*) ;; *) echo "online audits need a token"; exit 2;; esac
 ${crash ? 'echo "error: broken"; exit 1' : ""}
 files=""; for a in "$@"; do case "$a" in -*|plain) ;; *) files="$files $a";; esac; done
 ${canary ? 'if grep -q canary $files; then echo "error[dangerous-triggers]"; exit 13; fi' : ""}
@@ -571,6 +578,11 @@ test("lockfile: optional and bundled dependencies would ship", () => {
 test("lockfile: a package.json not marked private is a finding", () => {
   // Until the packaging pull request, a stray publish must fail on the manifest.
   expect("lockfile", repo(pkg((p) => delete p.private)), 1);
+});
+test("files: a required file on disk but not tracked is a finding", () => {
+  const root = repo();
+  git(root, "rm", "-q", "--cached", "SECURITY.md"); // CI sees only tracked files
+  assert.match(expect("files", root, 1), /missing: SECURITY\.md/);
 });
 test("files: a missing pin of a pinned program is a finding", () => {
   const out = expect("files", repo(remove("scripts/zizmor.version")), 1);
@@ -1330,6 +1342,9 @@ test("actionlint: a repository without a workflow file cannot be checked", () =>
     3,
   );
   assert.match(out, /no workflow file/);
+});
+test("actionlint: a linter that crashes on the workflows cannot be checked", () => {
+  expect("actionlint", repo(), 3, { lint: fakeLint({ crash: true }) });
 });
 test("actionlint: a missing binary cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: join(tempDir(), "absent") });
