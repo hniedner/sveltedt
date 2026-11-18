@@ -1211,11 +1211,10 @@ new `limit` and offset.
 
   | Prop that carries the text |
   |---|
-  | `label` |
   | each entry of `messages`, the returned text of every function included |
 
   In every row the literal text appears in the pager's text or accessible names, and the pager holds no `img` and
-  no `none` element.
+  no `none` element. (`label` has no row: an attribute value has no markup path.)
 - Reason: a translation can come from anywhere, and any markup path is a cross-site scripting path.
 - Layer: component.
 - Traces: PRD-S2.
