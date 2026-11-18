@@ -212,7 +212,7 @@ describe(spec("RND-05", "7e95b611"), () => {
     ["columns is empty", { columns: [] }, "Table has no columns."],
     [
       "a column id is empty",
-      { columns: [column("", "Name")] },
+      { columns: [column("ok", "Ok"), column("", "Name")] },
       "A column id is empty.",
     ],
     [
@@ -222,7 +222,7 @@ describe(spec("RND-05", "7e95b611"), () => {
     ],
     [
       "a column label is empty",
-      { columns: [column("a", "")] },
+      { columns: [column("ok", "Ok"), column("a", "")] },
       "A column label is empty.",
     ],
     [
@@ -235,6 +235,7 @@ describe(spec("RND-05", "7e95b611"), () => {
       // A caller the type does not reach (plain JavaScript): a column with neither value nor cell
       {
         columns: [
+          column("ok", "Ok"),
           { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
         ],
       },
