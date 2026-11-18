@@ -115,6 +115,15 @@ Three more joined the list by the owner's decision, 2026-11-17, all development 
 A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
 package is the gate's rule that nothing ships but a `svelte` peer.
 
+## Test toolchain
+
+Development dependencies, exact versions, MIT, no install script (`allowBuilds: {}`); their advisories are the
+picomatch entry below.
+
+- **vitest 5.1.0:** runs PRD-G1 and G2 and the companion's component layer (gates.md); chosen before this change.
+- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; three are used (no test without an assertion, no
+  focused and no skipped test), each with a canary.
+
 ## Accepted advisories
 
 - **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
@@ -128,6 +137,17 @@ package is the gate's rule that nothing ships but a `svelte` peer.
   file in the tree, which a pull request can add in any folder. The effect is at most a hung gate, which a pull
   request can already cause. A svelte-check bump re-opens this claim: before it merges, the bundled picomatch is
   instrumented again and svelte-check run with extglob patterns in tsconfig.json's include and exclude.
+  Measured on 2026-11-18 with vite 8.3.8 and vitest 5.1.0: vite, vitest and their plugins run the vulnerable
+  picomatch 4.0.7 itself, with no vendored copy. Every pattern that reaches it in our set-up comes from vite's and
+  vitest's fixed defaults or from our own tracked config; `import.meta.glob` turns extglobs off, Tailwind's `@source`
+  is scanned in Rust, and a package's `sideEffects` patterns never reach picomatch in vite 8. Only a pull request
+  that writes an extglob into a Vite, Vitest or Svelte config and adds a matching file name can slow it down; the
+  effect is at most a hung test step, bounded by the job timeout, which that pull request can already cause. How it
+  was measured: a module hook that replaced `picomatch` with a wrapper logging every pattern, its `noextglob` flag,
+  its caller and any match slower than 50 ms, run with a test run, the site build and the dev server. Not run under
+  it, and inferred to take their patterns from the same tracked config: coverage and a mutation runner once they are
+  added, and vite's server-side resolve paths. A bump of vite, vitest, @sveltejs/vite-plugin-svelte or
+  @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.

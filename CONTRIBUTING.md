@@ -83,6 +83,10 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
   it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
   added; that file is edited.
+- **test:** Vitest runs every tracked test file outside `scripts/` (`*.test.ts`, `*.spec.ts`) with the one
+  `vitest.config.ts`. Every such file must run with at least one passing test, no test may fail, and vitest itself
+  must exit 0 (an error thrown outside a test is in no report). With no test file and no code under `src/` or `site/`
+  the step is NOT APPLICABLE, after its planted failing test was reported; code with no test file cannot be checked.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
