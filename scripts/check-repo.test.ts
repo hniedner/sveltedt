@@ -130,6 +130,7 @@ const PACKAGE: Pkg = {
     prettier: PINS.prettier,
     "svelte-check": PINS["svelte-check"],
     typescript: PINS.typescript,
+    vitest: PINS.vitest,
   },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
@@ -859,6 +860,23 @@ test("lint and format: the Svelte config, the one .js file, is linted and format
   );
   expect("format", repo(config("export default {}\n")), 1);
 });
+test("format: an .html or a .css file is formatted", () => {
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p>a</p>\n")),
+    0,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p >a</p>\n")),
+    1,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.css", "a{color:red}\n")),
+    1,
+  );
+});
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
     expect("lint", repo(script('export const x = eval("1");\n')), 1),
@@ -914,6 +932,20 @@ test("lint: a floating promise in a TypeScript script is a finding (type-aware)"
   const body =
     "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n";
   assert.match(expect("lint", repo(tsScript(body)), 1), /no-floating-promises/);
+});
+test("lint: a Vitest test without an assertion is a finding that names the rule", () => {
+  const out = expect(
+    "lint",
+    repo((root) =>
+      put(
+        root,
+        "scripts/a.test.ts",
+        'import { test } from "vitest";\ntest("nothing", () => {});\n',
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /vitest\/expect-expect/);
 });
 test("lint: eval in a TypeScript script is a finding", () => {
   expect("lint", repo(tsScript('export const x: unknown = eval("1");\n')), 1);
@@ -1152,6 +1184,286 @@ const component =
   (root: string): void =>
     put(root, path, body);
 const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+/** A tracked Vitest config and test file; the config runs src/ tests only, like a config that forgot site/. */
+const vitestTest =
+  (body: string, path = "src/a.test.ts") =>
+  (root: string): void => {
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { include: ["src/**/*.test.ts"] } };\n',
+    );
+    put(root, path, `import { expect, test } from "vitest";\n${body}`);
+  };
+const PASSING_VITEST = 'test("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n';
+test("test: with no test file and no code under src/ or site/ the step is not applicable, after vitest failed its canary", () => {
+  const r = run(["test", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE test: vitest failed the canary; no test file and no code under src\/ or site\/$/,
+    r.out,
+  );
+});
+test("test: passes when vitest fails its canary and every tracked test file runs and passes", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 0);
+  assert.match(out, /1 test\(s\) in 1 file\(s\) passed/);
+});
+test("test: a failing test is a finding that names the file and the test", () => {
+  const out = expect(
+    "test",
+    repo(vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))),
+    1,
+  );
+  assert.match(out, /src\/a\.test\.ts: failed/);
+  assert.match(out, / {2}adds$/m);
+});
+test("test: without a tracked vitest.config.ts the step cannot be checked", () => {
+  const untracked = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, ".git/info/exclude", "vitest.config.ts\n");
+  };
+  assert.match(
+    expect("test", repo(untracked), 3),
+    /vitest\.config\.ts is not tracked/,
+  );
+});
+test("test: a canary that vitest passes cannot be checked", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    canaries: dir,
+  });
+  assert.match(out, /did not report the planted failing test/);
+  assert.doesNotMatch(out, /JSON report written/);
+});
+test("test: a canary run that writes no report cannot be checked, even with no test file to run", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST.replace("toBe(2)", "toBe(3)")}`,
+    "vitest.config.ts": "export default { test: { include: [,,] } ;\n",
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted failing test/);
+});
+const LATE =
+  'test("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
+test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
+  const out = expect("test", repo(vitestTest(LATE)), 1);
+  assert.match(out, /vitest exited 1/);
+  assert.match(out, /late failure/);
+});
+test("test: a test skipped at run time beside a passing one is a finding that names it", () => {
+  const partly = `${PASSING_VITEST}test.skipIf(!process.env.NEVER_SET)("the real check", () => {\n  expect(1).toBe(2);\n});\n`;
+  const out = expect("test", repo(vitestTest(partly)), 1);
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
+  assert.doesNotMatch(out, /^ {4}adds$/m);
+});
+test("test: a skipped test in an untracked file the config includes is a finding that names the file", () => {
+  const root = repo(vitestTest(PASSING_VITEST));
+  put(
+    root,
+    "src/wip.test.ts",
+    `import { test } from "vitest";\ntest.todo("later");\n`,
+  );
+  assert.match(
+    expect("test", root, 1),
+    /^ {2}src\/wip\.test\.ts:\n {4}later$/m,
+  );
+});
+test("test: a test.todo beside a passing test is a finding that names it", () => {
+  const out = expect(
+    "test",
+    repo(vitestTest(`${PASSING_VITEST}test.todo("the real check");\n`)),
+    1,
+  );
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
+});
+/** A tracked vitest.config.ts with `options` added to the fixture's include. */
+const vitestConfig =
+  (options: string) =>
+  (root: string): void =>
+    put(
+      root,
+      "vitest.config.ts",
+      `export default { test: { include: ["src/**/*.test.ts"], ${options} } };\n`,
+    );
+test("test: a tracked config that ignores unhandled errors does not hide one: the step overrides it", () => {
+  const ignoring = (root: string): void => {
+    vitestTest(LATE)(root);
+    vitestConfig("dangerouslyIgnoreUnhandledErrors: true")(root);
+  };
+  assert.match(expect("test", repo(ignoring), 1), /late failure/);
+});
+test("test: a tracked config that turns assertions off does not let an empty test pass", () => {
+  const off = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    vitestConfig("expect: { requireAssertions: false }")(root);
+  };
+  assert.match(expect("test", repo(off), 1), /^ {4}nothing$/m);
+});
+test("test: a tracked config that only type-checks the tests does not stop them from running", () => {
+  const typecheckOnly = (root: string): void => {
+    vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))(root);
+    vitestConfig(
+      'typecheck: { enabled: true, only: true, include: ["src/**/*.test.ts"] }',
+    )(root);
+  };
+  assert.match(expect("test", repo(typecheckOnly), 1), /^ {4}adds$/m);
+});
+test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (no flag overrides it)", () => {
+  const handler = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    vitestConfig("onUnhandledError: () => false")(root);
+  };
+  assert.match(
+    expect("test", repo(handler), 3),
+    /lets an unhandled error pass/,
+  );
+});
+test("test: a config with projects cannot be checked (the step's flags do not reach a project)", () => {
+  const projects = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { projects: [{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } }] } };\n',
+    );
+  };
+  assert.match(expect("test", repo(projects), 3), /names "projects"/);
+});
+test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
+  const root = repo(
+    vitestTest(
+      'test("renders", () => {\n  expect("<p>6</p>").toMatchSnapshot();\n});\ntest("renders inline", () => {\n  expect("<p>9</p>").toMatchInlineSnapshot();\n});\n',
+    ),
+  );
+  // CI emptied: outside CI vitest writes a missing snapshot and passes, the case the step must refuse
+  const out = expect("test", root, 1, { extraEnv: { CI: "" } });
+  assert.match(out, /^ {4}renders$/m);
+  assert.match(out, /^ {4}renders inline$/m);
+  assert.equal(git(root, "diff", "--name-only"), "");
+  assert.equal(git(root, "ls-files", "--others", "--exclude-standard"), "");
+});
+/** A stand-in for vitest at `version`: the canary run reports a failed test; the real run prints more than the step buffers. */
+function fakeVitest(version = PINS.vitest): string {
+  const bin = join(tempDir(), "vitest");
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs");
+const out = process.argv.find((a) => a.startsWith("--outputFile.json="));
+if (process.argv[2] === "--version") {
+  console.log("vitest/${version} darwin-arm64 node-v26.0.0");
+} else if (!process.argv.includes("--config")) {
+  writeFileSync(out.split("=")[1], JSON.stringify({ numFailedTests: 1 }));
+} else {
+  process.stdout.write(\`\${"x".repeat(1023)}\\n\`.repeat(65 * 1024));
+}
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+test("test: a real run that vitest cannot finish cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest() },
+  });
+  assert.match(out, /cannot run .*vitest: ENOBUFS/);
+});
+test("test: a vitest other than the pinned one cannot be checked, and says which", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest("0.0.1") },
+  });
+  assert.match(
+    out,
+    new RegExp(
+      `vitest 0\\.0\\.1 is installed \\("vitest/0\\.0\\.1 [^"]*"\\), package.json pins ${PINS.vitest}`,
+    ),
+  );
+});
+test("test: a vitest that cannot be started cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: join(tempDir(), "no-vitest") },
+  });
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
+});
+test("test: the reason shown for an unhandled TypeError names it and the file it came from", () => {
+  const typeError =
+    'test("adds", () => {\n  void Promise.resolve().then(() => (undefined as unknown as { x: { y: 1 } }).x.y);\n  expect(1).toBe(1);\n});\n';
+  const out = expect("test", repo(vitestTest(typeError)), 1);
+  assert.match(out, /TypeError/);
+  assert.match(out, /src\/a\.test\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+});
+test("test: a test file that fails to load is a finding that names it, and is counted", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, "src/b.test.ts", 'import "./missing.ts";\n');
+  };
+  const out = expect("test", repo(both), 1);
+  assert.match(out, /src\/b\.test\.ts: .*missing\.ts/);
+  assert.match(out, /1 file\(s\) failed/);
+});
+test("test: a tracked test file whose tests were all skipped cannot be checked, and is named", () => {
+  const skipped = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "src/b.test.ts",
+      `import { describe, expect, test } from "vitest";\ndescribe.skipIf(!process.env.NEVER_SET)("s", () => {\n  ${PASSING_VITEST}});\n`,
+    );
+  };
+  const out = expect("test", repo(skipped), 3);
+  assert.match(out, /^ {2}src\/b\.test\.ts$/m);
+  assert.match(out, /no test passed/);
+});
+test("test: a tracked test file outside src/ and site/, or named .spec.ts, must run too", () => {
+  for (const path of ["test/extra.test.ts", "src/a.spec.ts"]) {
+    const outside = (root: string): void => {
+      vitestTest(PASSING_VITEST)(root);
+      put(
+        root,
+        path,
+        `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+      );
+    };
+    const out = expect("test", repo(outside), 3);
+    assert.ok(out.split("\n").includes(`  ${path}`), out);
+    assert.match(out, /did not run/);
+  }
+});
+test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
+  for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
+    const code = (root: string): void => put(root, path, "<p>a</p>\n");
+    assert.match(expect("test", repo(code), 3), /no test file/);
+  }
+});
+test("test: a config vitest cannot load cannot be checked, and says why", () => {
+  const broken = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "vitest.config.ts",
+      "export default { test: { include: [,,] } ;\n",
+    );
+  };
+  const out = expect("test", repo(broken), 3);
+  assert.match(out, /vitest wrote no report/);
+  assert.match(out, /vitest\.config\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+  assert.doesNotMatch(out, /^\s+at /m); // a stack frame is not a reason
+});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -1898,6 +2210,17 @@ test("lint: a config block that changes a proven rule for the component's folder
       '{ files: ["site/**"], settings: { browsers: ["chrome 140"] } }',
       "site/src/probe.ts: settings",
     ],
+    // Each Vitest rule, off for the component's tests only: the tracked test file is compared.
+    ...[
+      "expect-expect",
+      "no-focused-tests",
+      "no-disabled-tests",
+      "valid-expect",
+    ].map((rule) => [
+      `{ files: ["src/**/*.test.ts"], rules: { "vitest/${rule}": "off" } }`,
+      `src/lib/x.test.ts: vitest/${rule}`,
+      "src/lib/x.test.ts",
+    ]),
   ]) {
     const config = join(tempDir(), "eslint.config.mjs");
     writeFileSync(
@@ -1906,7 +2229,18 @@ test("lint: a config block that changes a proven rule for the component's folder
     );
     const out = expect(
       "lint",
-      repo(file ? component(COMPONENT, file) : () => {}),
+      repo(
+        file.endsWith(".test.ts")
+          ? (root) =>
+              put(
+                root,
+                file,
+                `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+              )
+          : file
+            ? component(COMPONENT, file)
+            : () => {},
+      ),
       3,
       { extraEnv: { ESLINT_CONFIG: config } },
     );
@@ -2817,11 +3151,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no commit after origin/main, so the commits and secrets steps have nothing to check.
+  // The fixture has no component, no test file and no commit after origin/main: svelte, test, commits and secrets
+  // have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 3 not applicable: svelte, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

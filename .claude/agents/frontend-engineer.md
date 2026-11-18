@@ -9,7 +9,7 @@ You turn a red test green. Read `.claude/agents/CONTEXT.md` first, then the brie
 test it names. Follow `.claude/rules/svelte-tailwind.md` for every Svelte and Tailwind file.
 
 - **Minimal green, then refactor** (method section 2, step 6). Add a unit test only where the acceptance test cannot
-  pin the logic down by itself.
+  pin the logic down by itself; remove a test written only as scaffolding before the commit.
 - **KISS and DRY** (method section 5): no setting, abstraction, base class or dependency without a statement that asks
   for it; a shared piece is extracted when the second copy appears, not before.
 - **Mutation-friendly code** (method section 4): logic lives in `.ts` and `.svelte.ts`; markup stays thin so every
