@@ -1,6 +1,6 @@
 # Notes for coding agents
 
-SvelteDT will be a data table component for Svelte 5 with Tailwind 4. This repository holds no component code yet.
+SvelteDT will be a data table component for Svelte 5, styled by one stylesheet and prefixed tokens. This repository holds no component code yet.
 
 - **The rules:** [the engineering method](docs/engineering/method.md) binds every change; [the companion](docs/engineering/gates.md)
   says how each check works. Read them before planning a change.
