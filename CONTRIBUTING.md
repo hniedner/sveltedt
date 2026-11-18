@@ -95,7 +95,9 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `valid-expect` catches it. Limits, measured: no flag overrides an `onUnhandledError` function, so the step refuses
   a `vitest.config.ts` that names it (read as text, so a name built at run time is not seen); a process-level
   `unhandledRejection` listener in a setup file still hides an unhandled error; and a `test.each` table that is empty
-  at run time makes no test and fails nothing.
+  at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
+  not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
+  assertion still fails, and a skipped one is still a finding.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
