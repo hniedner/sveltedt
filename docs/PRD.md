@@ -9,8 +9,8 @@
   stopped state (PRD-B22 to PRD-B24); PRD-K2 again (a path with no Svelte code carries `types` and `default`); the size,
   time and memory budgets (PRD-P3 to PRD-P5); the route announcer's policy allowance (PRD-S1 with PRD-W8 and PRD-D3); an
   exception path for a runtime dependency (PRD-S5); the server guide (PRD-D6) and the migration guide with its departure
-  list (PRD-D8); the dataset and the backend fixtures (PRD-W3, PRD-W11); the risks of section 9; and the rows these touch. A requirement changes
-  only by the owner from here on.
+  list (PRD-D8); the dataset and the backend fixtures (PRD-W3, PRD-W11); the risks of section 9; and the rows these
+  touch. A requirement changes only by the owner from here on.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
