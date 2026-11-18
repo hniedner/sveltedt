@@ -17,8 +17,8 @@
   a hash of the statement text.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
-- **Queries.** A test finds elements by role, name and text, and may read the tag and the ARIA and HTML attributes
-  of an element so found, never a test id or a class.
+- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and the ARIA
+  and HTML attributes of an element so found, never a test id or a class.
 - **Test layers.**
   - **HTTP**: the site server started in the test's own process and sent real requests through `node:http`, with
     each request path written to the wire exactly as the example gives it (a URL parser would remove `..` before
