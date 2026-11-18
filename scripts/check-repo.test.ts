@@ -644,7 +644,7 @@ test("format: the owner-approved requirements are never reformatted", () => {
 test("format: a spec file is never reformatted, and text still checks it", () => {
   expect(
     "format",
-    repo((root) => put(root, "spec/a.md", "#   Spec\n")),
+    repo((root) => put(root, "spec/x/a.md", "#   Spec\n")),
     0,
   );
   expect(
