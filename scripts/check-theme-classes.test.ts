@@ -45,6 +45,7 @@ function expect(args: string[], code: number): string {
   return out;
 }
 
+// @spec("THEME-01", "f592c1b4")
 for (const cls of [
   "bg-blue-500",
   "bg-[var(--sdt-surface,#fff)]",

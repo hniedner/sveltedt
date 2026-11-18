@@ -1,7 +1,6 @@
 import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
-import { spec } from "../../test/spec.ts";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -47,7 +46,8 @@ function show(props: Partial<DataTableProps<Item>> = {}): HTMLElement {
   return render(DataTable<Item>, { ...base, ...props }).container;
 }
 
-describe(spec("A11Y-01", "c91fd776"), () => {
+// @spec("A11Y-01", "c91fd776")
+describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
     show();
     const table = screen.getByRole("table", { name: "Orders" });
@@ -57,7 +57,8 @@ describe(spec("A11Y-01", "c91fd776"), () => {
   });
 });
 
-describe(spec("A11Y-09", "1ea0bceb"), () => {
+// @spec("A11Y-09", "1ea0bceb")
+describe("A11Y-09", () => {
   it("sits inside a region named by regionLabel", () => {
     show();
     const region = screen.getByRole("region", { name: "Orders table" });
@@ -67,7 +68,8 @@ describe(spec("A11Y-09", "1ea0bceb"), () => {
   });
 });
 
-describe(spec("A11Y-02", "bb579ca8"), () => {
+// @spec("A11Y-02", "bb579ca8")
+describe("A11Y-02", () => {
   it("makes every column header a th with scope col", () => {
     show({ columns: [idColumn, nameColumn, noteColumn] });
     expect(
@@ -82,14 +84,16 @@ describe(spec("A11Y-02", "bb579ca8"), () => {
   });
 });
 
-describe(spec("RND-08", "e3e4bdfc"), () => {
+// @spec("RND-08", "e3e4bdfc")
+describe("RND-08", () => {
   it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
     show();
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
   });
 });
 
-describe(spec("RND-02", "9a4c8ebf"), () => {
+// @spec("RND-02", "9a4c8ebf")
+describe("RND-02", () => {
   it("renders the cell snippet, called with the row and the column id, in each of its cells", () => {
     render(CellSnippetTable, {
       rows: [
@@ -109,7 +113,8 @@ const twentyFive: Item[] = Array.from({ length: 25 }, (_, index) => {
   return { id, name: `Name ${id}` };
 });
 
-describe(spec("RND-01", "4b6167be"), () => {
+// @spec("RND-01", "4b6167be")
+describe("RND-01", () => {
   it.each([
     [
       "r3, r1, r2",

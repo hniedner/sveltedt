@@ -10,7 +10,6 @@ import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { spec } from "../test/spec.ts";
 import { siteServer } from "./server.ts";
 
 interface Answer {
@@ -76,7 +75,8 @@ function get(server: Server, path: string): Promise<Answer> {
   });
 }
 
-describe(spec("SRV-01", "a3f33248"), () => {
+// @spec("SRV-01", "a3f33248")
+describe("SRV-01", () => {
   let server: Server;
   beforeAll(async () => {
     const site = await serve({ "index.html": INDEX, "assets/app.js": APP });
@@ -126,7 +126,8 @@ describe("SRV-01: a link in the build folder leads nowhere outside it", () => {
   });
 });
 
-describe(spec("SRV-03", "65a24eb7"), () => {
+// @spec("SRV-03", "65a24eb7")
+describe("SRV-03", () => {
   const kinds = [
     ["index.html", "text/html; charset=utf-8"],
     ["assets/app.js", "text/javascript; charset=utf-8"],
