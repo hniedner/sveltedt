@@ -1542,25 +1542,37 @@ function test(root: string, list: Set<string>): Result {
   );
 }
 
-// THEME-01 (spec/table.md): check-theme-classes.ts over the component source, with its own exit code. With no
-// component tracked under src/lib there is no class to read: not applicable.
-function theme(root: string, list: Set<string>): Result {
-  if (![...list].some((f) => /^src\/lib\/.+\.svelte$/.test(f)))
-    return result(NA, "no component is tracked under src/lib");
-  const r = spawnSync(
-    process.execPath,
-    [join(HERE, "check-theme-classes.ts"), "--root", root],
-    { encoding: "utf8", env: childEnv() },
-  );
+/** A scan script of scripts/ run over the repository, its result read from its own exit code and output (G1). */
+function scan(root: string, script: string): Result {
+  const r = spawnSync(process.execPath, [join(HERE, script), "--root", root], {
+    encoding: "utf8",
+    env: childEnv(),
+  });
   const lines = (r.stdout ?? "").trim().split("\n");
   const code = [PASS, FINDING, CANNOT].includes(r.status ?? -1)
     ? (r.status as number)
     : USAGE;
   return result(
     code,
-    (lines.at(-1) ?? "").replace(/^.*? check-theme-classes: /, ""),
+    (lines.at(-1) ?? "").replace(/^.*? check-[a-z-]+: /, ""),
     lines.slice(0, -1).map((l) => l.trim()),
   );
+}
+
+// THEME-01 (spec/table.md): the theme-class scan over the component source. With no component tracked under
+// src/lib there is no class to read: not applicable.
+function theme(root: string, list: Set<string>): Result {
+  if (![...list].some((f) => /^src\/lib\/.+\.svelte$/.test(f)))
+    return result(NA, "no component is tracked under src/lib");
+  return scan(root, "check-theme-classes.ts");
+}
+
+// IMP-01 (spec/site.md): the site imports the package only through its public exports. With no file tracked
+// under site/ there is nothing to read: not applicable.
+function imports(root: string, list: Set<string>): Result {
+  if (![...list].some((f) => f.startsWith("site/")))
+    return result(NA, "no file is tracked under site/");
+  return scan(root, "check-site-imports.ts");
 }
 
 function inCI(): boolean {
@@ -1650,6 +1662,7 @@ const CHECKS: Record<string, Check> = {
   svelte,
   test,
   theme,
+  imports,
   dupes,
   pins,
   "gate-needs": gateNeeds,

@@ -61,6 +61,9 @@ The checks today:
   tracked the step is NOT APPLICABLE, after its planted failing test was reported.
 - **theme:** every colour class in the component reads a `--sdt-*` property with a CSS system-colour fallback
   (THEME-01, `scripts/check-theme-classes.ts`); the scan runs the statement's example rows as canaries first.
+- **imports:** the site imports the package only through its public exports, and its stylesheet names the
+  package's files through the installed name (IMP-01, `scripts/check-site-imports.ts`); the scan runs the
+  statement's canary rows first.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

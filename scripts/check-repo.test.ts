@@ -1172,6 +1172,25 @@ test("theme: a component with no colour class cannot be checked", () => {
     3,
   );
 });
+test("imports: with no file under site/ the step is not applicable", () => {
+  const r = run(["imports", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE imports: no file is tracked under site\/$/m,
+  );
+});
+test("imports: a deep import in the site is a finding that names it", () => {
+  const site = (root: string): void => {
+    edit(
+      "package.json",
+      '"private": true',
+      '"private": true, "exports": { ".": "./src/lib/index.ts" }',
+    )(root);
+    put(root, "site/src/a.ts", "import x from '../../src/lib/x.ts';\n");
+  };
+  assert.match(expect("imports", repo(site), 1), /site\/src\/a\.ts:1: /);
+});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -2031,7 +2050,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, theme, secrets$/m,
+    /^PASS all: 15 checks passed, 5 not applicable: svelte, test, theme, imports, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {
