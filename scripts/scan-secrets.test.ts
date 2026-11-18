@@ -282,6 +282,26 @@ test("git: a token in a commit of the range is a finding with commit:file:line",
   assert.ok(out.out.includes(`${sha}:k.txt:1`), out.out);
   assert.ok(!out.out.includes(tok));
 });
+// Pins: a contributor's `log.showSignature` does not stop the scan: a signed commit's diff is read.
+test("git: a token in a signed commit is a finding when git shows signatures", () => {
+  const r = repoWith({ "a.txt": "x\n" });
+  const key = join(tempDir(), "key");
+  spawnSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
+  git(r, "config", "gpg.format", "ssh");
+  git(r, "config", "user.signingkey", key);
+  git(r, "config", "log.showSignature", "true");
+  const tok = fakeToken();
+  tree(r, { "k.txt": `t = "${tok}"\n` });
+  git(r, "add", "-A");
+  git(r, "commit", "-q", "-S", "-m", "two");
+  // Only this repository's configuration: a global allowed-signers file would let git verify, hiding the flag's need.
+  const out = run(["git", r, "HEAD~1..HEAD"], {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  });
+  assert.equal(out.code, 1, out.out);
+  assert.ok(!out.out.includes(tok));
+});
 test("git: a token added and removed again inside the range is a finding", () => {
   const r = repoWith({ "a.txt": "x\n" });
   commit(r, "add", { "k.txt": `t = "${fakeToken()}"\n` });

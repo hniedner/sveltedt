@@ -1973,6 +1973,15 @@ function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
 
+/**
+ * A range without commits: nothing to check locally; in CI, where every event brings a commit, a wrong range. For
+ * `commits`, which leaves merges out, a range of merges alone is empty too, and in CI it is reported, never passed.
+ */
+function emptyRange(range: string): Result {
+  if (inCI()) return result(CANNOT, `no commit in ${range} in CI`);
+  return result(NA, `no commit in ${range}`);
+}
+
 /** The commits the branch adds: GATE_BASE..GATE_HEAD in CI, after the merge base with origin/main locally. */
 function commitRange(root: string): Result | { range: string } {
   const base = process.env.GATE_BASE;
@@ -2003,7 +2012,8 @@ function secrets(root: string): Result {
   if (isResult(range)) return range;
   const count = spawnSync(
     "git",
-    ["-C", root, "rev-list", "--count", range.range],
+    // --end-of-options: a range from the environment is a revision, never an option.
+    ["-C", root, "rev-list", "--count", "--end-of-options", range.range, "--"],
     {
       encoding: "utf8",
       env: childEnv(),
@@ -2011,11 +2021,7 @@ function secrets(root: string): Result {
   );
   if (count.status !== 0)
     return result(CANNOT, `git cannot read the range ${range.range}`);
-  if (Number(count.stdout.trim()) === 0) {
-    // Every CI event that runs the gate brings a commit: an empty range there is a wrong range, not "nothing to do".
-    if (inCI()) return result(CANNOT, `no commit in ${range.range} in CI`);
-    return result(NA, `no commit in ${range.range}`);
-  }
+  if (Number(count.stdout.trim()) === 0) return emptyRange(range.range);
   const r = spawnSync(
     process.execPath,
     [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
@@ -2043,6 +2049,114 @@ function secrets(root: string): Result {
   );
 }
 
+// The types of a commit header; the changelog will be generated from headers of these types (method section 7;
+// decision 001).
+const TYPES = [
+  "build",
+  "chore",
+  "ci",
+  "docs",
+  "feat",
+  "fix",
+  "perf",
+  "refactor",
+  "revert",
+  "style",
+  "test",
+];
+const HEADER = new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: \\S`);
+const MAX_HEADER = 100;
+// git's own headers for `git revert` of a commit and of a revert, judged by the header they wrap, and git's own merge
+// header, which a revert of a merged pull request wraps.
+const WRAPPED = /^(Revert|Reapply) "(.*)"$/;
+const MERGE = /^Merge /;
+// git's headers for `commit --fixup[=amend:|reword:]` and `--squash`: fine while working, squashed before a pull
+// request.
+const AUTOSQUASH = /^(fixup|squash|amend)! /;
+// What JSON.stringify leaves as it is but a terminal or log viewer acts on, or a reader cannot see: DEL, the C1
+// controls, the bidi marks, U+2028/9, and the invisible format characters (soft hyphen, zero-width characters, word
+// joiner, byte-order mark).
+const UNPRINTABLE =
+  /[\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
+/** A header for output: its first 100 characters if longer, quoted, every character of UNPRINTABLE escaped. */
+const shownHeader = (written: string): string =>
+  JSON.stringify(
+    written.length > MAX_HEADER
+      ? `${written.slice(0, MAX_HEADER)}...`
+      : written,
+  ).replace(
+    UNPRINTABLE,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+/** What is wrong with a header as written, or null. */
+function headerProblem(written: string): string | null {
+  const shown = shownHeader(written);
+  if (written.length > MAX_HEADER)
+    return `${shown}: ${written.length} characters, more than ${MAX_HEADER}`;
+  let h = written;
+  for (let w = WRAPPED.exec(h); w; w = WRAPPED.exec(h)) h = w[2];
+  if (h !== written && MERGE.test(h)) return null;
+  if (AUTOSQUASH.test(h))
+    return `${shown}: a fixup, squash or amend commit; squash it before the pull request`;
+  if (!HEADER.test(h))
+    return `${shown}: not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
+  return null;
+}
+
+/**
+ * A message's header as git reads it: its first non-blank line, trailing ASCII blanks and a carriage return removed.
+ * A message stored verbatim (an API commit, `--cleanup=verbatim`) keeps them; git's default clean-up removes them.
+ * Blank means ASCII blanks only, as in git: a line of a no-break space or a byte-order mark is a header.
+ */
+function headerOf(message: string): string {
+  // A scan from the end, not a regular expression: /[ \t\r]+$/ takes quadratic time on a long run of blanks.
+  for (const line of message.split("\n")) {
+    let end = line.length;
+    while (end > 0 && " \t\r".includes(line[end - 1])) end--;
+    if (end) return line.slice(0, end);
+  }
+  return "";
+}
+
+// Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
+function commits(root: string): Result {
+  const range = commitRange(root);
+  if (isResult(range)) return range;
+  const r = spawnSync(
+    "git",
+    // The whole message, not %s: git's %s joins a body line written right below the subject into it. -z ends each
+    // commit with a NUL, which no commit message can hold.
+    // --no-show-signature: a contributor's log.showSignature would print signature text before the hash.
+    [
+      ...["-C", root, "log", "-z", "--no-merges", "--no-show-signature"],
+      ...["--format=%h%n%B", "--end-of-options", range.range, "--"],
+    ],
+    { encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (r.status !== 0)
+    return result(
+      CANNOT,
+      `git log ${range.range} failed: ${r.stderr?.trim() || errorCode(r.error) || "no reason given"}`,
+    );
+  const records = r.stdout.split("\0").filter(Boolean);
+  if (!records.length) return emptyRange(range.range);
+  const details = records.flatMap((rec) => {
+    const [hash, ...message] = rec.split("\n");
+    const problem = headerProblem(headerOf(message.join("\n")));
+    return problem ? [`${hash} ${problem}`] : [];
+  });
+  if (details.length)
+    return result(
+      FINDING,
+      `${details.length} of ${records.length} commit(s)`,
+      details,
+    );
+  return result(
+    PASS,
+    `${records.length} commit(s) in ${range.range}, every header conventional`,
+  );
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -2056,6 +2170,7 @@ const CHECKS: Record<string, Check> = {
   svelte,
   test,
   dupes,
+  commits,
   pins,
   "gate-needs": gateNeeds,
   links,
