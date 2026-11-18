@@ -610,6 +610,39 @@ test("lockfile: a package.json not marked private is a finding", () => {
   // Until the packaging pull request, a stray publish must fail on the manifest.
   expect("lockfile", repo(pkg((p) => delete p.private)), 1);
 });
+/** The fixture with a workspace package `site` whose manifest is `manifest` (none when null). */
+const sitePackage =
+  (manifest: object | null) =>
+  (root: string): void => {
+    workspace("packages:\n  - site")(root);
+    if (manifest) put(root, "site/package.json", JSON.stringify(manifest));
+  };
+test("lockfile: a workspace package with workspace links and exact development versions passes", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*" },
+    devDependencies: { vite: "8.3.8" },
+  });
+  expect("lockfile", repo(site), 0);
+});
+test("lockfile: a workspace package's range or registry dependency is a finding that names its manifest", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*", "left-pad": "1.3.0" },
+    devDependencies: { vite: "^8.3.8" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: dependencies: left-pad is "1\.3\.0"/);
+  assert.match(
+    out,
+    /site\/package\.json: devDependencies: vite is "\^8\.3\.8"/,
+  );
+  assert.doesNotMatch(out, /sveltedt/);
+});
+test("lockfile: a workspace package without a manifest is a finding", () => {
+  assert.match(
+    expect("lockfile", repo(sitePackage(null)), 1),
+    /site\/package\.json is missing or not JSON/,
+  );
+});
 test("files: a required file on disk but not tracked is a finding", () => {
   const root = repo();
   git(root, "rm", "-q", "--cached", "SECURITY.md"); // CI sees only tracked files

@@ -572,8 +572,36 @@ function ageProblems(root: string): string[] {
   return problems;
 }
 
+/** Each workspace package named in pnpm-workspace.yaml depends only on workspace links, with exact development versions. */
+function workspaceProblems(root: string): string[] {
+  const lines = readText(root, "pnpm-workspace.yaml").split("\n");
+  const head = lines.findIndex((l) => /^packages:\s*$/.test(l));
+  if (head < 0) return [];
+  // Its entries run to the next setting; comment and blank lines end nothing.
+  const rest = lines.slice(head + 1);
+  const end = rest.findIndex((l) => /^\S/.test(l) && !l.startsWith("#"));
+  return (end < 0 ? rest : rest.slice(0, end))
+    .map((l) => /^\s+-\s+['"]?([^'"#\s]+)/.exec(l)?.[1])
+    .filter((dir): dir is string => dir !== undefined)
+    .flatMap((dir) => {
+      const file = `${dir}/package.json`;
+      const pkg = readJson(root, file);
+      if (!pkg) return [`${file} is missing or not JSON`];
+      return [
+        ...Object.entries(pkg.dependencies ?? {})
+          .filter(([, v]) => v !== "workspace:*")
+          .map(([n, v]) => `dependencies: ${n} is "${v}", not "workspace:*"`),
+        ...Object.entries(pkg.devDependencies ?? {})
+          .filter(([, v]) => !EXACT.test(v))
+          .map(
+            ([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`,
+          ),
+      ].map((p) => `${file}: ${p}`);
+    });
+}
+
 // Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
-// exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
+// exact, in every workspace package too; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root: string, list: Set<string>): Result {
   const pkg = readJson(root, "package.json");
@@ -581,6 +609,7 @@ function lockfile(root: string, list: Set<string>): Result {
   const details = [
     ...lockfileProblems(root, list),
     ...packageProblems(pkg),
+    ...workspaceProblems(root),
     ...ageProblems(root),
   ];
   if (details.length)
