@@ -136,6 +136,7 @@ function repo(change: (root: string) => void = () => {}): string {
     "docs/engineering/method.md":
       "# Method\n\n[Companion](gates.md), [site](https://example.org/a), [top](#method).\n",
     "docs/engineering/gates.md": "# Gates\n",
+    "docs/PRD.md": "# Requirements\n",
     "AGENTS.md": "# Agents\n",
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/zizmor.version": "version 9.9.9\nlinux_x86_64_sha256 00\n",
@@ -310,6 +311,12 @@ const remove = (path: string) => (root: string) => rmSync(join(root, path));
 
 test("files: passes on a complete repository", () => {
   expect("files", repo(), 0);
+});
+test("files: a missing requirements document is a finding", () => {
+  assert.match(
+    expect("files", repo(remove("docs/PRD.md")), 1),
+    /docs\/PRD\.md/,
+  );
 });
 test("files: a missing required file is a finding", () => {
   assert.match(expect("files", repo(remove("SECURITY.md")), 1), /SECURITY\.md/);
@@ -507,6 +514,12 @@ test("text: a merge-conflict marker is a finding", () => {
     1,
   );
 });
+test("format: the owner-approved requirements are never reformatted", () => {
+  // The PRD changes only through its owner; the text step checks it instead.
+  const unformatted = (root: string) =>
+    put(root, "docs/PRD.md", "#   Requirements\n");
+  expect("format", repo(unformatted), 0);
+});
 test("text: the owner-approved method text is still checked", () => {
   expect(
     "text",
@@ -539,6 +552,7 @@ test("text: a repository without a file of its class cannot be checked", () => {
         ".github/CODEOWNERS",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
+        "docs/PRD.md",
         "scripts/actionlint.version",
         "scripts/zizmor.version",
         "scripts/gitleaks.version",

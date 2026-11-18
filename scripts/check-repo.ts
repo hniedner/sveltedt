@@ -47,6 +47,7 @@ const REQUIRED = [
   "AGENTS.md",
   "docs/engineering/method.md",
   "docs/engineering/gates.md",
+  "docs/PRD.md",
   "scripts/actionlint.version",
   ".github/workflows/ci.yml",
   ".github/workflows/dependency-review.yml",
@@ -565,7 +566,7 @@ const CLASSES: FileClass[] = [
     why: "planted violations, run by their own step's canary run",
   },
   {
-    match: /^docs\/engineering\/(method|gates)\.md$/,
+    match: /^docs\/(engineering\/(method|gates)|PRD)\.md$/,
     steps: ["text"],
     why: "owner-approved text: changes only through its change log, never by a formatter",
   },
