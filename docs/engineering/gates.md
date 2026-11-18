@@ -60,14 +60,18 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 - Reads test results, not test names (JUnit XML, Vitest JSON). Every statement has at least one test that ran and
   passed, except one reported as *not yet tested*.
-- *Not yet tested* means that no `@spec` marker anywhere names the statement. A skipped, stale or failing test is
-  never this state; it fails. A protected statement is never this state; with no test it fails.
-- On a pull request the check exits 0 and prints every untested id under the heading `not yet tested`, never under
-  pass. The count may not grow against main except by statements the change adds, so a deleted test fails.
+- *Not yet tested* means that no `@spec` marker in the test sources names the statement; the check reads those
+  markers as well as the results. A skipped, stale or failing test is never this state; it fails. A protected
+  statement is never this state; with no test it fails.
+- Without a mode the check exits 0 on untested statements and prints their ids under the heading `not yet tested`,
+  never under pass. On a pull request it also compares the set of untested ids with the base commit's: an id that
+  was tested there and is untested now fails, so a deleted test fails. On main and locally there is no base, and
+  only the list is printed.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
-  recorded in the closing comment) exits 1 while any of them is untested. `trace --release` runs in the release
-  build: from 1.0 on it exits 1 while any statement is untested; before 1.0 it fails only on the statements of
-  closed milestones and prints the untested count for the release notes.
+  recorded in the closing comment) exits 1 while any of them is untested; an empty list or an id no spec holds is
+  exit 2. `trace --release` runs in the release build: from 1.0 on it exits 1 while any statement is untested;
+  before 1.0 it exits 0 and prints the untested count for the release notes (closed milestones were checked by
+  `--close`).
 - Skip, xfail, `.only` and `todo` fail the check.
 - Marker: `@spec("TABLE-07", "<first 8 hex of sha256 of the statement text>")`. A hash mismatch makes the test stale, which fails.
 - A test id that no spec holds fails.
@@ -75,7 +79,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 - Reads the spec files: a spec header without `Field names: yes|no`, or a `yes` spec whose text does not cite the
   owning field-name statement, fails; a spec folder it cannot read is could-not-check.
 - Canary: a planted skipped test must fail it; a planted untested statement must be listed on a pull request and
-  must fail `--close` and a 1.0 `--release`.
+  must fail `--close` and a 1.0 `--release`; a planted deleted test must fail a pull request; `--close` with an
+  empty list must exit 2.
 
 ## G7. `red-check`
 
@@ -242,8 +247,8 @@ adopted now: the workflow lockfile `.github/workflows/actions.lock`, which "supe
 lockfiles)*; the pages read did not show its release status or how Dependabot updates it. Reopen when they do.
 
 **Release workflows: trusted publishing, no stored tokens.** On a `v*` tag. Job `build` (no cache) runs the full
-gate, the full mutation run and `release-links` (G5), and uploads the package. Job `publish` runs in the environment
-`release`, whose required reviewer is the owner (method §1: the owner decides releases); required reviewers are
+gate, `trace --release` (G6), the full mutation run and `release-links` (G5), and uploads the package. Job
+`publish` runs in the environment `release`, whose required reviewer is the owner (method §1: the owner decides releases); required reviewers are
 available on public repos on every plan *(fetched, environments)*.
 - npm, `@hniedner/sveltedt`: trusted publishing over OIDC; npm CLI 11.5.1+ and Node 22.14.0+; GitHub-hosted runner; the
   workflow file name entered exactly; provenance is generated automatically for a public package from a public repo
