@@ -1254,6 +1254,37 @@ test("test: an unhandled rejection is a finding, though the report counts no fai
   assert.match(out, /vitest exited 1/);
   assert.match(out, /late failure/);
 });
+test("test: a test skipped at run time beside a passing one is a finding that names it", () => {
+  const partly = `${PASSING_VITEST}test.skipIf(!process.env.NEVER_SET)("the real check", () => {\n  expect(1).toBe(2);\n});\n`;
+  const out = expect("test", repo(vitestTest(partly)), 1);
+  assert.match(out, /1 test\(s\) skipped/);
+  assert.match(out, /^ {4}the real check$/m);
+});
+test("test: a config option that lets an unhandled error pass cannot be checked", () => {
+  for (const option of [
+    "dangerouslyIgnoreUnhandledErrors: true",
+    "onUnhandledError: () => false",
+  ]) {
+    const swallowing = (root: string): void => {
+      vitestTest(PASSING_VITEST)(root);
+      put(
+        root,
+        "vitest.config.ts",
+        `export default { test: { include: ["src/**/*.test.ts"], ${option} } };\n`,
+      );
+    };
+    const out = expect("test", repo(swallowing), 3);
+    assert.match(out, new RegExp(option.split(":")[0]));
+  }
+});
+test("test: the reason shown for an unhandled TypeError names it and the file it came from", () => {
+  const typeError =
+    'test("adds", () => {\n  void Promise.resolve().then(() => (undefined as unknown as { x: { y: 1 } }).x.y);\n  expect(1).toBe(1);\n});\n';
+  const out = expect("test", repo(vitestTest(typeError)), 1);
+  assert.match(out, /TypeError/);
+  assert.match(out, /src\/a\.test\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
+});
 test("test: a test file that fails to load is a finding that names it, and is counted", () => {
   const both = (root: string): void => {
     vitestTest(PASSING_VITEST)(root);
@@ -1308,6 +1339,7 @@ test("test: a config vitest cannot load cannot be checked, and says why", () => 
   const out = expect("test", repo(broken), 3);
   assert.match(out, /vitest wrote no report/);
   assert.match(out, /vitest\.config\.ts/);
+  assert.ok(!out.includes(`${String.fromCharCode(27)}[`), out);
 });
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);

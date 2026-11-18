@@ -1739,15 +1739,19 @@ const isVitestTest = (f: string): boolean =>
 /** Tracked code a test should cover: TypeScript and components under src/ and site/. */
 const isTestedCode = (f: string): boolean =>
   /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f) && !isVitestTest(f);
+const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, "g");
 /** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
 function tail(text: string): string[] {
   const lines = text
+    .replace(COLOUR, "") // colour codes the children print
     .split("\n")
     .filter(
       (l) => l.trim() && !/^\s+(?:at |❯ |\d+\||\|)|JSON report written/.test(l),
     );
-  const errors = lines.filter((l) => /\bError\b.*:/.test(l));
-  return [...errors, ...lines.filter((l) => !errors.includes(l))].slice(0, 8);
+  const first = lines.filter((l) =>
+    /\w*(?:Error|Exception)\b.*:|originated in/.test(l),
+  );
+  return [...first, ...lines.filter((l) => !first.includes(l))].slice(0, 8);
 }
 
 interface VitestReport {
@@ -1781,7 +1785,12 @@ function vitest(
         "--reporter=json",
         `--outputFile.json=${file}`,
       ],
-      { cwd, encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
+      {
+        cwd,
+        encoding: "utf8",
+        env: childEnv(),
+        maxBuffer: 64 * 1024 * 1024,
+      },
     );
     const report = existsSync(file)
       ? (JSON.parse(readFileSync(file, "utf8")) as VitestReport)
@@ -1816,6 +1825,19 @@ function test(root: string, list: Set<string>): Result {
         );
   if (!list.has("vitest.config.ts"))
     return result(CANNOT, "vitest.config.ts is not tracked");
+  // Options that let an unhandled error exit 0, read as text: a config that builds the name at run time is not seen
+  const swallowing = [
+    "dangerouslyIgnoreUnhandledErrors",
+    "onUnhandledError",
+  ].filter((o) =>
+    readFileSync(join(root, "vitest.config.ts"), "utf8").includes(o),
+  );
+  if (swallowing.length)
+    return result(
+      CANNOT,
+      "vitest.config.ts lets an unhandled error pass",
+      swallowing,
+    );
   const {
     report: run,
     status,
@@ -1857,7 +1879,18 @@ function test(root: string, list: Set<string>): Result {
       "no test passed in tracked test files (all skipped?)",
       idle,
     );
+  // A test skipped at run time (skipIf, runIf, ctx.skip()) did not check its statement
   const skipped = run.numPendingTests + run.numTodoTests;
+  if (skipped)
+    return result(
+      FINDING,
+      `${skipped} test(s) skipped`,
+      mine.flatMap((f) =>
+        (byFile.get(f)?.assertionResults ?? [])
+          .filter((a) => a.status !== "passed")
+          .map((a) => `${f}:\n    ${a.fullName}`),
+      ),
+    );
   return result(
     PASS,
     `vitest failed the canary; ${run.numTotalTests - skipped} test(s) in ${byFile.size} file(s) passed, ${skipped} skipped`,
