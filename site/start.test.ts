@@ -68,10 +68,13 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  for (const close of closers.reverse()) await close();
-  vi.restoreAllMocks();
-  process.exitCode = savedExitCode;
-  rmSync(folder, { recursive: true, force: true });
+  try {
+    for (const close of closers.reverse()) await close();
+  } finally {
+    vi.restoreAllMocks();
+    process.exitCode = savedExitCode;
+    rmSync(folder, { recursive: true, force: true });
+  }
 });
 
 function closeLater(server: Server | ReturnType<typeof createServer>): void {
@@ -190,6 +193,15 @@ describe("SRV-06", () => {
       expect(await refused()).toBe(!holding);
     },
   );
+  // Regression: the start's own error handler once outlived the start, so a later server error was taken for "in use"
+  it("leaves a later error of the listening server to Node, not to the start's refusal", async () => {
+    withIndex();
+    const server = await start();
+    const later = Object.assign(new Error("later"), { code: "EADDRINUSE" });
+    expect(() => server?.emit("error", later)).toThrow(later);
+    expect(err).toEqual([]);
+    expect(process.exitCode).toBeUndefined();
+  });
 });
 
 // @spec("SRV-07", "5655c5f2")

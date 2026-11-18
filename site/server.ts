@@ -80,12 +80,15 @@ export function startSite(buildFolder: string): Promise<Server | null> {
     );
   const server = serve(files);
   return new Promise((resolve, reject) => {
-    server.once("error", (error: NodeJS.ErrnoException) => {
+    // Only the listen's own error is the start's: once it listens, a server error is Node's to report
+    const failed = (error: NodeJS.ErrnoException): void => {
       if (error.code === "EADDRINUSE")
         resolve(refuse("127.0.0.1:4173 is in use."));
       else reject(error);
-    });
+    };
+    server.once("error", failed);
     server.listen(4173, "127.0.0.1", () => {
+      server.off("error", failed);
       process.stdout.write("The site: http://127.0.0.1:4173/\n");
       resolve(server);
     });
