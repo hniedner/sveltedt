@@ -695,7 +695,11 @@ const CLASSES: FileClass[] = [
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
-  { match: /\.svelte$/, steps: ["format", "lint", "svelte"] },
+  {
+    match: /\.svelte$/,
+    steps: ["format", "lint", "svelte"],
+    why: "dupes: jscpd 5 counts a component as several sources and lists none, so no file can be proven analysed (#7)",
+  },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
