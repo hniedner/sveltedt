@@ -45,9 +45,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group. A requirement id from `docs/PRD.md` is written `PRD-B1`.
-- **Before its test.** A statement may land before the test that proves it. Until that test runs and passes, the
-  trace check lists the statement as "not yet tested", never as a pass; an untested statement blocks the close of its
-  milestone and every release.
+- **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
+  the method's rule (section 2, step 7).
 
 ---
 
