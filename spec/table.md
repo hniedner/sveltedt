@@ -22,8 +22,7 @@ to the consumer as one callback (stated with the statements that add user action
   requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
   a hash of the statement text.
 - **Test layers.**
-  - **component**: the component mounted in a simulated DOM, queried through roles, accessible names and visible
-    text only. No test ids and no internals.
+  - **component**: the component mounted in a simulated DOM.
   - **real browser**: the component mounted on a test-site page in a real engine, in Chromium, Firefox and WebKit
     unless the statement names fewer and says why. Used for what needs an engine: layout, scrolling,
     focus (the simulated DOM differs from engines there), focus indicators, hover, axe, time bounds.
@@ -46,14 +45,15 @@ to the consumer as one callback (stated with the statements that add user action
   `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
   A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
-  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component: the
-  one query without a role these statements allow, because the count has no role of its own.
+  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
+  because the count has no role of its own.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
 - **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
-- **Queries.** A test finds elements by role, accessible name and visible text, and may read the tag and the ARIA
-  and HTML attributes of an element so found, never a test id or a class.
+- **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
+  attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
+  element of a named tag or selector; never a test id or a class.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -874,8 +874,9 @@ how to add a column.
 `Pagination` is a separate component, so a consumer can place it anywhere or leave it out. The current page is
 `offset / limit` rounded down, plus 1, except while `offset` is above 0 and at or past `total`, when no page is
 current (PAGE-25); the number of pages is `total / limit` rounded up, and at least 1. "First page" and "Previous page"
-can move unless `offset` is 0; "Next page" and "Last page" can move while `offset` plus `limit` is below `total`.
-"Previous page" moves to the page before the current one, or to offset 0 from page 1.
+can move unless `offset` is 0; "Next page" and "Last page" can move while the page that holds `offset` ends
+before `total` (its number, `offset / limit` rounded down plus 1, times `limit` is below `total`). "Previous page"
+moves to the page before the current one, or to offset 0 from page 1; past `total` it moves as PAGE-26 says.
 
 **PAGE-09** The pager MUST be a `nav` element named by its `label` prop.
 - Example: `label="Pages of orders"` gives exactly one element found by role `navigation` and name "Pages of orders".
@@ -1019,6 +1020,7 @@ offsets on the page grid.
   | 25, 50, 95 | 1 | Next page | 50 |
   | 25, 50, 95 | 1 | Last page | 50 |
   | 91, 10, 95 | 10, `1 … 6 7 8 9 10` | Previous page | 80 |
+  | 85, 10, 95 | 9, `1 … 6 7 8 9 10` | Next page | 90 |
   | 91, 10, 95 | 10 | Page 10 (the current page) | 90 |
 
 - Reason: a consumer that keeps its offset after a size change still gets whole pages back, and the rows it skipped
@@ -1052,6 +1054,7 @@ offsets on the page grid.
   | `offset 100, total 95` (past the last page) | Next page, Last page |
   | `offset 25, limit 50, total 95` (off the grid, on page 1 of 2) | none |
   | `offset 91, total 95` (off the grid, on the last page) | Next page, Last page |
+  | `offset 85, total 95` (off the grid, on page 9 of 10) | none |
 
   In every row no step button has the `disabled` attribute (PAGE-21 shows that focus stays on one). Break that
   turns it red: the button gets `disabled` instead.
