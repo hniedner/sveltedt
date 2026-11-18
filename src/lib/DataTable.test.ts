@@ -152,3 +152,38 @@ describe("STATE-03 first example; the statement's marker arrives with 1c", () =>
     ).toBe("3");
   });
 });
+
+describe("RND-03 first examples; the statement's marker arrives with 1c", () => {
+  const places: [
+    string,
+    (text: string) => Partial<DataTableProps<Item>>,
+    (text: string) => HTMLElement,
+  ][] = [
+    [
+      "caption",
+      (text) => ({ caption: text }),
+      (text) => screen.getByRole("table", { name: text }),
+    ],
+    [
+      "a column label",
+      (text) => ({ columns: [{ ...nameColumn, label: text }] }),
+      (text) => screen.getByRole("columnheader", { name: text }),
+    ],
+    [
+      "a default cell",
+      (text) => ({ rows: [{ id: "r1", name: text }] }),
+      (text) => screen.getByRole("cell", { name: text }),
+    ],
+  ];
+  const texts = ["<img src=x onerror=alert(1)>", "<none>"];
+
+  it.each(
+    places.flatMap(([place, props, find]) =>
+      texts.map((text) => [place, text, props, find] as const),
+    ),
+  )("renders %s %s as text, never as markup", (_place, text, props, find) => {
+    const component = show(props(text));
+    expect(find(text).isConnected).toBe(true);
+    expect(component.querySelector("img, none")).toBeNull();
+  });
+});
