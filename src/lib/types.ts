@@ -14,4 +14,6 @@ export interface DataTableProps<Row> {
   getRowId: (row: Row) => string;
   caption: string;
   regionLabel: string;
+  heading?: Snippet;
+  actions?: Snippet;
 }
