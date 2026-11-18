@@ -572,8 +572,42 @@ function ageProblems(root: string): string[] {
   return problems;
 }
 
+/** Each workspace package named in pnpm-workspace.yaml depends only on workspace links, with exact development versions. */
+function workspaceProblems(root: string): string[] {
+  const text = readText(root, "pnpm-workspace.yaml");
+  const lines = text.split("\n");
+  const head = lines.findIndex((l) => /^packages:\s*$/.test(l));
+  // Its entries run to the next setting; comment and blank lines end nothing.
+  const rest = head < 0 ? [] : lines.slice(head + 1);
+  const end = rest.findIndex((l) => /^\S/.test(l) && !l.startsWith("#"));
+  const dirs = (end < 0 ? rest : rest.slice(0, end))
+    .map((l) => /^\s+-\s+['"]?([^'"#\s]+)/.exec(l)?.[1])
+    .filter((dir): dir is string => dir !== undefined);
+  // Another YAML form of the list (flow style, an unindented sequence, a comment after the key) would check nothing
+  if (!dirs.length && /^['"]?packages['"]?\s*:/m.test(text))
+    return [
+      "pnpm-workspace.yaml: packages are named in a form this step cannot read; write one indented `- <folder>` per line",
+    ];
+  return dirs.flatMap((dir) => {
+    const file = `${dir}/package.json`;
+    const pkg = readJson(root, file);
+    if (!pkg) return [`${file} is missing or not JSON`];
+    const links = (
+      ["dependencies", "optionalDependencies", "peerDependencies"] as const
+    ).flatMap((kind) =>
+      Object.entries(pkg[kind] ?? {})
+        .filter(([, v]) => v !== "workspace:*")
+        .map(([n, v]) => `${kind}: ${n} is "${v}", not "workspace:*"`),
+    );
+    const ranges = Object.entries(pkg.devDependencies ?? {})
+      .filter(([, v]) => !EXACT.test(v))
+      .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+    return [...links, ...ranges].map((p) => `${file}: ${p}`);
+  });
+}
+
 // Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
-// exact; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
+// exact, in every workspace package too; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root: string, list: Set<string>): Result {
   const pkg = readJson(root, "package.json");
@@ -581,6 +615,7 @@ function lockfile(root: string, list: Set<string>): Result {
   const details = [
     ...lockfileProblems(root, list),
     ...packageProblems(pkg),
+    ...workspaceProblems(root),
     ...ageProblems(root),
   ];
   if (details.length)

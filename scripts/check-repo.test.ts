@@ -620,6 +620,85 @@ test("lockfile: a package.json not marked private is a finding", () => {
   // Until the packaging pull request, a stray publish must fail on the manifest.
   expect("lockfile", repo(pkg((p) => delete p.private)), 1);
 });
+/** The fixture with a workspace package `site` whose manifest is `manifest` (none when null). */
+const sitePackage =
+  (manifest: object | null) =>
+  (root: string): void => {
+    workspace("packages:\n  - site")(root);
+    if (manifest) put(root, "site/package.json", JSON.stringify(manifest));
+  };
+test("lockfile: a workspace package with workspace links and exact development versions passes", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*" },
+    devDependencies: { vite: "8.3.8" },
+  });
+  expect("lockfile", repo(site), 0);
+});
+test("lockfile: a workspace package's range or registry dependency is a finding that names its manifest", () => {
+  const site = sitePackage({
+    dependencies: { "@hniedner/sveltedt": "workspace:*", "left-pad": "1.3.0" },
+    devDependencies: { vite: "^8.3.8" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: dependencies: left-pad is "1\.3\.0"/);
+  assert.match(
+    out,
+    /site\/package\.json: devDependencies: vite is "\^8\.3\.8"/,
+  );
+  assert.doesNotMatch(out, /sveltedt/);
+});
+test("lockfile: a workspace package without a manifest is a finding", () => {
+  assert.match(
+    expect("lockfile", repo(sitePackage(null)), 1),
+    /site\/package\.json is missing or not JSON/,
+  );
+});
+test("lockfile: workspace packages written in a form the step cannot read are a finding, never a pass", () => {
+  for (const form of [
+    "packages: [site]",
+    "packages:\n- site",
+    "packages: # the site",
+  ]) {
+    const site = (root: string): void => {
+      workspace(form)(root);
+      put(root, "site/package.json", "{}");
+    };
+    assert.match(
+      expect("lockfile", repo(site), 1),
+      /pnpm-workspace\.yaml: packages are named in a form this step cannot read/,
+    );
+  }
+});
+test("lockfile: every entry of the packages list is read, and the list ends at the next setting", () => {
+  const list = (root: string): void => {
+    workspace(
+      `packages:\n  - site\n  # the tools\n\n  - "tools/x"\n# exceptions\nminimumReleaseAgeExclude:\n  - prettier@3.9.11 ${GHSA}`,
+    )(root);
+    put(
+      root,
+      "site/package.json",
+      '{ "devDependencies": { "jsdom": "^31.0.1" } }',
+    );
+    put(
+      root,
+      "tools/x/package.json",
+      '{ "devDependencies": { "vite": "^8.3.8" } }',
+    );
+  };
+  const out = expect("lockfile", repo(list), 1);
+  assert.match(out, /tools\/x\/package\.json: devDependencies: vite/);
+  assert.match(out, /site\/package\.json: devDependencies: jsdom/);
+  assert.doesNotMatch(out, /prettier/);
+});
+test("lockfile: an optional or peer dependency of a workspace package other than a workspace link is a finding", () => {
+  const site = sitePackage({
+    optionalDependencies: { "left-pad": "1.3.0" },
+    peerDependencies: { svelte: "^5.0.0" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: optionalDependencies: left-pad/);
+  assert.match(out, /site\/package\.json: peerDependencies: svelte/);
+});
 test("files: a required file on disk but not tracked is a finding", () => {
   const root = repo();
   git(root, "rm", "-q", "--cached", "SECURITY.md"); // CI sees only tracked files

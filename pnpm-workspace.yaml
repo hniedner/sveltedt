@@ -2,6 +2,9 @@
 # The pin in package.json's packageManager is checked by the gate; with pmOnFail left at its default, pnpm would
 # write a second YAML document into the lockfile, which hides it from GitHub's dependency graph.
 pmOnFail: ignore
+# The test site, which depends on the package through a workspace link, as a consumer resolves it (spec/site.md).
+packages:
+  - site
 # No dependency may run an install script (PRD-S5).
 allowBuilds: {}
 strictDepBuilds: true

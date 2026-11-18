@@ -4,9 +4,18 @@
   "version": "0.0.0",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/lib/index.ts",
+      "svelte": "./src/lib/index.ts"
+    }
+  },
   "packageManager": "pnpm@12.19.0",
   "scripts": {
-    "gate": "node scripts/check-repo.ts all"
+    "gate": "node scripts/check-repo.ts all",
+    "test": "vitest run",
+    "site:build": "vite build --config site/vite.config.ts",
+    "site:serve": "node site/server.ts"
   },
   "prettier": {
     "plugins": [
@@ -15,18 +24,24 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.5",
+    "@testing-library/svelte": "5.4.2",
     "@types/node": "26.6.6",
     "@vitest/eslint-plugin": "1.6.28",
     "eslint": "10.15.0",
     "eslint-plugin-compat": "7.0.2",
     "eslint-plugin-svelte": "3.24.1",
     "jscpd": "5.4.3",
+    "jsdom": "31.0.1",
     "prettier": "3.9.10",
     "prettier-plugin-svelte": "4.1.1",
     "svelte": "5.57.3",
     "svelte-check": "4.7.8",
+    "tailwindcss": "4.3.5",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.2",
+    "vite": "8.3.8",
     "vitest": "5.1.0"
   }
 }
