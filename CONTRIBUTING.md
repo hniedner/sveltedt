@@ -88,12 +88,15 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   must exit 0 (an error thrown outside a test is in no report). With no test file and no code under `src/` or `site/`
   the step is NOT APPLICABLE, after its planted failing test was reported; code with no test file cannot be checked.
   A skipped or `test.todo` test beside a passing one is a finding; a file whose tests were all skipped cannot be
-  checked. The step overrides three config settings on the command line (each
-  flag wins, measured with Vitest 5.1.0): an unhandled error fails the run, a test with no assertion fails, and the
-  tests run rather than only being type-checked. The lint step adds Vitest's `expect-expect`, `valid-expect`,
+  checked. The step overrides four config settings on the command line (each flag wins, measured with Vitest
+  5.1.0): an unhandled error fails the run, a test with no assertion fails, the tests run rather than only being
+  type-checked, and a snapshot with nothing stored fails instead of being written (outside CI, vitest would write
+  it and pass). The expect and typecheck flags do not reach a project in `test.projects` (measured), so the step
+  refuses a `vitest.config.ts` that names `projects`. The lint step adds Vitest's `expect-expect`, `valid-expect`,
   `no-focused-tests` and `no-disabled-tests`; a bare `expect(a === b)` counts as an assertion at run time, so only
   `valid-expect` catches it. Limits, measured: no flag overrides an `onUnhandledError` function, so the step refuses
-  a `vitest.config.ts` that names it (read as text, so a name built at run time is not seen); a process-level
+  a `vitest.config.ts` that names it. Both names are read as text in that file only, so a name in a module it
+  imports (such as `vite.config.ts` through `mergeConfig`) or built at run time is not seen; a process-level
   `unhandledRejection` listener in a setup file still hides an unhandled error; and a `test.each` table that is empty
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no

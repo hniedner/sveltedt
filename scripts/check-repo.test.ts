@@ -1293,7 +1293,7 @@ test("test: a tracked config that turns assertions off does not let an empty tes
     vitestTest('test("nothing", () => {});\n')(root);
     vitestConfig("expect: { requireAssertions: false }")(root);
   };
-  expect("test", repo(off), 1);
+  assert.match(expect("test", repo(off), 1), /^ {4}nothing$/m);
 });
 test("test: a tracked config that only type-checks the tests does not stop them from running", () => {
   const typecheckOnly = (root: string): void => {
@@ -1302,7 +1302,7 @@ test("test: a tracked config that only type-checks the tests does not stop them 
       'typecheck: { enabled: true, only: true, include: ["src/**/*.test.ts"] }',
     )(root);
   };
-  expect("test", repo(typecheckOnly), 1);
+  assert.match(expect("test", repo(typecheckOnly), 1), /^ {4}adds$/m);
 });
 test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (no flag overrides it)", () => {
   const handler = (root: string): void => {
@@ -1310,6 +1310,53 @@ test("test: an onUnhandledError handler in vitest.config.ts cannot be checked (n
     vitestConfig("onUnhandledError: () => false")(root);
   };
   assert.match(expect("test", repo(handler), 3), /onUnhandledError/);
+});
+test("test: a config with projects cannot be checked (the step's flags do not reach a project)", () => {
+  const projects = (root: string): void => {
+    vitestTest('test("nothing", () => {});\n')(root);
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { projects: [{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } }] } };\n',
+    );
+  };
+  assert.match(expect("test", repo(projects), 3), /projects/);
+});
+test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
+  const root = repo(
+    vitestTest(
+      'test("renders", () => {\n  expect("<p>6</p>").toMatchSnapshot();\n  expect("<p>9</p>").toMatchInlineSnapshot();\n});\n',
+    ),
+  );
+  // CI emptied: outside CI vitest writes a missing snapshot and passes, the case the step must refuse
+  const out = expect("test", root, 1, { extraEnv: { CI: "" } });
+  assert.match(out, /^ {4}renders$/m);
+  assert.equal(git(root, "diff", "--name-only"), "");
+  assert.equal(git(root, "ls-files", "--others", "--exclude-standard"), "");
+});
+/** A stand-in for vitest: the canary run reports a failed test; the real run prints more than the step buffers. */
+function fakeVitest(): string {
+  const bin = join(tempDir(), "vitest");
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs");
+const out = process.argv.find((a) => a.startsWith("--outputFile.json="));
+if (!process.argv.includes("--config")) {
+  writeFileSync(out.split("=")[1], JSON.stringify({ numFailedTests: 1 }));
+} else {
+  process.stdout.write(\`\${"x".repeat(1023)}\\n\`.repeat(65 * 1024));
+}
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+test("test: a real run that vitest cannot finish cannot be checked, and says why", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    extraEnv: { VITEST_BIN: fakeVitest() },
+  });
+  assert.match(out, /cannot run .*vitest: ENOBUFS/);
 });
 test("test: a vitest that cannot be started cannot be checked, and says why", () => {
   const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
@@ -2127,6 +2174,17 @@ test("lint: a config block that changes a proven rule for the component's folder
       '{ files: ["site/**"], settings: { browsers: ["chrome 140"] } }',
       "site/src/probe.ts: settings",
     ],
+    // Each Vitest rule, off for the component's tests only: the tracked test file is compared.
+    ...[
+      "expect-expect",
+      "no-focused-tests",
+      "no-disabled-tests",
+      "valid-expect",
+    ].map((rule) => [
+      `{ files: ["src/**/*.test.ts"], rules: { "vitest/${rule}": "off" } }`,
+      `src/lib/x.test.ts: vitest/${rule}`,
+      "src/lib/x.test.ts",
+    ]),
   ]) {
     const config = join(tempDir(), "eslint.config.mjs");
     writeFileSync(
@@ -2135,7 +2193,18 @@ test("lint: a config block that changes a proven rule for the component's folder
     );
     const out = expect(
       "lint",
-      repo(file ? component(COMPONENT, file) : () => {}),
+      repo(
+        file.endsWith(".test.ts")
+          ? (root) =>
+              put(
+                root,
+                file,
+                `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+              )
+          : file
+            ? component(COMPONENT, file)
+            : () => {},
+      ),
       3,
       { extraEnv: { ESLINT_CONFIG: config } },
     );
