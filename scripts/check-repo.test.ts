@@ -1236,6 +1236,7 @@ test("test: a canary that vitest passes cannot be checked", () => {
     canaries: dir,
   });
   assert.match(out, /did not report the planted failing test/);
+  assert.doesNotMatch(out, /JSON report written/);
 });
 test("test: a canary run that writes no report cannot be checked, even with no test file to run", () => {
   const dir = canaryDir("test", {
