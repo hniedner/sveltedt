@@ -5,6 +5,9 @@
   const columns: DataTableColumn<Order>[] = [
     { id: "name", label: "Order", value: (order) => order.name },
   ];
+  // Typed here, not inline: svelte-check infers an inline callback's row type, but the type-aware lint does not
+  // and reads it as any
+  const getRowId = (order: Order): string => order.id;
 </script>
 
 <main>
@@ -12,7 +15,7 @@
   <DataTable
     rows={orders}
     {columns}
-    getRowId={(order: Order) => order.id}
+    {getRowId}
     caption="Orders"
     regionLabel="Orders table"
   />

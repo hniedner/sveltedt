@@ -124,12 +124,14 @@ export default [
       ],
     },
   },
-  // Vitest's rules fire only in files that import "vitest"; node:test files under scripts/ are left alone.
+  // Vitest's rules fire on test calls imported from "vitest" or used as globals; calls imported from node:test
+  // (scripts/) are left alone.
   {
     files: ["**/*.test.ts", "**/*.svelte.test.ts"],
     plugins: { vitest },
     rules: {
-      // Method section 4: a test without an assertion, a focused test or a skipped test cannot fail as written.
+      // Method section 4: a test without an assertion or a skipped test cannot fail, and a focused test stops the
+      // others in its file from running.
       "vitest/expect-expect": "error",
       "vitest/no-focused-tests": "error",
       "vitest/no-disabled-tests": "error",

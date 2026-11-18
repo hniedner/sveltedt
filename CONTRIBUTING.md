@@ -65,8 +65,9 @@ The checks today:
   APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
-  it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
-  added; that file is edited.
+  it (measured with svelte-check 4.7.8). A second Svelte config is not added; that file is edited. The two Vite
+  configs (`vitest.config.ts`, `site/vite.config.ts`) load it through the Svelte plugin; svelte-check, given
+  `--config`, imports neither.
 - **test:** Vitest runs the component and site tests (`src/**/*.test.ts`, `site/**/*.test.ts`) with the one
   `vitest.config.ts`; every tracked test file must have run, and a test that fails is a finding. With no such file
   tracked the step is NOT APPLICABLE, after its planted failing test was reported.

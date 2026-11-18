@@ -1,4 +1,4 @@
-// Planted violations for Vitest's rules: they fire only in a file that imports "vitest".
+// Planted violations for Vitest's rules: they fire on test calls imported from "vitest" or used as globals.
 import { expect, test } from "vitest";
 
 test("has no assertion", () => {});

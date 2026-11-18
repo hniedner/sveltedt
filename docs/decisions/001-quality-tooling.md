@@ -115,6 +115,21 @@ Three more joined the list by the owner's decision, 2026-11-17, all development 
 A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
 package is the gate's rule that nothing ships but a `svelte` peer.
 
+## Component toolchain (build 1a)
+
+All development dependencies, exact versions, MIT, no install script (`allowBuilds: {}`); their advisories are the
+picomatch entry below.
+
+- **vite 8.3.8, vitest 5.1.0, jsdom 31.0.1, tailwindcss 4.3.5, @testing-library/svelte 5.4.2:** chosen before this
+  build: Vite builds PRD-P3's size probe, Vitest runs PRD-G1 and G2, Tailwind 4 is PRD-T3's, jsdom is the component
+  layer of risk R3, and Vitest with Testing Library is the companion's component layer (gates.md, mutation).
+- **@sveltejs/vite-plugin-svelte 7.3.1:** the Svelte team's plugin that compiles components for Vite and Vitest; the
+  alternative is none (Svelte's own compiler has no Vite integration of its own).
+- **@tailwindcss/vite 4.3.5:** Tailwind's own Vite integration for version 4 (the PostCSS route would add a PostCSS
+  config, which the Svelte lint's settings keep out).
+- **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; three are used (no test without an assertion, no
+  focused and no skipped test), each with a canary.
+
 ## Accepted advisories
 
 - **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
@@ -132,11 +147,13 @@ package is the gate's rule that nothing ships but a `svelte` peer.
   picomatch 4.0.7 itself, with no vendored copy. Every pattern that reaches it in our set-up comes from vite's and
   vitest's fixed defaults or from our own tracked config; `import.meta.glob` turns extglobs off, Tailwind's `@source`
   is scanned in Rust, and a package's `sideEffects` patterns never reach picomatch in vite 8. Only a pull request
-  that writes an extglob into the test config and adds a matching file name can slow it down; the effect is at most
-  a hung test step, bounded by the job timeout, which that pull request can already cause. Not run under the logging
-  hook, and inferred to take their patterns from the same tracked config: coverage, the mutation runner and vite's
-  server-side resolve paths. A vite or vitest bump re-opens this claim: before it merges, picomatch is logged again
-  through a test run and the site build.
+  that writes an extglob into a Vite, Vitest or Svelte config and adds a matching file name can slow it down; the
+  effect is at most a hung test step, bounded by the job timeout, which that pull request can already cause. How it
+  was measured: a module hook that replaced `picomatch` with a wrapper logging every pattern, its `noextglob` flag,
+  its caller and any match slower than 50 ms, run with a test run, the site build and the dev server. Not run under
+  it, and inferred to take their patterns from the same tracked config: coverage and a mutation runner once they are
+  added, and vite's server-side resolve paths. A bump of vite, vitest, @sveltejs/vite-plugin-svelte or
+  @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
@@ -188,13 +205,16 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - with the first component test (taken in build 1a): Vitest's `expect.requireAssertions: true` (method section 4: a
   test without an assertion fails), `resolve.conditions: ['browser']`, and a setup file with `cleanup()` after each
-  test. Left there: the split into a Node and a jsdom project (the site server's test file names the Node
-  environment in its first line, `// @vitest-environment node`), the jest-dom matchers (the tests assert with
-  Vitest's own `expect`), and a Dependabot group for `vitest` and `@vitest/*` (the only direct `@vitest/*` package,
-  the ESLint plugin, is versioned on its own);
+  test;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**
+
+- The split into a Node and a jsdom project: the site server's test file names the Node environment in its first
+  line (`// @vitest-environment node`).
+- The jest-dom matchers: the tests assert with Vitest's own `expect`.
+- A Dependabot group for `vitest` and `@vitest/*`: the only direct `@vitest/*` package, the ESLint plugin, is
+  versioned on its own.
 
 - ESLint ignores read from `.gitignore`: here the class table alone selects files.
 - The `globals` package: a hand list is enough.
