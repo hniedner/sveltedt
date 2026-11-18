@@ -1,5 +1,11 @@
 // @vitest-environment node
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -34,11 +40,14 @@ function put(root: string, path: string, text: string): void {
 // A folder holding a package.json and the build folder `dist` with the given files; the server started on `dist`
 async function serve(
   files: Readonly<Record<string, string>>,
+  links: Readonly<Record<string, string>> = {},
 ): Promise<{ server: Server; dist: string }> {
   const folder = mkdtempSync(join(tmpdir(), "site-server-"));
   put(folder, "package.json", PARENT);
   const dist = join(folder, "dist");
   for (const [path, text] of Object.entries(files)) put(dist, path, text);
+  for (const [path, target] of Object.entries(links))
+    symlinkSync(target, join(dist, path));
   const server = siteServer(dist);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   started.push({ server, folder });
@@ -100,6 +109,20 @@ describe(spec("SRV-01", "a3f33248"), () => {
     expect(
       [PARENT, INDEX, APP, LATE].filter((file) => answer.body.includes(file)),
     ).toEqual([]);
+  });
+});
+
+describe("SRV-01: a link in the build folder leads nowhere outside it", () => {
+  it("answers a file reached through a folder link, or a link loop, with 404", async () => {
+    const { server } = await serve(
+      { "index.html": INDEX },
+      { parent: "..", loop: "." },
+    );
+    for (const path of ["/parent/package.json", "/loop/index.html"]) {
+      const answer = await get(server, path);
+      expect(answer.status).toBe(404);
+      expect(answer.body).not.toContain(PARENT);
+    }
   });
 });
 

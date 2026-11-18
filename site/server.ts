@@ -18,18 +18,20 @@ interface BuiltFile {
 
 export function siteServer(buildFolder: string): Server {
   const files = new Map<string, BuiltFile>();
-  // withFileTypes reports a symbolic link as a link, not a file, so no link leads out of the folder
-  for (const entry of readdirSync(buildFolder, {
-    recursive: true,
-    withFileTypes: true,
-  })) {
-    if (!entry.isFile()) continue;
-    const path = join(entry.parentPath, entry.name);
-    files.set(`/${relative(buildFolder, path).split(sep).join("/")}`, {
-      body: readFileSync(path),
-      type: TYPES[extname(path)] ?? "application/octet-stream",
-    });
-  }
+  // One folder level at a time: withFileTypes reports a symbolic link as a link, neither file nor folder, so a link
+  // to a file or to a folder is never followed (a recursive read would enter linked folders)
+  const walk = (folder: string): void => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.isFile())
+        files.set(`/${relative(buildFolder, path).split(sep).join("/")}`, {
+          body: readFileSync(path),
+          type: TYPES[extname(path)] ?? "application/octet-stream",
+        });
+    }
+  };
+  walk(buildFolder);
   const index = files.get("/index.html");
   if (index) files.set("/", index);
 
