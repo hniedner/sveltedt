@@ -185,6 +185,11 @@ A probe counts as evidence; a README claim does not. The server language is chos
 it is Python, version 3.14 (3.15 only for a tangible, recorded benefit). Tool names in this method are examples per
 language.
 
+Before a non-trivial decision (a mechanism, a measure, a budget, a format, a public interface or a user-facing
+pattern), the proposal states how the leading libraries or the relevant standard do it, from primary sources fetched
+for that decision, each claim marked as fetched or inferred. A proposal without it is returned. Where no established
+practice is found, the proposal says so.
+
 ## 9. Public repositories
 
 - **Only synthetic data.** Fixtures come from a seeded generator and use a reserved identifier shape that a check
@@ -271,3 +276,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-17 | Step 7 and G6: a statement may be merged before its test and is listed as *not yet tested*, never as a pass; it blocks the milestone close, 1.0 and every later release | Owner's decision, 2026-11-17 |
 | 2026-11-17 | Companion G10: the concurrency group is keyed on the pull-request number, not the branch name, which pull requests from forks can share | Fact correction; owner's decision, 2026-11-17 |
 | 2026-11-18 | Step 6: a test written only as scaffolding is removed before the commit; the tests that are kept are named, each under its statement; a test that alone pins logic or kills a mutant is not scaffolding | The method said what padding is but not what happens to the tests that drive the work inward, so scaffolding tests landed with the commit; the practice the owner follows removes them and keeps behaviour, table, contract and regression tests. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 8: before a non-trivial decision, the proposal states the practice of the leading libraries or the relevant standard, from sources fetched for it, each claim marked fetched or inferred | Section 8 covered building, not deciding: mechanisms, budgets and patterns were proposed without a check against established practice. Owner's decision, 2026-11-18 |
