@@ -119,7 +119,6 @@ function files(root: string, list: Set<string>): Result {
 
 function pins(root: string, list: Set<string>): Result {
   const yaml = [...list].filter((f) => /^\.github\/.*\.ya?ml$/.test(f));
-  if (!yaml.length) return result(CANNOT, "no YAML file under .github/");
   let uses = 0;
   const details: string[] = [];
   for (const f of yaml) {
@@ -202,7 +201,6 @@ function gateNeeds(root: string, list: Set<string>): Result {
 
 function links(root: string, list: Set<string>): Result {
   const markdown = [...list].filter((f) => f.endsWith(".md"));
-  if (!markdown.length) return result(CANNOT, "no tracked Markdown file");
   const dirs = new Set(
     [...list].flatMap((f) =>
       f
@@ -595,11 +593,8 @@ const CLASSES: FileClass[] = [
   },
 ];
 
-/** The tracked files a step checks, and the tracked files of no class. */
-function classified(
-  list: Set<string>,
-  step: string,
-): { mine: string[]; unknown: string[] } {
+/** The files `step` checks, or could-not-check when a tracked file has no class or the class holds no file. */
+function ofClass(list: Set<string>, step: string): Result | string[] {
   const mine: string[] = [],
     unknown: string[] = [];
   for (const f of list) {
@@ -607,14 +602,6 @@ function classified(
     if (!c) unknown.push(f);
     else if (c.steps.includes(step)) mine.push(f);
   }
-  return { mine, unknown };
-}
-
-const CONFLICT = /^(<{7} |={7}$|>{7} )/;
-
-// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace, no conflict marker.
-function text(root: string, list: Set<string>): Result {
-  const { mine, unknown } = classified(list, "text");
   if (unknown.length)
     return result(
       CANNOT,
@@ -622,6 +609,15 @@ function text(root: string, list: Set<string>): Result {
       unknown,
     );
   if (!mine.length) return result(CANNOT, "no file to check");
+  return mine;
+}
+
+const CONFLICT = /^(<{7} |={7}$|>{7} )/;
+
+// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace, no conflict marker.
+function text(root: string, list: Set<string>): Result {
+  const mine = ofClass(list, "text");
+  if (isResult(mine)) return mine;
   const details: string[] = [];
   for (const f of mine) {
     const t = readFileSync(join(root, f), "utf8");
@@ -732,14 +728,8 @@ function toolInputs(
   list: Set<string>,
   step: string,
 ): Result | { mine: string[]; dir: string; planted: string[] } {
-  const { mine, unknown } = classified(list, step);
-  if (unknown.length)
-    return result(
-      CANNOT,
-      `${unknown.length} tracked file(s) of no class`,
-      unknown,
-    );
-  if (!mine.length) return result(CANNOT, "no file to check");
+  const mine = ofClass(list, step);
+  if (isResult(mine)) return mine;
   const dir = canaries(step);
   const planted = existsSync(dir) ? readdirSync(dir) : [];
   if (!planted.length) return result(CANNOT, `no canary in ${dir}`);
@@ -1087,14 +1077,8 @@ function tscRun(dir: string): { status: number | null; lines: string[] } {
 // class must be in tsc's own list of the program, so a script outside `include` cannot go unchecked. A planted type
 // error must fail first.
 function types(root: string, list: Set<string>): Result {
-  const { mine, unknown } = classified(list, "types");
-  if (unknown.length)
-    return result(
-      CANNOT,
-      `${unknown.length} tracked file(s) of no class`,
-      unknown,
-    );
-  if (!mine.length) return result(CANNOT, "no file to check");
+  const mine = ofClass(list, "types");
+  if (isResult(mine)) return mine;
   const pin = readJson(root, "package.json")?.devDependencies?.typescript;
   const v = versionOf(tscBin(), "--version");
   if (isResult(v)) return v;

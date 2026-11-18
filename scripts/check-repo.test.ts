@@ -354,8 +354,19 @@ test("toolchain: another node major than .node-version cannot be checked", () =>
 test("toolchain: another pnpm version than packageManager cannot be checked", () => {
   expect("toolchain", repo(), 3, { pnpm: fakePnpm("12.18.0") });
 });
+test("toolchain: a package.json that is not JSON cannot be checked", () => {
+  const out = expect(
+    "toolchain",
+    repo((root) => put(root, "package.json", "not json\n")),
+    3,
+  );
+  assert.match(out, /package\.json is missing or not JSON/);
+});
 test("toolchain: a missing pnpm cannot be checked", () => {
-  expect("toolchain", repo(), 3, { pnpm: join(tempDir(), "absent") });
+  const out = expect("toolchain", repo(), 3, {
+    pnpm: join(tempDir(), "absent"),
+  });
+  assert.match(out, /cannot run .*absent: ENOENT/);
 });
 test("toolchain: a package.json without a pnpm packageManager pin is a finding", () => {
   expect("toolchain", repo(pkg((p) => delete p.packageManager)), 1);
@@ -496,6 +507,29 @@ test("text: the owner-approved method text is still checked", () => {
 test("text: the generated lockfile is classified as not checked", () => {
   expect("text", repo(edit("pnpm-lock.yaml", "  .: {}\n", "  .: {} \n")), 0);
 });
+test("text: a repository without a file of its class cannot be checked", () => {
+  const out = expect(
+    "text",
+    repo((root) =>
+      [
+        "LICENSE",
+        "NOTICE",
+        ".gitignore",
+        "node_modules", // the link .gitignore kept untracked
+        ".node-version",
+        ".github/CODEOWNERS",
+        "docs/engineering/method.md",
+        "docs/engineering/gates.md",
+        "scripts/actionlint.version",
+        "scripts/zizmor.version",
+        "scripts/gitleaks.version",
+        "scripts/gitleaks.toml",
+      ].forEach((f) => rmSync(join(root, f))),
+    ),
+    3,
+  );
+  assert.match(out, /no file to check/);
+});
 test("text: a tracked file of no known class cannot be checked, and names the file", () => {
   assert.match(
     expect(
@@ -515,6 +549,55 @@ function canaryDir(step: string, files: Record<string, string>): string {
   return dir;
 }
 
+// A tool that fails, on the canaries or on the repository, cannot have checked: the step says so and stops.
+// Prettier fails on a package.json whose `prettier` key names a shared config that does not exist.
+const BROKEN_PRETTIER = '{ "prettier": "./absent-config.json" }\n';
+test("format: a Prettier that fails on the canaries cannot be checked", () => {
+  const dir = canaryDir("format", {
+    "canary.md": "#   Unformatted\n",
+    "package.json": BROKEN_PRETTIER,
+  });
+  assert.match(
+    expect("format", repo(), 3, { canaries: dir }),
+    /prettier probe failed/,
+  );
+});
+test("format: a Prettier that fails on the repository cannot be checked", () => {
+  const broken = pkg((p) => Object.assign(p, JSON.parse(BROKEN_PRETTIER)));
+  assert.match(expect("format", repo(broken), 3), /prettier probe failed/);
+});
+// ESLint throws when a name it is given matches no file: an empty folder, or a link to a file that is gone.
+test("lint: an ESLint that fails on the canaries cannot be checked", () => {
+  const dir = canaryDir("lint", { "canary.mjs": "x\n" });
+  mkdirSync(join(dir, "lint", "empty"));
+  assert.match(
+    expect("lint", repo(), 3, { canaries: dir }),
+    /eslint probe failed/,
+  );
+});
+test("lint: an ESLint that fails on the repository cannot be checked", () => {
+  const broken = (root: string) =>
+    symlinkSync("gone.mjs", join(root, "scripts", "link.mjs"));
+  assert.match(expect("lint", repo(broken), 3), /eslint probe failed/);
+});
+// Prettier and ESLint skip a file under a node_modules folder; only the root one is git-ignored, so one can be tracked.
+const UNDER_NODE_MODULES = "docs/node_modules/note";
+test("format: a file Prettier leaves out cannot be checked", () => {
+  const out = expect(
+    "format",
+    repo((root) => put(root, `${UNDER_NODE_MODULES}.md`, "# Note\n")),
+    3,
+  );
+  assert.match(out, /Prettier did not check 1 file/);
+});
+test("lint: a file ESLint leaves out cannot be checked", () => {
+  const out = expect(
+    "lint",
+    repo((root) => put(root, `${UNDER_NODE_MODULES}.mjs`, TOOL)),
+    3,
+  );
+  assert.match(out, /ESLint did not lint every file/);
+});
 test("format: passes when Prettier finds its canaries and every file of its class is formatted", () => {
   expect("format", repo(), 0);
 });
@@ -674,6 +757,27 @@ test("dupes: a block repeated in test files is not a finding", () => {
   };
   expect("dupes", repo(twice), 0);
 });
+// jscpd fails on a name it reads as an option, and on a link to a file that is gone.
+test("dupes: a jscpd that fails on the canaries cannot be checked", () => {
+  const dir = canaryDir("dupes", {
+    "-a.mjs": BLOCK,
+    "b.mjs": BLOCK,
+    "a.ts": TS_BLOCK,
+    "b.ts": TS_BLOCK,
+  });
+  assert.match(
+    expect("dupes", repo(), 3, { canaries: dir }),
+    /jscpd exited|no jscpd report/,
+  );
+});
+test("dupes: a jscpd that fails on the repository cannot be checked", () => {
+  const broken = (root: string) =>
+    symlinkSync("gone.mjs", join(root, "scripts", "link.mjs"));
+  assert.match(
+    expect("dupes", repo(broken), 3),
+    /jscpd exited|no jscpd report/,
+  );
+});
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
 });
@@ -731,7 +835,8 @@ test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
   assert.match(expect("types", repo(outside), 3), /tools\/z\.ts/);
 });
 test("types: a repository without tsconfig.json cannot be checked", () => {
-  expect("types", repo(remove("tsconfig.json")), 3);
+  const out = expect("types", repo(remove("tsconfig.json")), 3);
+  assert.match(out, /tsc could not read/);
 });
 test("types: another TypeScript version than the pin cannot be checked", () => {
   expect(
@@ -814,9 +919,16 @@ test("secrets: CI's range from GATE_BASE and GATE_HEAD is the one scanned", () =
 });
 test("secrets: a GATE_BASE of all zeros cannot be checked", () => {
   const root = scanBranch(0);
-  expect("secrets", root, 3, {
+  const out = expect("secrets", root, 3, {
     extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
   });
+  assert.match(out, /all zeros/);
+});
+test("secrets: a GATE_BASE git does not know cannot be checked", () => {
+  const out = expect("secrets", scanBranch(0), 3, {
+    extraEnv: { GATE_BASE: "1".repeat(40), GATE_HEAD: "HEAD" },
+  });
+  assert.match(out, /git cannot read the range/);
 });
 test("secrets: in CI, a missing GATE_BASE cannot be checked (no fallback to the local range)", () => {
   const out = expect("secrets", scanBranch(0), 3, {
@@ -849,6 +961,16 @@ test("workflows: a zizmor that misses the canary cannot be checked", () => {
 });
 test("workflows: a zizmor that fails with an error cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: fakeZizmor({ crash: true }) });
+});
+test("workflows: a repository without a workflow file cannot be checked", () => {
+  const out = expect(
+    "workflows",
+    repo((root) =>
+      rmSync(join(root, ".github/workflows"), { recursive: true }),
+    ),
+    3,
+  );
+  assert.match(out, /no workflow file/);
 });
 test("workflows: a missing zizmor cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: join(tempDir(), "absent") });
@@ -947,6 +1069,28 @@ test("gate-needs: a workflow without a gate job is a finding", () => {
     1,
   );
 });
+test("gate-needs: an untracked ci.yml cannot be checked", () => {
+  const out = expect("gate-needs", repo(remove(".github/workflows/ci.yml")), 3);
+  assert.match(out, /is not tracked/);
+});
+test("gate-needs: a ci.yml without a top-level jobs line cannot be checked", () => {
+  const out = expect(
+    "gate-needs",
+    repo((root) => put(root, ".github/workflows/ci.yml", "on: [push]\n")),
+    3,
+  );
+  assert.match(out, /no top-level jobs: line/);
+});
+test("gate-needs: a ci.yml whose jobs line holds no job cannot be checked", () => {
+  const out = expect(
+    "gate-needs",
+    repo((root) =>
+      put(root, ".github/workflows/ci.yml", "on: [push]\njobs:\n"),
+    ),
+    3,
+  );
+  assert.match(out, /no job found under jobs:/);
+});
 test("gate-needs: needs written as a block list cannot be checked", () => {
   expect(
     "gate-needs",
@@ -1005,6 +1149,26 @@ test("actionlint: another version than the pinned one cannot be checked", () => 
 test("actionlint: a linter that misses the canary cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: fakeLint({ canary: false }) });
 });
+test("actionlint: a version file without a version line cannot be checked", () => {
+  const out = expect(
+    "actionlint",
+    repo((root) =>
+      put(root, "scripts/actionlint.version", "linux_amd64_sha256 00\n"),
+    ),
+    3,
+  );
+  assert.match(out, /holds no line `version <x>`/);
+});
+test("actionlint: a repository without a workflow file cannot be checked", () => {
+  const out = expect(
+    "actionlint",
+    repo((root) =>
+      rmSync(join(root, ".github/workflows"), { recursive: true }),
+    ),
+    3,
+  );
+  assert.match(out, /no workflow file/);
+});
 test("actionlint: a missing binary cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: join(tempDir(), "absent") });
 });
@@ -1012,7 +1176,7 @@ test("actionlint: a linter that does not run shellcheck cannot be checked", () =
   const out = expect("actionlint", repo(), 3, {
     lint: fakeLint({ shell: false }),
   });
-  assert.match(out, /shellcheck/);
+  assert.match(out, /did not report SC2086/);
 });
 
 test("selftest: passes when the repository's own tests run and pass", () => {
