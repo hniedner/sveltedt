@@ -2,9 +2,9 @@
 
 - **Product:** SvelteDT, an accessible, server-driven data table for Svelte 5 and Tailwind 4.
 - **Status:** Approved by the owner on 2026-11-17, REV 7; amended by the owner the same day: releases are automatic
-  (PRD-S7); the consumer project's type check replaces "Are the types wrong?" in PRD-K2 (owner's decision,
-  2026-11-17: the tool does not support a package that re-exports `.svelte` files, READ in its source and issue
-  tracker). A requirement changes only by the owner from here on.
+  (PRD-S7); the consumer project's type check replaces "Are the types wrong?" in PRD-K2 and is named in PRD-W8
+  (owner's decision, 2026-11-17), because the tool does not support a package that re-exports `.svelte` files (READ,
+  its source and issue tracker). A requirement changes only by the owner from here on.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -242,7 +242,7 @@ production server.
 | PRD-W5 | Page "plain": sort, both filter kinds, clear and reset, pager with sizes, a fixed 48 px app bar. | The common read-only use. | must |
 | PRD-W6 | Page "full": selection with a Shift range worked out by the site, chooser, reorder (chooser buttons and the header grip) and resize (separators and chooser buttons), sticky header and sticky leading columns, cell actions (a link and a menu in a cell snippet), the `criteria` and actions snippets. | Exercises every consumer duty. | must |
 | PRD-W7 | Views by URL parameter: light, dark, no tokens, `dir=rtl`, spacing, the three planted slowdowns (P2), two tables on one page. Real-browser tests also use the zoom view, the 320 view and forced colours (section 4.3). | Section 4.3 needs each. | must |
-| PRD-W8 | A clean-install consumer project in `consumer/`: a SvelteKit app with server rendering and hydration, the policy sent as a header with SvelteKit's nonce mode for its own bootstrap (READ, SvelteKit docs), the S1 listener script, a page shell with no inline `style`, installing the packed tarball with no workspace link; its files are the README quick start. | Catches broken `exports`, files, types or `@source` lines, and proves K4 and the server-rendered half of S1. | must |
+| PRD-W8 | A clean-install consumer project in `consumer/`: a SvelteKit app with server rendering and hydration, the policy sent as a header with SvelteKit's nonce mode for its own bootstrap (READ, SvelteKit docs), the S1 listener script, a page shell with no inline `style`, installing the packed tarball with no workspace link; its files are the README quick start; its type check (`svelte-check`) passes against the packed package. | Catches broken `exports`, files, types or `@source` lines, and proves K4 and the server-rendered half of S1. | must |
 | PRD-W9 | Every real-browser test runs against the site, and the consumer project's journeys and S1 checks run, in CI in Chromium, Firefox and WebKit on every pull request; P2 is measured on the site. | The real-browser layer needs pages. | must |
 | PRD-W10 | One public site on GitHub Pages, deployed by CI from each release tag: the documentation (D1-D7) and the examples gallery with live tables in a static data mode, shaped as section 8 Q5 describes. Each example page shows the live table and, in tabs, the component code, the server handler and the last request and response. | A visitor can read, see and try the table before installing; tested pages cannot drift from the code (owner, 2026-11-17, Q5). | must |
 
