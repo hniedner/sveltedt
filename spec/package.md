@@ -136,14 +136,14 @@ ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.s
 
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
 consumer project, and leave the committed consumer project unchanged.
-- Examples (the test copies `consumer/` to a temporary folder, installs the copy from its copied lockfile unchanged,
-  then adds the tarball with one package-manager command that fetches nothing from the registry (`pnpm add -D --offline`
-  and the tarball's path); the first three rows are read after that, the others are canaries, each planted in a copy,
-  which must be found):
+- Examples (the test copies the files git tracks under `consumer/`, and nothing else, to a temporary folder, installs
+  the copy from its copied lockfile unchanged, then adds the tarball with one package-manager command that fetches
+  nothing from the registry (`pnpm add -D --offline` and the tarball's path); the first three rows are read after that,
+  the others are canaries, each planted in a copy, which must be found):
 
   | What is read | Result |
   |---|---|
-  | the copy's `node_modules/@hniedner/sveltedt`, links followed | lies inside the copy's own package store, and holds exactly the tarball's files, with the same names and bytes |
+  | the copy's `node_modules/@hniedner/sveltedt`, links followed | lies under the copy's `node_modules/.pnpm/`, and holds exactly the tarball's files, with the same names and bytes |
   | the copy's lockfile | records the tarball as the source of `@hniedner/sveltedt` |
   | `consumer/package.json` and `consumer/pnpm-lock.yaml` in the checkout | unchanged against the commit (`git status` lists neither), and neither names `@hniedner/sveltedt` |
   | `@hniedner/sveltedt` named in the committed `consumer/package.json` (any dependency field) | finding |
@@ -261,8 +261,9 @@ other script of the page.
 - Traces: PRD-K4.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
-- Examples (the type check is the one the repository uses, `svelte-check`, run in the consumer project after the
-  install of CON-01; the second row is a canary planted in a copy of the consumer project):
+- Examples (the type check is the one the repository uses, `svelte-check`, run in the copy of CON-01 after its install,
+  with the copy's own `svelte.config.js` named as its configuration, so that no configuration outside the copy is
+  read; the second row is a canary planted in a copy of the consumer project):
 
   | Consumer | Type check |
   |---|---|
@@ -296,17 +297,17 @@ package.
 - Layer: consumer browser.
 - Traces: PRD-T3, PRD-W8.
 
-**CON-11** The package manager's peer check in the consumer copy MUST report no issue.
+**CON-11** The package manager's peer check in the consumer copy MUST report no issue that names `@hniedner/sveltedt`.
 - Examples (the test runs `pnpm peers check` in the copy of CON-01 after the tarball is added; the second row is a
   canary, a tarball whose packed manifest is planted with the range, added to its own copy, which must be found):
 
   | `peerDependencies.svelte` of the added tarball | `pnpm peers check` |
   |---|---|
-  | the real tarball's range | exit 0, "No peer dependency issues found" |
-  | a range above the Svelte version the copy installs (`^6.0.0` against 5.x) | exit 1, an unmet peer `svelte`, found |
+  | the real tarball's range | no issue names `@hniedner/sveltedt` |
+  | a range above the Svelte version the copy installs (`^6.0.0` against 5.x) | an unmet peer `svelte` wanted by `@hniedner/sveltedt`, found |
 
-  Break that turns it red: the packed manifest's peer range raised above the Svelte version the consumer's lockfile
-  holds.
+  An issue that names only the consumer's own packages is not this statement's. Break that turns it red: the packed
+  manifest's peer range raised above the Svelte version the consumer's lockfile holds.
 - Reason: the add command only warns when the installed Svelte is outside the peer range and still exits 0
   (MEASURED with pnpm 12.19.0); the peer check is the package manager's own command that fails on it, so a consumer
   whose Svelte the range refuses cannot pass unseen.
@@ -339,7 +340,7 @@ package.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces "Are the types wrong?"; the amendment's pull request must merge first): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces "Are the types wrong?"): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-04, CON-05, CON-07, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
