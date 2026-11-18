@@ -267,9 +267,9 @@ other script of the page.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
 - Examples (the type check is the one the repository uses, `svelte-check`, run in the copy of CON-01 after its build,
-  which also writes SvelteKit's generated type configuration, with the copy's own `svelte.config.js` named as its
-  configuration, so that no configuration outside the copy is read; the second row is a canary planted in a copy of the
-  consumer project):
+  which also writes SvelteKit's generated type configuration, with the copy's own configuration file (its `vite.config`,
+  since SvelteKit 3 reads no `svelte.config.js`) named as its configuration, so that no configuration outside the copy
+  is read; the second row is a canary planted in a copy of the consumer project):
 
   | Consumer | Type check |
   |---|---|
