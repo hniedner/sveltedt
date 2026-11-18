@@ -643,6 +643,31 @@ test("lockfile: a workspace package without a manifest is a finding", () => {
     /site\/package\.json is missing or not JSON/,
   );
 });
+test("lockfile: workspace packages written in a form the step cannot read are a finding, never a pass", () => {
+  for (const form of [
+    "packages: [site]",
+    "packages:\n- site",
+    "packages: # the site",
+  ]) {
+    const site = (root: string): void => {
+      workspace(form)(root);
+      put(root, "site/package.json", "{}");
+    };
+    assert.match(
+      expect("lockfile", repo(site), 1),
+      /pnpm-workspace\.yaml: packages are named in a form this step cannot read/,
+    );
+  }
+});
+test("lockfile: an optional or peer dependency of a workspace package other than a workspace link is a finding", () => {
+  const site = sitePackage({
+    optionalDependencies: { "left-pad": "1.3.0" },
+    peerDependencies: { svelte: "^5.0.0" },
+  });
+  const out = expect("lockfile", repo(site), 1);
+  assert.match(out, /site\/package\.json: optionalDependencies: left-pad/);
+  assert.match(out, /site\/package\.json: peerDependencies: svelte/);
+});
 test("files: a required file on disk but not tracked is a finding", () => {
   const root = repo();
   git(root, "rm", "-q", "--cached", "SECURITY.md"); // CI sees only tracked files

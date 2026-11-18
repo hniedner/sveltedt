@@ -32,7 +32,8 @@ The checks today:
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
-  each workspace package in `pnpm-workspace.yaml` depends only on `workspace:*` links, with exact development versions;
+  each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
+  as dependencies, optional or peer dependencies, and exact development versions;
   every package from the registry by hash; pnpm's release age equals Dependabot's shortest npm cooldown, and every
   exception names exact versions and its advisory.
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot

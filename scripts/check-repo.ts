@@ -574,30 +574,36 @@ function ageProblems(root: string): string[] {
 
 /** Each workspace package named in pnpm-workspace.yaml depends only on workspace links, with exact development versions. */
 function workspaceProblems(root: string): string[] {
-  const lines = readText(root, "pnpm-workspace.yaml").split("\n");
+  const text = readText(root, "pnpm-workspace.yaml");
+  const lines = text.split("\n");
   const head = lines.findIndex((l) => /^packages:\s*$/.test(l));
-  if (head < 0) return [];
   // Its entries run to the next setting; comment and blank lines end nothing.
-  const rest = lines.slice(head + 1);
+  const rest = head < 0 ? [] : lines.slice(head + 1);
   const end = rest.findIndex((l) => /^\S/.test(l) && !l.startsWith("#"));
-  return (end < 0 ? rest : rest.slice(0, end))
+  const dirs = (end < 0 ? rest : rest.slice(0, end))
     .map((l) => /^\s+-\s+['"]?([^'"#\s]+)/.exec(l)?.[1])
-    .filter((dir): dir is string => dir !== undefined)
-    .flatMap((dir) => {
-      const file = `${dir}/package.json`;
-      const pkg = readJson(root, file);
-      if (!pkg) return [`${file} is missing or not JSON`];
-      return [
-        ...Object.entries(pkg.dependencies ?? {})
-          .filter(([, v]) => v !== "workspace:*")
-          .map(([n, v]) => `dependencies: ${n} is "${v}", not "workspace:*"`),
-        ...Object.entries(pkg.devDependencies ?? {})
-          .filter(([, v]) => !EXACT.test(v))
-          .map(
-            ([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`,
-          ),
-      ].map((p) => `${file}: ${p}`);
-    });
+    .filter((dir): dir is string => dir !== undefined);
+  // Another YAML form of the list (flow style, an unindented sequence, a comment after the key) would check nothing
+  if (!dirs.length && /^['"]?packages['"]?\s*:/m.test(text))
+    return [
+      "pnpm-workspace.yaml: packages are named in a form this step cannot read; write one indented `- <folder>` per line",
+    ];
+  return dirs.flatMap((dir) => {
+    const file = `${dir}/package.json`;
+    const pkg = readJson(root, file);
+    if (!pkg) return [`${file} is missing or not JSON`];
+    const links = (
+      ["dependencies", "optionalDependencies", "peerDependencies"] as const
+    ).flatMap((kind) =>
+      Object.entries(pkg[kind] ?? {})
+        .filter(([, v]) => v !== "workspace:*")
+        .map(([n, v]) => `${kind}: ${n} is "${v}", not "workspace:*"`),
+    );
+    const ranges = Object.entries(pkg.devDependencies ?? {})
+      .filter(([, v]) => !EXACT.test(v))
+      .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+    return [...links, ...ranges].map((p) => `${file}: ${p}`);
+  });
 }
 
 // Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
