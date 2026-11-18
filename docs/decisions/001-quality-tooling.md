@@ -89,6 +89,16 @@ Category B licences in use: none today. Expected:
 - CC-BY-4.0 (caniuse-lite, under the browser-floor check).
   Both are development-only and listed here when they enter.
 
+## Accepted advisories
+
+- **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
+  through typescript-eslint, typescript-estree and tinyglobby; development only. Owner's decision, 2026-11-17: allowed
+  by its id in `dependency-review.yml`. Why: "No pattern reaches the vulnerable picomatch 4.0.7 that dependency-review
+  reports. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config file in the tree, which a
+  pull request can add in any folder; the effect is at most a hung gate, which a pull request can already cause."
+- **Removed when** a fixed picomatch is released, or tinyglobby no longer depends on it: the commit that bumps it
+  removes the id from `dependency-review.yml` and this entry.
+
 ## Pinned programs
 
 - **zizmor runs offline** (`--offline`): its online audits (does a pinned SHA belong to its tag, is an action known

@@ -26,3 +26,5 @@ jobs:
           # The one allow list (docs/decisions/001-quality-tooling.md, Licences); the gate's licences step reads it here
           # too and also fails a licence pnpm cannot detect. A new licence is a ruling request.
           allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT
+          # Accepted by the owner, development only, no fixed version (docs/decisions/001-quality-tooling.md).
+          allow-ghsas: GHSA-fc5q-39xc-vjpf
