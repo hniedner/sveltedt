@@ -121,12 +121,13 @@ find it, so a tool that silently checks nothing cannot pass.
 ## Commit headers
 
 The `commits` step judges every non-merge commit of the branch by its header: the first non-blank line, without its
-trailing blanks.
+trailing blanks and carriage return.
 
-- The header is `<type>(<scope>): <subject>`, at most 100 characters (UTF-16 code units: an emoji counts as two). The
-  scope is optional, in lower-case letters, digits and hyphens; `!` before the colon marks a breaking change; the
-  subject starts right after one space. The types are the list `TYPES` in `scripts/check-repo.ts`; a header of the
-  wrong shape is refused with that list. The changelog will be generated from these headers (PRD-K3).
+- The header is `<type>(<scope>): <subject>`, at most 100 characters (UTF-16 code units: a character outside the
+  Basic Multilingual Plane, such as most emoji, counts as two). The scope is optional, in lower-case letters, digits
+  and hyphens; `!` before the colon marks a breaking change; the subject starts right after one space. The types are
+  the list `TYPES` in `scripts/check-repo.ts`; a header of the wrong shape is refused with that list. The changelog
+  will be generated from these headers (PRD-K3).
 - git's own `Revert "<header>"` and `Reapply "<header>"` pass when the header they wrap does, or wraps git's own
   `Merge ...` (a reverted pull request). The 100 characters count the header as written, wrapping included: reword a
   revert of a long header.

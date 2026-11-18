@@ -2991,7 +2991,7 @@ test("commits: a signed commit is judged by its header when git shows signatures
   commit(root, "feat: signed", "-S");
   expect("commits", root, 0);
 });
-// Pins: GATE_BASE and GATE_HEAD are read as revisions, never as git options.
+// Pins: GATE_BASE is read as a revision, never as a git option.
 test("commits and secrets: a GATE_BASE shaped like a git option cannot be checked", () => {
   for (const step of ["commits", "secrets"]) {
     const written = join(tempDir(), "written");

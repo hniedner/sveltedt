@@ -2014,7 +2014,8 @@ function secrets(root: string): Result {
   );
 }
 
-// The commit types; the changelog will be generated from these headers (method section 7; decision 001).
+// The types of a commit header; the changelog will be generated from headers of these types (method section 7;
+// decision 001).
 const TYPES = [
   "build",
   "chore",
