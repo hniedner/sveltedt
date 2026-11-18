@@ -16,11 +16,14 @@
   requirements of `docs/PRD.md` it serves. It says what happens, never how. Each test carries its statement's id and
   a hash of the statement text.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
-  the method's rule (section 2, step 7).
+  the method's rule (section 2, step 7). The checks of this part are built in a later step. Until a file a check
+  needs exists on `main` (the package manifest, the lockfile, the package manager's settings, the npm entry of the
+  Dependabot configuration, the release workflow), that check reports "could not check"; nothing obliges the pull
+  request that adds the file to build the check.
 - **Test layers.**
   - **static check**: a scan of the repository's files, run in the gate, behind a wrapper that must find a planted
     canary. Each scan reports how many files it read; when it reads none, or a file it needs is missing, it reports
-    "could not check", which blocks like a finding (rule 4.0).
+    "could not check", which blocks like a finding (PRD rule 4.0).
 - **The workflows** are the files under `.github/workflows/`; the actions of this repository are those under
   `.github/actions/`.
 - **Jobs, by workflow file and job id.** `ci.yml`: `static`, `gate`. `dependency-review.yml`: `dependency-review`.
@@ -30,9 +33,10 @@
 - **The package manifest** is the `package.json` whose `name` is `@hniedner/sveltedt`; **the lockfile** is
   `pnpm-lock.yaml` at the repository root; **the package manager's settings** are `pnpm-workspace.yaml` at the root.
 - **Exact version.** A version written as three numbers, `11.6.2`; `11`, `^11`, `~11.6` and `latest` are not exact.
-- **Landing order.** A statement whose files do not exist yet on `main` (the package manifest, the lockfile, the npm
-  entry of the Dependabot configuration, the release workflow) lands untested; its check is built, and must pass,
-  in the pull request that adds those files.
+- **An install** is a command of a JavaScript package manager (`npm`, `pnpm`, `yarn`, `npx`, `corepack`) or the
+  `pnpm/action-setup` action that fetches packages. **A tool install** is one with `--global`, `pnpm dlx` or `npx`;
+  any other install is a dependency install. A download pinned by a checksum (`curl` and `sha256sum`) is not an
+  install.
 - **Data.** Example values are synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
   A requirement id from `docs/PRD.md` is written `PRD-S5`.
@@ -58,6 +62,7 @@
   | a job's `container: node:22` | finding |
   | a job's `services:` entry with `image: postgres:17` | finding |
   | `container:` or `services:` image `node@sha256:` followed by 64 hex characters | passes |
+  | image `node:22@sha256:` followed by 64 hex characters (tag and digest, as Dependabot writes it) | passes |
 
 - Reason: a tag or branch can be moved to new code after review; a full SHA or digest cannot.
 - Layer: static check.
@@ -104,8 +109,8 @@ allowed in no job.
 - Traces: PRD-S5.
 
 **SUP-04** The package MUST have no runtime dependency, and `svelte` MUST be its only peer dependency.
-- Examples (the scan reads the package manifest; no manifest, or more than one, is "could not check"; a private
-  workspace `package.json` at the root that is not the package manifest is not read; the test runs every row as a
+- Examples (the scan reads the package manifest among the files git tracks, so copies under `node_modules` or a
+  build folder are never read; no manifest, or more than one, is "could not check"; the test runs every row as a
   canary):
 
   | `package.json` | Result |
@@ -121,10 +126,9 @@ allowed in no job.
 - Layer: static check.
 - Traces: PRD-S5.
 
-**SUP-05** Every install in a workflow MUST either install the dependencies from the committed lockfile unchanged or
-install one named tool at an exact version.
-- Examples (the test runs every row as a step of a canary workflow, alone and inside a multi-line `run:` block; a
-  repository without the lockfile is a finding):
+**SUP-05** Every dependency install in a workflow MUST install from the committed lockfile unchanged, and every tool
+install MUST name an exact version.
+- Examples (the test runs every row as a step of a canary workflow, alone and inside a multi-line `run:` block):
 
   | Step | Result |
   |---|---|
@@ -135,6 +139,10 @@ install one named tool at an exact version.
   | `pnpm/action-setup` with `run_install: true` | finding |
   | `pnpm i` | finding |
   | `pnpm add left-pad` | finding |
+  | `pnpm add left-pad@1.3.0` (a dependency install, even at an exact version) | finding |
+  | `pnpm/action-setup` with `version: 10` | finding |
+  | `pnpm/action-setup` with no `version` (it reads the exact `packageManager` of `package.json`) | passes |
+  | `curl -fsSL -o x.tgz <url>` then `sha256sum -c` (a checksum-pinned download) | passes |
   | `npm install` | finding |
   | `npm ci` | finding (the repository's lockfile is pnpm's) |
   | `yarn install` | finding |
@@ -169,7 +177,7 @@ install one named tool at an exact version.
 - Traces: PRD-S5.
 
 **SUP-07** The Dependabot configuration MUST cover npm for the repository root and GitHub Actions, each with a
-cooldown and grouped version updates.
+cooldown whose every day field is at least 1, and grouped version updates.
 - Examples (the scan reads `.github/dependabot.yml`; the test runs every row as a canary):
 
   | Configuration | Result |
@@ -184,31 +192,34 @@ cooldown and grouped version updates.
   | the `github-actions` entry without a group for version updates | finding |
   | a group with `applies-to: security-updates` only | finding (no group for version updates) |
   | a cooldown of `default-days: 0` | finding |
+  | an `npm` cooldown of `semver-patch-days: 3` and no other field | passes |
+  | an `npm` cooldown of `default-days: 0` and `semver-patch-days: 3` | finding |
 
 - Reason: grouped, delayed updates keep the review load small and let a bad release be withdrawn before it lands.
 - Layer: static check.
 - Traces: PRD-S5.
 
-**SUP-08** At least one workflow MUST run the dependency review on every pull request.
+**SUP-08** A job with the id `dependency-review` MUST run the dependency review on every pull request.
 - Examples (the test runs every row as a canary):
 
   | Workflows | Result |
   |---|---|
-  | one workflow on `pull_request`, with no filter, whose job runs a step using `actions/dependency-review-action` | passes |
+  | one workflow on `pull_request`, with no filter, whose job `dependency-review` runs a step using `actions/dependency-review-action` | passes |
+  | the same with the job id `review` | finding (the ruleset's required check `dependency-review` would never report) |
   | that workflow with a `paths` filter on its `pull_request` trigger | finding (it would skip some pull requests) |
   | that workflow with a `branches` filter on its `pull_request` trigger | finding |
   | that job with an `if:` condition | finding |
   | the review step with an `if:` condition | finding |
   | a `paths-ignore` or `branches-ignore` filter | finding |
-  | a `types:` list on `pull_request` without `synchronize` | finding (a new push to the pull request is not reviewed) |
+  | a `types:` list on `pull_request` without `opened`, `synchronize` or `reopened` | finding (that pull request event is not reviewed) |
   | the step or its job with `continue-on-error: true` | finding |
   | the step with `warn-only: true` | finding |
   | the step only in a workflow on `pull_request_target` | finding |
   | no workflow using `actions/dependency-review-action` | finding |
   | the step only in a workflow on `push` | finding |
 
-- Reason: a new or changed dependency is reviewed before it can merge; the `main` ruleset requires the
-  `dependency-review` check (MEASURED 2026-11-17), and the release record of part 1b records that setting.
+- Reason: a new or changed dependency is reviewed before it can merge; the `main` ruleset requires a check of that
+  name, and the release record of part 1b records that setting.
 - Layer: static check.
 - Traces: PRD-S5.
 
