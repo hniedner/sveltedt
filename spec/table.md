@@ -46,7 +46,7 @@ to the consumer as one callback (stated with the statements that add user action
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
   A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
   empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
-  because the count has no role of its own.
+  the one element a test finds by an attribute, because the count has no role of its own.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
