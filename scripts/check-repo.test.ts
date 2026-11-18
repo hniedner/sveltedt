@@ -1335,14 +1335,14 @@ test("svelte: a canary that reports only the wrong type, as a non-strict config 
   assert.match(out, /did not report the planted type errors/);
 });
 /** A stand-in for svelte-check: the canary folder (.../svelte) prints `canary`, the repository `rest`, each line a
- * machine-verbose line; both exit 1. */
-function fakeSvelteCheck(canary: string[], rest: string[]): string {
+ * machine-verbose line; the canary run exits 1, the repository run `status`. */
+function fakeSvelteCheck(canary: string[], rest: string[], status = 1): string {
   const bin = join(tempDir(), "svelte-check");
   const say = (lines: string[]) =>
     lines.map((l) => `echo '1 ${l}'`).join("; ") || ":";
   writeFileSync(
     bin,
-    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\ncase "$(pwd)" in\n  */svelte) ${say(canary)};;\n  *) ${say(rest)};;\nesac\nexit 1\n`,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "svelte-check, ${PINS["svelte-check"]}"; exit 0; fi\ncase "$(pwd)" in\n  */svelte) ${say(canary)};;\n  *) ${say(rest)}; exit ${status};;\nesac\nexit 1\n`,
   );
   chmodSync(bin, 0o755);
   return bin;
@@ -1381,11 +1381,20 @@ test("svelte: a canary run missing a planted error, reporting it as a warning or
     assert.match(out, /did not report the planted type errors/);
   }
 });
-test("svelte: an exit status outside the pass and finding pairs cannot be checked, and is named", () => {
-  const out = expect("svelte", repo(component(COMPONENT)), 3, {
-    extraEnv: { SVELTE_CHECK_BIN: fakeSvelteCheck(PLANTED, []) },
-  });
-  assert.match(out, /svelte-check exited 1/);
+test("svelte: a status and output other than exit 0 clean or exit 1 with diagnostics cannot be checked, and is named", () => {
+  const found = [diagnostic(2322, "ERROR", "src/Count.svelte")];
+  for (const [rest, status] of [
+    [[], 1],
+    [found, 0],
+    [found, 2],
+  ] as const) {
+    const out = expect("svelte", repo(component(COMPONENT)), 3, {
+      extraEnv: {
+        SVELTE_CHECK_BIN: fakeSvelteCheck(PLANTED, [...rest], status),
+      },
+    });
+    assert.match(out, new RegExp(`svelte-check exited ${status}$`, "m"));
+  }
 });
 test("svelte: a tsconfig.json TypeScript cannot read cannot be checked, and says why", () => {
   const out = expect(
