@@ -61,17 +61,14 @@
 - Traces: PRD-W5.
 
 **SRV-03** Each file the site server answers MUST carry the content type of its kind.
-- Examples (the test runs every row, with a build folder holding one file of each kind):
+- Examples (the test runs every row, with a build folder holding one file of each kind; later parts add a row for each
+  kind their build writes):
 
   | File | `Content-Type` |
   |---|---|
   | `index.html` | `text/html; charset=utf-8` |
   | `assets/app.js` | `text/javascript; charset=utf-8` |
   | `assets/app.css` | `text/css; charset=utf-8` |
-  | `assets/logo.svg` | `image/svg+xml` |
-  | `assets/data.json` | `application/json; charset=utf-8` |
-  | `favicon.ico` | `image/x-icon` |
-  | `assets/font.woff2` | `font/woff2` |
   | `assets/notes.xyz` (a kind not listed) | `application/octet-stream` |
 
 - Reason: browsers act on the content type, not the file name: a module script or a stylesheet of the wrong type is
@@ -82,8 +79,21 @@
 ## 2. Imports (IMP)
 
 **IMP-01** The site's source MUST import SvelteDT only through the package's public exports.
-- Example: a scan of `site/src` finds every import of SvelteDT written as `@hniedner/sveltedt` or one of the
-  subpaths its `exports` field names; a canary file importing `../../src/lib/DataTable.svelte` is found.
+- Examples (the scan covers every file under `site/` except its build folder and `node_modules`; an import of
+  SvelteDT is allowed when it is written `@hniedner/sveltedt` or one of the subpaths the `exports` field of the
+  repository's root `package.json` names; the test runs every row as a canary that must be found):
+
+  | Canary |
+  |---|
+  | `import { DataTable } from '../../src/lib/DataTable.svelte'` in a `.ts` file |
+  | `export { DataTable } from '../../src/lib/index.ts'` in a `.ts` file |
+  | `await import('../../src/lib/Pagination.svelte')` in a `.ts` file |
+  | the first row inside the `<script>` of a `.svelte` file |
+  | an alias in the site's Vite configuration that points `@hniedner/sveltedt` at `src/lib` |
+  | a `paths` entry in the site's TypeScript configuration that points `@hniedner/sveltedt` at `src/lib` |
+
+  With no root `package.json`, or no `exports` field in it, the scan reports "could not check", which blocks like a
+  finding.
 - Reason: the site may use only what a consumer can; a deep import hides a missing or broken export.
 - Layer: static check.
 - Traces: PRD-W1.
@@ -104,6 +114,7 @@
   "Order 04", "Order 12", "Order 16", "Order 08", in that order, and the first cells of the body rows read the same,
   in the same order. The order is neither ascending nor descending, so a table that sorts fails.
 - Reason: the table keeps the order it is given (the server's order); the page proves that where a consumer uses it.
+  The pager part rewrites this statement against the order of the site's endpoint.
 - Layer: component.
 - Traces: PRD-W5.
 
