@@ -26,17 +26,18 @@
   - **HTTP**: the site server started in the test's own process and sent real requests through `node:http`, with
     each request path written to the wire exactly as the example gives it (a URL parser would remove `..` before
     sending); read as status, headers and body; no browser.
-    *The start note.* SRV-01 to SRV-04 and POL-01 start a server for a build folder on a port the system assigns,
-    never 127.0.0.1:4173. SRV-05 to SRV-07 test the site server's start, the one `node site/server.ts` performs for
-    the folder `dist` beside the server file, by performing it in the test's own process for a folder the test
-    names (the start gives back the listening server, or nothing when it refuses; importing the server file starts
-    nothing). They read what is written to standard output and standard error (through the streams and every
-    console method), the process's exit code once the start has settled (the start sets 1 when it refuses, so the
-    program then ends with status 1), and the address the server listens on. Afterwards, even when the test fails,
-    the test closes every server and listener it started and restores the exit code and the capture. Every HTTP
-    test that binds 127.0.0.1:4173 is in one test file and runs one at a time; before it starts anything or listens
-    itself, it checks that 127.0.0.1:4173 is free, meaning a connection to it is refused, and otherwise fails as
-    "could not check: 127.0.0.1:4173 is held by another process".
+    *The start note.* SRV-01 to SRV-04 and POL-01 use the server for a build folder that the start is built on,
+    given back before it listens, and listen on a port the system assigns, never 127.0.0.1:4173. SRV-05 to SRV-07
+    test the site server's start, the one `node site/server.ts` performs for the folder `dist` beside the server
+    file, by performing it in the test's own process for a folder the test names (the start gives back the
+    listening server, or nothing when it refuses; importing the server file starts nothing). They read what is
+    written to standard output and standard error (through the streams and every console method), the process's
+    exit code once the start has settled (the start sets 1 when it refuses, so the program then ends with status
+    1), and the address the server listens on. Afterwards, even when the test fails, the test closes every server
+    and listener it started and restores the exit code and the capture. Every test of SRV-05 to SRV-07 is in one
+    test file and runs one at a time; before it starts anything or listens itself, it checks that 127.0.0.1:4173
+    is free, meaning a connection to it is refused, and otherwise fails as "could not check: 127.0.0.1:4173 is held
+    by another process".
   - **component**: a site page component mounted in a simulated DOM.
   - **real browser**: a site page opened in a real engine, in Chromium, Firefox and WebKit unless the statement names
     fewer and says why.
