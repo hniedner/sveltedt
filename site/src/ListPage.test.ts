@@ -24,3 +24,33 @@ describe(spec("LIST-01", "ba29e454"), () => {
     );
   });
 });
+
+describe(spec("LIST-02", "beb6972b"), () => {
+  it("shows the rows in the order of the fixed list", () => {
+    render(ListPage);
+    expect(firstCells()).toEqual(
+      [
+        "07",
+        "03",
+        "15",
+        "01",
+        "20",
+        "11",
+        "05",
+        "18",
+        "09",
+        "13",
+        "02",
+        "17",
+        "06",
+        "14",
+        "10",
+        "19",
+        "04",
+        "12",
+        "16",
+        "08",
+      ].map((number) => `Order ${number}`),
+    );
+  });
+});
