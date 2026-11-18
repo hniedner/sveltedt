@@ -403,7 +403,7 @@ describe("RND-05", () => {
   });
 
   it("takes finite numbers as row ids: the table and no alert", () => {
-    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : 2) });
+    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(firstCells()).toEqual(["Alpha", "Beta"]);
   });
