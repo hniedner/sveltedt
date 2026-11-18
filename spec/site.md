@@ -115,8 +115,8 @@ the strict policy.
 
 **SRV-04** The site server MUST NOT answer a file that it reaches through a symbolic link in its build folder.
 - Examples (the test runs every row; the build folder and its parent are those of SRV-01; each row plants its link in
-  the build folder, with the target written relative to the link, and then starts its own server; "no file" as in
-  SRV-01):
+  the build folder, a symbolic link's target written relative to the link, and then starts its own server; "no
+  file" as in SRV-01):
 
   | Link planted | Request | Status | Body |
   |---|---|---|---|
@@ -129,8 +129,8 @@ the strict policy.
   | `hard.js`, a hard link to `assets/app.js` | `GET /hard.js` | 200 | the bytes of `assets/app.js` |
 
   A symbolic link is not a file the build folder holds (SRV-01); a hard link is one: it is the file under a second
-  name. A symbolic link that points back into the build folder is refused too; its target is answered at its own
-  path. Break that turns it red: the server follows links and answers a file at the link's path.
+  name. A symbolic link that points back into the build folder is refused too; its target is answered only at the
+  target's own path. Break that turns it red: the server follows links and answers a file at the link's path.
 - Reason: a build tool or a careless copy can leave a link in the build folder, and a server that follows it serves
   files outside the build folder, up to the whole repository, or never starts when the link loops.
 - Layer: HTTP.
