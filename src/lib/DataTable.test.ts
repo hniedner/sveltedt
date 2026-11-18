@@ -119,6 +119,11 @@ describe("RND-02", () => {
       const shown = screen.getByRole("cell", { name });
       expect(within(shown).getByRole("link", { name }).isConnected).toBe(true);
     }
+    // Only the snippet's own column renders it; the id column keeps its value
+    expect(cellTexts()).toEqual([
+      ["r1", "Open Beta in name"],
+      ["r2", "Open Gamma in name"],
+    ]);
   });
 });
 
