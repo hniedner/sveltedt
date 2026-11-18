@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  linkSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -39,14 +40,13 @@ function put(root: string, path: string, text: string): void {
 // A folder holding a package.json and the build folder `dist` with the given files; the server started on `dist`
 async function serve(
   files: Readonly<Record<string, string>>,
-  links: Readonly<Record<string, string>> = {},
+  plant: (dist: string) => void = () => {},
 ): Promise<{ server: Server; dist: string }> {
   const folder = mkdtempSync(join(tmpdir(), "site-server-"));
   put(folder, "package.json", PARENT);
   const dist = join(folder, "dist");
   for (const [path, text] of Object.entries(files)) put(dist, path, text);
-  for (const [path, target] of Object.entries(links))
-    symlinkSync(target, join(dist, path));
+  plant(dist);
   const server = siteServer(dist);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   started.push({ server, folder });
@@ -112,18 +112,67 @@ describe("SRV-01", () => {
   });
 });
 
-describe("SRV-01: a link in the build folder leads nowhere outside it", () => {
-  it("answers a file reached through a folder link, or a link loop, with 404", async () => {
-    const { server } = await serve(
-      { "index.html": INDEX },
-      { parent: "..", loop: "." },
-    );
-    for (const path of ["/parent/package.json", "/loop/index.html"]) {
+// @spec("SRV-04", "4c9f2a74")
+describe("SRV-04", () => {
+  // Each row's link, its target written relative to the link, planted before its own server starts
+  const symbolic = (link: string, target: string) => (dist: string) =>
+    symlinkSync(target, join(dist, link));
+  const hard = (dist: string) =>
+    linkSync(join(dist, "assets/app.js"), join(dist, "hard.js"));
+  it.each([
+    [
+      "linkdir to the parent",
+      "/linkdir/package.json",
+      404,
+      null,
+      symbolic("linkdir", ".."),
+    ],
+    [
+      "outside.json to the parent's package.json",
+      "/outside.json",
+      404,
+      null,
+      symbolic("outside.json", "../package.json"),
+    ],
+    [
+      "same.js to assets/app.js",
+      "/same.js",
+      404,
+      null,
+      symbolic("same.js", "assets/app.js"),
+    ],
+    [
+      "same.js to assets/app.js",
+      "/assets/app.js",
+      200,
+      APP,
+      symbolic("same.js", "assets/app.js"),
+    ],
+    ["loop to the build folder", "/", 200, INDEX, symbolic("loop", ".")],
+    [
+      "loop to the build folder",
+      "/loop/index.html",
+      404,
+      null,
+      symbolic("loop", "."),
+    ],
+    ["hard.js, a hard link to assets/app.js", "/hard.js", 200, APP, hard],
+  ] as const)(
+    "with %s, answers GET %s with %i",
+    async (_link, path, status, body, plant) => {
+      const { server } = await serve(
+        { "index.html": INDEX, "assets/app.js": APP },
+        plant,
+      );
       const answer = await get(server, path);
-      expect(answer.status).toBe(404);
-      expect(answer.body).not.toContain(PARENT);
-    }
-  });
+      expect(answer.status).toBe(status);
+      if (body === null)
+        expect(
+          [PARENT, INDEX, APP].filter((file) => answer.body.includes(file)),
+        ).toEqual([]);
+      else expect(answer.body).toBe(body);
+    },
+  );
 });
 
 // @spec("SRV-03", "65a24eb7")
