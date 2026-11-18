@@ -244,19 +244,21 @@ before.
 - Example: `rows` r1, r2, r3 (by `getRowId`) are rendered; the consumer passes new row objects with the same ids and
   data in the order r3, r1, r2. For each id, the `tr` that rendered it before is the same element (`===`) that renders
   it after, now in the new order. Break that turns it red: the rows' key changed to the index (or to the row object).
-- Reason: a server answer brings new objects for the same rows; a row that kept its place but changed its data would
-  move focus, a text selection, a scroll position inside the row and a cell snippet's own state to another row's data.
+- Reason: a server answer brings new objects for the same rows; without a stable element per row, the element at a
+  place would show another row's data, and focus, a text selection or a cell snippet's own state held there would pass
+  to that other row.
 - Layer: component.
 - Traces: PRD-B1.
 
 **RND-16** After `columns` changes to the same column ids in another order, each column's header cell and each of its
 cells MUST be rendered by the same element as before.
-- Example: columns `name`, `city` over rows r1 and r2 are rendered; the consumer passes the columns in the order
-  `city`, `name`. For each column id, its `th` and its `td` in r1 and in r2 are the same elements (`===`) as before,
-  now in the new order. Breaks that turn it red: the header cells' key changed to the index; the cells' key changed to
-  the index.
-- Reason: column order is app state the consumer changes; a header that kept its place but changed its column would
-  move focus on a sort button, and a cell snippet's own state, to another column.
+- Example: columns `name`, `city` over rows r1 and r2 are rendered; the consumer passes new column objects with the
+  same ids in the order `city`, `name`. For each column id, its `th` and its `td` in r1 and in r2 are the same elements
+  (`===`) as before, now in the new order. Breaks that turn it red: the header cells' key changed to the index (or to
+  the column object); the cells' key changed to the index (or to the column object).
+- Reason: column order is app state the consumer changes; without a stable element per column, the header cell at a
+  place would show another column, and focus on its sort button (which sits inside the header cell) or a cell
+  snippet's own state would pass to that other column.
 - Layer: component.
 - Traces: PRD-B1.
 
