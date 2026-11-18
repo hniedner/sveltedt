@@ -644,15 +644,15 @@ as a limit, would change PRD-A3 and PRD-D3 and is the owner's. Layer: real brows
 
 **SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or SVG drawing
 differs between ascending and descending.
-- Examples (the test runs every row; the hidden content is the text, and every attribute except `class` and
-  `style` of the SVG elements, inside the header cell's `aria-hidden="true"` elements, without the rank of SORT-05):
+- Examples (the test runs every row on one mount whose `sort` prop changes; the hidden content is the text, and
+  every attribute except `class` and `style` of the SVG elements, inside the header cell's `aria-hidden="true"` elements, without the rank of SORT-05):
 
   | Order | Header | Hidden content compared |
   |---|---|---|
   | `[name asc]` and `[name desc]` | Name | present in both, and different |
   | `[code asc, name desc]` and `[code asc, name asc]` | Name | different (the rank "2" left out) |
 
-  A difference only in a class (a rotation, say) does not count: it does not show in a simulated DOM.
+  A difference only in a class or a style (a rotation, say) does not count: it does not show in a simulated DOM.
 
 - Reason: sighted users read the direction at a glance; assistive technology gets it from `aria-sort` and the
   description (SORT-06), so the mark is hidden. Its contrast and forced-colours visibility are later statements.
