@@ -1,4 +1,6 @@
 /tmp/
-/node_modules/
+# Every node_modules: the site's workspace link and the Vite cache Vitest writes beside a canary run.
+node_modules/
+/site/dist/
 /.claude/settings.local.json
 .DS_Store

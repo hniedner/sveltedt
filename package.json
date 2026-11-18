@@ -4,9 +4,17 @@
   "version": "0.0.0",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "svelte": "./src/lib/index.ts"
+    }
+  },
   "packageManager": "pnpm@12.19.0",
   "scripts": {
-    "gate": "node scripts/check-repo.ts all"
+    "gate": "node scripts/check-repo.ts all",
+    "test": "vitest run",
+    "site:build": "vite build --config site/vite.config.ts",
+    "site:serve": "node site/server.ts"
   },
   "prettier": {
     "plugins": [
