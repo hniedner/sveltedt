@@ -55,7 +55,9 @@ The checks today:
 string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
   `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
   `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
-  `svelte:element` `this`: review is the guard for these. TypeScript
+  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration for a path in `src/lib` and in
+  `site/src` and blocks when a rule the canaries prove, or the settings, differ there from the canaries' (a later
+  config block scoped to those folders would otherwise replace the bans unseen). TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from

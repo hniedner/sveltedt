@@ -780,8 +780,8 @@ function text(root: string, list: Set<string>): Result {
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts) and
-// SVELTE_CHECK_BIN.
+// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
+// SVELTE_CHECK_BIN and ESLINT_CONFIG.
 // An empty value counts as unset in both.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -813,8 +813,14 @@ const ESLINT_PROBE = `
 const [url, config, root, ...files] = process.argv.slice(1);
 const { ESLint } = await import(url);
 const eslint = new ESLint({ cwd: root, overrideConfigFile: config, ignore: false, warnIgnored: true });
-const results = await eslint.lintFiles(files);
-console.log(JSON.stringify({ version: ESLint.version, files: results.map((r) => ({
+const lintable = files.filter((f) => !f.startsWith("?"));
+const results = await eslint.lintFiles(lintable);
+const configs = {};
+for (const f of [...lintable, ...files.filter((f) => f.startsWith("?")).map((f) => f.slice(1))]) {
+  const c = await eslint.calculateConfigForFile(f);
+  configs[f] = c ? { rules: c.rules, settings: c.settings } : null;
+}
+console.log(JSON.stringify({ version: ESLint.version, configs, files: results.map((r) => ({
   f: r.filePath.slice(root.length + 1),
   messages: r.messages.map((m) => ({ rule: m.ruleId, text: m.line + ":" + m.column + " " + (m.ruleId ?? "") + " " + m.message })),
 })) }));
@@ -835,6 +841,10 @@ interface PrettierRecord {
 }
 interface EslintRecord {
   version: string;
+  configs: Record<
+    string,
+    { rules: Record<string, unknown>; settings: object } | null
+  >;
   files: { f: string; messages: { rule: string | null; text: string }[] }[];
 }
 
@@ -1016,11 +1026,39 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
 
 // ESLint on every file of the lint class with this repository's config and no ignore patterns. The planted canary
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
+// The canaries prove their rules where they sit. A later config block scoped to the component's folders replaces a
+// rule there (measured: a second no-restricted-syntax block replaces the whole list) while every canary still passes,
+// so each proven rule, and the settings, must be the same for a path in src/lib and site/src as for the canary.
+const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
+  ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
+);
+function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
+  return CONFIG_PROBES.flatMap((probe) => {
+    const ext =
+      Object.keys(LINT_CANARY_RULES).find((e) => probe.endsWith(e)) ?? "";
+    const planted = Object.keys(canary.configs).find((f) => f.endsWith(ext));
+    const want = planted ? canary.configs[planted] : null;
+    const got = rec.configs[probe];
+    if (!want || !got) return [`${probe}: no config`];
+    const rules = [
+      ...new Set(LINT_CANARY_RULES[ext].map((e) => e.split("|")[0])),
+    ];
+    const same = (a: unknown, b: unknown) =>
+      JSON.stringify(a) === JSON.stringify(b);
+    return [
+      ...rules.filter((r) => !same(got.rules[r], want.rules[r])),
+      ...(same(got.settings, want.settings) ? [] : ["settings"]),
+    ].map((r) => `${probe}: ${r}`);
+  });
+}
+
 function lint(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "lint");
   if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
-  const config = [join(HERE, "..", "eslint.config.mjs")];
+  const config = [
+    process.env.ESLINT_CONFIG || join(HERE, "..", "eslint.config.mjs"),
+  ];
   const eslintRecord = (r: string, f: string[]) =>
     toolRecord<EslintRecord>("eslint", ESLINT_PROBE, r, f, config);
   const canary = eslintRecord(dir, planted);
@@ -1029,8 +1067,18 @@ function lint(root: string, list: Set<string>): Result {
   if (missed.length)
     return result(CANNOT, "ESLint missed planted canaries", missed);
   const pin = readJson(root, "package.json")?.devDependencies?.eslint;
-  const rec = eslintRecord(root, mine);
+  const rec = eslintRecord(root, [
+    ...mine,
+    ...CONFIG_PROBES.map((p) => `?${p}`),
+  ]);
   if ("error" in rec) return result(CANNOT, rec.error);
+  const drift = configDrift(canary, rec);
+  if (drift.length)
+    return result(
+      CANNOT,
+      "the config sets a rule the canaries prove otherwise for the component's folders",
+      drift,
+    );
   if (rec.version !== pin)
     return result(
       CANNOT,

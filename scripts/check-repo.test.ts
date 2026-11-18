@@ -1629,6 +1629,46 @@ test("text: suppression comments on successive lines are each a finding", () => 
     out,
   );
 });
+test("lint: a config block that changes a proven rule for the component's folders cannot be checked", () => {
+  // Measured: a later block that sets no-restricted-syntax for some files replaces the list for them, while every
+  // canary still passes. Each rule the canaries prove must be configured for src/lib and site/src as for its canary.
+  const real = join(here, "..", "eslint.config.mjs");
+  for (const [block, named] of [
+    [
+      '{ files: ["src/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
+      "src/lib/probe.svelte: no-restricted-syntax",
+    ],
+    [
+      '{ files: ["site/**"], rules: { "svelte/no-at-html-tags": "off" } }',
+      "site/src/probe.svelte: svelte/no-at-html-tags",
+    ],
+    [
+      '{ files: ["src/**/*.ts"], rules: { "@typescript-eslint/ban-ts-comment": "off" } }',
+      "src/lib/probe.ts: @typescript-eslint/ban-ts-comment",
+    ],
+    [
+      '{ files: ["site/**"], settings: { browsers: ["chrome 140"] } }',
+      "site/src/probe.ts: settings",
+    ],
+  ]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect("lint", repo(), 3, {
+      extraEnv: { ESLINT_CONFIG: config },
+    });
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
+  // Adding a block that leaves the proven rules alone is not a finding.
+  const config = join(tempDir(), "eslint.config.mjs");
+  writeFileSync(
+    config,
+    `import base from ${JSON.stringify(real)};\nexport default [...base, { files: ["src/**"], rules: { "no-console": "error" } }];\n`,
+  );
+  expect("lint", repo(), 0, { extraEnv: { ESLINT_CONFIG: config } });
+});
 test("lint: no PostCSS config is loaded for a component, not even one above the root", () => {
   const parent = tempDir();
   const root = join(parent, "root");
