@@ -109,9 +109,10 @@ Category B licences in use: none today. Expected:
   - commitlint 21 with its conventional config (8 direct dependencies; body lines over 100 characters are errors,
     which Dependabot's bodies exceed);
   - a header rule in the gate's runner.
-- **Decision:** the header rule, with the types `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
-  `refactor`, `revert`, `style` and `test`.
-- **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule.
+- **Decision:** the header rule. The allowed types are listed once, in `TYPES` in `scripts/check-repo.ts`; a
+  rejected header prints them. No document copies the list.
+- **Reopens when:** the release workflow's changelog generator is chosen; its parser then sets the rule, and a
+  test proves that the types its configuration knows equal `TYPES`.
 
 ## Reuse check against ontoprism
 
