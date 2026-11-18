@@ -365,14 +365,16 @@ own focus indicator.
 
 **A11Y-07** The region and every control of the table and the pager MUST show a visible focus indicator when it is
 focused by keyboard.
-- Examples (the test runs every row; Tab to the element; its computed outline or box shadow is not `none` and differs
-  from its unfocused style):
+- Examples (the test runs every row; Tab to the element; its computed outline or box shadow has a width of at least
+  1 CSS px and a colour whose alpha is above 0, and differs from its unfocused style; a transparent outline fails;
+  its contrast is a later statement, PRD-A12):
 
   | Element |
   |---|
   | the region of the 30-column table of A11Y-12 |
   | "Sort by Name" |
-  | each step button and a page number button of a `Pagination` of 20 pages on page 11, an `aria-disabled` one included |
+  | each step button and a page number button of a `Pagination` of 20 pages on page 11 |
+  | "First page" and "Previous page", both `aria-disabled`, of the same pager on page 1 |
   | the page-size select |
 
   Later groups add their controls.
@@ -424,8 +426,9 @@ focused by keyboard.
 
 **A11Y-18** A sort button and a pager button MUST act on release: a pointer pressed on it and released off it
 MUST emit nothing.
-- Examples (the test runs every row: pointer down on the button, move off it, pointer up elsewhere; no callback is
-  called; then a full press on it emits as its statement says):
+- Examples (the test runs every row, with Name sortable at order `[]` and a pager at `offset 20, limit 10,
+  total 95`: pointer down on the button, move off it, pointer up elsewhere; no callback is called; then a full press
+  on it emits as its statement says):
 
   | Button |
   |---|
@@ -578,7 +581,7 @@ moved on one step and every other column keeps its relative order and direction.
 
   | Order | Press | Still shown after the press |
   |---|---|---|
-  | `[]` | Name | no `aria-sort` on any header; Name's description "H" (SORT-06); no mark (SORT-05, SORT-13) |
+  | `[]` | Name | no `aria-sort` on any header; Name's description "H" (SORT-06); Name's hidden text as before the press |
   | `[name asc]` | Shift+Code | `aria-sort="ascending"` on Name only; Code's description "H"; no rank marks |
 
   Break that turns it red: the table keeps its own copy of the order and updates it on a press.
@@ -603,6 +606,10 @@ after it passes the new order and rows, or a failure.
   to the page body (WCAG 2.4.3).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
+
+OPEN: focus after a pointer press. SORT-11 and PAGE-21 press with Enter. A mouse click in WebKit does not focus a
+button, so "focus stays on the pressed button" cannot hold there for a click. Proposed: a click row in Chromium and
+Firefox, with WebKit named as a limit in the accessibility statement (PRD-D3). Layer: real browser.
 
 **A11Y-03** Only the header of the column leading the order MUST carry `aria-sort`.
 - Examples (the test runs every row; Code and Name are both sortable):
@@ -631,19 +638,20 @@ after it passes the new order and rows, or a failure.
 - Layer: component.
 - Traces: PRD-B5, PRD-A1.
 
-**SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text differs between
-ascending and descending.
-- Examples (the test runs every row; the hidden text is the text of the header cell's `aria-hidden="true"`
-  elements without the rank of SORT-05):
+**SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or drawing
+differs between ascending and descending.
+- Examples (the test runs every row; the hidden content is the text and the SVG path data of the header cell's
+  `aria-hidden="true"` elements, without the rank of SORT-05):
 
-  | Order | Header | Hidden text compared |
+  | Order | Header | Hidden content compared |
   |---|---|---|
-  | `[name asc]` and `[name desc]` | Name | not empty in both, and different |
+  | `[name asc]` and `[name desc]` | Name | present in both, and different |
   | `[code asc, name desc]` and `[code asc, name asc]` | Name | different (the rank "2" left out) |
 
+  A difference only in a class (a rotation, say) does not count: it does not show in a simulated DOM.
+
 - Reason: sighted users read the direction at a glance; assistive technology gets it from `aria-sort` and the
-  description (SORT-06), so the mark is hidden. A difference only in a class or a rotation would not show in every
-  view; its contrast and forced-colours visibility are later statements.
+  description (SORT-06), so the mark is hidden. Its contrast and forced-colours visibility are later statements.
 - Layer: component.
 - Traces: PRD-B5, PRD-A1.
 
@@ -677,7 +685,8 @@ how to add a column.
   The whole description is one message, `sortDescription({ direction, rank })`, so a translation can order and
   punctuate it freely (RND-06). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
   in the order while two or more columns are sorted, else `null`. The four rows above call it with
-  `('asc', null)`, `('desc', 1)`, `('desc', 3)` and `(null, null)`.
+  `{ direction: 'asc', rank: null }`, `{ direction: 'desc', rank: 1 }`, `{ direction: 'desc', rank: 3 }` and
+  `{ direction: null, rank: null }`.
 - Reason: `aria-sort` is on one header only (A11Y-03), so the other sorted columns need words.
 - Layer: component.
 - Traces: PRD-B5, PRD-A2.
@@ -687,8 +696,8 @@ how to add a column.
 `Pagination` is a separate component, so a consumer can place it anywhere or leave it out. The current page is
 `offset / limit` rounded down, plus 1; the number of pages is `total / limit` rounded up, and at least 1.
 
-OPEN: an `offset` at or past `total`, `total 0` with an `offset` above 0 included (rows deleted between two requests
-cause it). Proposed: no alert; the places are those of the last page, with no `aria-current`; "First page" and
+OPEN: an `offset` above 0 that is at or past `total`, `total 0` included (rows deleted between two requests cause
+it). Proposed: no alert; the places are those of the last page, with no `aria-current`; "First page" and
 "Previous page" are enabled, and "Previous page" emits the last page's offset; "Next page" and "Last page" are
 `aria-disabled`. Layer: component.
 
@@ -822,8 +831,14 @@ once with that page's offset.
 - Traces: PRD-B9, PRD-A3.
 
 **PAGE-13** A press on an `aria-disabled` step button MUST emit nothing.
-- Example: `offset 90, limit 10, total 95`: press "Next page" and "Last page": neither `onpage` nor `onsize` is
-  called. (Focus staying on it is PAGE-21.)
+- Examples (the test runs every row; `limit 10, total 95`; neither `onpage` nor `onsize` is called; focus staying on
+  the button is PAGE-21):
+
+  | Offset | Pressed |
+  |---|---|
+  | 0 | "First page", "Previous page" |
+  | 90 | "Next page", "Last page" |
+
 - Reason: the press has nowhere to go.
 - Layer: component.
 - Traces: PRD-B9, PRD-B2.
@@ -868,7 +883,7 @@ same page number.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3, PRD-B9.
 
-**PAGE-08** With `total 0` the pager MUST show exactly one page button, "Page 1", as the current page.
+**PAGE-08** With `total 0` and `offset 0` the pager MUST show exactly one page button, "Page 1", as the current page.
 - Example: `offset 0, limit 25, total 0` shows one page number button, "Page 1", with `aria-current="page"`; the
   pager's text and accessible names hold no "NaN", no "Infinity" and no "Page 0".
 - Reason: an empty result is normal, and the pager keeps its layout instead of vanishing.
@@ -884,9 +899,11 @@ named "entries per page", with `limit` selected.
 - Traces: PRD-B9.
 
 **PAGE-24** The page-size select's name MUST be text that is visible on the page.
-- Example: `limit 25, sizes [10, 25, 50]`: the text "entries per page" is rendered with a box of at least 1 by 1 CSS
-  px, not clipped and not transparent, and it is the select's accessible name; with `messages.sizeLabel` "Zeilen" the
-  visible text and the name are both "Zeilen".
+- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and
+  inside the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text
+  colour has an alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the
+  visible text and the name are both "Zeilen". A visually hidden label (Tailwind's `sr-only`) or one moved off-screen
+  fails.
 - Reason: a sighted user must see what the bare number means (WCAG 3.3.2, 2.5.3); a label hidden by CSS passes in a
   simulated DOM, so this needs an engine.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -900,8 +917,9 @@ named "entries per page", with `limit` selected.
 
 **PAGE-23** After a change of the page-size select, focus MUST stay on the select once the consumer has passed the
 new `limit` and offset.
-- Example: `offset 50, limit 25, total 300, sizes [10, 25, 50]`: focus the select, choose 50 by keyboard; the
-  consumer passes `limit 50, offset 0`; the select still has focus and shows 50.
+- Example: `offset 50, limit 25, total 300, sizes [10, 25, 50]`: focus the select, set it to 50 with Playwright's
+  `selectOption` (engines differ in how keys open a native select); the consumer passes `limit 50, offset 0`; the
+  select still has focus and shows 50.
 - Reason: a new page moves no focus (PRD-A3), and a rebuilt select would drop it to the page body.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3, PRD-B9.
@@ -1020,8 +1038,9 @@ receives that number.
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
 
   The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
-  German default locale and still expects "1,000"; that run first asserts that the runtime's own default formatting
-  gives "1.000", so a locale that did not take effect fails instead of passing.
+  German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
+  German as well, and first asserts both and that the runtime's own default formatting gives "1.000", so a locale
+  that did not take effect fails instead of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
 - Traces: PRD-I2, PRD-I1.
@@ -1162,7 +1181,7 @@ This table replaces the group-1 rows of the same PRD ids. Statements of group 1 
 | PRD-B9 | PAGE-01 to PAGE-24 except PAGE-19 and PAGE-20 | in full, apart from the two OPEN lines of section 7 |
 | PRD-B16 | RND-05, RND-09, RND-10, EXP-02 | in full for the props of groups 1 and 2; later groups add their rows to RND-05 |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference adds its instances to the section 8 examples |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, SORT-09, SORT-13, PAGE-09, PAGE-11, PAGE-04, PAGE-24 | in part: target size (PRD-A6) for the sort and pager controls arrives with the accessibility group; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, SORT-09, SORT-13, PAGE-09, PAGE-11, PAGE-04, PAGE-24 | in part: target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group adds the hidden-lead row of A11Y-03; the sticky group adds the `stickyHeader` row of A11Y-12 |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table" |
 | PRD-A10 | A11Y-16 | in part: the skip-link and dialog groups add their rows |
