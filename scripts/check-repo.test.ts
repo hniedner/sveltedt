@@ -100,6 +100,7 @@ interface Pkg {
   private?: boolean;
   license: string;
   packageManager?: string;
+  prettier?: { plugins: string[] };
   devDependencies: Record<string, string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -113,6 +114,7 @@ const PACKAGE: Pkg = {
   private: true,
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
+  prettier: { plugins: ["prettier-plugin-svelte"] },
   devDependencies: {
     eslint: PINS.eslint,
     jscpd: PINS.jscpd,
@@ -1100,6 +1102,35 @@ test("svelte: no Svelte or Vite config is imported but the root's, from below it
     join(root, "MARKER-vite"),
   ])
     assert.ok(!existsSync(m), `${m} exists: its config was imported`);
+});
+test("format: a formatted Svelte component passes through Prettier's Svelte plugin", () => {
+  expect("format", repo(component(COMPONENT)), 0);
+});
+test("format: an unformatted Svelte component is a finding that names it", () => {
+  const out = expect(
+    "format",
+    repo(component(COMPONENT.replace("<p>{count}</p>", "<p>{ count }</p>"))),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte/);
+});
+test("format: the Svelte canary is checked only while Prettier's config loads the Svelte plugin", () => {
+  // Prettier infers a file's parser from the config it finds above the file, so the canary folder gets its own.
+  const canaries = (prettier: object) => {
+    const dir = canaryDir("format", {
+      "canary.svelte": readFileSync(
+        join(here, "canaries", "format", "canary.svelte"),
+        "utf8",
+      ),
+    });
+    put(dir, "package.json", `${JSON.stringify(prettier)}\n`);
+    symlinkSync(join(here, "..", "node_modules"), join(dir, "node_modules"));
+    return dir;
+  };
+  const plugin = { prettier: { plugins: ["prettier-plugin-svelte"] } };
+  expect("format", repo(), 0, { canaries: canaries(plugin) });
+  const out = expect("format", repo(), 3, { canaries: canaries({}) });
+  assert.match(out, /canary\.svelte/);
 });
 test("svelte: another svelte-check version than the pin cannot be checked", () => {
   expect(

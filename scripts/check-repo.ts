@@ -695,7 +695,7 @@ const CLASSES: FileClass[] = [
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
-  { match: /\.svelte$/, steps: ["svelte"] },
+  { match: /\.svelte$/, steps: ["format", "svelte"] },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:

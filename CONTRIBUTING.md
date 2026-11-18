@@ -37,7 +37,8 @@ The checks today:
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
   detect is a finding.
 - **text, format, lint, types, dupes:** every tracked file has a class in `scripts/check-repo.ts` that names the
-  steps that check it; a file of no class blocks the gate. Prettier formats (fix with
+  steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
+  (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts, TypeScript type-checks them, jscpd finds copied
   code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
