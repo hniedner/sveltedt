@@ -8,7 +8,10 @@ works. This page is the short version.
 
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff origin/main...<ref>`, and check it out only in a separate clone.
+`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone without
+`core.hooksPath`: with it set, git runs any hook the branch puts in `.githooks/`, such as post-checkout on a checkout
+or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg on a merge commit (Commit
+headers).
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
@@ -137,6 +140,36 @@ trailing blanks and carriage return.
 - `fixup!`, `squash!` and `amend!` commits are refused: squash them before the pull request.
 - A suggestion applied or a file edited on GitHub's website asks for a commit message: give it a conventional header.
 - Real merge commits are left out, whatever their message; a one-parent commit that only looks like a merge is judged.
+- Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
+  as the branch's own.
+
+To run the header check before each commit, set once per clone, by choice (nothing checks the setting yet):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
+commit. The hook needs the Node version of
+`.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
+setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
+place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
+secret scan, by hand until the setup step exists (Not built yet). The hook applies the rules above to the message git
+hands it, before git's own clean-up:
+
+- Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
+  (`commit -v`). A message with nothing else is refused as empty.
+- A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
+  the `commits` step refuses the autosquash ones at the pull request.
+- Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one on
+  an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook (measured); git
+  keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"` passes the hook (which
+  judges `feat: y`) while git stores `# x` as the header; a comment character other than `#` (`core.commentChar`) is
+  not known to the hook.
+
+A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`). The path is
+relative: in any worktree of the clone, git runs the hooks in `.githooks/` of the branch checked out there, which are
+code from that branch.
 
 ## How a change is made
 
@@ -153,9 +186,9 @@ trailing blanks and carriage return.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the local hooks that run checks before a commit or a push, and the gate's check that `core.hooksPath` is set
-  (gates.md G9) (issue #6);
-  until they exist, maintainers run the private word scan by hand before every push;
+- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the hooks that run
+  checks before a commit or a push (issue #6); only the commit-msg hook exists (Commit headers). Until the rest exist,
+  maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 
