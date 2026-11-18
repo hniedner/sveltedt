@@ -45,8 +45,35 @@ const markupBans = [
   ["SvelteStyleDirective", "style: directive (PRD-G2 b, PRD-S1)"],
   ["SvelteSpreadAttribute", "spread attribute (PRD-G2 b)"],
   ["SvelteAttachTag", "{@attach} (PRD-G2 b)"],
-  ["SvelteAttribute[key.name='style']", "style attribute (PRD-S1)"],
-  ["SvelteShorthandAttribute[key.name='style']", "{style} shorthand (PRD-S1)"],
+  ["SvelteAttribute[key.name=/^style$/i]", "style attribute (PRD-S1)"],
+  [
+    "SvelteShorthandAttribute[key.name=/^style$/i]",
+    "{style} shorthand (PRD-S1)",
+  ],
+  [
+    "SvelteElement[kind='special'][name.name='svelte:head']",
+    "svelte:head (PRD-S1, PRD-B19)",
+  ],
+].map(([selector, message]) => ({ selector, message }));
+// Code a component may not run, in TypeScript and in components. PRD-S1: no injected style, link or script.
+// PRD-S2: no raw HTML.
+const scriptBans = [
+  [
+    "CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^style$/i]",
+    "setAttribute style (PRD-S1): set el.style properties",
+  ],
+  [
+    "CallExpression[callee.property.name='createElement'][arguments.0.value=/^(style|link|script)$/i]",
+    "createElement of style, link or script (PRD-S1)",
+  ],
+  [
+    "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]",
+    "innerHTML or outerHTML (PRD-S2)",
+  ],
+  [
+    "CallExpression[callee.property.name='insertAdjacentHTML']",
+    "insertAdjacentHTML (PRD-S2)",
+  ],
 ].map(([selector, message]) => ({ selector, message }));
 
 export default [
@@ -95,6 +122,7 @@ export default [
       ],
       // TypeScript checks undefined names itself; typescript-eslint advises turning this rule off (origin: docs/decisions/001).
       "no-undef": "off",
+      "no-restricted-syntax": ["error", ...scriptBans],
     },
   },
   // After the TypeScript blocks: the Svelte parser reads components and .svelte.ts runes, TypeScript inside them.
@@ -102,11 +130,13 @@ export default [
   {
     files: ["**/*.svelte", "**/*.svelte.ts"],
     languageOptions: { parserOptions: { parser: ts.parser } },
+    // No PostCSS: the plugin would load any postcss config from the folder upward, untracked ones included.
+    settings: { svelte: { compileOptions: { postcss: false } } },
     linterOptions,
     rules: {
       // An HTML comment (<!-- eslint-disable -->) would switch rules off despite noInlineConfig (measured).
       "svelte/comment-directive": "off",
-      "no-restricted-syntax": ["error", ...markupBans],
+      "no-restricted-syntax": ["error", ...scriptBans, ...markupBans],
     },
   },
   // PRD-E1: browser APIs above the support floor, in TypeScript and components (the Node scripts use none). It flags only part of

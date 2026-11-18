@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -1244,6 +1245,7 @@ const SUPPRESSIONS = [
   ["@ts-", "expect-error"],
   ["@ts-", "nocheck"],
   ["jscpd:", "ignore"],
+  ["prettier-", "ignore"],
 ].map((parts) => parts.join(""));
 test("text: each suppression comment in a script or a component is a finding that names it", () => {
   for (const word of SUPPRESSIONS) {
@@ -1292,6 +1294,30 @@ test("text: suppression comments on successive lines are each a finding", () => 
   assert.ok(
     out.includes(`scripts/x.ts:2: suppression comment ${SUPPRESSIONS[2]}`),
     out,
+  );
+});
+test("lint: no PostCSS config is loaded for a component, not even one above the root", () => {
+  const parent = tempDir();
+  const root = join(parent, "root");
+  // An ignore comment (SUPPRESSIONS[0]) makes the plugin compile the component, the path that loads PostCSS (measured).
+  const styled = COMPONENT.replace(
+    "<p>{count}</p>",
+    `<!-- ${SUPPRESSIONS[0]} a11y_missing_attribute -->\n<p class="n">{count}</p>\n\n<style lang="postcss">\n  .n {\n    color: red;\n  }\n</style>`,
+  );
+  cpSync(repo(component(styled)), root, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  const marker = join(parent, "MARKER-postcss");
+  put(
+    parent,
+    "postcss.config.cjs",
+    `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran");\nmodule.exports = {};\n`,
+  );
+  run(["lint", "--root", root]);
+  assert.ok(
+    !existsSync(marker),
+    "the PostCSS config above the root was loaded",
   );
 });
 test("text: a suppression word in prose is not a finding", () => {
