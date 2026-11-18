@@ -40,14 +40,30 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a lowercase `style` attribute or `{style}`: PRD-G2
-  and PRD-S1; no browser
-  API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a `style` attribute in any case or `{style}`,
+  `svelte:head`, a `<style>` block or a `style`, `link` or `script` element, written or through `svelte:element`
+  with a literal `this`; no style, `srcdoc` or `on*` handler set by `setAttribute`, no `style`, `link` or `script`
+  created by
+  `createElement` or `createElementNS`, no `innerHTML`, `outerHTML` or `srcdoc` assigned, in an object literal or
+  as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
+  `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
+  constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
+  run time or written as a template literal; a cast or non-null assertion on the object a ban reads
+  (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as
+string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
+  `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
+  `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
+  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration of every
+  linted file and of a path in `src/lib` and `site/src` (`CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level
+  source folder is not probed until it is added there), and blocks when a rule the canaries prove, the settings, the
+  linter options, the processor or the parser differ from its extension's canary, or a script ban the `.ts` canary
+  proves is missing. A processor or parser that keeps the real one's name and version, or has none, while changing
+  what is linted, is not seen by this comparison (measured with eslint-plugin-svelte 3.24.1 and ESLint 10.15.0). TypeScript
   type-checks `scripts/` through `scripts/tsconfig.json`, jscpd finds copied
   code outside tests and components (a file under its 50 tokens or, measured with jscpd 5.4.3, 5 lines cannot hold a clone: it is set
-  aside and named with jscpd's own count, or as blank). Not yet banned, following in its own pull request: a style attribute in
-  another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
-  `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  aside and named with jscpd's own count, or as blank). The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
 - **svelte:** svelte-check type-checks, strict and through the root `tsconfig.json`, every tracked `.svelte`
@@ -100,10 +116,11 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
-  `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
-  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. Not yet refused: a zizmor
-  ignore comment in a workflow, and `prettier-ignore`.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
+  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
+  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
+  a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.
