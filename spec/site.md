@@ -35,8 +35,8 @@
   `default-src 'self'; script-src 'self'; style-src 'self'`.
 - **The listener** is the site's script of PRD-S1: it adds each `securitypolicyviolation` event of its page to a list
   on the page's `window`, which a test reads.
-- **The canary page** is a site page that breaks the strict policy on purpose (PRD-W4). It is built and served like
-  every other page.
+- **The canary page** is a site page that breaks the strict policy on purpose (PRD-W4), served at `/canary.html`. It
+  is built and served like every other page.
 - **Loaded.** A page has loaded when its `load` event has fired.
 - **The list page** is the site's first page; it grows into page "plain" of PRD-W5 as later parts add sort, filters
   and the pager.
@@ -161,19 +161,20 @@ the strict policy.
 
 ## 4. The strict policy on the site (POL)
 
-**POL-01** Each HTML page of the site MUST load the listener as its first script, from the site's own origin, so
-that it runs before every other script of the page.
+**POL-01** Each HTML page of the site MUST load the listener from the site's own origin so that it runs before every
+other script of the page.
 - Examples (the test runs every row against the site's real build; the HTML is read as the server answers it):
 
-  | Page | First `script` element | Every other `script` element |
+  | Page | The listener | Every other `script` element |
   |---|---|---|
-  | the list page (`GET /`) | the listener | after the listener |
-  | the canary page | the listener | after the listener |
+  | the list page (`GET /`) | present | after the listener, or a module script without `async` |
+  | the canary page (`GET /canary.html`) | present | after the listener, or a module script without `async` |
 
   "The listener" here means: a `script` element with a `src` that is a path on the site (it starts with one `/` and
   names no scheme or host), which the server answers with 200 and `text/javascript; charset=utf-8`, and which has no
-  `async`, no `defer` and no `type` attribute (so it runs as the parser reaches it, before any module or deferred
-  script). Break that turns it red: the listener's element moved after the bundle's, or given `defer`.
+  `async`, no `defer` and no `type` attribute. Such a script runs as the parser reaches it, and a module script
+  without `async` runs only after parsing ends, so either way the listener runs first. Break that turns it red: the
+  listener's element given `defer`, or a classic script placed before it.
 - Reason: the listener must record every violation the bundle causes from its first statement; a listener that
   starts late misses them, and the 0 of POL-04 would then prove nothing.
 - Layer: HTTP.
@@ -222,7 +223,7 @@ and shows its table.
   | the list page (`GET /`) | its 20 body rows (LIST-01) |
   | the list page without tokens (`GET /?tokens=none`, VIEW-01) | its 20 body rows |
 
-  Break that turns it red: a `style` attribute written into the list page's `index.html`.
+  Break that turns it red: a `style` attribute on an element inside the `body` of the list page's `index.html`.
 - Reason: the component claims 0 violations under the strict policy on a client-rendered page (PRD-S1); the order of
   the reads means a 0 cannot come from a page without the header, without the listener or without the table.
 - Layer: real browser.
