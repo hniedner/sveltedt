@@ -58,6 +58,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 ## G6. `trace`
 
 - Reads test results, not test names (JUnit XML, Vitest JSON). Every statement has at least one test that ran and passed.
+- A statement with no test yet is reported as *not yet tested*: a fourth state next to pass, finding and could not
+  check, never counted as a pass. It does not fail a pull request; it fails the milestone-close run and the release
+  run, which list every untested statement.
 - Skip, xfail, `.only` and `todo` fail the check.
 - Marker: `@spec("TABLE-07", "<first 8 hex of sha256 of the statement text>")`. A hash mismatch makes the test stale, which fails.
 - A test id that no spec holds fails.
