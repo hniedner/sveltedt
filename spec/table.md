@@ -187,7 +187,7 @@ its cells.
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
   | `getRowId` returns a value that is neither a string nor a finite number (`NaN`, `Infinity`, `null`) | `rowIdUnreadable` | "A row id could not be read." |
 
-  A finite number is a valid row id: rows with ids 1 and 2 (numbers, as server JSON gives them) show the table and
+  A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
   no alert.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
