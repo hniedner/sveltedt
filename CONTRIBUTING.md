@@ -40,7 +40,8 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats (fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts, TypeScript type-checks them, jscpd finds copied
   code outside tests. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
-  they change only through their owner.
+  they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
+  the raw source, so a formatter would turn every test stale.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

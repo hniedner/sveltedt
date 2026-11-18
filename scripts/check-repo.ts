@@ -674,6 +674,11 @@ const CLASSES: FileClass[] = [
     why: "owner-approved text: changes only through its change log, never by a formatter",
   },
   {
+    match: /^spec\/.*\.md$/,
+    steps: ["text"],
+    why: "sentences hashed from the raw source: a formatter or a Prettier upgrade would turn every test stale",
+  },
+  {
     match: /\.test\.mjs$/,
     steps: ["format", "lint"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
