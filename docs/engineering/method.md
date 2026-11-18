@@ -177,6 +177,7 @@ Candidates:   two or more existing libraries, the owner's earlier work where it 
   Accessibility  what it claims, and what our automated check measured on a probe
   Security       advisory history (OSV, GitHub advisories), time to fix, OpenSSF Scorecard if any
   Fit            per statement id: met / met with glue / not met
+  Own cost       the effort to build it ourselves and the lasting maintenance it adds
   Exit cost      what replacing it later would touch
 Decision:     one choice, the reason, and the trigger that reopens it
 ```
@@ -278,3 +279,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-18 | Step 6: a test written only as scaffolding is removed before the commit; the tests that are kept are named, each under its statement; a test that alone pins logic or kills a mutant is not scaffolding | The method said what padding is but not what happens to the tests that drive the work inward, so scaffolding tests landed with the commit; the practice the owner follows removes them and keeps behaviour, table, contract and regression tests. Owner's decision, 2026-11-18 |
 | 2026-11-18 | Section 8: before a non-trivial decision, the proposal states the practice of the leading libraries or the relevant standard, from sources fetched for it, each claim marked fetched or inferred | Section 8 covered building, not deciding: mechanisms, budgets and patterns were proposed without a check against established practice. Owner's decision, 2026-11-18 |
 | 2026-11-18 | Section 8: a probe's own result is marked measured; companion: the cross-reference row for section 8 names the fetched practice before a non-trivial decision | A probe's result is neither fetched nor inferred, and the companion's cross-reference table missed the new rule. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 8, the evaluation template: a row for the own cost (the effort to build it ourselves and the lasting maintenance it adds) | No dependency is preferred, but not at any cost: a decision to build must weigh what building and maintaining it costs against a well-vetted library. Owner's decision, 2026-11-18 |
