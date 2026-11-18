@@ -10,9 +10,13 @@
   }
 
   const {
+    rows,
+    columns,
+    getRowId,
+    caption,
+    regionLabel,
     withHeading = false,
     withActions = false,
-    ...props
   }: Omit<DataTableProps<Item>, "heading" | "actions"> & {
     withHeading?: boolean;
     withActions?: boolean;
@@ -28,7 +32,11 @@
 {/snippet}
 
 <DataTable
-  {...props}
+  {rows}
+  {columns}
+  {getRowId}
+  {caption}
+  {regionLabel}
   heading={withHeading ? heading : undefined}
   actions={withActions ? actions : undefined}
 />
