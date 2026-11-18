@@ -53,8 +53,11 @@ Cost is measured (section 12) only to plan; it is never a reason to skip a check
 5. **Show it red for the right reason.** A script (`red-check`, G7) runs the new tests against the code before the
    change. They must fail on an assertion, not an import error.
 6. **Work inward with TDD:** red, minimal green, refactor. Add a unit test only where the acceptance test cannot
-   pin the logic down by itself; a unit test that repeats its proof is padding. One statement is one commit, holding its tests and its code, so no commit ever holds a
-   failing test.
+   pin the logic down by itself; a unit test that repeats its proof is padding. A test written only as scaffolding is
+   removed before the commit; a test is kept when it is the owning test of a statement, an example-table row, a
+   contract check, or a regression test that failed before the fix, each under its statement; a test that alone pins
+   logic or kills a mutant is not scaffolding. One statement is one commit, holding its tests and its code, so no
+   commit ever holds a failing test.
 7. **Trace.** A check (`trace`, G6) reads the test results. Every statement must have a test that ran and passed, with
    one exception: a statement that no test names yet may be merged, and the check then lists it as *not yet tested*,
    never as a pass. An untested statement blocks the close of its milestone, and blocks 1.0 and every release after
@@ -87,7 +90,10 @@ behaviour, every protection that system has becomes a statement here, or the own
 ## 4. Coverage without padding
 
 **Every change covers at least 95 % of its changed lines.** This is the only coverage rule. A changed file that is
-missing from the coverage report counts as *could not check* (`diff-coverage`, G4).
+missing from the coverage report counts as *could not check* (`diff-coverage`, G4). When a change is below that
+floor, a changed line that no statement's test reaches is removed, given a statement, or reached by running a
+statement's test through the real entry point; a test written to reach it is padding. A line that still cannot be
+reached is the owner's exception, recorded with its reason.
 
 Two checks keep the tests honest:
 - **"Can this test fail?"** For each new test the author names the one-line break that turns it red. The reviewer
@@ -174,6 +180,7 @@ Candidates:   two or more existing libraries, the owner's earlier work where it 
   Accessibility  what it claims, and what our automated check measured on a probe
   Security       advisory history (OSV, GitHub advisories), time to fix, OpenSSF Scorecard if any
   Fit            per statement id: met / met with glue / not met
+  Own cost       the effort to build it ourselves and the lasting maintenance it adds
   Exit cost      what replacing it later would touch
 Decision:     one choice, the reason, and the trigger that reopens it
 ```
@@ -181,6 +188,11 @@ Decision:     one choice, the reason, and the trigger that reopens it
 A probe counts as evidence; a README claim does not. The server language is chosen the same way, on its merits; if
 it is Python, version 3.14 (3.15 only for a tangible, recorded benefit). Tool names in this method are examples per
 language.
+
+Before a non-trivial decision (a mechanism, a measure, a budget, a format, a public interface or a user-facing
+pattern), the proposal states how the leading libraries or the relevant standard do it, from primary sources fetched
+for that decision, each claim marked as fetched or inferred. A proposal without it is returned. Where no established
+practice is found, the proposal says so. A probe's own result is marked measured.
 
 ## 9. Public repositories
 
@@ -267,3 +279,8 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-17 | Reuse: the owner's own earlier work (code, tests, set-up, workflows) is ported through the method instead of rebuilt where it fits; third-party code only through section 8; every plan states a reuse check; a decision record may name a public source (sections 2, 8, 9; companion G12) | Owner decision, 2026-11-17 |
 | 2026-11-17 | Step 7 and G6: a statement may be merged before its test and is listed as *not yet tested*, never as a pass; it blocks the milestone close, 1.0 and every later release | Owner's decision, 2026-11-17 |
 | 2026-11-17 | Companion G10: the concurrency group is keyed on the pull-request number, not the branch name, which pull requests from forks can share | Fact correction; owner's decision, 2026-11-17 |
+| 2026-11-18 | Step 6: a test written only as scaffolding is removed before the commit; the tests that are kept are named, each under its statement; a test that alone pins logic or kills a mutant is not scaffolding | The method said what padding is but not what happens to the tests that drive the work inward, so scaffolding tests landed with the commit; the practice the owner follows removes them and keeps behaviour, table, contract and regression tests. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 8: before a non-trivial decision, the proposal states the practice of the leading libraries or the relevant standard, from sources fetched for it, each claim marked fetched or inferred | Section 8 covered building, not deciding: mechanisms, budgets and patterns were proposed without a check against established practice. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 8: a probe's own result is marked measured; companion: the cross-reference row for section 8 names the fetched practice before a non-trivial decision | A probe's result is neither fetched nor inferred, and the companion's cross-reference table missed the new rule. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 8, the evaluation template: a row for the own cost (the effort to build it ourselves and the lasting maintenance it adds) | No dependency is preferred, but not at any cost: a decision to build must weigh what building and maintaining it costs against a well-vetted library. Owner's decision, 2026-11-18 |
+| 2026-11-18 | Section 4: when a change is below the 95 % floor, an uncovered changed line is removed, given a statement, or reached by a statement's test through the real entry point; a test written to reach it is padding; a line that still cannot be reached is the owner's exception, recorded with its reason | A coverage floor invites tests written for a line count, and the method said what padding is but not what to do with an uncovered line. A test that becomes a statement's own test is kept, not padding: a line whose mutant only a test without a statement kills is given a statement (an existing one whose behaviour the test proves, or a new one through spec review), and that test becomes the statement's test (reviewer's ruling extending step 6's keep rule to this case, 2026-11-18; step 6 text unchanged). Owner's decision on the sentence, 2026-11-18 |

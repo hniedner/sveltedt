@@ -40,22 +40,69 @@ The checks today:
   steps that check it; a file of no class blocks the gate. Prettier formats, `.svelte` through its Svelte plugin
   (named in `package.json`; fix with
   `pnpm exec prettier --write <file>`), ESLint lints the scripts and components (no `class:`, `style:`, `use:`,
-  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a lowercase `style` attribute or `{style}`: PRD-G2
-  and PRD-S1; no browser
-  API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
-  type-checks the scripts, jscpd finds copied
-  code outside tests and components. Not yet banned, following in its own pull request: a style attribute in
-  another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
-  `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
+  `{@attach}`, spread attribute, `bind:` other than `bind:this`, a `style` attribute in any case or `{style}`,
+  `svelte:head`, a `<style>` block or a `style`, `link` or `script` element, written or through `svelte:element`
+  with a literal `this`; no style, `srcdoc` or `on*` handler set by `setAttribute`, no `style`, `link` or `script`
+  created by
+  `createElement` or `createElementNS`, no `innerHTML`, `outerHTML` or `srcdoc` assigned, in an object literal or
+  as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
+  `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
+  constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
+  run time or written as a template literal; a cast or non-null assertion on the object a ban reads
+  (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as
+string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
+  `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
+  `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
+  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration of every
+  linted file and of a path in `src/lib` and `site/src` (`CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level
+  source folder is not probed until it is added there), and blocks when a rule the canaries prove, the settings, the
+  linter options, the processor or the parser differ from its extension's canary, or a script ban the `.ts` canary
+  proves is missing. A processor or parser that keeps the real one's name and version, or has none, while changing
+  what is linted, is not seen by this comparison (measured with eslint-plugin-svelte 3.24.1 and ESLint 10.15.0). TypeScript
+  type-checks `scripts/` through `scripts/tsconfig.json`, jscpd finds copied
+  code outside tests and components (a file under its 50 tokens or, measured with jscpd 5.4.3, 5 lines cannot hold a clone: it is set
+  aside and named with jscpd's own count, or as blank). The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
-- **svelte:** svelte-check type-checks every tracked `.svelte` component, strict, through `tsconfig.json`; a
-  component outside its `include` blocks the gate, since svelte-check would skip it silently. With no component
-  tracked the step is NOT APPLICABLE, after its planted error was found. It names `svelte.config.js` as the one
+- **svelte:** svelte-check type-checks, strict and through the root `tsconfig.json`, every tracked `.svelte`
+  component and all TypeScript outside `scripts/` except declaration files (a name with `.d.` has no class and
+  blocks): TypeScript that imports a component is checked against the component's
+  real type, which tsc does not know. Every component carries a `<script lang="ts">` block, and each of its scripts is
+  TypeScript: svelte-check type-checks no markup and no script of a component without one (measured with
+  svelte-check 4.7.8), so the step reports such a component as a finding. A component Svelte's compiler cannot parse is a finding too,
+  with Svelte's message and line: svelte-check drops some parse errors (one that says "expected" when `svelte.config.js` has no
+  `preprocess` and the component has a `lang` attribute; measured with svelte-check 4.7.8). A file outside the program, or a script
+  in it as well as in tsc's, blocks the
+  gate, since svelte-check would skip the first silently and the two checkers could disagree on the second. TypeScript outside
+  `scripts/` with no component at all cannot be checked: svelte-check refuses a program without a component (its
+  error 100001, measured with svelte-check 4.7.8), a limit of the tool, not a rule of ours. With nothing of its own tracked the step is NOT
+  APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
   it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
   added; that file is edited.
+- **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
+  outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
+  fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
+  or `.svelte` file under `src/` or `site/` the step is NOT APPLICABLE, after its planted failing test was reported;
+  such code with no test file cannot be checked. A skipped or `test.todo` test beside a passing one is a finding; a
+  tracked file whose tests were all skipped cannot be checked. The step overrides four config settings on the
+  command line (each flag wins, measured with Vitest 5.1.0): an unhandled error fails the run, a test with no
+  assertion fails, the tests run rather than only being type-checked, and a snapshot with nothing stored fails
+  instead of being written (outside CI, vitest would write it and pass). A stored snapshot that a file still in the
+  run no longer uses fails too; a limit, measured: an orphan `.snap` whose test file is gone passes. The expect and
+  typecheck flags do not reach a project in `test.projects` (measured), so the step refuses a `vitest.config.ts`
+  that names `projects`. The lint step adds Vitest's `expect-expect`, `valid-expect`,
+  `no-focused-tests` and `no-disabled-tests`; a bare `expect(a === b)` counts as an assertion at run time, so only
+  `valid-expect` catches it. Limits, measured: no flag overrides an `onUnhandledError` function, so the step refuses
+  a `vitest.config.ts` that names it. Both names are read as text in that file only, so a name in a module it
+  imports (such as `vite.config.ts` through `mergeConfig`) or built at run time is not seen; a process-level
+  `unhandledRejection` listener in a setup file still hides an unhandled error; and a `test.each` table that is empty
+  at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
+  not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
+  assertion still fails, and a skipped one still stops the step.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
@@ -89,10 +136,11 @@ These checks are part of the method but do not exist in this repository yet:
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck` and
-  `jscpd:ignore` in code; ESLint ignores its inline configuration (HTML comments in components included), gitleaks
-  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. Not yet refused: a zizmor
-  ignore comment in a workflow, and `prettier-ignore`.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
+  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
+  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
+  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
+  a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.

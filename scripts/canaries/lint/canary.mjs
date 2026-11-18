@@ -1,4 +1,5 @@
-// Planted violations: the lint step fails could-not-check unless ESLint reports every one of them.
+// Planted violations: the lint step fails could-not-check unless ESLint raises every rule and ban message
+// LINT_CANARY_RULES (scripts/check-repo.ts) lists for this extension; plants that share a message count once.
 export const a = eval("1");
 export const b = setTimeout("a()", 1);
 // The only no-new-func violation, behind an inline disable: it is raised only while inline configuration is ignored.
@@ -28,4 +29,7 @@ export function e(x) {
   if (x === 19) return 19;
   if (x === 20) return 20;
   return -1;
+}
+export function inject(el, html) {
+  el.innerHTML = html;
 }
