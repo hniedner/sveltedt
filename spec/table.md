@@ -365,8 +365,9 @@ own focus indicator.
 
 **A11Y-07** The region and every control of the table and the pager MUST show a visible focus indicator when it is
 focused by keyboard.
-- Examples (the test runs every row; Tab to the element; its computed outline or box shadow has a width of at least
-  1 CSS px and a colour whose alpha is above 0, and differs from its unfocused style; a transparent outline fails;
+- Examples (the test runs every row; Tab to the element; its computed outline, or at least one entry of its computed box
+  shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour whose alpha is above
+  0, and differs from its unfocused style; a transparent outline fails;
   its contrast is a later statement, PRD-A12):
 
   | Element |
@@ -581,7 +582,7 @@ moved on one step and every other column keeps its relative order and direction.
 
   | Order | Press | Still shown after the press |
   |---|---|---|
-  | `[]` | Name | no `aria-sort` on any header; Name's description "H" (SORT-06); Name's hidden text as before the press |
+  | `[]` | Name | no `aria-sort` on any header; Name's description "H" (SORT-06); Name's hidden content (SORT-13) as before the press |
   | `[name asc]` | Shift+Code | `aria-sort="ascending"` on Name only; Code's description "H"; no rank marks |
 
   Break that turns it red: the table keeps its own copy of the order and updates it on a press.
@@ -607,9 +608,12 @@ after it passes the new order and rows, or a failure.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
-OPEN: focus after a pointer press. SORT-11 and PAGE-21 press with Enter. A mouse click in WebKit does not focus a
-button, so "focus stays on the pressed button" cannot hold there for a click. Proposed: a click row in Chromium and
-Firefox, with WebKit named as a limit in the accessibility statement (PRD-D3). Layer: real browser.
+OPEN: focus after a pointer press. SORT-11 and PAGE-21 press with Enter. WebKit on macOS (Safari) does not focus a
+button on a mouse click; WebKit on Linux, which CI runs, does (READ, WebKit's `HTMLFormControlElement`), so a plain
+click row could not fail in CI. Proposed: the component focuses the button it acted on, so PRD-A3 holds in every
+engine; the test page stops the browser's own focus-on-click (a capturing `mousedown` listener that prevents the
+default), which makes the row fail unless the component focuses the button itself. The alternative, naming Safari
+as a limit, would change PRD-A3 and PRD-D3 and is the owner's. Layer: real browser.
 
 **A11Y-03** Only the header of the column leading the order MUST carry `aria-sort`.
 - Examples (the test runs every row; Code and Name are both sortable):
@@ -638,10 +642,10 @@ Firefox, with WebKit named as a limit in the accessibility statement (PRD-D3). L
 - Layer: component.
 - Traces: PRD-B5, PRD-A1.
 
-**SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or drawing
+**SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or SVG drawing
 differs between ascending and descending.
-- Examples (the test runs every row; the hidden content is the text and the SVG path data of the header cell's
-  `aria-hidden="true"` elements, without the rank of SORT-05):
+- Examples (the test runs every row; the hidden content is the text, and the drawing attributes (`d`, `points`,
+  `href`, `transform`) of the SVG elements, inside the header cell's `aria-hidden="true"` elements, without the rank of SORT-05):
 
   | Order | Header | Hidden content compared |
   |---|---|---|
@@ -1183,7 +1187,7 @@ This table replaces the group-1 rows of the same PRD ids. Statements of group 1 
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference adds its instances to the section 8 examples |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, SORT-09, SORT-13, PAGE-09, PAGE-11, PAGE-04, PAGE-24 | in part: target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group adds the hidden-lead row of A11Y-03; the sticky group adds the `stickyHeader` row of A11Y-12 |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table" |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table"; focus after a pointer press waits on the OPEN line in section 6 |
 | PRD-A10 | A11Y-16 | in part: the skip-link and dialog groups add their rows |
 | PRD-I1 | RND-06, PAGE-19, I18N-01 | in part: later groups add their words |
 | PRD-I2 | I18N-01 | in part: later groups add the numbers they show |
