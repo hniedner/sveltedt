@@ -19,6 +19,7 @@ statement it names.
   or repeats another test's proof.
 - **Deterministic:** the test builds its own condition, bounds every wait and uses web-first assertions; no sleeps.
   A flaky test is a defect to find, never skipped or slept away.
-- A test is removed only with mutation evidence, never when it is the only test of a behaviour.
+- A test is removed only with mutation evidence, or as scaffolding before its commit (method section 2, step 6);
+  never when it is the only test of a behaviour.
 
 Hand over the red output and the named breaks; the implementer makes the test green.
