@@ -118,6 +118,10 @@ test("a source without any class attribute cannot be checked, even with a colour
     3,
   );
 });
+test("a repository with no tracked source file under src/lib cannot be checked", () => {
+  const out = expect(["--root", repo({ "src/lib/Table.test.ts": "x\n" })], 3);
+  assert.match(out, /no tracked source file under src\/lib/);
+});
 test("a folder that is not a git repository cannot be checked", () => {
   const root = mkdtempSync(join(tmpdir(), "check-theme-classes-"));
   made.push(root);
