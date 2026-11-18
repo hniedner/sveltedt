@@ -200,8 +200,8 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - with the first component test:
   - `expect.requireAssertions: true` for local runs (the gate forces it, and refuses `projects`; method section 4);
-  - Node-side tests beside jsdom ones: decided in the plan that first needs them, with the practice check, since
-    the gate refuses `projects` (leaning: a per-file `// @vitest-environment node`, if an empty test there fails);
+  - Node-side tests beside jsdom ones: decided in the plan that first needs them, since the gate refuses
+    `projects` (leaning: a per-file `// @vitest-environment node`, if an empty test in that file fails);
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
