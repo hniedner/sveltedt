@@ -30,7 +30,7 @@ const linterOptions = {
 export default [
   js.configs.recommended,
   {
-    files: ["**/*.mjs"],
+    files: ["**/*.mjs", "**/*.js"],
     languageOptions: { globals: node },
     linterOptions,
     rules: shared,

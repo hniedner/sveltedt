@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, normalize, posix } from "node:path";
+import { dirname, join, matchesGlob, normalize, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   binaryOf,
@@ -685,11 +685,17 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
+    match: /\.js$/,
+    steps: ["format", "lint"],
+    why: "dupes: configuration that tools read (svelte.config.js), no logic to copy",
+  },
+  {
     match: /\.test\.ts$/,
     steps: ["format", "lint", "types"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
+  { match: /\.svelte$/, steps: ["svelte"] },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
@@ -907,14 +913,16 @@ function format(root: string, list: Set<string>): Result {
 
 // The rules each extension's planted canary must raise. TypeScript files get typescript-eslint's type-aware
 // twin of no-implied-eval, and no no-undef (TypeScript checks names itself).
+const JS_RULES = [
+  "complexity",
+  "no-eval",
+  "no-implied-eval",
+  "no-new-func",
+  "no-undef",
+];
 const LINT_CANARY_RULES: Record<string, string[]> = {
-  ".mjs": [
-    "complexity",
-    "no-eval",
-    "no-implied-eval",
-    "no-new-func",
-    "no-undef",
-  ],
+  ".mjs": JS_RULES,
+  ".js": JS_RULES,
   ".ts": [
     "complexity",
     "no-eval",
@@ -1240,6 +1248,118 @@ function types(root: string, list: Set<string>): Result {
   return result(CANNOT, `tsc exited ${run.status}`, run.lines);
 }
 
+const svelteCheckBin = (): string =>
+  join(HERE, "..", "node_modules", ".bin", "svelte-check");
+
+/** svelte-check's diagnostics over `tsconfig`, from its machine-verbose lines (one JSON object each). */
+// --config names the one Svelte config: svelte-check otherwise imports, and so runs, every svelte.config.* and
+// vite.config.* below the tsconfig's folder, gitignored ones included, and searches above the root.
+function svelteCheck(cwd: string, tsconfig: string, config: string) {
+  const r = spawnSync(
+    svelteCheckBin(),
+    [
+      "--tsconfig",
+      tsconfig,
+      "--config",
+      config,
+      "--fail-on-warnings",
+      "--output",
+      "machine-verbose",
+    ],
+    { cwd, encoding: "utf8", env: childEnv() },
+  );
+  const found = r.stdout
+    .split("\n")
+    .map((l) => l.replace(/^\d+ /, ""))
+    .filter((l) => l.startsWith("{"))
+    .map(
+      (l) =>
+        JSON.parse(l) as {
+          type: string;
+          filename: string;
+          start: { line: number };
+          code: number | string;
+          message: string;
+        },
+    );
+  return { status: r.status, found, out: `${r.stdout}${r.stderr}` };
+}
+
+// svelte-check, strict, over every tracked Svelte component (PRD-G3); `types` keeps tsc for the scripts. svelte-check
+// lists no checked file and silently skips one outside tsconfig.json's include, so each component must match it.
+// With no component tracked the step is not applicable, after the planted errors were found.
+function svelte(root: string, list: Set<string>): Result {
+  const pin = readJson(root, "package.json")?.devDependencies?.["svelte-check"];
+  const v = versionOf(svelteCheckBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.replace("svelte-check, ", "");
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `svelte-check ${got} is installed, package.json pins ${pin}`,
+    );
+  const config = join(root, "svelte.config.js");
+  if (!list.has("svelte.config.js") || !existsSync(config))
+    return result(
+      CANNOT,
+      "svelte.config.js is not tracked: without it svelte-check imports any Svelte or Vite config it finds",
+    );
+  const dir = canaries("svelte");
+  const canary = svelteCheck(dir, join(dir, "tsconfig.json"), config);
+  const planted = (code: number) =>
+    canary.found.some(
+      (d) =>
+        d.type === "ERROR" &&
+        d.code === code &&
+        d.filename.endsWith("canary.svelte"),
+    );
+  if (!planted(2322) || !planted(7006))
+    return result(
+      CANNOT,
+      "svelte-check did not report the planted type errors (TS2322 and the strict-only TS7006 in canary.svelte)",
+      canary.out.trim().split("\n").slice(0, 5),
+    );
+  const mine = [...list].filter((f) =>
+    CLASSES.find((k) => k.match.test(f))?.steps.includes("svelte"),
+  );
+  if (!mine.length)
+    return result(
+      NA,
+      `svelte-check ${got} failed the canary; no .svelte file is tracked`,
+    );
+  const project = readJson(root, "tsconfig.json") as unknown as {
+    include?: string[];
+    exclude?: string[];
+  } | null;
+  const covers = (globs: string[] | undefined, f: string) =>
+    (globs ?? []).some((g) => matchesGlob(f, g));
+  const outside = mine.filter(
+    (f) => !covers(project?.include, f) || covers(project?.exclude, f),
+  );
+  if (outside.length)
+    return result(
+      CANNOT,
+      "tsconfig.json's include leaves out tracked Svelte components",
+      outside,
+    );
+  const run = svelteCheck(root, join(root, "tsconfig.json"), config);
+  const details = run.found.map(
+    (d) => `${d.filename}:${d.start.line + 1} ${d.code} ${d.message}`,
+  );
+  if (run.status === 0 && !details.length)
+    return result(
+      PASS,
+      `svelte-check ${got} failed the canary and accepted ${mine.length} component(s)`,
+    );
+  if (run.status === 1 && details.length)
+    return result(FINDING, `${details.length} problem(s)`, details);
+  return result(
+    CANNOT,
+    `svelte-check exited ${run.status}`,
+    run.out.trim().split("\n").slice(0, 5),
+  );
+}
+
 function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
@@ -1324,6 +1444,7 @@ const CHECKS: Record<string, Check> = {
   format,
   lint,
   types,
+  svelte,
   dupes,
   pins,
   "gate-needs": gateNeeds,

@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -62,10 +64,12 @@ const FIXTURE_TSCONFIG = `{
   "compilerOptions": {
     "target": "es2024",
     "module": "nodenext",
+    "moduleResolution": "nodenext",
     "strict": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["node"]
+    "types": ["node"],
+    "skipLibCheck": true
   },
   "include": ["scripts/**/*.ts"]
 }
@@ -113,6 +117,7 @@ const PACKAGE: Pkg = {
     eslint: PINS.eslint,
     jscpd: PINS.jscpd,
     prettier: PINS.prettier,
+    "svelte-check": PINS["svelte-check"],
     typescript: PINS.typescript,
   },
 };
@@ -166,6 +171,7 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/workflows/scorecard.yml": "on: [push]\n",
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
+    "svelte.config.js": "export default {};\n",
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
@@ -1006,6 +1012,102 @@ test("types: a type error in a script is a finding that names the file", () => {
     put(root, "scripts/y.ts", 'export const n: number = "one";\n');
   assert.match(expect("types", repo(bad), 1), /scripts\/y\.ts/);
 });
+/** A tracked Svelte component under src/, which the fixture's tsconfig.json then includes. */
+const component =
+  (body: string, path = "src/Count.svelte") =>
+  (root: string): void => {
+    edit(
+      "tsconfig.json",
+      '"include": ["scripts/**/*.ts"]',
+      '"include": ["scripts/**/*.ts", "src/**/*.svelte"]',
+    )(root);
+    put(root, path, body);
+  };
+const COMPONENT = `<script lang="ts">\n  let { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
+  const r = run(["svelte", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE svelte: svelte-check \S+ failed the canary; no \.svelte file is tracked$/,
+    r.out,
+  );
+});
+test("svelte: passes when svelte-check fails its canary and accepts every tracked component", () => {
+  expect("svelte", repo(component(COMPONENT)), 0);
+});
+test("svelte: a type error in a component is a finding that names the file and the code", () => {
+  const out = expect(
+    "svelte",
+    repo(
+      component(
+        COMPONENT.replace("<p>{count}</p>", "<p>{count.toUpperCase()}</p>"),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte:\d+ 2339 /);
+});
+test("svelte: a component outside tsconfig.json's include cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      put(root, "lib/Other.svelte", COMPONENT);
+    }),
+    3,
+  );
+  assert.match(out, /lib\/Other\.svelte/);
+});
+test("svelte: a canary that svelte-check accepts cannot be checked", () => {
+  const dir = canaryDir("svelte", {
+    "tsconfig.json": `${JSON.stringify({
+      ...(JSON.parse(FIXTURE_TSCONFIG) as object),
+      include: ["canary.svelte"],
+    })}\n`,
+    "canary.svelte": COMPONENT,
+  });
+  // svelte-check must be able to accept it: the folder finds svelte's types as a real canary folder does.
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "svelte", "node_modules"),
+  );
+  const out = expect("svelte", repo(), 3, { canaries: dir });
+  assert.match(out, /did not report the planted type errors/);
+});
+test("svelte: without a tracked svelte.config.js the step cannot be checked", () => {
+  const out = expect("svelte", repo(remove("svelte.config.js")), 3);
+  assert.match(out, /svelte\.config\.js is not tracked/);
+});
+test("svelte: no Svelte or Vite config is imported but the root's, from below it or above it", () => {
+  const parent = tempDir();
+  const root = join(parent, "root");
+  cpSync(repo(component(COMPONENT)), root, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  // Each planted config writes its marker when imported. The Vite one can only be imported where vite resolves;
+  // the probe that measured it with vite installed is kept with the evidence of this step.
+  const planted = (marker: string) =>
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default {};\n`;
+  put(parent, "svelte.config.js", planted(join(parent, "MARKER-above")));
+  put(root, "docs/deep/svelte.config.js", planted(join(root, "MARKER-nested")));
+  put(root, "docs/deep/vite.config.mjs", planted(join(root, "MARKER-vite")));
+  expect("svelte", root, 0);
+  for (const m of [
+    join(parent, "MARKER-above"),
+    join(root, "MARKER-nested"),
+    join(root, "MARKER-vite"),
+  ])
+    assert.ok(!existsSync(m), `${m} exists: its config was imported`);
+});
+test("svelte: another svelte-check version than the pin cannot be checked", () => {
+  expect(
+    "svelte",
+    repo(pkg((p) => (p.devDependencies["svelte-check"] = "0.0.1"))),
+    3,
+  );
+});
 test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
   const outside = (root: string): void =>
     put(root, "tools/z.ts", "export const one = 1;\n");
@@ -1474,7 +1576,10 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no commit after origin/main, so the secrets step has nothing to scan.
   const out = expect("all", repo(), 0);
-  assert.match(out, /^PASS all: 15 checks passed, 1 not applicable: secrets$/m);
+  assert.match(
+    out,
+    /^PASS all: 15 checks passed, 2 not applicable: svelte, secrets$/m,
+  );
 });
 test("all: returns the failing step's finding and names the step", () => {
   const out = expect(

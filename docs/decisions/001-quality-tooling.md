@@ -96,10 +96,15 @@ Category B licences in use: none today. Expected:
 ## Accepted advisories
 
 - **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
-  through typescript-eslint, typescript-estree and tinyglobby; development only. Owner's decision, 2026-11-17: allowed
-  by its id in `dependency-review.yml`. Why: "No pattern reaches the vulnerable picomatch 4.0.7 that dependency-review
-  reports. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config file in the tree, which a
-  pull request can add in any folder; the effect is at most a hung gate, which a pull request can already cause."
+  through typescript-eslint (typescript-estree, tinyglobby, fdir) and svelte-check (fdir); development only. Owner's
+  decision, 2026-11-17: allowed by its id in `dependency-review.yml`. Why, measured on 2026-11-17 with svelte-check
+  4.7.8: no pattern reaches the vulnerable picomatch 4.0.7 that dependency-review reports. Through typescript-eslint,
+  `allowDefaultProject` goes to minimatch. Through svelte-check, the installed fdir and picomatch are never run:
+  svelte-check bundles its own fdir and picomatch 4.0.3 (found by comparing with the published versions), inside the
+  advisory's range and NOT visible to dependency-review, and that copy is only loaded: no glob call exists in it and
+  all its file filters are predicates. Patterns reach prettier's bundled picomatch 2.3.2 only from a Prettier config
+  file in the tree, which a pull request can add in any folder. The effect is at most a hung gate, which a pull
+  request can already cause. A svelte-check bump re-opens this claim: the probe is run again first.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
