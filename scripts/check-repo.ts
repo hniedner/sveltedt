@@ -2027,12 +2027,40 @@ const TYPES = [
 ];
 const HEADER = new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: \\S`);
 const MAX_HEADER = 100;
-function headerProblem(h: string): string | null {
+// git's own headers for `git revert` of a commit and of a revert: judged by the header they wrap.
+const WRAPPED = /^(Revert|Reapply) "(.*)"$/;
+// git's headers for `commit --fixup/--squash`: fine while working, squashed before a pull request.
+const AUTOSQUASH = /^(fixup|squash|amend)! /;
+function headerProblem(h: string, inHook: boolean): string | null {
+  const wrapped = WRAPPED.exec(h);
+  if (wrapped) return headerProblem(wrapped[2], inHook);
+  if (AUTOSQUASH.test(h))
+    return inHook
+      ? null
+      : `"${h}": a fixup, squash or amend commit; squash it before the pull request`;
   if (!HEADER.test(h))
     return `"${h}": not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
   if (h.length > MAX_HEADER)
     return `"${h}": ${h.length} characters, more than ${MAX_HEADER}`;
   return null;
+}
+
+/**
+ * A message's header as git stores it: its first non-blank line, only a trailing carriage return and trailing blanks
+ * removed (a leading blank or byte-order mark is kept, as git keeps it). In the hook's file git has not yet removed
+ * what it adds itself: everything from the scissors line of `commit -v` on, and its comment lines.
+ */
+function headerOf(message: string, inHookFile: boolean): string {
+  let lines = message.split("\n");
+  if (inHookFile) {
+    const scissors = lines.indexOf(
+      "# ------------------------ >8 ------------------------",
+    );
+    lines = (scissors < 0 ? lines : lines.slice(0, scissors)).filter(
+      (l) => !l.startsWith("#"),
+    );
+  }
+  return lines.find((l) => l.trim())?.trimEnd() ?? "";
 }
 
 // Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
@@ -2041,46 +2069,54 @@ function commits(root: string): Result {
   if (isResult(range)) return range;
   const r = spawnSync(
     "git",
-    ["-C", root, "log", "--no-merges", "--format=%h %s", range.range],
+    // The whole message, not %s: git's %s joins a body line written right below the subject into it.
+    ["-C", root, "log", "--no-merges", "--format=%h%x00%B%x1e", range.range],
     { encoding: "utf8", env: childEnv() },
   );
   if (r.status !== 0)
-    return result(CANNOT, `git log ${range.range} failed: ${r.stderr.trim()}`);
-  const lines = r.stdout.split("\n").filter(Boolean);
-  if (!lines.length) return emptyRange(range.range);
-  const details = lines.flatMap((l) => {
-    const problem = headerProblem(l.slice(l.indexOf(" ") + 1));
-    return problem ? [`${l.split(" ")[0]} ${problem}`] : [];
+    return result(
+      CANNOT,
+      `git log ${range.range} failed: ${r.stderr?.trim() || errorCode(r.error)}`,
+    );
+  const records = r.stdout
+    .split("\x1e")
+    .map((rec) => rec.replace(/^\n/, ""))
+    .filter(Boolean);
+  if (!records.length) return emptyRange(range.range);
+  const details = records.flatMap((rec) => {
+    const [hash, message] = rec.split("\0");
+    const problem = headerProblem(headerOf(message, false), false);
+    return problem ? [`${hash} ${problem}`] : [];
   });
   if (details.length)
     return result(
       FINDING,
-      `${details.length} of ${lines.length} commit(s)`,
+      `${details.length} of ${records.length} commit(s)`,
       details,
     );
   return result(
     PASS,
-    `${lines.length} commit(s) in ${range.range}, every header conventional`,
+    `${records.length} commit(s) in ${range.range}, every header conventional`,
   );
 }
 
 // The commit-msg hook's check of one message file. git's own merge header passes; the gate's range check, which
-// leaves real merges out, still catches a non-merge commit that only looks like one.
+// leaves real merges out, still catches a non-merge commit that only looks like one. Autosquash headers pass here
+// and not in the gate (above): git writes them for `commit --fixup`, and they are squashed before a pull request.
 function commitMsg(file: string | undefined): Result {
   let text: string;
   try {
     text = readFileSync(file ?? "", "utf8");
-  } catch {
-    return result(USAGE, `cannot read the message file ${file ?? ""}`);
+  } catch (e) {
+    return result(
+      USAGE,
+      `cannot read the message file ${file ?? ""}: ${errorCode(e as NodeJS.ErrnoException)}`,
+    );
   }
-  const header =
-    text
-      .split("\n")
-      .find((l) => l.trim() && !l.startsWith("#"))
-      ?.trim() ?? "";
+  const header = headerOf(text, true);
   if (!header) return result(FINDING, "the message is empty");
   if (/^Merge /.test(header)) return result(PASS, "a merge header");
-  const problem = headerProblem(header);
+  const problem = headerProblem(header, true);
   return problem ? result(FINDING, problem) : result(PASS, `"${header}"`);
 }
 

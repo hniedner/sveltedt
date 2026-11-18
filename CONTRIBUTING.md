@@ -107,7 +107,8 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
-- **commits:** every commit of the branch, merges left out, has a conventional header (see Hooks).
+- **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
+  (see Hooks).
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI).
 
@@ -116,15 +117,28 @@ find it, so a tool that silently checks nothing cannot pass.
 
 ## Hooks
 
-git runs them from `.githooks/` once `core.hooksPath` is set. They read files and change none.
+git runs them from `.githooks/` once `core.hooksPath` is set. Nothing checks that setting yet (see "Not built yet"):
+a clone without it is caught only by the gate's `commits` step.
 
-- **commit-msg:** the header is `<type>(<scope>): <subject>` (scope optional, `!` before the colon for a breaking
-  change), at most 100 characters. The types are the list `TYPES` in `scripts/check-repo.ts`; a refused header
-  prints them. The changelog is generated from these headers.
+- **commit-msg:** the header (the first non-blank line) is `<type>(<scope>): <subject>`, at most 100 characters.
+  The scope is optional, in lower-case letters, digits and hyphens; `!` before the colon marks a breaking change; the
+  subject starts right after one space. The types are the list `TYPES` in `scripts/check-repo.ts`; a header of the
+  wrong shape is refused with that list. The changelog is generated from these headers.
+  - git's own headers pass: `Merge ...`, and `Revert "<header>"` or `Reapply "<header>"` when the header they wrap
+    does.
+  - `fixup!`, `squash!` and `amend!` headers pass the hook, since git writes them for `commit --fixup`, but the gate's
+    `commits` step refuses them: such commits are squashed before a pull request. Hook and gate differ here on
+    purpose.
+  - A suggestion applied or a file edited on GitHub's website asks for a commit message: give it a conventional
+    header, or the `commits` step refuses the pull request.
 
-A hook that refuses is answered by fixing the change or rewording the message, never by `--no-verify` (method
-section 10). A bad message on a pushed branch is not rewritten: the work moves to a new branch from `main` with a
-correct message.
+The `commits` step leaves real merge commits out, whatever their message; a one-parent commit that only looks like a
+merge is judged. A hook that refuses is answered by fixing the change or rewording the message, never by skipping the
+hook (`--no-verify`).
+
+`core.hooksPath` points into the working tree, so git runs whatever hooks the checked-out branch holds, on checkout as
+well as on commit. Review someone else's branch in a clone or worktree without the setting, or with it switched off
+for that command: `git -c core.hooksPath=/dev/null checkout <branch>`.
 
 ## How a change is made
 
@@ -141,8 +155,8 @@ correct message.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the local hooks that run checks before a commit or a push (issue #6); until they exist, maintainers run the
-  private word scan by hand before every push;
+- the pre-commit and pre-push hooks, and the gate's check that `core.hooksPath` is set (gates.md G9) (issue #6);
+  until they exist, maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

@@ -2758,8 +2758,7 @@ test("commits: a merge commit is not checked", () => {
   expect("commits", root, 0);
 });
 test("commits: a branch that merged main is not judged by main's plain subjects", () => {
-  // Older main history has plain subjects. Only commits after the merge base with main count; not first-parent,
-  // because a branch merged into this one (not main) lands on main too and is checked.
+  // Older main history has plain subjects. Only commits after the merge base with origin/main count.
   const root = branch("feat: on the branch");
   mergeSide(root, "refs/remotes/origin/main", "Add a plain subject on main");
   git(root, "update-ref", "refs/remotes/origin/main", "side");
@@ -2789,6 +2788,71 @@ test("commits: CI's range from GATE_BASE and GATE_HEAD is the one checked", () =
     extraEnv: { GATE_BASE: base, GATE_HEAD: "HEAD" },
   });
 });
+// Pins: the step never judges commits it cannot read. A base of all zeros (a new branch pushed in CI) and a base git
+// does not know (a shallow clone, a force-pushed base) both stop the step.
+test("commits: a GATE_BASE of all zeros cannot be checked", () => {
+  expect("commits", branch("feat: x"), 3, {
+    extraEnv: { GATE_BASE: "0".repeat(40), GATE_HEAD: "HEAD" },
+  });
+});
+test("commits: a GATE_BASE git does not know cannot be checked", () => {
+  const out = expect("commits", branch("feat: x"), 3, {
+    extraEnv: { GATE_BASE: "1".repeat(40), GATE_HEAD: "HEAD" },
+  });
+  assert.match(out, /^COULD NOT CHECK commits: git log /m);
+});
+// Pins: a refusal names the bad commit only, counts it against the range, and prints the allowed types.
+test("commits: a refused header is named alone, with the count and the allowed types", () => {
+  const out = expect("commits", branch("feat: fine", "Add the thing"), 1);
+  assert.match(out, /^FINDING commits: 1 of 2 commit\(s\)$/m);
+  assert.match(
+    out,
+    /build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test/,
+  );
+  assert.doesNotMatch(out, /feat: fine/);
+});
+// Pins: only a real merge is left out; a one-parent commit that only looks like one is judged.
+test("commits: a commit headed like a merge but with one parent is a finding", () => {
+  expect("commits", branch("Merge the thing"), 1);
+});
+// Pins: the header is the first line as git stores it. A body line right below the subject is not part of it (git's
+// %s would join them), and a subject beginning with "#" is judged as stored.
+test("commits: the header is the first line, even with a body line right below it", () => {
+  expect("commits", branch(`feat: one\n${"x".repeat(100)}`), 0);
+});
+test("commits: a stored subject beginning with # is a finding", () => {
+  expect("commits", branch("#123 fix the thing"), 1);
+});
+// Pins: git's own revert headers are judged by the header they wrap; autosquash commits never reach a pull request.
+test("commits: git's Revert and Reapply headers pass when the header they wrap does", () => {
+  expect(
+    "commits",
+    branch('Revert "feat: a thing"', 'Reapply "feat: a thing"'),
+    0,
+  );
+  expect("commits", branch('Revert "Add a thing"'), 1);
+});
+test("commits: a fixup, squash or amend commit is a finding", () => {
+  for (const h of ["fixup! feat: x", "squash! feat: x", "amend! feat: x"]) {
+    const out = expect("commits", branch(h), 1);
+    assert.match(out, /squash it before the pull request/);
+  }
+});
+// Pins: Dependabot's configured headers (.github/dependabot.yml) pass, so its pull requests are never blocked.
+test("commits: Dependabot's headers pass", () => {
+  expect(
+    "commits",
+    branch(
+      "ci(deps): bump actions/checkout from 4 to 5",
+      "build(deps-dev): bump x from 1.0.0 to 1.0.1",
+    ),
+    0,
+  );
+});
+// Pins: the length limit is at most 100 characters, not fewer.
+test("commits: a header of exactly 100 characters passes", () => {
+  expect("commits", branch(`feat: ${"x".repeat(94)}`), 0);
+});
 
 /** Runs the commit-msg entry on a message file holding `text`. */
 function commitMsg(text: string, code: number): string {
@@ -2813,7 +2877,81 @@ test("commit-msg: an empty message is a finding", () => {
 test("commit-msg: a message file that cannot be read is a usage error", () => {
   const r = run(["commit-msg", join(tempDir(), "absent")]);
   assert.equal(r.code, 2, r.out);
-  assert.match(r.out, /^USAGE commit-msg: cannot read the message file /m);
+  assert.match(
+    r.out,
+    /^USAGE commit-msg: cannot read the message file .*: ENOENT$/m,
+  );
+});
+// Pins: every type of TYPES passes the hook, and so do Dependabot's headers.
+test("commit-msg: every allowed type passes", () => {
+  for (const t of [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "revert",
+    "style",
+    "test",
+  ])
+    commitMsg(`${t}: a change\n`, 0);
+  commitMsg("ci(deps): bump actions/checkout from 4 to 5\n", 0);
+  commitMsg("build(deps-dev): bump x from 1.0.0 to 1.0.1\n", 0);
+});
+// Pins: the header grammar. Each is a normal contributor's slip; each must be refused, and so must a leading space or
+// byte-order mark, which git keeps in the stored header.
+test("commit-msg: a malformed header is a finding", () => {
+  for (const h of [
+    "feat(): x",
+    "fix(Table): x",
+    "fix(a/b): x",
+    "feat:x",
+    "feat: ",
+    " feat: x",
+    "\uFEFFfeat: x",
+  ])
+    assert.match(
+      commitMsg(`${h}\n`, 1),
+      /^FINDING commit-msg/m,
+      JSON.stringify(h),
+    );
+});
+// Pins: at most 100 characters.
+test("commit-msg: 100 characters pass, 101 are a finding", () => {
+  commitMsg(`feat: ${"x".repeat(94)}\n`, 0);
+  assert.match(commitMsg(`feat: ${"x".repeat(95)}\n`, 1), /101 characters/);
+});
+// Pins: the header is the first line; a conventional line further down does not rescue a bad one.
+test("commit-msg: a bad first line is a finding even with a conventional line below it", () => {
+  commitMsg("Add a thing\n\nfeat: in the body\n", 1);
+});
+// Pins: what git adds to the file itself is not the message: below the scissors line of `commit -v` comes the diff.
+test("commit-msg: nothing below git's scissors line is read", () => {
+  assert.match(
+    commitMsg(
+      "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n",
+      1,
+    ),
+    /^FINDING commit-msg: the message is empty$/m,
+  );
+  commitMsg(
+    "feat: x\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n",
+    0,
+  );
+});
+// Pins: git's own revert headers pass when the header they wrap does; autosquash commits pass the hook (git writes
+// them for --fixup) and are refused by the gate (above).
+test("commit-msg: git's Revert and Reapply headers pass when the header they wrap does", () => {
+  commitMsg('Revert "feat: a thing"\n', 0);
+  commitMsg('Reapply "feat: a thing"\n', 0);
+  commitMsg('Revert "Add a thing"\n', 1);
+});
+test("commit-msg: fixup, squash and amend headers pass the hook", () => {
+  for (const h of ["fixup! feat: x", "squash! feat: x", "amend! feat: x"])
+    commitMsg(`${h}\n`, 0);
 });
 
 test("commit-msg: git runs the hook and refuses a header that is not conventional", () => {
