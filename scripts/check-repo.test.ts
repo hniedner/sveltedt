@@ -1691,6 +1691,54 @@ test("lint: a config block that changes a proven rule for the component's folder
   );
   expect("lint", repo(), 0, { extraEnv: { ESLINT_CONFIG: config } });
 });
+test("lint: a block that weakens the bans for a whole extension, its canary too, cannot be checked", () => {
+  // Measured (security review of 4528469): a block for **/*.svelte.ts keeping the one ban its canary plants, or a no-op
+  // processor for components, changed canary and file alike, and the step passed with the sink in the file.
+  const real = join(here, "..", "eslint.config.mjs");
+  const RUNE =
+    'export const doc = new DOMParser().parseFromString("<p></p>", "text/html");\nexport const s = document.createElement("style");\n';
+  const RAW =
+    '<script lang="ts">\n  const { html }: { html: string } = $props();\n</script>\n\n{@html html}\n';
+  const allBut = (files: string[]) =>
+    `{ files: ${JSON.stringify(files)}, rules: { "no-restricted-syntax": ["error", ...base.flatMap((b) => b.files?.includes("**/*.svelte.ts") ? (b.rules?.["no-restricted-syntax"] ?? []).slice(1) : []).filter((e) => !/DOMParser/.test(e.message))] } }`;
+  for (const [block, named, change] of [
+    [
+      `{ files: ["**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", { selector: "AssignmentExpression[left.property.name='innerHTML']", message: "assigning innerHTML (PRD-S2)" }] } }`,
+      "scripts/rune.svelte.ts: no-restricted-syntax",
+      (root: string) => put(root, "scripts/rune.svelte.ts", RUNE),
+    ],
+    [
+      allBut(["**/*.svelte"]),
+      "src/lib/probe.svelte: no-restricted-syntax",
+      () => {},
+    ],
+    [
+      allBut(["**/*.mjs", "**/*.js"]),
+      "src/lib/probe.mjs: no-restricted-syntax",
+      () => {},
+    ],
+    [
+      '{ files: ["src/lib/**/*.svelte"], processor: { preprocess: () => [], postprocess: () => [] } }',
+      "src/lib/Raw.svelte: processor",
+      component(RAW, "src/lib/Raw.svelte"),
+    ],
+    [
+      '{ files: ["src/lib/**/*.ts"], languageOptions: { parser: { meta: { name: "other", version: "1.0.0" }, parse: () => { throw new Error("unused"); } } } }',
+      "src/lib/probe.ts: parser",
+      () => {},
+    ],
+  ] as [string, string, (root: string) => void][]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect("lint", repo(change), 3, {
+      extraEnv: { ESLINT_CONFIG: config },
+    });
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
+});
 test("lint: no PostCSS config is loaded for a component, not even one above the root", () => {
   const parent = tempDir();
   const root = join(parent, "root");

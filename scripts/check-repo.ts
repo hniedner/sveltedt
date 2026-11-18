@@ -818,7 +818,8 @@ const results = await eslint.lintFiles(lintable);
 const configs = {};
 for (const f of [...lintable, ...files.filter((f) => f.startsWith("?")).map((f) => f.slice(1))]) {
   const c = await eslint.calculateConfigForFile(f);
-  configs[f] = c ? { rules: c.rules, settings: c.settings, linterOptions: c.linterOptions } : null;
+  const id = (p) => (p == null ? null : typeof p === "string" ? p : p.meta ? p.meta.name + "@" + p.meta.version : "unnamed");
+  configs[f] = c ? { rules: c.rules, settings: c.settings, linterOptions: c.linterOptions, processor: id(c.processor), parser: id(c.languageOptions?.parser) } : null;
 }
 console.log(JSON.stringify({ version: ESLint.version, configs, files: results.map((r) => ({
   f: r.filePath.slice(root.length + 1),
@@ -847,6 +848,8 @@ interface EslintRecord {
       rules: Record<string, unknown>;
       settings: object;
       linterOptions: object;
+      processor: string | null;
+      parser: string | null;
     } | null
   >;
   files: { f: string; messages: { rule: string | null; text: string }[] }[];
@@ -1043,12 +1046,23 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
 // The canaries prove their rules where they sit. A later config block scoped to the component's folders replaces a
 // rule there (measured: a second no-restricted-syntax block replaces the whole list) while every canary still passes,
-// so each proven rule, the settings and the linter options must be the same for every linted file, and for a path in
-// src/lib and site/src (folders that may be empty yet), as for the canary of its extension.
+// so each proven rule, settings, linterOptions, processor and parser must match the canary of its extension for every
+// linted file and a path in src/lib and site/src. A block for a whole extension changes its canary too, so each must
+// also hold every script ban the SCRIPT_BANS canary proves one by one (the other canaries plant only some).
+const SCRIPT_BANS = ".ts";
 const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
   ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
 );
 function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
+  const bans = (c: { rules: Record<string, unknown> }) =>
+    ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
+      .slice(1)
+      .map((e) => JSON.stringify(e));
+  const proof = Object.keys(canary.configs).find(
+    (f) => extOf(f) === SCRIPT_BANS,
+  );
+  const proven = proof ? canary.configs[proof] : null;
+  if (!proven) return [`the ${SCRIPT_BANS} canary: no config`];
   return Object.keys(rec.configs).flatMap((probe) => {
     const ext = extOf(probe) ?? "";
     const planted = Object.keys(canary.configs).find((f) => extOf(f) === ext);
@@ -1064,6 +1078,12 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
       ...rules.filter((r) => !same(got.rules[r], want.rules[r])),
       ...(same(got.settings, want.settings) ? [] : ["settings"]),
       ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
+      ...(["processor", "parser"] as const).filter((k) => got[k] !== want[k]),
+      ...(bans(proven).every((b) => bans(got).includes(b))
+        ? []
+        : [
+            `no-restricted-syntax without each ban of the ${SCRIPT_BANS} canary`,
+          ]),
     ].map((r) => `${probe}: ${r}`);
   });
 }
