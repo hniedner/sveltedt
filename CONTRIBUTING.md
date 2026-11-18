@@ -55,11 +55,12 @@ The checks today:
 string, s)`); an alias under a name no ban reads (`const d = document; d.write`, `const { write } = document`);
   `setAttribute`, `createElement`, `createElementNS` or `execCommand` reached through `.call`, `.apply` or
   `Reflect.apply`; `Reflect.set`, `Object.defineProperty`, `setAttributeNS`, `setAttributeNode`; or a computed
-  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration for a path in `src/lib` and in
-  `site/src` and blocks when a rule the canaries prove, or the settings, differ there from the canaries' (a later
-  config block scoped to those folders would otherwise replace the bans unseen). The probe paths are one list,
-  `CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level source folder (say `consumer/src/`) is not probed until
-  it is added there. TypeScript
+  `svelte:element` `this`: review is the guard for these. The lint step also resolves the configuration of every
+  linted file and of a path in `src/lib` and `site/src` (`CONFIG_PROBES` in `scripts/check-repo.ts`: a new top-level
+  source folder is not probed until it is added there), and blocks when a rule the canaries prove, the settings, the
+  linter options, the processor or the parser differ from its extension's canary, or a script ban the `.ts` canary
+  proves is missing. A processor or parser that keeps the real one's name and version, or has none, while changing
+  what is linted, is not seen by this comparison (measured with eslint-plugin-svelte 3.24.1 and ESLint 10.15.0). TypeScript
   type-checks the scripts, jscpd finds copied
   code outside tests and components. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from

@@ -1058,11 +1058,10 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
     ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
       .slice(1)
       .map((e) => JSON.stringify(e));
-  const proof = Object.keys(canary.configs).find(
-    (f) => extOf(f) === SCRIPT_BANS,
-  );
-  const proven = proof ? canary.configs[proof] : null;
-  if (!proven) return [`the ${SCRIPT_BANS} canary: no config`];
+  // The SCRIPT_BANS canary raised each of its bans first (lintCanaryMisses), so it has a config.
+  const proven = Object.entries(canary.configs).find(
+    ([f]) => extOf(f) === SCRIPT_BANS,
+  )?.[1] as { rules: Record<string, unknown> };
   return Object.keys(rec.configs).flatMap((probe) => {
     const ext = extOf(probe) ?? "";
     const planted = Object.keys(canary.configs).find((f) => extOf(f) === ext);

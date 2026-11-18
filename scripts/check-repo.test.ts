@@ -1636,12 +1636,12 @@ test("lint: a config block that changes a proven rule for the component's folder
   for (const [block, named, file = ""] of [
     [
       '{ files: ["src/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
-      "src/lib/probe.svelte: no-restricted-syntax",
+      "src/lib/probe.svelte: no-restricted-syntax\n",
     ],
     // A block narrower than the probes: the file it reaches is compared too.
     [
       '{ files: ["src/lib/components/**"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
-      "src/lib/components/Grid.svelte: no-restricted-syntax",
+      "src/lib/components/Grid.svelte: no-restricted-syntax\n",
       "src/lib/components/Grid.svelte",
     ],
     [
@@ -1651,7 +1651,7 @@ test("lint: a config block that changes a proven rule for the component's folder
     ],
     [
       '{ files: ["src/**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", "WithStatement"] } }',
-      "src/lib/probe.svelte.ts: no-restricted-syntax",
+      "src/lib/probe.svelte.ts: no-restricted-syntax\n",
     ],
     [
       '{ files: ["src/**"], linterOptions: { noInlineConfig: false } }',
@@ -1704,17 +1704,17 @@ test("lint: a block that weakens the bans for a whole extension, its canary too,
   for (const [block, named, change] of [
     [
       `{ files: ["**/*.svelte.ts"], rules: { "no-restricted-syntax": ["error", { selector: "AssignmentExpression[left.property.name='innerHTML']", message: "assigning innerHTML (PRD-S2)" }] } }`,
-      "scripts/rune.svelte.ts: no-restricted-syntax",
+      "scripts/rune.svelte.ts: no-restricted-syntax without each ban of the .ts canary",
       (root: string) => put(root, "scripts/rune.svelte.ts", RUNE),
     ],
     [
       allBut(["**/*.svelte"]),
-      "src/lib/probe.svelte: no-restricted-syntax",
+      "src/lib/probe.svelte: no-restricted-syntax without each ban of the .ts canary",
       () => {},
     ],
     [
       allBut(["**/*.mjs", "**/*.js"]),
-      "src/lib/probe.mjs: no-restricted-syntax",
+      "src/lib/probe.mjs: no-restricted-syntax without each ban of the .ts canary",
       () => {},
     ],
     [
