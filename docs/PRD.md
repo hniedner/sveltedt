@@ -1,6 +1,6 @@
 # SvelteDT: product requirements
 
-- **Product:** SvelteDT, an accessible, server-driven data table for Svelte 5 and Tailwind 4.
+- **Product:** SvelteDT, an accessible data table for Svelte 5 and Tailwind 4, server-driven or client-side.
 - **Status:** Approved by the owner on 2026-11-17, REV 7; amended by the owner the same day: releases are automatic
   (PRD-S7); the consumer project's type check replaces "Are the types wrong?" in PRD-K2 (owner's decision,
   2026-11-17), because the tool does not support a package that re-exports `.svelte` files (READ, its source and
@@ -20,10 +20,10 @@
 ## 1. The problem and who has it
 
 Developers of Svelte 5 + Tailwind 4 apps under a strict content-security policy need a data table whose sorting,
-filtering and paging run on the server, that keyboard and screen-reader users can work, and that fits their policy and
-design system. Full grids bring their own markup, theme and grid keyboard model; headless cores leave all markup,
-accessibility and policy work to the app. No candidate meets all of this without a policy or weight cost (MEASURED,
-section 7).
+filtering and paging run on the server, or in the browser for a set of rows it holds, that keyboard and screen-reader
+users can work, and that fits their policy and design system. Full grids bring their own markup, theme and grid
+keyboard model; headless cores leave all markup, accessibility and policy work to the app. No candidate meets all of
+this without a policy or weight cost (MEASURED, section 7).
 
 - **Reference consumers:** SvelteDT's own test site and clean-install consumer project (PRD-W). They prove every claim
   the way a consumer would, before any app depends on the package.
@@ -33,7 +33,15 @@ section 7).
 
 ## 2. Goals and non-goals
 
-**Goals.** One table component and one pager that (1) render a page of rows exactly as the server ordered it;
+**Vision.** SvelteDT brings what makes DataTables (datatables.net) useful to Svelte 5: DataTables is the inspiration
+and the template for what the table can do, server-side and client-side; what it does well is matched or improved,
+and a departure from it is the owner's decision. SvelteDT does it the Svelte way: components with props, callbacks
+and snippets, not an imitation of DataTables' JavaScript API. Two ways in are first-class: a new project, and a
+project leaving DataTables, whose server-side backend keeps working through the connection helper (PRD-B20) and whose
+options map to SvelteDT through a migration guide (PRD-D8).
+
+**Goals.** One table component and one pager, fed by the application, the connection helper or the local data source,
+that (1) render a page of rows exactly as their data source ordered it;
 (2) report every user action as one event and keep only the internal state listed in PRD-B2; (3) meet WCAG 2.2 AA with
 the WAI-ARIA APG *table* pattern, criterion by criterion (section 4.3); (4) work under the strict policy (section 4.4);
 (5) take their look from prefixed tokens and stay usable without them; (6) have a small, typed, stable public interface
@@ -44,17 +52,21 @@ consumer project that install the packed package.
 - A spreadsheet grid: no cell editing, no cell cursor, no roving focus, no `role="grid"`.
 - App concepts: no records, users, roles, permissions, data tiers, settings, or criteria other than its own column
   filters (section 5.2).
-- Data fetching, wire formats, retries, request-forgery tokens, caching; storage of preferences or selection; export
-  files, downloads or clipboard writes.
+- The component fetches nothing, retries nothing and caches no responses; it stores no preferences or selection and
+  makes no export files, downloads or clipboard writes. The connection helper (PRD-B20) speaks the DataTables
+  server-side protocol through the application's own transport.
 - Raw-HTML rendering; shipped CSS; a theme API beyond tokens; bundled translations; app-specific Tailwind variants.
 - Virtualisation; grouping, tree, pivot or aggregation rows.
-- A client-side sort, filter or page mode inside the component. A consumer may apply the intents in memory itself; the
-  server guide (PRD-D6) shows how.
+- A client-side mode inside the component: the component never knows where its rows come from. Client-side
+  processing is the local data source (PRD-B21), shipped beside it.
 
 ## 3. Users and scenarios
 
 - **App developer.** Installs the package, adds the Tailwind `@source` line, optionally sets the tokens, passes rows,
-  columns and state as props, and sends each intent to its server.
+  columns and state as props, and either sends each intent to its server, through the connection helper or its own
+  code, or gives all rows to the local data source.
+- **Developer leaving DataTables.** Keeps the server-side backend, connects it through the connection helper
+  (PRD-B20), and maps options with the migration guide (PRD-D8).
 - **Server implementer.** Maps intents to queries: offsets, direction words, the order list, filter shapes, what
   "reset" restores, and how to answer out of order. Needs PRD-D6.
 - **End user, pointer, touch or keyboard.** Sorts by one or more columns, filters by text (applied on Enter) or by fixed
@@ -83,7 +95,7 @@ and the release record holds that step's pass or fail. A manual step not recorde
 | Id | Requirement | Reason | Priority |
 |---|---|---|---|
 | PRD-B1 | Rows render in exactly the given order; the table never sorts, filters or slices them. | The server pages by its own order. | must |
-| PRD-B2 | Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the open dialog and its trigger; unsent filter text and its error; whether the chooser is open; an active drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether the region overflows; the text of the last column-move announcement; the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page). It resets on remount and is documented. | One source of truth; two emits are two requests that can race. | must |
+| PRD-B2 | Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the open dialog and its trigger; unsent filter text and its error; whether the chooser is open; an active drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay timer, its minimum display time and whether it has turned still (B22); the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page). It resets on remount and is documented. | One source of truth; two emits are two requests that can race. | must |
 | PRD-B3 | A column has a label and either a text value or the consumer's cell snippet; sort and filter controls appear only where configured. | Links and badges are the consumer's; a control that does nothing misleads. | must |
 | PRD-B4 | Multi-column sort: a press emits the whole next order; Shift adds or advances a column; single-direction columns are honoured; hidden columns keep their place. | The consumer sends the order as is. | must |
 | PRD-B5 | The whole sort order is legible: rank marks, descriptions, and a toolbar summary while a sorted column is hidden. | `aria-sort` names one column only. | must |
@@ -101,6 +113,16 @@ and the release record holds that step's pass or fail. A manual step not recorde
 | PRD-B17 | An actions snippet shows in every state; there is no built-in export. | Export policy is the consumer's. | must |
 | PRD-B18 | Two or more tables on one page work independently: every id is unique per instance and stable across server rendering and hydration. | Shared ids cross-wire labels and descriptions. | must |
 | PRD-B19 | No global footprint. Oracle: before the first mount, a test wraps `addEventListener` and `removeEventListener` on `document` and `window`; a control mount of an empty Svelte component with the same event types measures Svelte's own delegated listeners, which are excluded. It snapshots the root element's attributes and inline style and the window scroll position; after mount and unmount all equal the snapshot; while a dialog is open the listener delta against the closed state is one passive outside-press listener. Escape: a consumer-side `document` keydown spy receives no Escape that closed a SvelteDT dialog and receives every other Escape. | A component must not fight the app's modals or layout. | must |
+| PRD-B20 | A connection helper on its own export path connects the table and the pager to a server that speaks the DataTables server-side protocol (of the major named in its spec): one factory, called in a component's script, given the application's `send(request, signal)` and a column map in the backend's order; it returns the table's props, the pager's props, a readable and writable query, and `reload()`; a first page loaded on the server can be passed in so the server's HTML already shows rows; only the latest request's answer is used; a failure reaches the application through `onerror` and never shows server text on screen (PRD-S4). | A project leaving DataTables keeps its backend; the helper owns what is easy to get wrong while the component stays transport-free. | must |
+| PRD-B21 | A local data source shipped beside the table, on its own export path, in two parts: a pure query function (rows, query, column map, locale in; the page of rows, the total and the filtered count out; no runes, no DOM, so the same function runs in the browser, on a Node server and in tests), and a reactive wrapper with the shape of PRD-B20, so a page switches between server and local data without changing the table. The column map declares a type and optional sort and filter values per column id; the locale is given explicitly; sort and filter results are cached per state. | The browser holds all rows and sorts, filters and pages them itself, with no server call per click. | must |
+| PRD-B22 | Once `status` has been `loading`, or `busy` has been true, continuously for 1 second, a visual progress indicator appears, and it goes when neither holds. It is decorative (hidden from assistive technology: the text status of PRD-A4 stays the only announcement), covers no control, and moves nothing (the table region's bounding box is the same with and without it). Once shown, it stays at least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for at most 5 seconds and not at all under `prefers-reduced-motion`; after 5 seconds the moving indicator is replaced by a still one with a visible text ("Still loading", a prop with that English default), so nothing moves and nothing looks stuck. Its colours come from tokens. | A slow answer must be visibly in progress; a fast one must not flash; a long one must not move forever beside content a user is reading (WCAG 2.2.2). | must |
+
+**Slow data sources.** Loading shows the loading text, never the empty text, with `aria-busy` (PRD-B15) and a polite
+status (PRD-A4); while `busy`, the previous rows stay and are marked busy; after 1 second a progress indicator shows
+(PRD-B22); a failure shows the failed text in an alert, and the connection helper's `reload()` retries (PRD-B20);
+answers that arrive out of order are dropped (PRD-D6, PRD-B20); the component sets no request timeout: the
+application's transport decides when a request has failed, and cancelling a long request is the application's (the
+connection helper passes it an abort signal).
 
 ### 4.2 Accessibility (A): the claim is WCAG 2.2 Level AA on the APG table pattern
 APG: a table "is not an interactive widget"; the pattern defines no keyboard model; use a native HTML `table`; a grid
@@ -116,11 +138,11 @@ screen reader's table commands, and add a skip link (PRD-A9) for the Tab cost.
 | PRD-A5 | Screen-reader protocol before each minor release and 1.0: a written task script with the expected announcements, recorded at the first pass and compared after; a blocker is a task that cannot be done or an AA failure. **NVDA + Firefox:** run by the maintainer on the Windows host of Q6; additionally driven in CI by Guidepup on a GitHub-hosted Windows runner if a spec-time probe proves it reliable (Guidepup supports NVDA on Windows Server 2022 and 2025, READ; no official hosted-runner workflow found and its Firefox runs headed, per a review of an earlier draft, so INFERRED). **Windows contrast theme (always, whatever route NVDA takes):** the maintainer checks A8 in Firefox on the same host. **VoiceOver + Safari:** run by the maintainer on macOS. Versions recorded; records live in the repo. | Automated checks cannot hear what is announced. | must |
 | PRD-A6 | Every pointer target is at least 24 by 24 CSS px or spaced as WCAG 2.5.8 allows. | AA since 2.2 (READ). | must |
 | PRD-A7 | Every drag has a single-pointer alternative and a keyboard way. | WCAG 2.5.7, AA (READ). | must |
-| PRD-A8 | In forced-colours mode, focus indicators, box states, sort marks and separators stay visible. | `box-shadow` is forced to none there (READ, MDN). | must |
+| PRD-A8 | In forced-colours mode, focus indicators, box states, sort marks, separators and the progress indicator stay visible. | `box-shadow` is forced to none there (READ, MDN). | must |
 | PRD-A9 | A "Skip past table" link, visible on focus, is the component's first focusable item, before the region, and moves focus to the end of the table (a target focusable by script only). | With selection a 1000-row page has over 1000 Tab stops; 15 columns add up to 45 header stops: a sort button, a filter button and a resize separator each (the reorder grip is no Tab stop). | must |
 | PRD-A10 | No content appears on hover or focus alone, other than a focused control's own focus indicator and the skip link becoming visible; dialogs open on press. | WCAG 1.4.13 met by design. | must |
 | PRD-A11 | At 200 % zoom, at 320 CSS px width and with the WCAG text-spacing values nothing is clipped or overlaps, and at horizontal scroll 0 nothing outside the table needs horizontal scrolling (a wide table still scrolls the page sideways in design D; algorithm in section 4.3). | 1.4.4, 1.4.12; 1.4.10 exempts the table but not the toolbar, badges or pager around it (READ, Understanding Reflow). | must |
-| PRD-A12 | Focus indicators, box borders, separators and sort marks have at least 3:1 contrast with adjacent colours: a unit check over the token-pair table of the example tokens, and a browser check of computed colours in each theme view. | 1.4.11; axe has no rule for it (READ by a review of an earlier draft). | must |
+| PRD-A12 | Focus indicators, box borders, separators, sort marks and the progress indicator have at least 3:1 contrast with adjacent colours: a unit check over the token-pair table of the example tokens, and a browser check of computed colours in each theme view. | 1.4.11; axe has no rule for it (READ by a review of an earlier draft). | must |
 | PRD-A13 | The protocol also runs with JAWS + Chrome. | A widely used Windows reader; needs a licensed Windows host (Q6). | should |
 | PRD-A14 | The protocol also runs with VoiceOver on iOS and TalkBack on Android. | Touch screen-reader users. | should |
 
@@ -172,20 +194,23 @@ of visible controls in the toolbar, header cells, badges and pager intersect by 
 0, every element outside the table lies within the viewport width.
 
 Not applicable at component level: 1.2 (no media), 1.3.4 (a component cannot lock orientation), 1.3.5 (filter fields
-collect no personal data), 1.4.2, 1.4.5, 2.2, 2.3 (no audio, images of text, time limits, motion or flashes), 2.5.4
+collect no personal data), 1.4.2, 1.4.5, 2.2.1, 2.3 (no audio, images of text, time limits or flashes; 2.2.2 is met by
+PRD-B22, whose indicator moves at most 5 seconds and not at all under reduced motion), 2.5.4
 (no motion actuation), 2.4.1, 2.4.2, 2.4.5, 3.1, 3.2.3, 3.2.4, 3.2.6 (page-level, the consumer's), 2.4.4 (links are the
 consumer's snippets), 3.3.4, 3.3.7, 3.3.8 (no submissions or authentication). AAA criteria are not claimed.
 
 ### 4.4 Security (S)
 **The strict policy** (one definition): `default-src 'self'; script-src 'self'; style-src 'self'`, with no
 `'unsafe-inline'`, no `'unsafe-eval'`, no `style-src-attr` allowance, and no nonce needed by the component. A consumer
-may add nonces for its own scripts.
+may add nonces for its own scripts. A framework's own markup may need an allowance of its own (SvelteKit's route
+announcer does, PRD-W8); that allowance is the consumer's, never the component's, and the component and the site run
+under the strict policy as defined.
 
 | Id | Requirement | Reason | Priority |
 |---|---|---|---|
-| PRD-S1 | Client-rendered (the site, without nonces) and server-rendered (the consumer project, with its framework's nonces): 0 `securitypolicyviolation` events on every page in Chromium, Firefox and WebKit, recorded by a listener script loaded before the bundle; the consumer project's server HTML holds 0 `style=` attributes; the component injects no `style`, `link` or `script`; its build holds no `eval`, `new Function` or string timers. | A static `style="..."` raises a report (MEASURED, Chromium), and server-rendered HTML can carry style attributes (INFERRED). | must |
+| PRD-S1 | Client-rendered (the site, without nonces) and server-rendered (the consumer project, under the policy of PRD-W8: the strict policy, SvelteKit's nonces and the one allowance for SvelteKit's route announcer): 0 `securitypolicyviolation` events on every page in Chromium, Firefox and WebKit, recorded by a listener script loaded before the bundle; the consumer project's server HTML holds 0 `style=` attributes; the component injects no `style`, `link` or `script`; its build holds no `eval`, `new Function` or string timers. | A static `style="..."` raises a report (MEASURED, Chromium), and server-rendered HTML can carry style attributes (INFERRED). | must |
 | PRD-S2 | Every given text renders as text; the source has no raw-HTML path. | Values may hold anything. | must |
-| PRD-S3 | No network request, cookie, web storage or download. | Data and its destinations are the consumer's. | must |
+| PRD-S3 | The component and the local data source make no network request; the connection helper makes none except through the application's `send`; none of them sets a cookie, uses web storage or starts a download. | Data and its destinations are the consumer's. | must |
 | PRD-S4 | Error messages never contain row values. | Messages reach screenshots and logs. | must |
 | PRD-S5 | Supply chain: no runtime dependency besides the Svelte peer; development dependencies locked, installs frozen, install scripts off except an allow-list; Dependabot alerts, security updates and grouped version updates for npm and GitHub Actions with a cooldown; dependency review on every pull request; actions pinned by commit SHA; secret scanning with push protection; workflow tokens read-only by default. The repo-file parts (lockfile, workflows, Dependabot config, pinned SHAs) are checked by static scans; repository settings need an admin credential, which is never stored, so the owner records them in the release record (rule 4.0). | Every dependency and workflow is exposure for every consumer. | must |
 | PRD-S6 | Behaviour under Trusted Types enforcement is measured, then claimed or documented as a limit. | Svelte's template code sets `innerHTML` (READ by an evaluation done before this document). | should |
@@ -204,6 +229,8 @@ may add nonces for its own scripts.
 | PRD-P1 | Every given row renders, up to 1000, with no virtualisation. | Find-in-page and table navigation need the rows. | must |
 | PRD-P2 | Reference: a GitHub-hosted standard Linux runner (4 CPU, 16 GB, READ), Playwright's pinned Chromium, no throttle, a page of 1000 rows x 15 columns with selection and the example stylesheet; 30 runs; the median of mount, page swap (new rows to painted frame) and one selection change (press to painted frame). **Targets, to be confirmed once by the owner:** page swap 200 ms (INP "good" threshold, READ web.dev); selection change 50 ms (RAIL: process input within 50 ms, READ web.dev, which now prefers Core Web Vitals); mount 500 ms (INP's "needs improvement" upper bound, used as an INFERRED target since no standard covers a component mount). **Budgets (test-first exception, owner-visible):** no SvelteDT table exists when the P2 statements are written, so the statements carry the targets, and the budgets are fixed once, from SvelteDT's own first implementation that can run the full scenario on that runner class: the median of 30 runs x 1.5, rounded up to 50 ms (mount, page swap) or 10 ms (selection change), recorded with the runner image and Chromium versions in `docs/decisions/`. The P2 tests assert the targets until that record exists and the budgets from then on. The budgets are calibrated on no table other than SvelteDT's own. If a budget exceeds its target (mount 500 ms, page swap 200 ms, selection change 50 ms), work stops and goes to the owner. **Planted slowdowns, one per measured action:** site views add busy work equal to that action's budget to the first render of the cells (mount), to the rendering of new rows (page swap) and to the selection callback that reruns on a selection change (selection); each must turn its test red. **Recalibration** happens, and is recorded, when the runner image's major version, Playwright's Chromium major or Svelte's minor changes; budgets change only through that record. The pager does no work per page. | Laptop figures (16 cores, no CSS, auto layout: 140 ms, 124-148 ms, 4 ms; 471 ms and 477-612 ms at 4x throttle, MEASURED) do not transfer; a median of 30 is stable where a 90th percentile of 10 is the maximum. | must |
 | PRD-P3 | Size: at most 32 KB min+gz for a probe entry importing the table and the pager, built by the repo's pinned Vite in production mode, all emitted JS gzipped at level 9, Svelte runtime share included. Proven able to fail by a planted import. | A prototype without chooser, order, resize and skip link measured 26.1 KB the same way (MEASURED); 32 is INFERRED to fit; a breach stops work and goes to the owner, never a silent raise. | must |
+| PRD-P4 | With 10,000 and 100,000 rows of the site's seeded dataset (PRD-W3's generator at those counts, its 16 columns, the example token stylesheet) on the P2 reference runner: a page change on an unchanged sort and filter within P2's page-swap budget; a new sort or a new filter within 500 ms (target, to be confirmed once by the owner; INP's "needs improvement" upper bound, as P2 uses for mount); budgets fixed from the first implementation as P2 fixes them, and a budget over its target stops work and goes to the owner; a planted slowdown per measured action must turn its test red. | Client-side processing must stay usable at the sizes DataTables advises it for. | must |
+| PRD-P5 | Each further export path has a size budget measured as PRD-P3 measures its probe: the connection helper and the local data source each at most 8 KB min+gz (INFERRED to fit; a breach stops work and goes to the owner). | Importing a data source must not cost the table's budget. | must |
 | PRD-E1 | Support: Chrome and Edge 111+, Firefox 128+, Safari 16.4+, which Tailwind 4 requires (READ). CI tests Playwright's Chromium, Firefox and WebKit pinned by the lockfile, versions recorded per release; `eslint-plugin-compat` with that floor flags JavaScript APIs above it. The support statement says the floor versions are covered by that check only. Raising the floor is a major release. | Claim only what is proven, and say how. | must |
 | PRD-E2 | Touch works in emulated iOS Safari and Android Chrome. | Phones and tablets read tables (INFERRED). | should |
 
@@ -219,11 +246,12 @@ may add nonces for its own scripts.
 | PRD-G3 | One local command, `pnpm gate`, runs format, lint, types, all tests (real-browser tests in Chromium only), coverage, mutation at step boundaries, trace, size, API report, docs test and the secret scan. CI (GitHub Actions on every pull request and on main, required by the main ruleset) runs the same except the private word scan, with real-browser tests in Chromium, Firefox and WebKit. | The gate record that counts is the one GitHub writes. | must |
 | PRD-D1 | README quick start whose code blocks equal the consumer project's files (docs test). | Setup is where adoption fails. | must |
 | PRD-D2 | API reference generated from the types; the docs test fails if any export, prop, callback, snippet, message key or token in the API report lacks a description, or if a relative link in the docs does not resolve. | One source; hand-kept docs drift. | must |
-| PRD-D3 | Accessibility statement: the claim, section 4.3, what the consumer must supply (caption, names, `stickyTop` equal to its app bar, the layout duty of design D (no ancestor of the table clips overflow; no fixed bar at the inline start), no inline `style` in its own page shell: SvelteKit's default `app.html` wrapper `<div style="display: contents">` raises a report under the strict policy, so README and the consumer project use a class), known limits (the browser floor, forced colours in WebKit), the latest protocol record. | An honest claim states its conditions. | must |
+| PRD-D3 | Accessibility statement: the claim, section 4.3, what the consumer must supply (caption, names, `stickyTop` equal to its app bar, the layout duty of design D (no ancestor of the table clips overflow; no fixed bar at the inline start), no inline `style` in its own page shell: SvelteKit's default `app.html` wrapper `<div style="display: contents">` raises a report under the strict policy, so README and the consumer project use a class), the policy allowance for SvelteKit's route announcer (`'unsafe-hashes'`, the hash of the announcer's style and `'report-sample'` in `style-src-attr`; how to compute the hash; re-checked on every Svelte or SvelteKit update, when the consumer project's test turns red with a message pointing here), known limits (the browser floor, forced colours in WebKit), the latest protocol record. | An honest claim states its conditions. | must |
 | PRD-D4 | Examples are the test site's pages, quoted from its source. | Tested examples cannot rot. | must |
 | PRD-D5 | `SECURITY.md` (private vulnerability reporting, the support promise), `CHANGELOG.md`, upgrade notes. | Public-repo duties. | must |
-| PRD-D6 | Server implementer guide: intents to queries (zero-based offset, limit, direction words, the order list, filter shapes, what reset restores), dropping out-of-order answers, `busy` and `status` handling, refusal as the failed state, and the in-memory recipe (the site's query module). | The half of the contract the component cannot enforce. | must |
+| PRD-D6 | Server implementer guide: intents to queries (zero-based offset, limit, direction words, the order list, filter shapes, what reset restores), dropping out-of-order answers, `busy` and `status` handling, refusal as the failed state, the local data source's query function (the site's query module), and a section for projects leaving DataTables: connecting their server-side backend through the connection helper (PRD-B20), with what each recorded backend sends and expects (PRD-W11). | The half of the contract the component cannot enforce. | must |
 | PRD-D7 | Contributor guide (`CONTRIBUTING.md`): the gate, the test layers, red first, statement ids and the trace, the mutation rule, synthetic data only. It cites only files in the repo. | Public contributors cannot read private documents. | must |
+| PRD-D8 | Migration guide from DataTables: for every option, event and server parameter in the reference index of the DataTables major the connection helper covers, its SvelteDT equivalent or the reason there is none; the docs test compares the guide with a checked-in snapshot of that index and fails on an entry the guide does not list. | Adoption by projects leaving DataTables is a goal. | must |
 | PRD-L1 | Apache-2.0: `LICENSE` with the full text, `NOTICE` with "Copyright 2026 R. Hannes Niedner", `"license": "Apache-2.0"` in `package.json`. | Settled by the owner. | must |
 
 ### 4.7 The test site and consumer project (W): part of the product
@@ -242,14 +270,15 @@ production server.
 | PRD-W5 | Page "plain": sort, both filter kinds, clear and reset, pager with sizes, a fixed 48 px app bar. | The common read-only use. | must |
 | PRD-W6 | Page "full": selection with a Shift range worked out by the site, chooser, reorder (chooser buttons and the header grip) and resize (separators and chooser buttons), sticky header and sticky leading columns, cell actions (a link and a menu in a cell snippet), the `criteria` and actions snippets. | Exercises every consumer duty. | must |
 | PRD-W7 | Views by URL parameter: light, dark, no tokens, `dir=rtl`, spacing, the three planted slowdowns (P2), two tables on one page. Real-browser tests also use the zoom view, the 320 view and forced colours (section 4.3). | Section 4.3 needs each. | must |
-| PRD-W8 | A clean-install consumer project in `consumer/`: a SvelteKit app with server rendering and hydration, the policy sent as a header with SvelteKit's nonce mode for its own bootstrap (READ, SvelteKit docs), the S1 listener script, a page shell with no inline `style`, installing the packed tarball with no workspace link; its files are the README quick start; its type check (`svelte-check`) passes against the packed package. | Catches broken `exports`, files, types or `@source` lines, and proves K4 and the server-rendered half of S1. | must |
+| PRD-W8 | A clean-install consumer project in `consumer/`: a SvelteKit app with server rendering and hydration, the strict policy sent as a header, plus SvelteKit's nonce for its own bootstrap (READ, SvelteKit docs) and exactly one `style-src-attr` allowance (`'unsafe-hashes'` and the hash of SvelteKit's route announcer style, with `'report-sample'`; without it the announcer raises one violation per page load in Chromium, Firefox and WebKit, MEASURED), the S1 listener script, a page shell with no inline `style`, installing the packed tarball with no workspace link; its files are the README quick start; its type check (`svelte-check`) passes against the packed package. | Catches broken `exports`, files, types or `@source` lines, and proves K4 and the server-rendered half of S1. | must |
 | PRD-W9 | Every real-browser test runs against the site, and the consumer project's journeys and S1 checks run, in CI in Chromium, Firefox and WebKit on every pull request; P2 is measured on the site. | The real-browser layer needs pages. | must |
-| PRD-W10 | One public site on GitHub Pages, deployed by CI from each release tag: the documentation (D1-D7) and the examples gallery with live tables in a static data mode, shaped as section 8 Q5 describes. Each example page shows the live table and, in tabs, the component code, the server handler and the last request and response. | A visitor can read, see and try the table before installing; tested pages cannot drift from the code (owner, 2026-11-17, Q5). | must |
+| PRD-W10 | One public site on GitHub Pages, deployed by CI from each release tag: the documentation (D1-D8) and the examples gallery with live tables in a static data mode, shaped as section 8 Q5 describes. Each example page shows the live table and, in tabs, the component code, the server handler and the last request and response. | A visitor can read, see and try the table before installing; tested pages cannot drift from the code (owner, 2026-11-17, Q5). | must |
+| PRD-W11 | Request and answer fixtures, recorded once over PRD-W3's synthetic dataset from three DataTables server-side backends (the reference PHP class, django-rest-framework-datatables, DataTables.AspNet): the request as sent by the DataTables client of the major the connection helper covers, the answer as the backend returns it, bodies only (no headers, hosts or paths), each stating its backend and version; checked in after the synthetic-shape check and the word scan; contract tests run the helper's request serialiser and answer mapper against them. | The switch is proven against what real backends send and expect, not against our own endpoint. | must |
 
 **Later:** (PRD-X1, header drag to reorder, moved into 1.0 by the owner: B11 b); PRD-X2 fit width to content; PRD-X3 columns sticky at the inline end;
-PRD-X4 a client-side mode inside the component (only through a new PRD and a new library check); PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1).
+PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1).
 
-**Counts:** 73 must (none depends on an open question), 4 should, 4 later.
+**Counts:** 80 must (none depends on an open question), 4 should, 3 later.
 
 ## 5. Decisions made in this PRD
 
@@ -290,7 +319,8 @@ rows only. "Reset table" is one intent; PRD-D6 documents what a server restores.
 that are never published to npm: one product, one repo, one tracker, and every pull request tests component and consumers at
 the same commit; W8 installs the packed tarball, so the same repo hides no packaging mistake. The site's server is
 TypeScript on Node with only `node:http`: the simplest thing that proves the contract, no second toolchain, the policy
-written literally, and the same query module serves the static demo and the in-memory recipe. Server rendering is
+written literally, and the local data source's query function (PRD-B21) is the site's query module: the same function
+serves the site's endpoint, its static demo and consumers. Server rendering is
 proven in the consumer project (W8), because that is how consumers get it. The public site (W10) is a static build
 of the same pages plus the documentation, made by the release workflow and deployed to GitHub Pages; in it the query
 module runs in the browser, since Pages has no server.
@@ -306,7 +336,7 @@ module runs in the browser, since Pages has no server.
    Chromium, Firefox and WebKit.
 5. The A5 protocol record for the release commit has no open blocker.
 6. The test site and the clean-install consumer project run in CI in Chromium, Firefox and WebKit, green.
-7. Docs D1-D7 complete; 1.0 is published by the release workflow with provenance (S7), with no exception. So is
+7. Docs D1-D8 complete; 1.0 is published by the release workflow with provenance (S7), with no exception. So is
    every later release, except a break-glass publish, which is listed in the release record with its reason.
 
 The first app starts on 1.0; production use by it is not a criterion.
@@ -322,7 +352,7 @@ The first app starts on 1.0; production use by it is not a criterion.
 - **TanStack Table v9:** clean, runes-native, 24.2 KB; in server mode its row models do nothing; saves an estimated
   150-300 lines (INFERRED) for a 3-month-old major.
 - **Smaller headless handlers:** no accessibility claim; resize missing or server mode undocumented.
-- **Decision:** no third-party table library is adopted (reopen only for a client-side mode). The component is built test-first, and it starts from the owner's own earlier Svelte 5 table (server-driven, native table, no runtime dependency), ported through the method: its tests first, then its code, with its inline styles replaced to meet the strict policy (owner, 2026-11-17: reuse instead of rebuilding to an equivalent result). What that table lacks is written new.
+- **Decision:** no third-party table library is adopted for the component; the local data source's row model has its own library check, recorded in `docs/decisions/`. The component is built test-first, and it starts from the owner's own earlier Svelte 5 table (server-driven, native table, no runtime dependency), ported through the method: its tests first, then its code, with its inline styles replaced to meet the strict policy (owner, 2026-11-17: reuse instead of rebuilding to an equivalent result). What that table lacks is written new.
 
 ## 8. Open questions for the owner
 
@@ -377,6 +407,7 @@ an open question.
 | R7 | Effort: 109 statements plus about 40-70 for the uncovered musts (INFERRED), at the method's unmeasured 60-120 min each: about 150-360 hours. An earlier estimate, made before this PRD, was 12-18 plan-days. | Reported, never a reason to cut; the ledger measures. The reuse decision lowers it: about 1,300 lines of table code and 1,700 lines of tests are ported instead of rewritten (READ, a count of the owner's earlier table); the plan re-prices after the spec. |
 | R8 | One maintainer for a public package. | Narrow support promise (Q4); full trace and mutation. |
 | R9 | Scope creep toward a grid, or the site toward an app. | Non-goals; a new page or feature needs a requirement here. |
+| R11 | The DataTables server-side protocol changes in a new major. | W11's fixtures name the major they record; the connection helper's spec names the major it covers; a new major is a new recording and a new spec part. |
 | R10 | CI timing differs between runners and engines; a flaky browser test. | P2 calibrates on the runner class with a planted slowdown; a flake is a defect to find, never re-run away. |
 | R11 | The browser floor is not run, only checked statically; WebKit has no rendered forced-colours proof. | Stated in the support and accessibility statements (E1, D3). |
 | R12 | Guidepup on hosted runners proves unreliable. | The Windows host of Q6 is the baseline; CI is an addition. |
