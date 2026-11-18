@@ -120,10 +120,34 @@ its cells.
 - Traces: PRD-S2.
 
 **RND-04** The component source MUST NOT contain a raw-HTML path.
-- Example: a scan of `src/lib` for `{@html`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`,
-  `createContextualFragment`, `DOMParser` and `srcdoc` finds none; canary files holding `{@html x}` and
-  `el.insertAdjacentHTML("beforeend", x)` are both found.
-- Reason: RND-03 sweeps the props that exist; the scan also covers every prop added later.
+- Examples (the check runs every row against a canary file holding it, and every row is a finding; the component
+  source itself, holding none of them, passes, which runs from the pull request that adds `src/lib`):
+
+  | Raw-HTML path in a canary file |
+  |---|
+  | `{@html x}` |
+  | `el.innerHTML = x` |
+  | `el.outerHTML = x` |
+  | `Object.assign(el, { innerHTML: x })` |
+  | `Object.assign(el, { outerHTML: x })` |
+  | `el.insertAdjacentHTML("beforeend", x)` |
+  | `document.write(x)` |
+  | `document.writeln(x)` |
+  | `document.execCommand("insertHTML", false, x)` |
+  | `range.createContextualFragment(x)` |
+  | `new DOMParser()` |
+  | `Document.parseHTML(x)` |
+  | `Document.parseHTMLUnsafe(x)` |
+  | `el.setHTML(x)` |
+  | `el.setHTMLUnsafe(x)` |
+  | `createRawSnippet(() => ({ render: () => x }))` |
+  | `<iframe srcdoc={x}>` |
+  | `el.setAttribute("srcdoc", x)` |
+
+  A static check cannot see a sink reached through a name built at run time or passed as a string
+  (`el["inner" + "HTML"] = x`, `Reflect.set(el, "innerHTML", x)`); such code is left to review.
+- Reason: RND-03 sweeps the props that exist; the check also covers every prop added later and every API that turns
+  a string into markup, Svelte's own `createRawSnippet` among them.
 - Layer: static check.
 - Traces: PRD-S2.
 
@@ -578,6 +602,28 @@ those Svelte adds for any component.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B19, PRD-A3.
 
+**FOOT-04** The component source MUST NOT add a style, link or script element, or a style sheet, to the page.
+- Examples (the check runs every row against a canary file holding it, and every row is a finding; the component
+  source itself, holding none of them, passes, which runs from the pull request that adds `src/lib`):
+
+  | Injection in a canary file |
+  |---|
+  | `<svelte:head><title>x</title></svelte:head>` |
+  | `<link rel="stylesheet" href={x}>` |
+  | `<svelte:element this="style">` |
+  | `<svelte:element this={"script"}>` |
+  | `document.createElement("style")` |
+  | `document.createElement("link")` |
+  | `document.createElement("script")` |
+  | `new CSSStyleSheet()` |
+  | `document.adoptedStyleSheets = [sheet]` |
+  | `sheet.insertRule(rule)` |
+
+- Reason: under the strict policy (PRD-S1) the page refuses an injected style or script, and a consumer would have
+  to loosen its policy for the component; anything put in the document head outlives the table.
+- Layer: static check.
+- Traces: PRD-S1.
+
 ---
 
 ## 6. Theming (THEME)
@@ -653,6 +699,24 @@ table.
   know about and copy.
 - Layer: static check.
 - Traces: PRD-T3.
+
+**THEME-07** The component source MUST NOT give an element a `style` attribute or a `style:` directive.
+- Examples (the check runs every row against a canary file holding it, and every row is a finding; the component
+  source itself, holding none of them, passes, which runs from the pull request that adds `src/lib`):
+
+  | Inline style in a canary file |
+  |---|
+  | `<p style="color: red">` |
+  | `<svelte:element this="p" style="color: red">` |
+  | `<p {style}>` |
+  | `<p style:color="red">` |
+
+  Setting a property of an element's `style` object from script (`el.style.width = w`) stays allowed: the policy
+  does not refuse it.
+- Reason: server rendering writes each of these as a `style="..."` attribute, which the strict policy refuses
+  (PRD-S1); a `style:` directive is also a form the mutation tool does not mutate (PRD-G2).
+- Layer: static check.
+- Traces: PRD-S1, PRD-G2.
 
 ## 7. Server-driven sort (SORT)
 
@@ -1510,12 +1574,14 @@ receives that number.
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
+| FOOT-04 | PRD-S1 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
 | THEME-06 | PRD-T2, PRD-A1 |
 | THEME-04 | PRD-T3 |
 | THEME-05 | PRD-T3 |
+| THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
 | SORT-02 | PRD-B4 |
@@ -1608,6 +1674,7 @@ state in their own statements.
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
+| PRD-S1 | FOOT-04, THEME-07 | in part: the zero-violation half is the site and package specs' (POL-01 to POL-04, CON-01 to CON-11); no `eval`, `new Function` or string timers in the build comes with the built-package scans (milestone 8) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
@@ -1615,6 +1682,7 @@ state in their own statements.
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
+| PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-T3 | THEME-04, THEME-05 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
 
 ### PRD musts not yet traced
@@ -1624,13 +1692,12 @@ state in their own statements.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
-- Strict policy and side effects: PRD-S1.
 - Theming: PRD-T4 (the example token set, light and dark).
 - Internationalisation: PRD-I3.
 - Large pages and size: PRD-P1, PRD-P3.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2, PRD-K3.
-- Gate: PRD-G1, PRD-G2, PRD-G3.
+- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
