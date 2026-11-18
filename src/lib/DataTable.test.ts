@@ -233,7 +233,7 @@ function unreadable(): string {
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
-    // Callers the type does not reach (plain JavaScript, untyped server JSON) give the rows that are not a string
+    // The "not a string" rows: a caller the type does not reach (plain JavaScript, untyped server JSON) passes one
     [
       "caption is not a string",
       { caption: undefined },
@@ -335,7 +335,7 @@ describe("RND-05", () => {
       },
       "A row id is empty.",
     ],
-    // The pairs below are adjacent rows of the table: each fails if its two checks swap order
+    // The pairs below are adjacent in RND-05's order of faults: each fails if its two checks swap order
     [
       "several faults: an empty caption and an empty region label",
       { caption: "", regionLabel: "" },

@@ -45,12 +45,14 @@ export function validateTable<Row>(
   if (duplicateId !== undefined) return messages.columnIdDuplicate;
   if (columns.some((column) => isEmpty(column.label)))
     return messages.columnLabelEmpty;
+  // Every label is a string here: isEmpty above refused the rest
   const duplicateLabel = firstDuplicate(
     columns.map((column) => column.label.trim()),
   );
   if (duplicateLabel !== undefined) return messages.columnLabelDuplicate;
   if (columns.some((column) => !column.value && !column.cell))
     return messages.columnContentMissing;
+  // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
   const rowIds: string[] = [];
   let unreadable = false;
   for (const row of rows) {
