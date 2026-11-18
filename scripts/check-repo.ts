@@ -757,10 +757,11 @@ const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 
 // Asks Prettier itself, file by file, whether it ignores the file, which parser it infers and whether the file is
-// formatted, with the options its CLI would use. Prints one JSON record.
+// formatted, with the options its CLI would use. Prints one JSON record. The config is fixed to the repository's
+// package.json (no "prettier" key: no config), so a nested Prettier config can neither change the rules nor run code.
 const PRETTIER_PROBE = `
 import { readFileSync } from "node:fs";
-const [url, root, ...files] = process.argv.slice(1);
+const [url, config, root, ...files] = process.argv.slice(1);
 const p = await import(url);
 const out = { version: p.version, files: [] };
 for (const f of files) {
@@ -768,7 +769,7 @@ for (const f of files) {
   const info = await p.getFileInfo(path, { ignorePath: [] });
   const rec = { f, ignored: info.ignored, parser: info.inferredParser };
   if (rec.parser && !rec.ignored) {
-    const options = { ...(await p.resolveConfig(path, { editorconfig: true })), filepath: path };
+    const options = { ...(await p.resolveConfig(path, { editorconfig: true, config })), filepath: path };
     try { rec.formatted = await p.check(readFileSync(path, "utf8"), options); }
     catch (e) { rec.error = String(e.message).split("\\n")[0]; }
   }
@@ -857,7 +858,9 @@ function format(root: string, list: Set<string>): Result {
   if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
   const prettierRecord = (r: string, f: string[]) =>
-    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f);
+    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f, [
+      join(root, "package.json"),
+    ]);
   const canary = prettierRecord(dir, planted);
   if ("error" in canary) return result(CANNOT, canary.error);
   const missed = canary.files.filter(

@@ -782,6 +782,17 @@ test("format: an unformatted JSON file is a finding", () => {
     1,
   );
 });
+// A nested Prettier config would change what "formatted" means in its folder (and a prettier.config.mjs would run).
+const nested = (data: string) => (root: string) => {
+  put(root, "sub/.prettierrc.json", '{ "tabWidth": 4 }\n');
+  put(root, "sub/data.json", data);
+};
+test("format: a nested Prettier config does not make an unformatted file pass", () => {
+  expect("format", repo(nested('{\n    "a": 1\n}\n')), 1);
+});
+test("format: a nested Prettier config does not make a formatted file fail", () => {
+  expect("format", repo(nested('{\n  "a": 1\n}\n')), 0);
+});
 test("format: a YAML file Prettier cannot parse is a finding", () => {
   const broken = "on: [pull_request\n";
   expect(

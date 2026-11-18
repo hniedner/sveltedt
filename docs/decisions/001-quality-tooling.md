@@ -27,6 +27,8 @@ pages named, or measured with the command named.
   - Prettier 3 with prettier-plugin-svelte, plus ESLint 10 with eslint-plugin-svelte.
 - **Decision:** Prettier formats and ESLint lints; ESLint carries no formatting rule.
   - Prettier reads `.editorconfig` (prettier.io, configuration), so editors and the formatter share one file.
+  - The gate fixes Prettier's config file to `package.json`, which holds no `prettier` key: a Prettier config file
+    anywhere else is not read, so it cannot change what "formatted" means in its folder or run code.
   - ESLint's `complexity` stays at its documented default of 20 (eslint.org, rules/complexity) and is an error.
 - **Reopens when:** Biome's Svelte support is stable and has the rules the Svelte checks need.
 
