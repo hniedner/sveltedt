@@ -75,8 +75,7 @@ to the consumer as one callback (stated with the statements that add user action
 ## 1. Rendering and cells (RND)
 
 **RND-01** The table MUST render the rows in exactly the order given, and MUST NOT sort, filter or slice them.
-- Examples (the test runs every row, and in each it first finds the alert holding the RND-05 message for that
-  input):
+- Examples (the test runs every row):
 
   | Rows given | Body rows shown, in order |
   |---|---|
@@ -562,8 +561,7 @@ unchanged.
 **FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
-  and unmount a control component that handles every event type the table's own elements handle (`click`, `keydown`
-  and `input`) to measure the listeners Svelte itself
+  and unmount a control component that handles every event type the table's own elements handle to measure the listeners Svelte itself
   delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is
   mounted, the listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener outlives the component or fights the app's own handlers.
@@ -967,7 +965,7 @@ SORT-20.
 or `window` beyond those Svelte adds for any component.
 - Example (as FOOT-02, for the sort buttons): before the first mount, wrap `addEventListener` and
   `removeEventListener` on `document` and `window`; mount and unmount a control component that handles every event
-  type the sort buttons handle (`click` and `keydown`) to measure the listeners Svelte itself delegates to the
+  type the sort buttons handle to measure the listeners Svelte itself delegates to the
   document, which are excluded. Then mount a table with three sortable columns and the order `[code asc, name desc]`,
   press "Sort by Name" with and without Shift, rerender it with a new order, and unmount it: while it is mounted, the
   listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
