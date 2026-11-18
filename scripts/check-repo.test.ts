@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -192,7 +193,9 @@ function repo(change: (root: string) => void = () => {}): string {
     ),
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
-  chmodSync(join(root, ".githooks/commit-msg"), 0o755);
+  // The committed hook's own mode: git skips a hook that is not executable.
+  const hook = join(here, "..", ".githooks", "commit-msg");
+  chmodSync(join(root, ".githooks/commit-msg"), statSync(hook).mode & 0o777);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
@@ -3201,6 +3204,8 @@ test("commit-msg: git runs the hook from .githooks and commits only what it pass
       ],
       {
         encoding: "utf8",
+        // Bounded: an editor git opened by mistake would otherwise wait for input forever.
+        timeout: 30_000,
         // The hook runs `node` from PATH: this test's own Node goes first. No global or system git configuration
         // (a core.commentChar or commit.template there changes what git hands the hook).
         env: {

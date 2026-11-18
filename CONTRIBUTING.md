@@ -8,14 +8,14 @@ works. This page is the short version.
 
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
-`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone: a merge runs the
-merged branch's commit-msg hook (Commit headers).
+`git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone: once
+`core.hooksPath` is set, a merge that makes a commit runs the merged branch's commit-msg hook (Commit headers).
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
 ```sh
 pnpm install --frozen-lockfile
-git config core.hooksPath .githooks   # once per clone, by hand for now: the commit-msg hook (Commit headers)
+git config core.hooksPath .githooks   # once per clone; replaces your global hooks here (Commit headers)
 pnpm gate
 ```
 
@@ -143,17 +143,19 @@ trailing blanks and carriage return.
   as the branch's own.
 
 Once `core.hooksPath` is set (by hand for now; nothing checks the setting yet), git runs `.githooks/commit-msg` when
-`git commit` (also `--amend`) or `git merge` writes a message. The hook needs the Node version of `.node-version` first
-on the `PATH` that git sees, which a desktop git client may not share with your shell. The setting replaces any global
-`core.hooksPath` and the hooks in `.git/hooks` for this clone: carry over any hook of your own you rely on, such as a
-secret scan. The hook applies the rules above to the message git hands it, before git's own clean-up:
+`git commit` (also `--amend`) writes a message or `git merge` makes a merge commit. The hook needs the Node version of
+`.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
+setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
+place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
+secret scan, by hand until the setup step exists (Not built yet). The hook applies the rules above to the message git
+hands it, before git's own clean-up:
 
 - Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
   (`commit -v`). A message with nothing else is refused as empty.
 - A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
   the `commits` step refuses the autosquash ones at the pull request.
 - Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one on
-  an ordinary commit; `git revert`, `git cherry-pick` and the commits a rebase replays run no commit-msg hook; git
+  an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook (measured); git
   keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"` passes the hook (which
   judges `feat: y`) while git stores `# x` as the header; a comment character other than `#` (`core.commentChar`) is
   not known to the hook.
