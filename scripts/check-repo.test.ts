@@ -2854,6 +2854,12 @@ test("commits: a header of exactly 100 characters passes", () => {
   expect("commits", branch(`feat: ${"x".repeat(94)}`), 0);
 });
 
+// Pins: a commit with an empty message (`--allow-empty-message`) is refused, shown as an empty header.
+test("commits: a commit with an empty message is a finding", () => {
+  const root = repo();
+  commit(root, "", "--allow-empty-message");
+  assert.match(expect("commits", root, 1), /^ {2}\w+ "": not /m);
+});
 // Pins: a first line starting with "#" is the header, not a comment the step skips.
 test("commits: a stored first line starting with # is refused, whatever follows", () => {
   expect("commits", branch("#123 fix the thing\n\nfeat: in the body"), 1);
