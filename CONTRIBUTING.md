@@ -32,6 +32,8 @@ The checks today:
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
+  each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
+  as dependencies, optional or peer dependencies, and exact development versions;
   every package from the registry by hash; pnpm's release age equals Dependabot's shortest npm cooldown, and every
   exception names exact versions and its advisory.
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
@@ -81,8 +83,9 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
-  it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
-  added; that file is edited.
+  it (measured with svelte-check 4.7.8). A second Svelte config is not added; that file is edited. The two Vite
+  configs (`vitest.config.ts`, `site/vite.config.ts`) load it through the Svelte plugin; svelte-check, given
+  `--config`, imports neither.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
