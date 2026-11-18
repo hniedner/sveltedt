@@ -98,6 +98,7 @@ const TOOL_TS = `export function gross(prices: number[], rate: number): number {
 interface Pkg {
   name: string;
   private?: boolean;
+  type?: string;
   license: string;
   packageManager?: string;
   prettier?: { plugins: string[] };
@@ -112,6 +113,7 @@ const PINS = (
 const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
+  type: "module", // as the repository's
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
   prettier: { plugins: ["prettier-plugin-svelte"] },
@@ -1272,6 +1274,21 @@ test("svelte: another svelte-check version than the pin cannot be checked", () =
     repo(pkg((p) => (p.devDependencies["svelte-check"] = "0.0.1"))),
     3,
   );
+});
+test("types: a rune module (.svelte.ts) type-checks under the repository's tsconfig.json, its errors found", () => {
+  const runes = (body: string) => (root: string) => {
+    put(root, "tsconfig.json", readFileSync(join(here, "..", "tsconfig.json")));
+    put(root, "scripts/count.svelte.ts", body);
+  };
+  const COUNTER =
+    "export function counter() {\n  let n = $state(0);\n  return { get: () => n, add: () => n++ };\n}\n";
+  expect("types", repo(runes(COUNTER)), 0);
+  const out = expect(
+    "types",
+    repo(runes(COUNTER.replace("$state(0)", '$state<number>("zero")'))),
+    1,
+  );
+  assert.match(out, /count\.svelte\.ts/);
 });
 test("types: a TypeScript file outside tsconfig.json cannot be checked", () => {
   const outside = (root: string): void =>
