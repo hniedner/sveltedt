@@ -123,7 +123,10 @@ the strict policy.
   imports. An import of SvelteDT is a specifier that is `@hniedner/sveltedt` or starts with `@hniedner/sveltedt/`, or a
   relative path that resolves, as written and without following links, into the repository's `src/` folder or into the
   package's build output (`dist/`), or to the repository root or a folder above it (which holds the repository's own
-  `src/`); a relative path to anything else, such as a shared test fixture, is not one. It is allowed only when it is
+  `src/`); a relative path to anything else, such as a shared test fixture, is not one. A `@source` path into the
+  installed package (`node_modules/@hniedner/sveltedt`, a link to the repository root while the package is a
+  workspace member) is allowed only when it names exactly the deepest folder holding every target of the `exports`
+  field (with one target, that file's folder); a folder above it or below it is a finding. It is allowed only when it is
   written `@hniedner/sveltedt` or `@hniedner/sveltedt/` plus a subpath the `exports` field of the repository's root
   `package.json` names, and when no alias or `paths` entry redirects that name. The test runs every row as a canary that
   must be found; each file canary is planted in `site/src/`, where `../../` reaches the repository root):
@@ -140,13 +143,19 @@ the strict policy.
   | a `paths` entry in the site's TypeScript configuration that points `@hniedner/sveltedt` at a folder of the repository |
   | `@source '../../src';` in a `.css` file |
   | `@source '../../';` in a `.css` file (the repository root, which holds `src/`) |
+  | `@source '../node_modules/@hniedner/sveltedt';` in a `.css` file (the installed package's own folder) |
+  | `@source '../node_modules/@hniedner/sveltedt/src';` in a `.css` file while every target lies in `src/lib` |
   | `@import 'tailwindcss' source('../../src');` in a `.css` file |
 
   A site that imports only `@hniedner/sveltedt` and resolves it as a consumer does, with no alias, passes, and so does a
-  `@source` that names the installed package as a consumer's does (`@source '../node_modules/@hniedner/sveltedt';`), and
-  one that names the site's own folder (`@source '../';`). The scan reports how many files it read; with no root
+  `@source` that names that deepest folder through the installed name
+  (`@source '../node_modules/@hniedner/sveltedt/src/lib';` while every target lies in `src/lib`), and one that names
+  the site's own folder (`@source '../';`). The scan reports how many files it read; with no root
   `package.json`, no `exports` field in it, or no file read, it reports "could not check", which blocks like a finding.
-- Reason: the site may use only what a consumer can; a deep import hides a missing or broken export.
+- Reason: the site may use only what a consumer can; a deep import hides a missing or broken export. A `@source` on
+  the whole installed package reaches the repository root through the workspace link, so the site's CSS would change
+  with unrelated text (MEASURED 2026-11-18: 46.89 kB against 5.18 kB with the narrowed form); a consumer's installed
+  package holds only the packed files, so its bare form is proven in the consumer project (CON-10).
 - Layer: static check.
 - Traces: PRD-W1.
 
