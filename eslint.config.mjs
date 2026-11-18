@@ -117,6 +117,14 @@ const scriptBans = [
     "document.write (PRD-S2)",
   ],
   ["Identifier[name='insertAdjacentHTML']", "insertAdjacentHTML (PRD-S2)"],
+  [
+    "CallExpression[callee.property.name='execCommand'][arguments.0.value=/^inserthtml$/i]",
+    "execCommand insertHTML (PRD-S2)",
+  ],
+  [
+    "MemberExpression[object.name='Document'][property.name='parseHTML']",
+    "Document.parseHTML (PRD-S2): markup from a value",
+  ],
 ].map(([selector, message]) => ({ selector, message }));
 
 export default [

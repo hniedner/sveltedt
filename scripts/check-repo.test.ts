@@ -1224,7 +1224,7 @@ test("lint: a <style> block in a component is a finding that names the ban", () 
 test("lint: markup and code beside the injection bans pass in a component", () => {
   // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
   // innerHTML; a string holding its name; setAttribute and createElement of other names; a write that is not a
-  // document's; a name that only contains a sink's name.
+  // document's; a name that only contains a sink's name; a local parseHTML; execCommand of another command.
   expect(
     "lint",
     repo(
@@ -1233,7 +1233,8 @@ test("lint: markup and code beside the injection bans pass in a component", () =
           "</script>",
           '  const { innerHTML } = document.body;\n  const log = { write: (s: string): string => s };\n  const sink = "innerHTML";\n' +
             '  const tag = "p";\n  const text = document.body.innerHTML;\n  const box = document.createElement("div");\n' +
-            '  box.setAttribute("title", text);\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n</script>',
+            '  box.setAttribute("title", text);\n  const csvDocument = log;\n  const myDOMParserName = csvDocument.write(sink);\n' +
+            '  const parseHTML = (s: string): string => s;\n  document.execCommand("copy", false, parseHTML(text));\n</script>',
         ).replace(
           "<p>{count}</p>",
           '<svelte:element this="p">{count}{log.write(innerHTML)}{sink}</svelte:element>\n<iframe title="frame" src="about:blank"></iframe>\n' +
@@ -1350,6 +1351,11 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       'document.styleSheets[0]?.insertRule("p {}");',
       "constructed or inserted style sheet",
     ],
+    [
+      'document.execCommand("INSERTHTML", false, html);',
+      "execCommand insertHTML",
+    ],
+    ["Document.parseHTML(html);", "Document.parseHTML"],
   ].map(([body, ban], i) => [`scripts/s${i}.ts`, SINK(body), ban]);
   const markup = [
     ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],

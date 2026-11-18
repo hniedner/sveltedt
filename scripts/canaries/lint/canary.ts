@@ -48,4 +48,6 @@ export function inject(el: HTMLElement, html: string): void {
   Object.assign(el, { innerHTML: html });
   el.setHTML(html);
   document.adoptedStyleSheets = [new CSSStyleSheet()];
+  document.execCommand("insertHTML", false, html);
+  Document.parseHTML(html);
 }
