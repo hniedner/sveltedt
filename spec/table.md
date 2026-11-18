@@ -833,8 +833,8 @@ listed for it below, the computed value that the literal table of its test state
   (no `row-border` variant, `docs/departures.md`) is in these rows: each body data row but the last has a block-end
   border on its cells; the last row and the empty message's cell have none. The caption also measures at most 1 by 1 CSS
   px on both hosts, as A11Y-13 measures. The test lands with the first stylesheet commit (PRD-T11), so that commit comes
-  with or after the first commit that makes the gate's `browser` script run a test; until then this statement is not
-  yet tested.
+  with or after the first commit after which the CI `browser` job (`docs/engineering/gates.md`) runs a test; until
+  then this statement is not yet tested.
 - Reason: the table must look the same whatever the application loaded first (PRD-T11 (a)); a literal table makes the
   "none" host able to fail, where a comparison with it could not. Bootstrap's reboot changed caption padding, `th`
   alignment and the dividers of a seed table (MEASURED 2026-11-18 in an earlier probe). Loaded in the reverse order (the
