@@ -61,17 +61,22 @@ to the consumer as one callback (stated with the statements that add user action
   those numbers, which later groups write. A requirement id from `docs/PRD.md` is written `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
-- **One build per statement.** Every example of a statement can be run by the build that first implements it. A later
-  group never adds a row, a prop or a component to an earlier statement; it writes a new statement with the next
-  free id in its own group, which may cite the earlier one ("as RND-05, for the sort props"). Reason: a statement is
-  tested or not yet tested as a whole, so one that spans two builds would hold the first build's milestone open.
+- **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
+  statement. A group written for a later milestone never adds a row, a prop or a component to an earlier statement;
+  it writes a new statement with the next free id in its own group, which may cite the earlier one ("as RND-05, for
+  the sort props"). A statement's test arrives with the pull request that makes its last example runnable. Reason: a
+  statement is not yet tested until all its examples run, and that blocks the close of its milestone (the method,
+  section 2, step 7).
+- **What a statement covers.** A statement covers what its examples show. Where a later group's controls or states
+  need the same rule, that group's own statement states it; an earlier statement is never widened to anticipate them.
 
 ---
 
 ## 1. Rendering and cells (RND)
 
 **RND-01** The table MUST render the rows in exactly the order given, and MUST NOT sort, filter or slice them.
-- Examples (the test runs every row):
+- Examples (the test runs every row, and in each it first finds the alert holding the RND-05 message for that
+  input):
 
   | Rows given | Body rows shown, in order |
   |---|---|
@@ -106,10 +111,10 @@ its cells.
   | `caption` |
   | a column `label` |
   | a default cell (`value(row)`) |
-  | each entry of `messages`, the returned text of every function included |
+  | each entry of `messages`, the returned text of `rowCount` included |
 
   In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
-  component holds no `img` and no `none` element. Later groups state their own props in their own statements (PAGE-20 for the pager). (`regionLabel` has no
+  component holds no `img` and no `none` element. Later groups state their own props in their own statements (SORT-23 for sort, PAGE-20 for the pager). (`regionLabel` has no
   row: an attribute value has no markup path.)
 - Reason: the values come from a server and may hold anything; any markup path is a cross-site scripting path.
 - Layer: component.
@@ -149,7 +154,8 @@ its cells.
 - Traces: PRD-B16, PRD-B3.
 
 **RND-09** The alert MUST hold no value taken from the rows, the column definitions or a thrown error.
-- Examples (the test runs every row):
+- Examples (the test runs every row, and in each it first finds the alert holding the RND-05 message for that
+  input):
 
   | Invalid input | Text that must not appear in the alert |
   |---|---|
@@ -260,8 +266,8 @@ every state.
 **STATE-03** With `status 'ready'` and no rows, the body MUST show the empty message in one cell that spans every
 shown column.
 - Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records."; the same with
-  `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements add the row
-  where the selection column is counted too.)
+  `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements state
+  that the selection column is counted too, in their own statement.)
 - Reason: a message squeezed into one column reads as a value in that column.
 - Layer: component.
 - Traces: PRD-B15.
@@ -357,7 +363,7 @@ otherwise.
 
 **A11Y-02** Every column header MUST be a `th` with `scope="col"`.
 - Example: three columns give three `th` elements in the header row, each with `scope="col"`. (The selection group
-  adds the row for the selection column's header.)
+  states the selection column's header in its own statement.)
 - Reason: the screen reader reads each cell with its column header.
 - Layer: component.
 - Traces: PRD-A2.
@@ -376,7 +382,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Example: a table that fits its viewport, an `actions` snippet holding "Export", and a `cell` snippet holding a link
   "Open <name>" in the first of two columns and "Edit <name>" in the second, for rows Beta and Gamma: Tab from the
   start reaches "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". (Later groups state the order of
-  their own controls in their own statements; the filter group places the sort buttons (SORT-10) together with "Reset table".) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
+  their own controls in their own statements.) Second example: the same with a `heading` snippet holding a link "All orders": Tab reaches "All
   orders", "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". Where the region is a stop needs layout,
   so A11Y-12 proves its place between the actions and the cells.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
@@ -417,7 +423,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Traces: PRD-A4, PRD-B15.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
-own focus indicator and the skip link becoming visible on its own focus (PRD-A10).
+own focus indicator.
 - Example: the 30-column, 25-row table with a link in one column: hover every header cell and every body cell in turn,
   and focus the region and each link; after each step the page's visible text and the set of visible elements equal
   those before the step. Visible means rendered and not hidden by CSS (`display`, `visibility`, `opacity`, `hidden`),
@@ -556,8 +562,8 @@ unchanged.
 **FOOT-02** While mounted and after unmount, the table MUST hold no event listener on `document` or `window` beyond
 those Svelte adds for any component.
 - Example: before the first mount, wrap `addEventListener` and `removeEventListener` on `document` and `window`; mount
-  and unmount a control component that handles every event type the table's own elements handle (so far `click`,
-  `keydown` and `input`; a group that adds a handler adds its type here) to measure the listeners Svelte itself
+  and unmount a control component that handles every event type the table's own elements handle (`click`, `keydown`
+  and `input`) to measure the listeners Svelte itself
   delegates to the document, which are excluded. Then mount the table through the states of FOOT-01: while it is
   mounted, the listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener outlives the component or fights the app's own handlers.
@@ -625,7 +631,7 @@ table.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
-**THEME-06** With no `--sdt-*` property defined, a keyboard-focused control MUST show a visible focus indicator.
+**THEME-06** With no `--sdt-*` property defined, the keyboard-focused region MUST show a visible focus indicator.
 - Example: the same page, measured as A11Y-07 measures, on the region of A11Y-07: Tab to it; its
   outline, or at least one entry of its box shadow, has a width (outline) or a spread or blur (shadow) of at least
   1 CSS px with a colour whose alpha is above 0, and differs from its unfocused style.
@@ -832,7 +838,7 @@ how to add a column.
   | `[code asc]` | Sort by Name | "H" |
 
   The whole description is one message, `sortDescription({ direction, rank })`, so a translation can order and
-  punctuate it freely (RND-06). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
+  punctuate it freely (SORT-17). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
   in the order while two or more columns are sorted, else `null`. The four rows above call it with
   `{ direction: 'asc', rank: null }`, `{ direction: 'desc', rank: 1 }`, `{ direction: 'desc', rank: 3 }` and
   `{ direction: null, rank: null }`.
@@ -847,7 +853,8 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-B1.
 
-**SORT-15** For invalid sort input the table MUST render the alert of RND-05 with the fixed message of this table.
+**SORT-15** For invalid sort input the table MUST render the alert of RND-05 with the fixed message the examples below
+list.
 - Examples (as RND-05, for the sort props; the test runs every row: one element with `role="alert"` holding the
   default text, and no `table` element):
 
@@ -860,15 +867,16 @@ how to add a column.
   | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
   | `sort` names a column twice | `sortColumnDuplicate` | "The sort names a column twice." |
 
-  With several faults at once, a fault of RND-05's table wins over one of this table, and within this table the
-  first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
+  With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
+  the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
   empty.").
 - Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
 - Layer: component.
-- Traces: PRD-B16, PRD-B4.
+- Traces: PRD-B16, PRD-B3, PRD-B4.
 
-**SORT-16** The alert MUST hold no value taken from the `sort` prop.
-- Examples (as RND-09, for the sort props; the test runs every row):
+**SORT-16** The alert MUST hold no value taken from the `sort` prop or from the definitions of the columns it names.
+- Examples (as RND-09, for the sort props; the test runs every row, and in each it first finds the alert holding the
+  SORT-15 message for that input):
 
   | Invalid input | Text that must not appear in the alert |
   |---|---|
@@ -879,11 +887,11 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-S4, PRD-B16.
 
-**SORT-17** Every fixed word of the sort controls MUST come from a prop with an English default.
-- Examples (as RND-06, for the sort words; the test runs every row; it passes a full `messages` object of
-  non-English words to a table with three sortable columns and the order `[code asc, name desc]`, then checks that
-  each replacement appears where the row says and that no English default is left on the page, in an accessible
-  name or in a description):
+**SORT-17** Every fixed word of sort MUST come from a prop with an English default.
+- Examples (as RND-06, for the sort words; the test runs every row in the set-up of its "Shown by" statement, the
+  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
+  checks that each replacement appears where the row says and that no English default is left on the page, in an
+  accessible name or in a description):
 
   | Message | English default | Shown by |
   |---|---|---|
@@ -907,7 +915,8 @@ how to add a column.
 **SORT-19** A sort button MUST show a visible focus indicator when it is focused by keyboard.
 - Example (as A11Y-07, for the sort buttons): Tab to "Sort by Name"; its computed outline, or at least one entry of
   its computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour
-  whose alpha is above 0, and differs from its unfocused style; a transparent outline fails.
+  whose alpha is above 0, and differs from its unfocused style; a transparent outline fails. Its contrast is a later
+  statement (PRD-A12).
 - Reason: keyboard users must see where they are (WCAG 2.4.7).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
@@ -938,6 +947,34 @@ SORT-20.
 - Reason: the focus indicator must not depend on a token the consumer may not define.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
+
+**SORT-23** Every text of sort MUST render as text, never as markup.
+- Examples (as RND-03, for the sort words; the test runs every row, once with the value `<img src=x onerror=alert(1)>`
+  and once with `<none>`, in the set-up of the statement the row names):
+
+  | Prop that carries the text | Set-up |
+  |---|---|
+  | the returned text of `sortBy`, `sortRank` and `sortDescription` | SORT-17 |
+  | each alert message of SORT-15 | SORT-15 |
+
+  In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
+  component holds no `img` and no `none` element.
+- Reason: a translation can come from anywhere, and any markup path is a cross-site scripting path.
+- Layer: component.
+- Traces: PRD-S2.
+
+**SORT-24** While mounted and after unmount, a table with sortable columns MUST hold no event listener on `document`
+or `window` beyond those Svelte adds for any component.
+- Example (as FOOT-02, for the sort buttons): before the first mount, wrap `addEventListener` and
+  `removeEventListener` on `document` and `window`; mount and unmount a control component that handles every event
+  type the sort buttons handle (`click` and `keydown`) to measure the listeners Svelte itself delegates to the
+  document, which are excluded. Then mount a table with three sortable columns and the order `[code asc, name desc]`,
+  press "Sort by Name" with and without Shift, rerender it with a new order, and unmount it: while it is mounted, the
+  listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
+- Reason: a global listener (for example one that tracks the Shift key) outlives the component or fights the app's own
+  handlers.
+- Layer: component.
+- Traces: PRD-B19.
 
 ## 8. The pager (PAGE)
 
@@ -1301,7 +1338,8 @@ control's own focus indicator.
 **PAGE-29** Every control of the pager MUST show a visible focus indicator when it is focused by keyboard.
 - Examples (as A11Y-07, for the pager; the test runs every row; Tab to the element; its computed outline, or at least
   one entry of its computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a
-  colour whose alpha is above 0, and differs from its unfocused style; a transparent outline fails):
+  colour whose alpha is above 0, and differs from its unfocused style; a transparent outline fails; its contrast is a
+  later statement, PRD-A12):
 
   | Element |
   |---|
@@ -1493,7 +1531,7 @@ receives that number.
 | SORT-05 | PRD-B5 |
 | SORT-06 | PRD-B5, PRD-A2 |
 | SORT-14 | PRD-B1 |
-| SORT-15 | PRD-B16, PRD-B4 |
+| SORT-15 | PRD-B16, PRD-B3, PRD-B4 |
 | SORT-16 | PRD-S4, PRD-B16 |
 | SORT-17 | PRD-I1, PRD-I2 |
 | SORT-18 | PRD-A10, PRD-A1 |
@@ -1501,6 +1539,8 @@ receives that number.
 | SORT-20 | PRD-A1 |
 | SORT-21 | PRD-T2, PRD-A1 |
 | SORT-22 | PRD-T2, PRD-A1 |
+| SORT-23 | PRD-S2 |
+| SORT-24 | PRD-B19 |
 | PAGE-09 | PRD-B9, PRD-A1 |
 | PAGE-10 | PRD-B9, PRD-A3 |
 | PAGE-01 | PRD-B9, PRD-B2 |
@@ -1553,24 +1593,24 @@ state in their own statements.
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
-| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group adds ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
+| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, A11Y-15, RND-13, A11Y-05 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups; the sort buttons' place in the Tab order (A11Y-10) arrives with the filter group, which places "Reset table" |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
-| PRD-S2 | RND-03, RND-04, PAGE-20 | in part: later groups state their own props in their own statements |
+| PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
