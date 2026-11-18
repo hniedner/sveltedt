@@ -764,15 +764,19 @@ table.
   | `<td class={{ "app-x": on }}>` in a `.svelte` file | finding |
   | `export const stripe = "app-x";` in `src/lib/classes.ts` | finding |
   | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` (a hook prop) | passes |
+  | `<tr class="sdt-row {rowClass(row) ?? ''}">` (quoted text, a direct hook call) | passes |
+  | `const c = rowClass(row);` then `<tr class={c}>` (a hook result through a local name) | finding |
 
-  The scan reads every `class` attribute of the `.svelte` files under `src/lib` and takes its leaves: a string, each
-  fixed part of a template literal, each element of an array, each branch of a conditional, the right side of `&&`,
-  and each key of an object. A string leaf must consist of class names that are `sdt` or start with `sdt-`; a
-  template literal's interpolation and any other leaf must be a hook prop: a column's `class` or `headerClass`
-  (PRD-T7, PRD-T14), or what `rowClass` or `cellClass` returns (PRD-T8). A class string the component keeps outside
-  markup lives in `src/lib/classes.ts`, where every string is read as a leaf; a `.ts` file elsewhere holds none
-  (review, PRD-G2 (e)). Once the package is built (PRD-K2), the same holds for the tarball. The scan reports how many
-  class attributes it read; with 0 it reports "could not check".
+  The scan reads every `class` attribute of the `.svelte` files under `src/lib`, quoted text with `{...}` parts
+  included, and takes its leaves: a string, each fixed part of a template literal or of quoted text, each element of
+  an array, each branch of a conditional, each side of `&&`, `||` and `??` (a non-string left side of `&&` is a
+  condition, not a leaf), and each key of an object. A string leaf must consist of class names that are `sdt` or
+  start with `sdt-`. Every other leaf must be one of: a column's `class` or `headerClass` read as a member
+  (`column.class`; PRD-T7, PRD-T14), a direct call of `rowClass` or `cellClass` (PRD-T8), or a name imported from
+  `src/lib/classes.ts`, whose strings are read as leaves there. A class string the component keeps outside markup
+  lives in that file; a `.ts` file elsewhere holds none (review, PRD-G2 (e)). Once the package is built (PRD-K2), the
+  same holds for the tarball. The scan reports how many class attributes it read; with 0 it reports "could not
+  check".
 - Reason: one prefix keeps the component's classes from colliding with an application's or a framework's (PRD-T15),
   and the application's own classes enter only where it put them.
 - Layer: static check.
@@ -788,9 +792,12 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
   |---|---|---|---|---|---|---|
   | `status 'ready'`, 3 rows, 2 columns | 1 | 1 | 1 | 2 | 3 | 6 |
   | `status 'ready'`, 0 rows, 2 columns (the empty text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
+  | `status 'ready'`, 2 rows, 2 columns, a `heading` and an `actions` snippet | 1 | 1 | 1 | 2 | 2 | 4 |
+  | `columns []` (the alert of RND-13), a `heading` snippet | 1 | 0 | 0 | 0 | 0 | 0 |
 
-  A `Pagination` with `offset 0, limit 10, total 25` has exactly one element with `sdt-pager`, its `nav`. No other
-  element carries one of the seven classes.
+  In every row the element with `sdt` contains the heading, the actions, the region and the alert where they are
+  rendered. A `Pagination` with `offset 0, limit 10, total 25` has exactly one element with `sdt-pager`, its `nav`. No
+  other element carries one of the seven classes.
 - Reason: the seven classes are public interface, and removing one or moving it to another element is a breaking
   change (PRD-K3); an application's selectors rely on where they sit.
 - Layer: component.

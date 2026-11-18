@@ -158,8 +158,8 @@ conditions `style` and `default`, both naming the same file in the tarball.
   specifier `@hniedner/sveltedt/styles.css` resolves from a JavaScript import, from a CSS `@import`, and from a
   Tailwind 4 `@import ... layer(components)`, landing inside that layer; with `style` alone the JavaScript import
   fails; `default` alone resolved in all three, and `style` stays for tools that resolve CSS by that condition
-  (INFERRED: not measured beyond these three). This probe stands in for PRD-T3's probe in the consumer project until
-  CON-10 runs there.
+  (INFERRED: not measured beyond these three). PRD-T3's probe in the consumer project is still owed: CON-10
+  runs it there.
 - Layer: pack.
 - Traces: PRD-K2, PRD-T3.
 
