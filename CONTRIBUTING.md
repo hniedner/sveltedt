@@ -65,7 +65,9 @@ The checks today:
   package's files through the installed name (IMP-01, `scripts/check-site-imports.ts`); the scan runs the
   statement's canary rows first. Script imports are read by TypeScript's own lexer (`ts.preProcessFile`), a
   component's scripts through Svelte's parser, `paths` through TypeScript's config reader; the Vite alias is read as
-  text, because loading the config as Vite does would run it and its plugins (measured). Why not ESLint:
+  text, because loading the config as Vite does would run it and its plugins (measured). `import.meta.glob` and a non-literal
+  `import(x)` are read from the text with comments blanked: inside a string they are read as code, so they are a
+  finding, never a silent pass. Why not ESLint:
   the comparison of 2026-11-18 (a second `no-restricted-syntax` block replaced the markup bans; a regex per folder
   depth missed non-canonical paths).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
