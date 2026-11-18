@@ -13,7 +13,8 @@ Every gate tool runs behind a small wrapper with:
 - **proof that it scanned something**: commits, bytes or files scanned are greater than zero whenever the input is
   not empty;
 - **distinct exit codes**: 0 pass, 1 finding, 2 tool crash or bad input, 3 could not check;
-- **could not check blocks** exactly like a finding, and it is reported under its own name, never as pass.
+- **could not check blocks** exactly like a finding, and it is reported under its own name, never as pass;
+- one non-blocking state, G6's *not yet tested*, exits 0 and is printed under its own name, never as pass.
 
 Each wrapper has its own tests showing it refuse every failure listed in its section.
 
@@ -57,17 +58,24 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G6. `trace`
 
-- Reads test results, not test names (JUnit XML, Vitest JSON). Every statement has at least one test that ran and passed.
-- A statement with no test yet is reported as *not yet tested*: a fourth state next to pass, finding and could not
-  check, never counted as a pass. It does not fail a pull request; it fails the milestone-close run and the release
-  run, which list every untested statement.
+- Reads test results, not test names (JUnit XML, Vitest JSON). Every statement has at least one test that ran and
+  passed, except one reported as *not yet tested*.
+- *Not yet tested* means that no `@spec` marker anywhere names the statement. A skipped, stale or failing test is
+  never this state; it fails. A protected statement is never this state; with no test it fails.
+- On a pull request the check exits 0 and prints every untested id under the heading `not yet tested`, never under
+  pass. The count may not grow against main except by statements the change adds, so a deleted test fails.
+- `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
+  recorded in the closing comment) exits 1 while any of them is untested. `trace --release` runs in the release
+  build: from 1.0 on it exits 1 while any statement is untested; before 1.0 it fails only on the statements of
+  closed milestones and prints the untested count for the release notes.
 - Skip, xfail, `.only` and `todo` fail the check.
 - Marker: `@spec("TABLE-07", "<first 8 hex of sha256 of the statement text>")`. A hash mismatch makes the test stale, which fails.
 - A test id that no spec holds fails.
 - A protected statement (`TIER-`, `DEID-`, `AUD-`, `REF-`) with no test marked `negative=True` fails.
 - Reads the spec files: a spec header without `Field names: yes|no`, or a `yes` spec whose text does not cite the
   owning field-name statement, fails; a spec folder it cannot read is could-not-check.
-- Canary: a planted skipped test must fail it.
+- Canary: a planted skipped test must fail it; a planted untested statement must be listed on a pull request and
+  must fail `--close` and a 1.0 `--release`.
 
 ## G7. `red-check`
 
