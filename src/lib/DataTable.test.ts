@@ -346,3 +346,20 @@ describe(spec("RND-10", "2943a803"), () => {
     expect(component.querySelector("table")).toBeNull();
   });
 });
+
+const actions = createRawSnippet(() => ({
+  render: () => '<button type="button">Export</button>',
+}));
+
+describe("EXP-02 first examples; the statement's marker arrives with 1c", () => {
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ["status 'ready' (the default), no rows", { rows: [] }],
+    ["status 'ready' (the default), with rows", {}],
+    ["the alert of RND-05", { columns: [] }],
+  ])("renders the actions snippet in %s", (_state, props) => {
+    show({ ...props, actions });
+    expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
+      true,
+    );
+  });
+});

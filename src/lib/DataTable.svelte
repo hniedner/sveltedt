@@ -9,6 +9,7 @@
     caption,
     regionLabel,
     heading,
+    actions,
   }: DataTableProps<Row> = $props();
   const fault = $derived(
     validateTable({ rows, columns, getRowId, caption, regionLabel }),
@@ -16,6 +17,7 @@
 </script>
 
 {@render heading?.()}
+{@render actions?.()}
 {#if fault}
   <div role="alert">{fault}</div>
 {:else}
