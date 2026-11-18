@@ -1205,10 +1205,10 @@ test("commits: a type outside the list is a finding", () => {
 test("commits: a header over 100 characters is a finding", () => {
   expect("commits", branch(`feat: ${"x".repeat(95)}`), 1);
 });
-test("commits: a merge commit is not checked", () => {
-  const root = branch("feat: on the branch");
-  git(root, "checkout", "-q", "-b", "side", "HEAD~1");
-  commit(root, "fix: on the side");
+/** Makes `side` from `from` with one commit `subject`, then merges it into the branch with git's own header. */
+function mergeSide(root: string, from: string, subject: string): void {
+  git(root, "checkout", "-q", "-b", "side", from);
+  commit(root, subject);
   git(root, "checkout", "-q", "-");
   git(
     root,
@@ -1225,7 +1225,23 @@ test("commits: a merge commit is not checked", () => {
     "Merge branch 'side'",
     "side",
   );
+}
+test("commits: a merge commit is not checked", () => {
+  const root = branch("feat: on the branch");
+  mergeSide(root, "HEAD~1", "fix: on the side");
   expect("commits", root, 0);
+});
+test("commits: a branch that merged main is not judged by main's plain subjects", () => {
+  // Older main history has plain subjects. Only commits after the merge base with main count; not first-parent,
+  // because a branch merged into this one (not main) lands on main too and is checked.
+  const root = branch("feat: on the branch");
+  mergeSide(root, "refs/remotes/origin/main", "Add a plain subject on main");
+  git(root, "update-ref", "refs/remotes/origin/main", "side");
+  const main = git(root, "rev-parse", "side").trim();
+  assert.match(expect("commits", root, 0), /^PASS commits: 1 commit\(s\)/m);
+  expect("commits", root, 0, {
+    extraEnv: { GATE_BASE: main, GATE_HEAD: "HEAD" },
+  });
 });
 test("commits: a branch with no commit after origin/main is not applicable", () => {
   notApplicable(["commits", "--root", repo()]);
