@@ -648,6 +648,11 @@ test("format: a spec file is never reformatted, and text still checks it", () =>
     0,
   );
   expect(
+    "format",
+    repo((root) => put(root, "docs/spec/a.md", "#   Spec\n")),
+    1,
+  );
+  expect(
     "text",
     repo((root) => put(root, "spec/a.md", "# Spec \n")),
     1,
