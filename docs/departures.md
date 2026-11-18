@@ -39,3 +39,5 @@ An entry of class owner is the owner's decision; the others are decided under th
 | DEP-25 | No child rows | none | `row().child()` | not yet decided | owner | open |
 | DEP-26 | No range filters | none | range search examples | not yet decided | owner | open |
 | DEP-27 | A Cancel button beside "Still loading", and a stopped state with Try again (an addition) | PRD-B23, PRD-B24 | no equivalent | a user can stop waiting without reloading the page | owner | decided |
+| DEP-28 | Invalid input shows one alert in place of the table, and no rows | PRD-B16; spec RND-05 | an alert by default (or a thrown error, or nothing, by `errMode`); other grids keep rendering or throw | a wrong table is worse than none: wrong rows would be selected or exported (RND-05) | improvement | decided |
+| DEP-29 | The alert's fixed text names no value | PRD-S4; spec RND-09 | the warning echoes the table id, the parameter, the row and the column | messages reach screenshots and logs (PRD-S4); a generic message to the user follows OWASP's error-handling guidance and CWE-209 (fetched 2026-11-18) | best practice | decided |
