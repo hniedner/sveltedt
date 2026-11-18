@@ -166,16 +166,20 @@ its cells.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | `caption` is empty | `captionEmpty` | "Table caption must not be empty." |
+  | `caption` is not a string (left out by a plain JavaScript caller) | `captionEmpty` | "Table caption must not be empty." |
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
+  | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
+  | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
+  | `getRowId` returns a value that is not a string (the number 7, as server JSON gives it) | `rowIdUnreadable` | "A row id could not be read." |
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
