@@ -9,8 +9,8 @@
   loading, failed, empty and busy states, the invalid-input alert, the `heading` and `actions` snippets, the words as
   props, the APG table pattern, no global footprint, and theming by prefixed tokens; the strict-policy rules for
   the component source (no raw-HTML path, no injected style, link or script, no inline style). Then server-driven
-  multi-column sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable functions,
-  and focus and window scroll after a sort or pager intent.
+  multi-column sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable
+  functions, and focus and window scroll after a sort or pager intent.
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
