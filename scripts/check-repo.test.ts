@@ -185,8 +185,11 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
     "svelte.config.js": "export default {};\n",
+    ".githooks/commit-msg":
+      '#!/bin/sh\nexec node scripts/check-repo.ts commit-msg "$@"\n',
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
+  chmodSync(join(root, ".githooks/commit-msg"), 0o755);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
@@ -801,6 +804,7 @@ test("text: a repository without a file of its class cannot be checked", () => {
         "node_modules", // the link .gitignore kept untracked
         ".node-version",
         ".github/CODEOWNERS",
+        ".githooks/commit-msg",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
         "docs/PRD.md",
@@ -3103,6 +3107,124 @@ test("commits: a very long header is shown shortened, with its length", () => {
   const out = expect("commits", branch(`feat: ${"x".repeat(19994)}`), 1);
   assert.match(out, /20000 characters, more than 100/);
   assert.ok(out.length < 1000, `${out.length} characters of output`);
+});
+
+/** Runs the commit-msg entry on a message file holding `text`. */
+function commitMsg(text: string, code: number): string {
+  const file = join(tempDir(), "COMMIT_EDITMSG");
+  writeFileSync(file, text);
+  const r = run(["commit-msg", file]);
+  assert.equal(r.code, code, r.out);
+  return r.out;
+}
+// Pins: the hook passes a conventional header and refuses one that is not, by the step's rule.
+test("commit-msg: a conventional header passes, one without a type is a finding", () => {
+  commitMsg("feat: add a thing\n\nThe body.\n", 0);
+  assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg: /m);
+});
+// Pins: git's merge header and the headers git writes for --fixup and --squash pass the hook before any other rule,
+// the 100 characters included; the gate refuses the autosquash ones (above).
+test("commit-msg: git's merge header and fixup, squash and amend headers pass, whatever they hold", () => {
+  commitMsg("Merge branch 'main' into chore/hooks\n", 0);
+  for (const h of ["fixup!", "squash!", "amend!"])
+    commitMsg(`${h} feat: ${"x".repeat(95)}\n`, 0);
+  commitMsg("fixup! Add a thing\n", 0);
+});
+// Pins: git hands the hook its editor template (lines starting with #) and, with -v, a scissors line and the diff
+// below it (measured): comment lines are not the header, and nothing below the scissors line is read.
+test("commit-msg: comment lines and everything below the scissors line are not read", () => {
+  commitMsg("# a comment\nfeat: x\n# another\n", 0);
+  commitMsg(
+    "feat: x\n# ------------------------ >8 ------------------------\nAdd y\n",
+    0,
+  );
+  commitMsg(
+    "# ------------------------ >8 ------------------------\nfeat: below\n",
+    1,
+  );
+});
+// Pins: a message of nothing but comments or blanks is refused as empty, with the reason, not as a bad header.
+test("commit-msg: an empty message is a finding that says so", () => {
+  for (const text of ["", "\n\n", "# Please enter the commit message\n#\n"])
+    assert.match(
+      commitMsg(text, 1),
+      /^FINDING commit-msg: the message is empty \(lines starting with # are comments\)$/m,
+    );
+});
+// Pins: what the hook prints is escaped on every path: a passed header and the name of a file it cannot read.
+test("commit-msg: control characters are printed escaped when it passes and when it cannot read", () => {
+  const passed = commitMsg("feat: a‮x\n", 0);
+  assert.ok(!passed.includes("‮"), passed);
+  assert.match(passed, /^PASS commit-msg: "feat: a\\u202ex"$/m);
+  const r = run(["commit-msg", join(tempDir(), "absent‮x")]);
+  assert.equal(r.code, 2, r.out);
+  assert.ok(!r.out.includes("‮"), r.out);
+  assert.match(
+    r.out,
+    /^USAGE commit-msg: cannot read the message file ".*absent\\u202ex": ENOENT$/m,
+  );
+});
+// Pins: a hook run without its argument says so, never "undefined".
+test("commit-msg: no message file is a usage error that says so", () => {
+  const r = run(["commit-msg"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
+});
+
+// Pins: git really runs the hook from .githooks: it refuses a bad header and an editor message left empty, and takes
+// a conventional one, git's own revert wording and a fixup.
+test("commit-msg: git runs the hook from .githooks and commits only what it passes", () => {
+  const root = repo((r) => {
+    for (const f of ["check-repo.ts", "pinned.ts"])
+      put(r, `scripts/${f}`, readFileSync(join(here, f)));
+  });
+  commit(root, "chore: add the runner");
+  git(root, "config", "core.hooksPath", ".githooks");
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const gitRun = (env: NodeJS.ProcessEnv, ...args: string[]) => {
+    const r = spawnSync(
+      "git",
+      [
+        ...["-C", root, "-c", "user.name=Fixture"],
+        ...[
+          "-c",
+          "user.email=fixture@example.org",
+          "-c",
+          "commit.gpgsign=false",
+        ],
+        ...args,
+      ],
+      { encoding: "utf8", env: { ...GIT_ENV, ...env } },
+    );
+    return { code: r.status, out: r.stdout + r.stderr };
+  };
+  const head = () => git(root, "log", "-1", "--format=%s").trim();
+  const refused = gitRun({}, "commit", "-q", "-m", "Add a note");
+  assert.notEqual(refused.code, 0, refused.out);
+  assert.match(refused.out, /^FINDING commit-msg: /m);
+  // The editor leaves git's template as it is: only comment lines reach the hook.
+  const empty = gitRun({ GIT_EDITOR: "true" }, "commit", "-q");
+  assert.notEqual(empty.code, 0, empty.out);
+  assert.match(empty.out, /^FINDING commit-msg: the message is empty/m);
+  assert.equal(head(), "chore: add the runner");
+  const taken = gitRun({}, "commit", "-q", "-m", "docs: add a note");
+  assert.equal(taken.code, 0, taken.out);
+  assert.equal(head(), "docs: add a note");
+  // `revert --no-edit` alone runs no commit-msg hook, so the revert is committed by `commit --no-edit`.
+  for (const want of [
+    /^Revert "docs: add a note"$/,
+    /^(Reapply "docs: add a note"|Revert "Revert "docs: add a note"")$/,
+  ]) {
+    assert.equal(gitRun({}, "revert", "--no-commit", "HEAD").code, 0);
+    const r = gitRun({}, "commit", "-q", "--no-edit");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /^PASS commit-msg: /m);
+    assert.match(head(), want);
+  }
+  const fixup = gitRun({}, "commit", "-q", "--allow-empty", "--fixup", "HEAD");
+  assert.equal(fixup.code, 0, fixup.out);
+  assert.match(head(), /^fixup! /);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

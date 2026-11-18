@@ -1,6 +1,7 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
+//   node scripts/check-repo.ts commit-msg <file>        the commit-msg hook (.githooks/), run by git
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
@@ -759,7 +760,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
     steps: ["text"],
   },
   {
@@ -2078,28 +2079,31 @@ const AUTOSQUASH = /^(fixup|squash|amend)! /;
 // joiner, byte-order mark).
 const UNPRINTABLE =
   /[\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
-/** A header for output: its first 100 characters if longer, quoted, every character of UNPRINTABLE escaped. */
-const shownHeader = (written: string): string =>
-  JSON.stringify(
-    written.length > MAX_HEADER
-      ? `${written.slice(0, MAX_HEADER)}...`
-      : written,
-  ).replace(
+/** A text for output: quoted, every character of UNPRINTABLE escaped. */
+const shown = (text: string): string =>
+  JSON.stringify(text).replace(
     UNPRINTABLE,
     (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
+/** A header for output: its first 100 characters if longer, shown. */
+const shownHeader = (written: string): string =>
+  shown(
+    written.length > MAX_HEADER
+      ? `${written.slice(0, MAX_HEADER)}...`
+      : written,
+  );
 /** What is wrong with a header as written, or null. */
 function headerProblem(written: string): string | null {
-  const shown = shownHeader(written);
+  const quoted = shownHeader(written);
   if (written.length > MAX_HEADER)
-    return `${shown}: ${written.length} characters, more than ${MAX_HEADER}`;
+    return `${quoted}: ${written.length} characters, more than ${MAX_HEADER}`;
   let h = written;
   for (let w = WRAPPED.exec(h); w; w = WRAPPED.exec(h)) h = w[2];
   if (h !== written && MERGE.test(h)) return null;
   if (AUTOSQUASH.test(h))
-    return `${shown}: a fixup, squash or amend commit; squash it before the pull request`;
+    return `${quoted}: a fixup, squash or amend commit; squash it before the pull request`;
   if (!HEADER.test(h))
-    return `${shown}: not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
+    return `${quoted}: not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
   return null;
 }
 
@@ -2157,6 +2161,40 @@ function commits(root: string): Result {
   );
 }
 
+// git's scissors line: git writes its editor template and, with `commit -v`, the diff below it (measured).
+const SCISSORS = "# ------------------------ >8 ------------------------";
+// The commit-msg hook's check of one message file, which git hands over before its own clean-up (measured): the
+// editor template's comment lines are dropped and nothing below the scissors line is read, as git will do. git's merge
+// header and its headers for `commit --fixup` and `--squash` pass before any other rule; the gate's `commits` step
+// still refuses the autosquash ones and judges a one-parent commit that only looks like a merge.
+function commitMsg(file: string | undefined): Result {
+  if (!file) return result(USAGE, "no message file given");
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (e) {
+    return result(
+      USAGE,
+      `cannot read the message file ${shown(file)}: ${errorCode(e as NodeJS.ErrnoException) ?? "no reason given"}`,
+    );
+  }
+  const lines = text.split("\n");
+  const cut = lines.indexOf(SCISSORS);
+  const kept = (cut < 0 ? lines : lines.slice(0, cut)).filter(
+    (l) => !l.startsWith("#"),
+  );
+  const header = headerOf(kept.join("\n"));
+  if (!header)
+    return result(
+      FINDING,
+      "the message is empty (lines starting with # are comments)",
+    );
+  if (MERGE.test(header) || AUTOSQUASH.test(header))
+    return result(PASS, `${shownHeader(header)}: git's own header`);
+  const problem = headerProblem(header);
+  return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -2188,12 +2226,13 @@ function report(name: string, r: Result): number {
 function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
+  if (name === "commit-msg") return report(name, commitMsg(rest[0]));
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",
       result(
         USAGE,
-        `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`,
+        `unknown check; use one of all, needs, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
   const [flag, given, ...extra] = rest;

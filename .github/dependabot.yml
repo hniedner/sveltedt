@@ -4,8 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Headers "ci(deps): ..." here and "build(deps-dev): ..." for npm: conventional, as the `commits` step requires.
-    # Origin: docs/decisions/001-quality-tooling.md.
+    # Headers "ci(deps): ..." here and "build(deps-dev): ..." for npm: conventional, as the `commits` step and the
+    # commit-msg hook require. Origin: docs/decisions/001-quality-tooling.md.
     commit-message:
       prefix: ci
       include: scope

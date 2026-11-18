@@ -14,6 +14,7 @@ One command runs every check that exists today, in order, stopping at the first 
 
 ```sh
 pnpm install --frozen-lockfile
+git config core.hooksPath .githooks   # once per clone, by hand for now: the commit-msg hook (Commit headers)
 pnpm gate
 ```
 
@@ -137,6 +138,22 @@ trailing blanks and carriage return.
 - `fixup!`, `squash!` and `amend!` commits are refused: squash them before the pull request.
 - A suggestion applied or a file edited on GitHub's website asks for a commit message: give it a conventional header.
 - Real merge commits are left out, whatever their message; a one-parent commit that only looks like a merge is judged.
+- Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
+  as the branch's own.
+
+git runs `.githooks/commit-msg` on every commit once `core.hooksPath` is set (by hand for now; nothing checks the
+setting yet). It applies the same rules to the message git hands it, which comes before git's own clean-up:
+
+- Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
+  (`commit -v`). A message with nothing else is refused as empty.
+- `fixup!`, `squash!` and `amend!` commits and git's `Merge ...` pass the hook, whatever their length; the `commits`
+  step refuses the autosquash ones at the pull request.
+- Limits: `git commit -m "# x"` keeps that line as the header, so the hook passes the line below it and the `commits`
+  step refuses the commit; a comment character other than `#` (`core.commentChar`) is not known to the hook.
+
+A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`).
+`core.hooksPath` is shared by every worktree of a clone: once a branch is checked out there, later commits run that
+branch's hook, which is one more reason to check an unreviewed branch out only in a separate clone.
 
 ## How a change is made
 
