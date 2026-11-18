@@ -23,18 +23,24 @@
     "could not check", which blocks like a finding (rule 4.0).
 - **The workflows** are the files under `.github/workflows/`; the actions of this repository are those under
   `.github/actions/`.
-- **Jobs named in examples.** The release workflow (`.github/workflows/release.yml`, written with part 1b) has three
-  jobs: **the tag job** creates the version tag and the GitHub release; **the publish job** runs `npm publish`;
-  **the deploy job** deploys the public site to GitHub Pages. **The scorecard job** is the job of
-  `.github/workflows/scorecard.yml`.
+- **Jobs, by workflow file and job id.** `ci.yml`: `static`, `gate`. `dependency-review.yml`: `dependency-review`.
+  `scorecard.yml`: `analysis` (**the scorecard job**). `release.yml` (written with part 1b): `tag` (**the tag job**:
+  creates the version tag and the GitHub release), `publish` (**the publish job**: runs `npm publish`), `deploy`
+  (**the deploy job**: deploys the public site to GitHub Pages).
+- **The package manifest** is the `package.json` whose `name` is `@hniedner/sveltedt`; **the lockfile** is
+  `pnpm-lock.yaml` at the repository root; **the package manager's settings** are `pnpm-workspace.yaml` at the root.
+- **Exact version.** A version written as three numbers, `11.6.2`; `11`, `^11`, `~11.6` and `latest` are not exact.
+- **Landing order.** A statement whose files do not exist yet on `main` (the package manifest, the lockfile, the npm
+  entry of the Dependabot configuration, the release workflow) lands untested; its check is built, and must pass,
+  in the pull request that adds those files.
 - **Data.** Example values are synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
   A requirement id from `docs/PRD.md` is written `PRD-S5`.
 
 ## 1. Supply chain (SUP)
 
-**SUP-01** Every action a workflow uses MUST be pinned by a full 40-character commit SHA, and every container image
-by its `sha256` digest.
+**SUP-01** Every action and reusable workflow a workflow uses from outside this repository MUST be pinned by a full
+40-character commit SHA, and every container image by its `sha256` digest.
 - Examples (the scan reads the workflows and the actions of this repository; the test runs every row as a canary in a
   workflow file):
 
@@ -47,6 +53,11 @@ by its `sha256` digest.
   | `actions/checkout@3d3c42e` (a short SHA) | finding |
   | `docker://node:22` | finding |
   | `docker://node@sha256:` followed by 64 hex characters | passes |
+  | a job's `uses: hniedner/workflows/.github/workflows/x.yml@v1` (a reusable workflow by tag) | finding |
+  | a job's `uses: ./.github/workflows/x.yml` (a reusable workflow in this repository) | passes |
+  | a job's `container: node:22` | finding |
+  | a job's `services:` entry with `image: postgres:17` | finding |
+  | `container:` or `services:` image `node@sha256:` followed by 64 hex characters | passes |
 
 - Reason: a tag or branch can be moved to new code after review; a full SHA or digest cannot.
 - Layer: static check.
@@ -63,6 +74,7 @@ by its `sha256` digest.
   | missing | finding |
   | `write-all` | finding |
   | `contents: write` | finding |
+  | `id-token: write` | finding |
 
   A job may widen its own permissions; SUP-03 limits where.
 - Reason: a job that needs a write scope names it, so every other job runs read-only even if the repository default
@@ -70,7 +82,8 @@ by its `sha256` digest.
 - Layer: static check.
 - Traces: PRD-S5.
 
-**SUP-03** A write scope MUST appear only in the jobs this table names.
+**SUP-03** A job-level write scope MUST appear only in the jobs this table names; a scope the table does not name is
+allowed in no job.
 - Examples (the scan lists every job-level write scope in every workflow and compares it with this table; the test
   plants each canary in turn):
 
@@ -82,15 +95,18 @@ by its `sha256` digest.
   | `security-events: write` | the scorecard job |
 
   The scorecard job as it is on `main` (`security-events: write`, `id-token: write`) passes. Canaries:
-  `contents: write` in the CI workflow's job is a finding; `id-token: write` in the tag job is a finding;
-  `pages: write` in the publish job is a finding; `packages: write` anywhere is a finding.
+  `contents: write` in `ci.yml`'s `static` job is a finding; `id-token: write` in the tag job is a finding;
+  `pages: write` in the publish job is a finding; `packages: write`, `pull-requests: write`, `issues: write`,
+  `actions: write` or `attestations: write` in any job is a finding; a job's `permissions: write-all` is a finding.
 - Reason: the token that can create a tag cannot publish, and the token that can publish cannot write to the
   repository; a leak in one job costs only that job's power.
 - Layer: static check.
 - Traces: PRD-S5.
 
 **SUP-04** The package MUST have no runtime dependency, and `svelte` MUST be its only peer dependency.
-- Examples (the scan reads the repository's root `package.json`; the test runs every row as a canary):
+- Examples (the scan reads the package manifest; no manifest, or more than one, is "could not check"; a private
+  workspace `package.json` at the root that is not the package manifest is not read; the test runs every row as a
+  canary):
 
   | `package.json` | Result |
   |---|---|
@@ -105,14 +121,18 @@ by its `sha256` digest.
 - Layer: static check.
 - Traces: PRD-S5.
 
-**SUP-05** Every dependency install in a workflow MUST use the committed lockfile unchanged.
-- Examples (the test runs every row as a step of a canary workflow; with no lockfile in the repository the scan
-  reports "could not check"):
+**SUP-05** Every install in a workflow MUST either install the dependencies from the committed lockfile unchanged or
+install one named tool at an exact version.
+- Examples (the test runs every row as a step of a canary workflow, alone and inside a multi-line `run:` block; a
+  repository without the lockfile is a finding):
 
   | Step | Result |
   |---|---|
   | `pnpm install --frozen-lockfile` | passes |
   | `pnpm install` | finding |
+  | `pnpm install --no-frozen-lockfile` | finding |
+  | `pnpm install --lockfile-only` | finding |
+  | `pnpm/action-setup` with `run_install: true` | finding |
   | `pnpm i` | finding |
   | `pnpm add left-pad` | finding |
   | `npm install` | finding |
@@ -120,14 +140,18 @@ by its `sha256` digest.
   | `yarn install` | finding |
   | `npm install --global npm@11.6.2` (a tool at a pinned version, not a dependency) | passes |
   | `npm install --global npm@latest` | finding |
+  | `npm install --global npm@^11` | finding |
+  | `pnpm dlx publint@0.3.12` or `npx publint@0.3.12` | passes |
+  | `pnpm dlx publint` or `npx publint` | finding |
   | `npm publish` | passes (not an install) |
 
-- Reason: an install that may rewrite the lockfile, or a tool at a floating version, can pull code nobody reviewed.
+- Reason: development dependencies stay locked (PRD-S5): an install that may rewrite the lockfile, or a tool at a
+  floating version, can pull code nobody reviewed.
 - Layer: static check.
 - Traces: PRD-S5.
 
 **SUP-06** Dependency install scripts MUST NOT run, except for the packages of the reviewed allow-list.
-- Examples (the scan reads the package manager's settings in the repository; the test runs every row as a canary):
+- Examples (the scan reads the package manager's settings; the test runs every row as a canary):
 
   | Setting | Result |
   |---|---|
@@ -136,9 +160,10 @@ by its `sha256` digest.
   | `esbuild` allowed with no reason | finding |
   | every package allowed | finding |
   | an unlisted package with a script only warned about, the install going on | finding |
+  | `esbuild` refused (set to `false`) with no reason | passes: refusing needs no reason |
 
-  The allow-list lives in the package manager's settings in the repository; each entry carries its reason in a
-  comment on the same or the line above.
+  The allow-list is the settings' build allow-list; each allowed entry carries its reason in a non-empty comment on
+  the same line or the line above.
 - Reason: an install script runs with the developer's and the runner's rights before any test or review.
 - Layer: static check.
 - Traces: PRD-S5.
@@ -149,11 +174,16 @@ cooldown and grouped version updates.
 
   | Configuration | Result |
   |---|---|
-  | `npm` for directory `/` and `github-actions`, each with `cooldown` and a `groups` entry for version updates | passes |
+  | `npm` for directory `/` and `github-actions`, each with a cooldown of at least 1 day and a `groups` entry for version updates | passes |
+  | the `npm` entry with `directories: ["/"]` | passes |
+  | a `groups` entry with no `applies-to` (it then applies to version updates) | passes |
   | the `npm` entry missing | finding |
   | the `npm` entry for another directory only | finding |
   | the `github-actions` entry without `cooldown` | finding |
   | the `npm` entry without a group for version updates | finding |
+  | the `github-actions` entry without a group for version updates | finding |
+  | a group with `applies-to: security-updates` only | finding (no group for version updates) |
+  | a cooldown of `default-days: 0` | finding |
 
 - Reason: grouped, delayed updates keep the review load small and let a bad release be withdrawn before it lands.
 - Layer: static check.
@@ -168,10 +198,17 @@ cooldown and grouped version updates.
   | that workflow with a `paths` filter on its `pull_request` trigger | finding (it would skip some pull requests) |
   | that workflow with a `branches` filter on its `pull_request` trigger | finding |
   | that job with an `if:` condition | finding |
+  | the review step with an `if:` condition | finding |
+  | a `paths-ignore` or `branches-ignore` filter | finding |
+  | a `types:` list on `pull_request` without `synchronize` | finding (a new push to the pull request is not reviewed) |
+  | the step or its job with `continue-on-error: true` | finding |
+  | the step with `warn-only: true` | finding |
+  | the step only in a workflow on `pull_request_target` | finding |
   | no workflow using `actions/dependency-review-action` | finding |
   | the step only in a workflow on `push` | finding |
 
-- Reason: a new or changed dependency is reviewed before it can merge.
+- Reason: a new or changed dependency is reviewed before it can merge; the `main` ruleset requires the
+  `dependency-review` check (MEASURED 2026-11-17), and the release record of part 1b records that setting.
 - Layer: static check.
 - Traces: PRD-S5.
 
@@ -194,6 +231,6 @@ cooldown and grouped version updates.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-S5 | SUP-01, SUP-02, SUP-03, SUP-04, SUP-05, SUP-06, SUP-07, SUP-08 | in part: the repository-settings readings in the release record come with part 1b; secret scanning with push protection is a repository setting, recorded there |
+| PRD-S5 | SUP-01, SUP-02, SUP-03, SUP-04, SUP-05, SUP-06, SUP-07, SUP-08 | in part: "development dependencies locked, installs frozen" is SUP-05; the repository settings (secret scanning with push protection, Dependabot alerts and security updates, read-only default token, the required checks) are read by the owner into the release record of part 1b |
 
 PRD musts of the release path left to later parts: PRD-S7, and PRD-K3's changelog and version rules.
