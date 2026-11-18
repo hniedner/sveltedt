@@ -16,12 +16,16 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, normalize, posix } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  binaryOf,
+  CANNOT,
+  FINDING,
+  PASS,
+  pinnedVersion,
+  USAGE,
+} from "./pinned.ts";
 
-const PASS = 0,
-  FINDING = 1,
-  USAGE = 2,
-  CANNOT = 3,
-  NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
+const NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
 const WORD: Record<number, string> = {
   [PASS]: "PASS",
   [FINDING]: "FINDING",
@@ -277,18 +281,15 @@ function pinnedBinary(
   name: string,
   flag: string,
 ): Result | { bin: string; got: string } {
-  const bin = process.env[`${name.toUpperCase()}_BIN`] || name;
+  const bin = binaryOf(name);
   const file = `scripts/${name}.version`;
-  const wanted = /^version (\S+)$/m.exec(readText(root, file));
+  const wanted = pinnedVersion(join(root, file));
   if (!wanted) return result(CANNOT, `${file} holds no line \`version <x>\``);
   const v = versionOf(bin, flag);
   if (isResult(v)) return v;
   const got = v.line.replace(`${name} `, "");
-  if (got !== wanted[1])
-    return result(
-      CANNOT,
-      `${name} is ${got}, the pinned version is ${wanted[1]}`,
-    );
+  if (got !== wanted)
+    return result(CANNOT, `${name} is ${got}, the pinned version is ${wanted}`);
   return { bin, got };
 }
 
@@ -441,7 +442,7 @@ function toolchain(root: string): Result {
   const node = process.versions.node;
   if (wanted.split(".")[0] !== node.split(".")[0])
     return result(CANNOT, `node is ${node}, .node-version pins ${wanted}`);
-  const v = versionOf(process.env.PNPM_BIN || "pnpm", "--version");
+  const v = versionOf(binaryOf("pnpm"), "--version");
   if (isResult(v)) return v;
   if (v.line !== pin[1])
     return result(CANNOT, `pnpm is ${v.line}, packageManager pins ${pin[1]}`);
@@ -642,6 +643,8 @@ function text(root: string, list: Set<string>): Result {
 }
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// Test seams, unset in normal use: CANARY_DIR (planted folders) and <NAME>_BIN (fakes, see binaryOf in pinned.ts).
+// An empty value counts as unset in both.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 

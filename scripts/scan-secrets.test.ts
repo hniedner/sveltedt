@@ -237,8 +237,11 @@ test("dir: a missing config file cannot be checked", () => {
   assert.match(r.out, /config file missing/);
 });
 test("dir: a missing version file cannot be checked", () => {
-  const copy = join(tempDir(), "scan-secrets.ts");
+  // The wrapper alone, with the module it imports, in a folder without gitleaks.version.
+  const dir = tempDir();
+  const copy = join(dir, "scan-secrets.ts");
   copyFileSync(WRAPPER, copy);
+  copyFileSync(join(here, "pinned.ts"), join(dir, "pinned.ts"));
   const r = run(
     ["dir", oneFile(), "--config", join(here, "gitleaks.toml")],
     {},

@@ -15,13 +15,17 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import {
+  binaryOf,
+  CANNOT,
+  FINDING,
+  PASS,
+  pinnedVersion,
+  USAGE,
+} from "./pinned.ts";
 
 const T = "scan-secrets";
-const PASS = 0,
-  FINDING = 1,
-  USAGE = 2,
-  CANNOT = 3;
-const BIN = process.env.GITLEAKS_BIN ?? "gitleaks";
+const BIN = binaryOf("gitleaks");
 const LEAK_EXIT = 7; // gitleaks' exit code for leaks; its exit 1 can then only mean a crash or bad input
 const USE =
   "scan-secrets dir <path> | scan-secrets git <repo> <range> [--config <file>]";
@@ -151,9 +155,7 @@ function canary(config: string): void {
 
 function preflight(config: string): void {
   const versionFile = join(import.meta.dirname, "gitleaks.version");
-  const pinned = existsSync(versionFile)
-    ? /^version (\S+)$/m.exec(readFileSync(versionFile, "utf8"))?.[1]
-    : undefined;
+  const pinned = pinnedVersion(versionFile);
   if (!pinned) cannot(`no line "version <x>" in ${versionFile}`);
   if (!existsSync(config)) cannot(`config file missing: ${config}`);
   const v = sh(BIN, ["version"]);
