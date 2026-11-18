@@ -100,16 +100,20 @@ interface Pkg {
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 }
+/** The real pins: the steps compare them with the installed tools, so a Dependabot bump moves both. */
+const PINS = (
+  JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8")) as Pkg
+).devDependencies;
 const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
   devDependencies: {
-    eslint: "10.14.0",
-    jscpd: "5.4.3",
-    prettier: "3.9.10",
-    typescript: "6.0.3",
+    eslint: PINS.eslint,
+    jscpd: PINS.jscpd,
+    prettier: PINS.prettier,
+    typescript: PINS.typescript,
   },
 };
 const WORKSPACE = "pmOnFail: ignore\nminimumReleaseAge: 4320\n";
@@ -195,6 +199,8 @@ function commit(root: string, message: string): void {
     "user.email=fixture@example.org",
     "-c",
     "core.hooksPath=/dev/null",
+    "-c",
+    "commit.gpgsign=false",
     "commit",
     "-q",
     "--allow-empty",
@@ -1045,7 +1051,7 @@ test("secrets: passes when the wrapper passes the branch's range, and names it",
   );
 });
 test("secrets: a finding of the wrapper is a finding", () => {
-  expect("secrets", scanBranch(1), 1);
+  assert.match(expect("secrets", scanBranch(1), 1), /^ {2}scan-secrets git /m);
 });
 test("secrets: a wrapper that could not check cannot be checked", () => {
   expect("secrets", scanBranch(3), 3);
@@ -1096,11 +1102,12 @@ test("workflows: passes when the pinned zizmor flags its canary and finds nothin
   expect("workflows", repo(), 0);
 });
 test("workflows: a workflow zizmor reports is a finding", () => {
-  expect(
+  const out = expect(
     "workflows",
     repo(edit(".github/workflows/ci.yml", "echo done", "echo bad")),
     1,
   );
+  assert.match(out, /warning\[template-injection\]/);
 });
 test("workflows: another zizmor version than the pinned one cannot be checked", () => {
   expect("workflows", repo(), 3, { zizmor: fakeZizmor({ version: "1.0.0" }) });
@@ -1291,11 +1298,12 @@ test("actionlint: passes when the pinned binary finds the canary and accepts the
   expect("actionlint", repo(), 0);
 });
 test("actionlint: a workflow the linter rejects is a finding", () => {
-  expect(
+  const out = expect(
     "actionlint",
     repo(edit(".github/workflows/ci.yml", "echo done", "echo bad")),
     1,
   );
+  assert.match(out, /bad workflow/);
 });
 test("actionlint: another version than the pinned one cannot be checked", () => {
   expect("actionlint", repo(), 3, { lint: fakeLint({ version: "1.0.0" }) });

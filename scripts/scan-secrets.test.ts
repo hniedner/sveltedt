@@ -280,6 +280,17 @@ test("git: a token in a commit of the range is a finding with commit:file:line",
   assert.ok(out.out.includes(`${sha}:k.txt:1`), out.out);
   assert.ok(!out.out.includes(tok));
 });
+test("git: a token added and removed again inside the range is a finding", () => {
+  const r = repoWith({ "a.txt": "x\n" });
+  commit(r, "add", { "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "remove", { "k.txt": "t = 0\n" });
+  assert.equal(run(["git", r, "HEAD~2..HEAD"]).code, 1);
+});
+test("git: a token committed before the range passes", () => {
+  const r = repoWith({ "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "two", { "a.txt": "y\n" });
+  assert.equal(run(["git", r, "HEAD~1..HEAD"]).code, 0);
+});
 test("git: a range ending in a merge commit passes", () => {
   const r = repoWith({ "a.txt": "x\n" });
   git(r, "switch", "-q", "-c", "side");
