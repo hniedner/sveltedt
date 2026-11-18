@@ -743,6 +743,7 @@ const SUPPRESSION = new RegExp(
     ["@ts-", "expect-error"],
     ["@ts-", "nocheck"],
     ["jscpd:", "ignore"],
+    ["prettier-", "ignore"],
   ]
     .map((parts) => parts.join(""))
     .join("|"),
@@ -951,6 +952,11 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
     "compat/compat",
+    "@typescript-eslint/ban-ts-comment",
+    "no-restricted-syntax|setAttribute style",
+    "no-restricted-syntax|createElement of style",
+    "no-restricted-syntax|innerHTML or outerHTML",
+    "no-restricted-syntax|insertAdjacentHTML",
   ],
   // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [
@@ -965,6 +971,9 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|{@attach}",
     "no-restricted-syntax|style attribute",
     "no-restricted-syntax|{style} shorthand",
+    "no-restricted-syntax|svelte:head",
+    "no-restricted-syntax|setAttribute style",
+    "no-restricted-syntax|innerHTML or outerHTML",
   ],
 };
 

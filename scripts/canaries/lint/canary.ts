@@ -31,3 +31,12 @@ export function e(x: number): number {
 }
 // Above the browser floor (PRD-E1): IdleDetector is in no floor browser.
 export const idle = new IdleDetector();
+// Refused by typescript-eslint's ban-ts-comment: a comment that switches type checking off.
+// @ts-ignore
+export const off: number = "one";
+export function inject(el: HTMLElement, html: string): void {
+  el.setAttribute("style", "color: red");
+  document.head.append(document.createElement("style"));
+  el.innerHTML = html;
+  el.insertAdjacentHTML("beforeend", html);
+}

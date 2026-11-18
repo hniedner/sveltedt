@@ -1238,6 +1238,7 @@ const SUPPRESSIONS = [
   ["@ts-", "expect-error"],
   ["@ts-", "nocheck"],
   ["jscpd:", "ignore"],
+  ["prettier-", "ignore"],
 ].map((parts) => parts.join(""));
 test("text: each suppression comment in a script or a component is a finding that names it", () => {
   for (const word of SUPPRESSIONS) {
@@ -1249,16 +1250,68 @@ test("text: each suppression comment in a script or a component is a finding tha
           "scripts/x.ts",
           `// ${word} for a reason\nexport const one = 1;\n`,
         );
+        put(root, "scripts/y.mjs", `export const one = 1; // ${word}\n`);
+        put(root, "scripts/z.svelte.ts", `export const one = 1;\n// ${word}\n`);
         component(COMPONENT.replace("<p>", `<!-- ${word} -->\n<p>`))(root);
       }),
       1,
     );
-    assert.ok(out.includes(`scripts/x.ts:1: suppression comment ${word}`), out);
+    for (const at of [
+      "scripts/x.ts:1",
+      "scripts/y.mjs:1",
+      "scripts/z.svelte.ts:2",
+    ])
+      assert.ok(out.includes(`${at}: suppression comment ${word}`), out);
     assert.ok(
       out.includes(`src/Count.svelte:5: suppression comment ${word}`),
       out,
     );
   }
+});
+test("text: suppression comments on successive lines are each a finding", () => {
+  const out = expect(
+    "text",
+    repo((root) =>
+      put(
+        root,
+        "scripts/x.ts",
+        `// ${SUPPRESSIONS[1]}\n// ${SUPPRESSIONS[2]}\nexport const one = 1;\n`,
+      ),
+    ),
+    1,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:1: suppression comment ${SUPPRESSIONS[1]}`),
+    out,
+  );
+  assert.ok(
+    out.includes(`scripts/x.ts:2: suppression comment ${SUPPRESSIONS[2]}`),
+    out,
+  );
+});
+test("lint: no PostCSS config is loaded for a component, not even one above the root", () => {
+  const parent = tempDir();
+  const root = join(parent, "root");
+  // An ignore comment (SUPPRESSIONS[0]) makes the plugin compile the component, the path that loads PostCSS (measured).
+  const styled = COMPONENT.replace(
+    "<p>{count}</p>",
+    `<!-- ${SUPPRESSIONS[0]} a11y_missing_attribute -->\n<p class="n">{count}</p>\n\n<style lang="postcss">\n  .n {\n    color: red;\n  }\n</style>`,
+  );
+  cpSync(repo(component(styled)), root, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  const marker = join(parent, "MARKER-postcss");
+  put(
+    parent,
+    "postcss.config.cjs",
+    `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran");\nmodule.exports = {};\n`,
+  );
+  run(["lint", "--root", root]);
+  assert.ok(
+    !existsSync(marker),
+    "the PostCSS config above the root was loaded",
+  );
 });
 test("text: a suppression word in prose is not a finding", () => {
   const prose = `# Notes\n\nNever use ${SUPPRESSIONS[0]}.\n`;
