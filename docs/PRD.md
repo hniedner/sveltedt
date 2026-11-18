@@ -12,11 +12,12 @@
   exception path for a runtime dependency (PRD-S5); the server guide (PRD-D6) and the migration guide with its departure
   list (PRD-D8); the dataset and the backend fixtures (PRD-W3, PRD-W11); the risks of section 9; and what follows from
   them in B1, B2, B7, B15, A4, A8, A12, sections 4.3 and 4.4, S3, W10, the release criteria and the Later list (PRD-X4
-  dropped: the local data source replaces it). Amended by the owner on 2026-11-18: the styling route: the component's
-  own classes and one shipped, unlayered stylesheet reading `--sdt-*` tokens, with no Tailwind in the package and none
-  required in the application, and a Tailwind 4 application importing the stylesheet into a layer below its utilities
-  (PRD-T1 to PRD-T11, PRD-T13 to PRD-T16; PRD-K1 to PRD-K3; PRD-P2 to PRD-P4; PRD-E1; PRD-S1; PRD-G1, PRD-G2, PRD-G4; PRD-W5
-  to PRD-W9; PRD-D1, PRD-D3, PRD-D9; the product line, sections 1 to 3, section 4.3, section 7, R6, R17 and R18). A
+  dropped: the local data source replaces it); and the row and column identity in PRD-B1 (owner, 2026-11-18).
+  Amended by the owner on 2026-11-18: the styling route: the component's own classes and one shipped, unlayered
+  stylesheet reading `--sdt-*` tokens, with no Tailwind in the package and none required in the application, and a
+  Tailwind 4 application importing the stylesheet into a layer below its utilities (PRD-T1 to PRD-T11, PRD-T13 to
+  PRD-T16; PRD-K1 to PRD-K3; PRD-P2 to PRD-P4; PRD-E1; PRD-S1; PRD-G1, PRD-G2, PRD-G4; PRD-W5 to PRD-W9; PRD-D1,
+  PRD-D3, PRD-D9; the product line, sections 1 to 3, section 4.3, section 7, R6, R17 and R18). A
   requirement changes only by the owner from here on.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
@@ -114,7 +115,7 @@ and the release record holds that step's pass or fail. A manual step not recorde
 ### 4.1 Behaviour (B)
 | Id | Requirement | Reason | Priority |
 |---|---|---|---|
-| PRD-B1 | Rows render in exactly the given order; the table never sorts, filters or slices them. | The data source (a server, the connection helper or the local data source) pages by its own order. | must |
+| PRD-B1 | Rows render in exactly the given order; the table never sorts, filters or slices them; when the same row ids come in another order, each row keeps its element, and when the same column ids come in another order, each column keeps its header cell and cells. | The data source (a server, the connection helper or the local data source) pages by its own order; focus, a text selection and a cell snippet's own state never pass to another row's or column's data when the same rows, or the same columns, come in another order (a new sort of the same page, from any data source); keeping focus on a moved element is not promised here. A row's id is the one the consumer's `getRowId` prop gives and a column's is its `id`; an empty or duplicate row or column id is invalid input (PRD-B16), refused with the alert, never shown. | must |
 | PRD-B2 | Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the open dialog and its trigger; unsent filter text and its error; whether the chooser is open; an active drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay timer, its minimum display time and whether it shows the still-loading text (B22); the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page) and after a control goes while focused (Cancel when the answer or a cancel removes it, Try again; PRD-B23, PRD-B24). It resets on remount and is documented. | One source of truth; two emits are two requests that can race. | must |
 | PRD-B3 | A column has a label and either a text value or the consumer's cell snippet; sort and filter controls appear only where configured. | Links and badges are the consumer's; a control that does nothing misleads. | must |
 | PRD-B4 | Multi-column sort: a press emits the whole next order; Shift adds or advances a column; single-direction columns are honoured; hidden columns keep their place. | The consumer sends the order as is. | must |
