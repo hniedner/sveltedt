@@ -29,11 +29,11 @@ to the consumer as one callback (stated with the statements that add user action
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
-  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`); `busy`;
-  `messages` (the words); the snippets `heading` and `actions`; `sort` (the order, a list of `{ id, desc }`, lead
-  first), a column's `sortable` (the directions it allows, `'asc'` and/or `'desc'`) and `onsort(next)`; and the props
-  of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`, `messages`, `onpage(offset)` and `onsize(n)`. Later
-  groups add their own props.
+  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
+  `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
+  order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
+  `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
@@ -101,13 +101,13 @@ its cells.
   | Prop that carries the text |
   |---|
   | `caption` |
-  | `regionLabel` |
   | a column `label` |
   | a default cell (`value(row)`) |
   | each entry of `messages`, the returned text of every function included |
 
-  In every row the literal text appears on the page, in an accessible name or in an accessible description, and the component holds no `img`
-  and no `none` element. Later groups add their props to this table.
+  In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
+  component holds no `img` and no `none` element. Later groups add their props to this table. (`regionLabel` has no
+  row: an attribute value has no markup path.)
 - Reason: the values come from a server and may hold anything; any markup path is a cross-site scripting path.
 - Layer: component.
 - Traces: PRD-S2.
