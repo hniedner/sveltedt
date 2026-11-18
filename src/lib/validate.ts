@@ -24,7 +24,9 @@ function firstDuplicate(values: readonly string[]): string | undefined {
   return undefined;
 }
 
-const isEmpty = (text: string): boolean => text.trim() === "";
+// A text that is not a string counts as empty: callers the type does not reach can pass one (RND-05)
+const isEmpty = (text: unknown): boolean =>
+  typeof text !== "string" || text.trim() === "";
 
 // The message of the first fault, in the order of RND-05's table, or null when the input is valid
 export function validateTable<Row>(
@@ -53,7 +55,9 @@ export function validateTable<Row>(
   let unreadable = false;
   for (const row of rows) {
     try {
-      rowIds.push(getRowId(row));
+      const id: unknown = getRowId(row);
+      if (typeof id === "string") rowIds.push(id);
+      else unreadable = true;
     } catch {
       unreadable = true;
     }

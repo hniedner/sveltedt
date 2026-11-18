@@ -229,10 +229,16 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "7e95b611")
+// @spec("RND-05", "021bc70e")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
+    // Callers the type does not reach (plain JavaScript, untyped server JSON) give the rows that are not a string
+    [
+      "caption is not a string",
+      { caption: undefined },
+      "Table caption must not be empty.",
+    ],
     [
       "regionLabel is empty",
       { regionLabel: "" },
@@ -245,6 +251,11 @@ describe("RND-05", () => {
       "A column id is empty.",
     ],
     [
+      "a column id is not a string",
+      { columns: [column("ok", "Ok"), column(7 as unknown as string, "Name")] },
+      "A column id is empty.",
+    ],
+    [
       "two columns share an id",
       { columns: [column("c", "Name"), column("c", "Code")] },
       "Two columns share an id.",
@@ -252,6 +263,16 @@ describe("RND-05", () => {
     [
       "a column label is empty",
       { columns: [column("ok", "Ok"), column("a", "")] },
+      "A column label is empty.",
+    ],
+    [
+      "a column label is not a string",
+      {
+        columns: [
+          column("ok", "Ok"),
+          column("a", undefined as unknown as string),
+        ],
+      },
       "A column label is empty.",
     ],
     [
@@ -279,6 +300,11 @@ describe("RND-05", () => {
     [
       "getRowId throws",
       { getRowId: unreadable },
+      "A row id could not be read.",
+    ],
+    [
+      "getRowId returns a value that is not a string",
+      { getRowId: () => 7 as unknown as string },
       "A row id could not be read.",
     ],
     [
