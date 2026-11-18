@@ -185,11 +185,8 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
     "svelte.config.js": "export default {};\n",
-    ".githooks/commit-msg":
-      '#!/bin/sh\nexec node scripts/check-repo.ts commit-msg "$@"\n',
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
-  chmodSync(join(root, ".githooks/commit-msg"), 0o755);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
@@ -710,7 +707,6 @@ test("text: a repository without a file of its class cannot be checked", () => {
         "node_modules", // the link .gitignore kept untracked
         ".node-version",
         ".github/CODEOWNERS",
-        ".githooks/commit-msg",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
         "docs/PRD.md",
@@ -2854,118 +2850,8 @@ test("commits: a header of exactly 100 characters passes", () => {
   expect("commits", branch(`feat: ${"x".repeat(94)}`), 0);
 });
 
-/** Runs the commit-msg entry on a message file holding `text`. */
-function commitMsg(text: string, code: number): string {
-  const file = join(tempDir(), "COMMIT_EDITMSG");
-  writeFileSync(file, text);
-  const r = run(["commit-msg", file]);
-  assert.equal(r.code, code, r.out);
-  return r.out;
-}
-test("commit-msg: a conventional header passes", () => {
-  commitMsg("feat: add a thing\n\nThe body.\n# a comment git adds\n", 0);
-});
-test("commit-msg: a header without a type is a finding", () => {
-  assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg/m);
-});
-test("commit-msg: git's merge header passes", () => {
-  commitMsg("Merge branch 'main' into chore/hooks\n", 0);
-});
-test("commit-msg: an empty message is a finding", () => {
-  commitMsg("# only a comment\n", 1);
-});
-test("commit-msg: a message file that cannot be read is a usage error", () => {
-  const r = run(["commit-msg", join(tempDir(), "absent")]);
-  assert.equal(r.code, 2, r.out);
-  assert.match(
-    r.out,
-    /^USAGE commit-msg: cannot read the message file .*: ENOENT$/m,
-  );
-});
-// Pins: every type of TYPES passes the hook, and so do Dependabot's headers.
-test("commit-msg: every allowed type passes", () => {
-  for (const t of [
-    "build",
-    "chore",
-    "ci",
-    "docs",
-    "feat",
-    "fix",
-    "perf",
-    "refactor",
-    "revert",
-    "style",
-    "test",
-  ])
-    commitMsg(`${t}: a change\n`, 0);
-  commitMsg("ci(deps): bump actions/checkout from 4 to 5\n", 0);
-  commitMsg("build(deps-dev): bump x from 1.0.0 to 1.0.1\n", 0);
-});
-// Pins: the header grammar. Each is a normal contributor's slip; each must be refused, and so must a leading space or
-// byte-order mark, which git keeps in the stored header.
-test("commit-msg: a malformed header is a finding", () => {
-  for (const h of [
-    "feat(): x",
-    "fix(Table): x",
-    "fix(a/b): x",
-    "feat:x",
-    "feat: ",
-    " feat: x",
-    "\uFEFFfeat: x",
-  ])
-    assert.match(
-      commitMsg(`${h}\n`, 1),
-      /^FINDING commit-msg/m,
-      JSON.stringify(h),
-    );
-});
-// Pins: at most 100 characters.
-test("commit-msg: 100 characters pass, 101 are a finding", () => {
-  commitMsg(`feat: ${"x".repeat(94)}\n`, 0);
-  assert.match(commitMsg(`feat: ${"x".repeat(95)}\n`, 1), /101 characters/);
-});
-// Pins: the header is the first line; a conventional line further down does not rescue a bad one.
-test("commit-msg: a bad first line is a finding even with a conventional line below it", () => {
-  commitMsg("Add a thing\n\nfeat: in the body\n", 1);
-});
-// Pins: the header is the first non-blank line as it stands, in the hook as in the gate. A first line starting with #
-// is refused: git keeps it for -m and -F and drops it from the editor, so the hook cannot know which line git stores.
-test("commit-msg: a first line starting with # is refused, whatever follows", () => {
-  for (const m of [
-    "#123 fix the thing\n\nfeat: in the body\n",
-    "# only a comment\n",
-  ])
-    assert.match(commitMsg(m, 1), /starts with #/);
-});
 test("commits: a stored first line starting with # is refused, whatever follows", () => {
   expect("commits", branch("#123 fix the thing\n\nfeat: in the body"), 1);
-});
-// Pins: git's editor template comes after the message, and git -v puts its diff below it: the first line decides.
-test("commit-msg: what git writes below the message is not read", () => {
-  commitMsg(
-    "feat: x\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n",
-    0,
-  );
-});
-// Pins: a leading blank line, trailing blanks and a Windows line end do not change the header.
-test("commit-msg: blank lines before the header, trailing blanks and CRLF are not part of it", () => {
-  commitMsg(`\n\nfeat: ${"x".repeat(94)}   \r\n`, 0);
-});
-// Pins: the 100 characters count the header as written, a git revert's wrapping included; nesting and quotes inside
-// are judged by the innermost header; a revert of git's own merge header is git's own header too.
-test("commit-msg: git's Revert and Reapply headers: nesting, quotes, merges, and the length as written", () => {
-  for (const h of [
-    'Revert "Revert "feat: x""',
-    'Revert "fix: stop "null" ids"',
-    'Revert "Merge pull request #43 from a/b"',
-    `Revert "feat: ${"x".repeat(85)}"`,
-  ])
-    commitMsg(`${h}\n`, 0);
-  for (const h of [
-    'Revert "Revert "Add x""',
-    `Revert "feat: ${"x".repeat(86)}"`,
-  ])
-    commitMsg(`${h}\n`, 1);
 });
 test("commits: git's Revert of a merge header and a nested Revert pass", () => {
   expect(
@@ -2977,17 +2863,9 @@ test("commits: git's Revert of a merge header and a nested Revert pass", () => {
     0,
   );
 });
-// Pins: a refused header is printed with its control characters escaped, so it cannot rewrite the terminal or the CI log.
-test("commit-msg: control characters in a refused header are printed escaped", () => {
-  const out = commitMsg("Add x\u001b[2K\rspoof\n", 1);
-  assert.ok(!out.includes("\u001b"), out);
-  assert.match(out, /\\u001b/);
-});
-// Pins: a message holding the old record separator is still one commit, judged.
 test("commits: a message holding a control separator is judged, not a crash", () => {
   expect("commits", branch("feat: a\u001eb"), 0);
 });
-// Pins: a finding names the bad commit's own hash when several commits have bodies.
 test("commits: the finding names the bad commit's own hash", () => {
   // The bad commit is the older one: git log lists the newest first, so naming the first record would be wrong.
   const root = branch(
@@ -3003,74 +2881,70 @@ test("commits: the finding names the bad commit's own hash", () => {
     ),
   );
 });
-// Pins: a hook run without its argument says so, never "undefined".
-test("commit-msg: no message file is a usage error that says so", () => {
-  const r = run(["commit-msg"]);
-  assert.equal(r.code, 2, r.out);
-  assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
+// Pins (moved from the hook's rows when the hook left this branch): every type of TYPES passes the step.
+test("commits: every allowed type passes", () => {
+  const types = [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "revert",
+    "style",
+    "test",
+  ];
+  expect("commits", branch(...types.map((t) => `${t}: a change`)), 0);
 });
-// Pins: git's own revert headers pass when the header they wrap does; autosquash commits pass the hook (git writes
-// them for --fixup) and are refused by the gate (above).
-test("commit-msg: git's Revert and Reapply headers pass when the header they wrap does", () => {
-  commitMsg('Revert "feat: a thing"\n', 0);
-  commitMsg('Reapply "feat: a thing"\n', 0);
-  commitMsg('Revert "Add a thing"\n', 1);
+// Pins: the header grammar. Each is a normal contributor's slip, refused, and so are a leading space or byte-order
+// mark, which git keeps in the stored header.
+test("commits: a malformed header is a finding", () => {
+  const slips = [
+    "feat(): x",
+    "fix(Table): x",
+    "fix(a/b): x",
+    "feat:x",
+    "feat:  x",
+    " feat: x",
+    "\uFEFFfeat: x",
+  ];
+  assert.match(
+    expect("commits", branch(...slips), 1),
+    new RegExp(
+      `^FINDING commits: ${slips.length} of ${slips.length} commit\\(s\\)$`,
+      "m",
+    ),
+  );
 });
-test("commit-msg: fixup, squash and amend headers pass the hook", () => {
-  for (const h of ["fixup! feat: x", "squash! feat: x", "amend! feat: x"])
-    commitMsg(`${h}\n`, 0);
+// Pins: a bad first line is not rescued by a conventional line below it.
+test("commits: a bad first line is a finding even with a conventional line below it", () => {
+  expect("commits", branch("Add a thing\n\nfeat: in the body"), 1);
 });
-
-test("commit-msg: git runs the hook and refuses a header that is not conventional", () => {
-  const root = repo((r) => {
-    for (const f of ["check-repo.ts", "pinned.ts"])
-      put(r, `scripts/${f}`, readFileSync(join(here, f)));
-  });
-  commit(root, "chore: add the runner");
-  git(root, "config", "core.hooksPath", ".githooks");
-  put(root, "notes/a.md", "# A note\n");
-  git(root, "add", "notes/a.md");
-  const gitRun = (...args: string[]) => {
-    const r = spawnSync(
-      "git",
-      [
-        "-C",
-        root,
-        "-c",
-        "user.name=Fixture",
-        "-c",
-        "user.email=fixture@example.org",
-        "-c",
-        "commit.gpgsign=false",
-        ...args,
-      ],
-      { encoding: "utf8", env: GIT_ENV },
-    );
-    return { code: r.status, out: r.stdout + r.stderr };
-  };
-  const gitCommit = (message: string) => gitRun("commit", "-q", "-m", message);
-  const head = () => git(root, "log", "-1", "--format=%s").trim();
-  const refused = gitCommit("Add a note");
-  assert.notEqual(refused.code, 0, refused.out);
-  assert.match(refused.out, /^FINDING commit-msg: /m);
-  assert.equal(head(), "chore: add the runner");
-  const taken = gitCommit("docs: add a note");
-  assert.equal(taken.code, 0, taken.out);
-  assert.equal(head(), "docs: add a note");
-  // git's own wording for a revert and a revert of that revert passes the hook (`revert --no-edit` alone runs no
-  // commit-msg hook, so the revert is committed by `commit --no-edit`), and so does a fixup.
-  for (const want of [
-    /^Revert "docs: add a note"$/,
-    /^(Reapply "docs: add a note"|Revert "Revert "docs: add a note"")$/,
-  ]) {
-    assert.equal(gitRun("revert", "--no-commit", "HEAD").code, 0);
-    const r = gitRun("commit", "-q", "--no-edit");
-    assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /^PASS commit-msg: /m);
-    assert.match(head(), want);
-  }
-  const fixup = gitRun("commit", "-q", "--allow-empty", "--fixup", "HEAD");
-  assert.equal(fixup.code, 0, fixup.out);
+// Pins: blank lines before the header, trailing blanks and a Windows line end are not part of it.
+test("commits: blank lines before the header, trailing blanks and CRLF are not part of it", () => {
+  expect("commits", branch(`\n\nfeat: ${"x".repeat(94)}   \r\n`), 0);
+});
+// Pins: the 100 characters count the header as written, a revert's wrapping included; nesting and quotes inside are
+// judged by the innermost header.
+test("commits: git's Revert headers: nesting, quotes, and the length as written", () => {
+  expect(
+    "commits",
+    branch('Revert "fix: stop "null" ids"', `Revert "feat: ${"x".repeat(85)}"`),
+    0,
+  );
+  expect(
+    "commits",
+    branch('Revert "Revert "Add x""', `Revert "feat: ${"x".repeat(86)}"`),
+    1,
+  );
+});
+// Pins: a refused header is printed with its control characters escaped.
+test("commits: control characters in a refused header are printed escaped", () => {
+  const out = expect("commits", branch("Add x\u001b[2K\rspoof"), 1);
+  assert.ok(!out.includes("\u001b"), out);
+  assert.match(out, /\\u001b/);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

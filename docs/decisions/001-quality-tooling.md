@@ -6,7 +6,6 @@ pages named, or measured with the command named.
 ## Hook runner
 
 - **Need:** hooks installed by a setup step, verified by the gate (method section 10; companion G9).
-  Until that step exists, the setting is made by hand (CONTRIBUTING, "Not built yet").
 - **Candidates:**
   - git's own `core.hooksPath` with our hook files;
   - husky 9 (a `prepare` script sets `core.hooksPath`);
@@ -193,7 +192,7 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 **Taken now:**
 
 - Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
-  `include: scope`: the `commits` step and the commit-msg hook need conventional headers;
+  `include: scope`: the `commits` step needs conventional headers;
 - `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`);
 - with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
   TypeScript parser.

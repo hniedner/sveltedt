@@ -1,7 +1,6 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
-//   node scripts/check-repo.ts commit-msg <file>        the commit-msg hook (.githooks/), run by git
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
@@ -725,7 +724,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
     steps: ["text"],
   },
   {
@@ -2032,10 +2031,10 @@ const MAX_HEADER = 100;
 const WRAPPED = /^(Revert|Reapply) "(.*)"$/;
 const MERGE = /^Merge /;
 // git's headers for `commit --fixup[=amend:|reword:]` and `--squash`: fine while working, squashed before a pull
-// request. The hook does not judge what follows the prefix.
+// request.
 const AUTOSQUASH = /^(fixup|squash|amend)! /;
 /** What is wrong with a header as written, or null; the header is quoted escaped, so no control character is printed. */
-function headerProblem(written: string, inHook: boolean): string | null {
+function headerProblem(written: string): string | null {
   const shown = JSON.stringify(written);
   if (written.length > MAX_HEADER)
     return `${shown}: ${written.length} characters, more than ${MAX_HEADER}`;
@@ -2043,11 +2042,7 @@ function headerProblem(written: string, inHook: boolean): string | null {
   for (let w = WRAPPED.exec(h); w; w = WRAPPED.exec(h)) h = w[2];
   if (h !== written && MERGE.test(h)) return null;
   if (AUTOSQUASH.test(h))
-    return inHook
-      ? null
-      : `${shown}: a fixup, squash or amend commit; squash it before the pull request`;
-  if (h.startsWith("#"))
-    return `${shown}: the first line starts with #, which git may keep or drop; start with the type`;
+    return `${shown}: a fixup, squash or amend commit; squash it before the pull request`;
   if (!HEADER.test(h))
     return `${shown}: not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
   return null;
@@ -2055,8 +2050,7 @@ function headerProblem(written: string, inHook: boolean): string | null {
 
 /**
  * A message's header as git stores it: its first non-blank line, only a trailing carriage return and trailing blanks
- * removed (a leading blank or byte-order mark is kept, as git keeps it). The hook reads its file the same way: git's
- * editor template and the diff of `commit -v` come after the message.
+ * removed (a leading blank or byte-order mark is kept, as git keeps it).
  */
 const headerOf = (message: string): string =>
   message
@@ -2084,7 +2078,7 @@ function commits(root: string): Result {
   if (!records.length) return emptyRange(range.range);
   const details = records.flatMap((rec) => {
     const [hash, ...message] = rec.split("\n");
-    const problem = headerProblem(headerOf(message.join("\n")), false);
+    const problem = headerProblem(headerOf(message.join("\n")));
     return problem ? [`${hash} ${problem}`] : [];
   });
   if (details.length)
@@ -2097,29 +2091,6 @@ function commits(root: string): Result {
     PASS,
     `${records.length} commit(s) in ${range.range}, every header conventional`,
   );
-}
-
-// The commit-msg hook's check of one message file. git's own merge header passes; the gate's range check, which
-// leaves real merges out, still catches a non-merge commit that only looks like one. Autosquash headers pass here
-// and not in the gate (above): git writes them for `commit --fixup`, and they are squashed before a pull request.
-function commitMsg(file: string | undefined): Result {
-  if (!file) return result(USAGE, "no message file given");
-  let text: string;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (e) {
-    return result(
-      USAGE,
-      `cannot read the message file ${file}: ${errorCode(e as NodeJS.ErrnoException) ?? "no reason given"}`,
-    );
-  }
-  const header = headerOf(text);
-  if (!header) return result(FINDING, "the message is empty");
-  if (/^Merge /.test(header)) return result(PASS, "a merge header");
-  const problem = headerProblem(header, true);
-  return problem
-    ? result(FINDING, problem)
-    : result(PASS, JSON.stringify(header));
 }
 
 const CHECKS: Record<string, Check> = {
@@ -2153,13 +2124,12 @@ function report(name: string, r: Result): number {
 function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
-  if (name === "commit-msg") return report(name, commitMsg(rest[0]));
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",
       result(
         USAGE,
-        `unknown check; use one of all, needs, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
+        `unknown check; use one of all, needs, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
   const [flag, given, ...extra] = rest;
