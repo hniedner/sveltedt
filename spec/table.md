@@ -644,8 +644,8 @@ as a limit, would change PRD-A3 and PRD-D3 and is the owner's. Layer: real brows
 
 **SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or SVG drawing
 differs between ascending and descending.
-- Examples (the test runs every row; the hidden content is the text, and the drawing attributes (`d`, `points`,
-  `href`, `transform`) of the SVG elements, inside the header cell's `aria-hidden="true"` elements, without the rank of SORT-05):
+- Examples (the test runs every row; the hidden content is the text, and every attribute except `class` and
+  `style` of the SVG elements, inside the header cell's `aria-hidden="true"` elements, without the rank of SORT-05):
 
   | Order | Header | Hidden content compared |
   |---|---|---|
