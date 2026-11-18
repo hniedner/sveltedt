@@ -1288,6 +1288,7 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
     };
     const out = expect("test", repo(outside), 3);
     assert.match(out, new RegExp(`^ {2}${path.replace(/\./g, "\\.")}$`, "m"));
+    assert.match(out, /did not run/);
   }
 });
 test("test: tracked source under src/ with no test file cannot be checked", () => {
@@ -1348,10 +1349,14 @@ test("theme: with no component under src/lib the step is not applicable", () => 
 });
 test("theme: a token class with a system-colour fallback passes", () => {
   const good = '<div class="bg-[var(--sdt-surface,Canvas)]"></div>\n';
-  expect(
+  const out = expect(
     "theme",
     repo((root) => put(root, "src/lib/T.svelte", good)),
     0,
+  );
+  assert.match(
+    out,
+    /PASS theme: 1 class literal\(s\) read, 1 colour-prefixed literal\(s\) checked/,
   );
 });
 test("theme: a palette class in a component is a finding that names it", () => {
