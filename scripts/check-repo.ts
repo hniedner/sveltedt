@@ -891,6 +891,8 @@ function jscpdReport(root: string, files: string[]): JscpdReport | ToolError {
       "50",
       "--min-lines",
       "5",
+      "--max-size",
+      "1mb",
     ];
     const r = spawnSync(
       bin,
@@ -938,8 +940,8 @@ const at = (side: CloneSide): string =>
 const DUPES_EXTENSIONS = [".mjs", ".ts"];
 
 // Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
-// starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd skips a file shorter than
-// its minimum clone, which cannot hold a clone, so only "more than 0 files analysed" is demanded of the report.
+// starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd leaves out, without a word,
+// a file under its minimum clone (50 tokens) or over its size limit (1mb): every file given must be in its report.
 function dupes(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "dupes");
   if (isResult(inputs)) return inputs;
@@ -967,8 +969,11 @@ function dupes(root: string, list: Set<string>): Result {
   const report = jscpdReport(root, mine);
   if ("error" in report) return result(CANNOT, report.error);
   const sources = report.statistics.total.sources;
-  if (!(sources > 0))
-    return result(CANNOT, `jscpd analysed 0 of ${mine.length} file(s)`);
+  if (sources !== mine.length)
+    return result(
+      CANNOT,
+      `jscpd analysed ${sources} of ${mine.length} file(s): one under 50 tokens or over 1mb is left out`,
+    );
   const details = report.duplicates.map(
     (d) => `${at(d.firstFile)} repeats ${at(d.secondFile)}`,
   );
@@ -976,8 +981,7 @@ function dupes(root: string, list: Set<string>): Result {
     return result(FINDING, `${details.length} clone(s)`, details);
   return result(
     PASS,
-    `jscpd ${version} found the canary clone and no clone in ${sources} of ${mine.length} file(s)` +
-      (sources < mine.length ? " (the others are under 50 tokens)" : ""),
+    `jscpd ${version} found the canary clone and no clone in ${sources} of ${mine.length} file(s)`,
   );
 }
 

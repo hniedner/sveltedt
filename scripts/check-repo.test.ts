@@ -72,6 +72,16 @@ const TOOL = `export function describe(entries) {
   return lines.sort().join("\\n");
 }
 `;
+/** TypeScript long enough for jscpd to analyse, and unlike TOOL, so the two are no clone. */
+const TOOL_TS = `export function gross(prices: number[], rate: number): number {
+  let sum = 0;
+  for (const price of prices) {
+    if (!Number.isFinite(price) || price < 0) continue;
+    sum += price * (1 + rate);
+  }
+  return Math.round(sum * 100) / 100;
+}
+`;
 interface Pkg {
   name: string;
   license: string;
@@ -130,7 +140,7 @@ function repo(change: (root: string) => void = () => {}): string {
     "scripts/actionlint.version": "version 9.9.9\nlinux_amd64_sha256 00\n",
     "scripts/zizmor.version": "version 9.9.9\nlinux_x86_64_sha256 00\n",
     "scripts/check-repo.test.ts": PASSING_TEST,
-    "scripts/scan-secrets.ts": "// fixture\n",
+    "scripts/scan-secrets.ts": TOOL_TS,
     "scripts/scan-secrets.test.ts": PASSING_TEST,
     "scripts/gitleaks.toml": "",
     "scripts/gitleaks.version": "version 9.9.9\n",
@@ -777,6 +787,13 @@ test("dupes: a jscpd that fails on the repository cannot be checked", () => {
     expect("dupes", repo(broken), 3),
     /jscpd exited|no jscpd report/,
   );
+});
+test("dupes: a file jscpd does not analyse cannot be checked", () => {
+  // Under jscpd's 50 tokens: it is left out of the report like a file over its size limit.
+  const short = (root: string) =>
+    put(root, "scripts/short.mjs", "export const one = 1;\n");
+  const out = expect("dupes", repo(short), 3);
+  assert.match(out, /jscpd analysed 2 of 3 file\(s\)/);
 });
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
