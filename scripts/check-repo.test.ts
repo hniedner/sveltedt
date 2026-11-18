@@ -1061,6 +1061,44 @@ test("svelte: a component outside tsconfig.json's include cannot be checked, and
   );
   assert.match(out, /lib\/Other\.svelte/);
 });
+test("svelte: a component in a folder tsconfig.json excludes cannot be checked, and is named", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      component(COMPONENT)(root);
+      put(root, "src/legacy/Old.svelte", COMPONENT);
+      edit(
+        "tsconfig.json",
+        '"include"',
+        '"exclude": ["src/legacy"],\n  "include"',
+      )(root);
+    }),
+    3,
+  );
+  assert.match(out, /src\/legacy\/Old\.svelte/);
+});
+test("svelte: tsconfig.json is read as TypeScript reads it: comments, a ./ include and an inherited exclude", () => {
+  const out = expect(
+    "svelte",
+    repo((root) => {
+      put(root, "src/Count.svelte", COMPONENT);
+      put(root, "src/legacy/Old.svelte", COMPONENT);
+      put(root, "tsconfig.base.json", '{ "exclude": ["src/legacy"] }\n');
+      const options = JSON.stringify(
+        (JSON.parse(FIXTURE_TSCONFIG) as { compilerOptions: object })
+          .compilerOptions,
+      );
+      put(
+        root,
+        "tsconfig.json",
+        `{\n  // as generated configs are written\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": ${options},\n  "include": ["scripts/**/*.ts", "./src/**/*.svelte"],\n}\n`,
+      );
+    }),
+    3,
+  );
+  assert.match(out, /src\/legacy\/Old\.svelte/);
+  assert.doesNotMatch(out, /src\/Count\.svelte/);
+});
 test("svelte: a canary that svelte-check accepts cannot be checked", () => {
   const dir = canaryDir("svelte", {
     "tsconfig.json": `${JSON.stringify({

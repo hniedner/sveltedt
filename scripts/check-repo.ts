@@ -14,7 +14,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, matchesGlob, normalize, posix } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   binaryOf,
@@ -1326,8 +1327,44 @@ function svelteCheck(cwd: string, tsconfig: string, config: string) {
   return { status: r.status, found, out: `${r.stdout}${r.stderr}` };
 }
 
+// The files tsconfig.json puts in the program, components included, as TypeScript itself reads the config (and as
+// svelte-check reads it): extends, comments, "./" and directory excludes follow TypeScript's rules, not ours.
+function projectFiles(root: string): Result | Set<string> {
+  let ts: typeof import("typescript");
+  try {
+    ts = createRequire(join(HERE, "..", "package.json"))(
+      "typescript",
+    ) as typeof import("typescript");
+  } catch {
+    return result(CANNOT, "typescript is not installed (run pnpm install)");
+  }
+  const file = join(root, "tsconfig.json");
+  const read = ts.readConfigFile(file, (p) => ts.sys.readFile(p));
+  const parsed = ts.parseJsonConfigFileContent(
+    read.config ?? {},
+    ts.sys,
+    root,
+    undefined,
+    file,
+    undefined,
+    [
+      {
+        extension: ".svelte",
+        isMixedContent: true,
+        scriptKind: ts.ScriptKind.Deferred,
+      },
+    ],
+  );
+  const errors = [read.error, ...parsed.errors].flatMap((e) =>
+    e ? [ts.flattenDiagnosticMessageText(e.messageText, " ")] : [],
+  );
+  if (errors.length)
+    return result(CANNOT, "TypeScript cannot read tsconfig.json", errors);
+  return new Set(parsed.fileNames.map((f) => relative(root, f)));
+}
+
 // svelte-check, strict, over every tracked Svelte component (PRD-G3); `types` keeps tsc for the scripts. svelte-check
-// lists no checked file and silently skips one outside tsconfig.json's include, so each component must match it.
+// lists no checked file and silently skips one tsconfig.json leaves out, so each component must be in the program.
 // With no component tracked the step is not applicable, after the planted errors were found.
 function svelte(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.["svelte-check"];
@@ -1368,19 +1405,13 @@ function svelte(root: string, list: Set<string>): Result {
       NA,
       `svelte-check ${got} failed the canary; no .svelte file is tracked`,
     );
-  const project = readJson(root, "tsconfig.json") as unknown as {
-    include?: string[];
-    exclude?: string[];
-  } | null;
-  const covers = (globs: string[] | undefined, f: string) =>
-    (globs ?? []).some((g) => matchesGlob(f, g));
-  const outside = mine.filter(
-    (f) => !covers(project?.include, f) || covers(project?.exclude, f),
-  );
+  const program = projectFiles(root);
+  if (isResult(program)) return program;
+  const outside = mine.filter((f) => !program.has(f));
   if (outside.length)
     return result(
       CANNOT,
-      "tsconfig.json's include leaves out tracked Svelte components",
+      "tsconfig.json leaves out tracked Svelte components",
       outside,
     );
   const run = svelteCheck(root, join(root, "tsconfig.json"), config);
