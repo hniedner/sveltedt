@@ -628,7 +628,7 @@ anything to the document head.
   | `sheet.insertRule(rule)` |
 
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
-  cast, an alias (`const d = document; d.createElement("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  cast, an alias (`const make = document.createElement.bind(document); make("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
 - Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 that no CSS ships: an injected
   inline style or script is refused under the strict policy, so a consumer would have to loosen its policy, and a
@@ -730,7 +730,7 @@ table.
   Setting one property of an element's `style` object (`el.style.width = w`, `el.style.setProperty("width", w)`)
   stays allowed: the policy does not refuse it.
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
-  cast, an alias (`const e = el; e.setAttribute("style", x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
+  cast, an alias (`const set = el.setAttribute.bind(el); set("style", x)`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
 - Reason: server rendering writes each markup form as a `style="..."` attribute (MEASURED 2026-11-18, Svelte 5.57.3), which the
   strict policy refuses (PRD-S1), and `setAttribute("style", ...)` is refused in the browser; a `style:` directive is
