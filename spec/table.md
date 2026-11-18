@@ -759,24 +759,23 @@ table.
   | Canary | Result |
   |---|---|
   | `<td class="app-x">` in a `.svelte` file | finding |
-  | ``<td class={`x-${kind}`}>`` in a `.svelte` file | finding |
+  | ``<td class={`x-${kind}`}>`` in a `.svelte` file (a form not in the list) | finding |
   | `<td class={["sdt-cell", "app-x"]}>` in a `.svelte` file | finding |
-  | `<td class={{ "app-x": on }}>` in a `.svelte` file | finding |
+  | `<td class={{ "app-x": on }}>` in a `.svelte` file (a form not in the list) | finding |
   | `export const stripe = "app-x";` in `src/lib/classes.ts` | finding |
-  | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` (a hook prop) | passes |
-  | `<tr class="sdt-row {rowClass?.(row) ?? ''}">` (quoted text, an optional hook call, an empty string) | passes |
-  | `const c = rowClass(row);` then `<tr class={c}>` (a hook result through a local name) | finding |
+  | `const c = rowClass(row);` then `<tr class={c}>` (a form not in the list) | finding |
+  | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` | passes |
+  | `<tr class={["sdt-row", rowClass?.(row)]}>` | passes |
 
-  The scan reads every `class` attribute of the `.svelte` files under `src/lib`, quoted text with `{...}` parts
-  included, and takes its leaves: a string, each fixed part of a template literal or of quoted text, each element of an
-  array, each branch of a conditional, the right side of `&&` (its left side is a condition, never a leaf), each side of
-  `||` and `??`, and each key of an object. A string leaf must consist of class names that are `sdt` or start with
-  `sdt-`; an empty string passes. Every other leaf must be one of: a member named `class` or `headerClass` of a column
-  value (`column.class`, `col.headerClass`; PRD-T7, PRD-T14), a call of `rowClass` or `cellClass`, optional call
-  included (`rowClass?.(row)`; PRD-T8), or a name imported from `src/lib/classes.ts`, whose strings are read as leaves
-  there. A class string the component keeps outside markup lives in that file; a `.ts` file elsewhere holds none
-  (review, PRD-G2 (e)). Once the package is built (PRD-K2), the same holds for the tarball. The scan reports how many
-  class attributes it read; with 0 it reports "could not check".
+  The scan reads every `class` attribute of the `.svelte` files under `src/lib`. It knows these forms: a quoted literal
+  (`class="sdt-x sdt-y"`); and an expression that is a string literal or an array whose elements are each a string
+  literal, `condition && "literal"`, a member `class` or `headerClass` of a column value (PRD-T7, PRD-T14), a call of
+  `rowClass` or `cellClass`, optional call included (PRD-T8), or a name imported from `src/lib/classes.ts`. Every
+  literal must consist of class names that are `sdt` or start with `sdt-`, and so must every string in
+  `src/lib/classes.ts`, the one `.ts` file that holds class strings (a `.ts` file elsewhere holds none: review, PRD-G2
+  (e)). A class attribute in any other form is a finding; a form joins this list when a statement needs it. Once the
+  package is built (PRD-K2), the same holds for the tarball. The scan reports how many class attributes it read; with 0
+  it reports "could not check".
 - Reason: one prefix keeps the component's classes from colliding with an application's or a framework's (PRD-T15),
   and the application's own classes enter only where it put them.
 - Layer: static check.
