@@ -128,6 +128,15 @@ package is the gate's rule that nothing ships but a `svelte` peer.
   file in the tree, which a pull request can add in any folder. The effect is at most a hung gate, which a pull
   request can already cause. A svelte-check bump re-opens this claim: before it merges, the bundled picomatch is
   instrumented again and svelte-check run with extglob patterns in tsconfig.json's include and exclude.
+  Measured on 2026-11-18 with vite 8.3.8 and vitest 5.1.0: vite, vitest and their plugins run the vulnerable
+  picomatch 4.0.7 itself, with no vendored copy. Every pattern that reaches it in our set-up comes from vite's and
+  vitest's fixed defaults or from our own tracked config; `import.meta.glob` turns extglobs off, Tailwind's `@source`
+  is scanned in Rust, and a package's `sideEffects` patterns never reach picomatch in vite 8. Only a pull request
+  that writes an extglob into the test config and adds a matching file name can slow it down; the effect is at most
+  a hung test step, bounded by the job timeout, which that pull request can already cause. Not run under the logging
+  hook, and inferred to take their patterns from the same tracked config: coverage, the mutation runner and vite's
+  server-side resolve paths. A vite or vitest bump re-opens this claim: before it merges, picomatch is logged again
+  through a test run and the site build.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
@@ -177,11 +186,11 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 **To take with the layer that needs it:**
 
-- with the first component test:
-  - Vitest's `expect.requireAssertions: true` (method section 4: a test without an assertion fails);
-  - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
-  - a setup file with the jest-dom matchers and `cleanup()` after each test;
-  - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
+- with the first component test (taken in build 1a): Vitest's `expect.requireAssertions: true` (method section 4: a
+  test without an assertion fails), `resolve.conditions: ['browser']`, and a setup file with `cleanup()` after each
+  test. Left there: the split into a Node and a jsdom project (one jsdom project runs the site server's tests too;
+  measured in 1a), the jest-dom matchers (the tests assert with Vitest's own `expect`), and a Dependabot group for
+  `vitest` and `@vitest/*` (the only direct `@vitest/*` package, the ESLint plugin, is versioned on its own);
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**
