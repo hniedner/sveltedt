@@ -763,6 +763,7 @@ const SUPPRESSION = new RegExp(
     ["@ts-", "expect-error"],
     ["@ts-", "nocheck"],
     ["jscpd:", "ignore"],
+    ["prettier-", "ignore"],
   ]
     .map((parts) => parts.join(""))
     .join("|"),
@@ -800,7 +801,7 @@ function text(root: string, list: Set<string>): Result {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
-// SVELTE_CHECK_BIN and JSCPD_BIN.
+// SVELTE_CHECK_BIN, JSCPD_BIN and ESLINT_CONFIG.
 // An empty value counts as unset in each.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
@@ -832,8 +833,15 @@ const ESLINT_PROBE = `
 const [url, config, root, ...files] = process.argv.slice(1);
 const { ESLint } = await import(url);
 const eslint = new ESLint({ cwd: root, overrideConfigFile: config, ignore: false, warnIgnored: true });
-const results = await eslint.lintFiles(files);
-console.log(JSON.stringify({ version: ESLint.version, files: results.map((r) => ({
+const lintable = files.filter((f) => !f.startsWith("?"));
+const results = await eslint.lintFiles(lintable);
+const configs = {};
+for (const f of [...lintable, ...files.filter((f) => f.startsWith("?")).map((f) => f.slice(1))]) {
+  const c = await eslint.calculateConfigForFile(f);
+  const id = (p) => (p == null ? null : typeof p === "string" ? p : p.meta ? p.meta.name + "@" + p.meta.version : "unnamed");
+  configs[f] = c ? { rules: c.rules, settings: c.settings, linterOptions: c.linterOptions, processor: id(c.processor), parser: id(c.languageOptions?.parser) } : null;
+}
+console.log(JSON.stringify({ version: ESLint.version, configs, files: results.map((r) => ({
   f: r.filePath.slice(root.length + 1),
   messages: r.messages.map((m) => ({ rule: m.ruleId, text: m.line + ":" + m.column + " " + (m.ruleId ?? "") + " " + m.message })),
 })) }));
@@ -854,6 +862,16 @@ interface PrettierRecord {
 }
 interface EslintRecord {
   version: string;
+  configs: Record<
+    string,
+    {
+      rules: Record<string, unknown>;
+      settings: object;
+      linterOptions: object;
+      processor: string | null;
+      parser: string | null;
+    } | null
+  >;
   files: { f: string; messages: { rule: string | null; text: string }[] }[];
 }
 
@@ -954,14 +972,22 @@ function format(root: string, list: Set<string>): Result {
 
 // The rules each extension's planted canary must raise. TypeScript files get typescript-eslint's type-aware
 // twin of no-implied-eval, and no no-undef (TypeScript checks names itself).
+// "<rule>|<text>": that rule with a message holding the text, for the no-restricted-syntax bans, which share
+// one rule.
 const JS_RULES = [
   "complexity",
   "no-eval",
   "no-implied-eval",
   "no-new-func",
   "no-undef",
+  "no-restricted-syntax|assigning innerHTML",
 ];
 const LINT_CANARY_RULES: Record<string, string[]> = {
+  ".svelte.ts": [
+    "@typescript-eslint/no-explicit-any",
+    "@typescript-eslint/ban-ts-comment",
+    "no-restricted-syntax|assigning innerHTML",
+  ],
   ".mjs": JS_RULES,
   ".js": JS_RULES,
   ".ts": [
@@ -975,11 +1001,28 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "vitest/no-focused-tests",
     "vitest/no-disabled-tests",
     "compat/compat",
+    "@typescript-eslint/ban-ts-comment",
+    "no-restricted-syntax|setAttribute style",
+    "no-restricted-syntax|createElement of style",
+    "no-restricted-syntax|assigning innerHTML",
+    "no-restricted-syntax|in an object literal",
+    "no-restricted-syntax|insertAdjacentHTML",
+    "no-restricted-syntax|setAttribute srcdoc",
+    "no-restricted-syntax|parseHTMLUnsafe or createContextualFragment",
+    "no-restricted-syntax|DOMParser",
+    "no-restricted-syntax|document.write",
+    "no-restricted-syntax|setHTML or createRawSnippet",
+    "no-restricted-syntax|constructed or inserted style sheet",
+    "no-restricted-syntax|a rule inserted into",
+    "no-restricted-syntax|createElementNS of",
+    "no-restricted-syntax|execCommand insertHTML",
+    "no-restricted-syntax|Document.parseHTML",
+    "no-restricted-syntax|a sink name in brackets",
   ],
-  // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
   ".svelte": [
     "@typescript-eslint/no-explicit-any",
     "svelte/no-at-html-tags",
+    "@typescript-eslint/ban-ts-comment",
     "compat/compat",
     "no-restricted-syntax|class: directive",
     "no-restricted-syntax|use: action",
@@ -989,13 +1032,28 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-restricted-syntax|{@attach}",
     "no-restricted-syntax|style attribute",
     "no-restricted-syntax|{style} shorthand",
+    "no-restricted-syntax|svelte:head",
+    "no-restricted-syntax|setAttribute style",
+    "no-restricted-syntax|assigning innerHTML",
+    "no-restricted-syntax|<style> block",
+    "no-restricted-syntax|style, link or script element",
+    "no-restricted-syntax|svelte:element as style",
+    "no-restricted-syntax|svelte:element this={...} as style",
+    "no-restricted-syntax|srcdoc attribute",
+    "no-restricted-syntax|innerHTML or outerHTML attribute",
   ],
 };
+
+/** The canary extension of a file: the longest key of LINT_CANARY_RULES it ends with (.svelte.ts before .ts). */
+const extOf = (f: string): string | undefined =>
+  Object.keys(LINT_CANARY_RULES)
+    .filter((e) => f.endsWith(e))
+    .sort((a, b) => b.length - a.length)[0];
 
 /** The planted rules a canary record did not raise, per extension, or "no canary for <ext>". */
 function lintCanaryMisses(canary: EslintRecord): string[] {
   return Object.entries(LINT_CANARY_RULES).flatMap(([ext, rules]) => {
-    const files = canary.files.filter((c) => c.f.endsWith(ext));
+    const files = canary.files.filter((c) => extOf(c.f) === ext);
     if (!files.length) return [`no canary for ${ext}`];
     const messages = files.flatMap((c) => c.messages);
     return rules
@@ -1009,11 +1067,56 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
 
 // ESLint on every file of the lint class with this repository's config and no ignore patterns. The planted canary
 // must raise each rule of LINT_CANARY_RULES first; any message, warning or error, is a finding (no warning budget).
+// The canaries prove their rules where they sit. A later config block scoped to the component's folders replaces a
+// rule there (measured: a second no-restricted-syntax block replaces the whole list) while every canary still passes,
+// so each proven rule, settings, linterOptions, processor and parser must match the canary of its extension for every
+// linted file and a path in src/lib and site/src. A block for a whole extension changes its canary too, so each must
+// also hold every script ban the SCRIPT_BANS canary proves one by one (the other canaries plant only some).
+const SCRIPT_BANS = ".ts";
+const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
+  ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
+);
+function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
+  const bans = (c: { rules: Record<string, unknown> }) =>
+    ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
+      .slice(1)
+      .map((e) => JSON.stringify(e));
+  // The SCRIPT_BANS canary raised each of its bans first (lintCanaryMisses), so it has a config.
+  const proven = Object.entries(canary.configs).find(
+    ([f]) => extOf(f) === SCRIPT_BANS,
+  )?.[1] as { rules: Record<string, unknown> };
+  return Object.keys(rec.configs).flatMap((probe) => {
+    const ext = extOf(probe) ?? "";
+    const planted = Object.keys(canary.configs).find((f) => extOf(f) === ext);
+    const want = planted ? canary.configs[planted] : null;
+    const got = rec.configs[probe];
+    if (!want || !got) return [`${probe}: no config`];
+    const rules = [
+      ...new Set((LINT_CANARY_RULES[ext] ?? []).map((e) => e.split("|")[0])),
+    ];
+    const same = (a: unknown, b: unknown) =>
+      JSON.stringify(a) === JSON.stringify(b);
+    return [
+      ...rules.filter((r) => !same(got.rules[r], want.rules[r])),
+      ...(same(got.settings, want.settings) ? [] : ["settings"]),
+      ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
+      ...(["processor", "parser"] as const).filter((k) => got[k] !== want[k]),
+      ...(bans(proven).every((b) => bans(got).includes(b))
+        ? []
+        : [
+            `no-restricted-syntax without each ban of the ${SCRIPT_BANS} canary`,
+          ]),
+    ].map((r) => `${probe}: ${r}`);
+  });
+}
+
 function lint(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "lint");
   if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
-  const config = [join(HERE, "..", "eslint.config.mjs")];
+  const config = [
+    process.env.ESLINT_CONFIG || join(HERE, "..", "eslint.config.mjs"),
+  ];
   const eslintRecord = (r: string, f: string[]) =>
     toolRecord<EslintRecord>("eslint", ESLINT_PROBE, r, f, config);
   const canary = eslintRecord(dir, planted);
@@ -1022,7 +1125,10 @@ function lint(root: string, list: Set<string>): Result {
   if (missed.length)
     return result(CANNOT, "ESLint missed planted canaries", missed);
   const pin = readJson(root, "package.json")?.devDependencies?.eslint;
-  const rec = eslintRecord(root, mine);
+  const rec = eslintRecord(root, [
+    ...mine,
+    ...CONFIG_PROBES.map((p) => `?${p}`),
+  ]);
   if ("error" in rec) return result(CANNOT, rec.error);
   if (rec.version !== pin)
     return result(
@@ -1039,6 +1145,13 @@ function lint(root: string, list: Set<string>): Result {
       ...notLinted,
       ...ignored.map((r) => r.f),
     ]);
+  const drift = configDrift(canary, rec);
+  if (drift.length)
+    return result(
+      CANNOT,
+      "the config sets a rule the canaries prove otherwise for a linted file or the component's folders",
+      drift,
+    );
   const details = rec.files.flatMap((r) =>
     r.messages.map((m) => `${r.f}:${m.text}`),
   );
@@ -1050,7 +1163,7 @@ function lint(root: string, list: Set<string>): Result {
     );
   // Per extension, so a kind with no real file shows 0 instead of hiding behind its canary.
   const counts = Object.keys(LINT_CANARY_RULES).map(
-    (ext) => `${ext} ${mine.filter((f) => f.endsWith(ext)).length}`,
+    (ext) => `${ext} ${mine.filter((f) => extOf(f) === ext).length}`,
   );
   return result(
     PASS,
