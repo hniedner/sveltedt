@@ -25,7 +25,7 @@ jobs:
           fail-on-scopes: runtime, development
           # The one allow list (docs/decisions/001-quality-tooling.md, Licences); the gate's licences step reads it here
           # too and also fails a licence pnpm cannot detect. A new licence is a ruling request.
-          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT
+          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, CC0-1.0, ISC, MIT
           # picomatch <= 4.0.7, no fixed version on 2026-11-17. The owner accepted this advisory by its id; the id
           # allows it on every path (docs/decisions/001-quality-tooling.md, Accepted advisories).
           allow-ghsas: GHSA-fc5q-39xc-vjpf
