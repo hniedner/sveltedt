@@ -47,6 +47,8 @@ function git(repo: string, ...args: string[]): string {
     "user.email=t@example.invalid",
     "-c",
     "commit.gpgsign=false",
+    "-c",
+    "core.hooksPath=/dev/null",
   ];
   const r = spawnSync("git", [...id, "-C", repo, ...args], {
     encoding: "utf8",
@@ -103,8 +105,10 @@ function run(
   args: string[],
   env: Record<string, string> = {},
   wrapper = WRAPPER,
+  cwd?: string,
 ): { code: number; out: string } {
   const r = spawnSync(process.execPath, [wrapper, ...args], {
+    cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -237,8 +241,11 @@ test("dir: a missing config file cannot be checked", () => {
   assert.match(r.out, /config file missing/);
 });
 test("dir: a missing version file cannot be checked", () => {
-  const copy = join(tempDir(), "scan-secrets.ts");
+  // The wrapper alone, with the module it imports, in a folder without gitleaks.version.
+  const dir = tempDir();
+  const copy = join(dir, "scan-secrets.ts");
   copyFileSync(WRAPPER, copy);
+  copyFileSync(join(here, "pinned.ts"), join(dir, "pinned.ts"));
   const r = run(
     ["dir", oneFile(), "--config", join(here, "gitleaks.toml")],
     {},
@@ -275,6 +282,17 @@ test("git: a token in a commit of the range is a finding with commit:file:line",
   assert.ok(out.out.includes(`${sha}:k.txt:1`), out.out);
   assert.ok(!out.out.includes(tok));
 });
+test("git: a token added and removed again inside the range is a finding", () => {
+  const r = repoWith({ "a.txt": "x\n" });
+  commit(r, "add", { "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "remove", { "k.txt": "t = 0\n" });
+  assert.equal(run(["git", r, "HEAD~2..HEAD"]).code, 1);
+});
+test("git: a token committed before the range passes", () => {
+  const r = repoWith({ "k.txt": `t = "${fakeToken()}"\n` });
+  commit(r, "two", { "a.txt": "y\n" });
+  assert.equal(run(["git", r, "HEAD~1..HEAD"]).code, 0);
+});
 test("git: a range ending in a merge commit passes", () => {
   const r = repoWith({ "a.txt": "x\n" });
   git(r, "switch", "-q", "-c", "side");
@@ -284,6 +302,27 @@ test("git: a range ending in a merge commit passes", () => {
   git(r, "merge", "-q", "--no-edit", "side");
   const out = run(["git", r, "HEAD~1..HEAD"]);
   assert.equal(out.code, 0, out.out);
+});
+test("dir: a gitleaks:allow comment does not hide a token", () => {
+  const d = tree(tempDir(), {
+    "k.txt": `t = "${fakeToken()}" # gitleaks:allow\n`,
+  });
+  assert.equal(run(["dir", d]).code, 1);
+});
+test("dir: a .gitleaksignore where the scan runs does not hide a token", () => {
+  // gitleaks reads the file from its working folder; the fingerprint holds the path it was given.
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  writeFileSync(join(d, ".gitleaksignore"), `${d}/k.txt:github-pat:1\n`);
+  const r = run(["dir", d], {}, WRAPPER, d);
+  assert.equal(r.code, 3, r.out);
+  assert.match(r.out, /\.gitleaksignore would silence/);
+});
+test("dir: a .gitleaksignore in the working folder only does not hide a token", () => {
+  const d = tree(tempDir(), { "k.txt": `t = "${fakeToken()}"\n` });
+  const cwd = tree(tempDir(), {
+    ".gitleaksignore": `${d}/k.txt:github-pat:1\n`,
+  });
+  assert.equal(run(["dir", d], {}, WRAPPER, cwd).code, 1);
 });
 test("git: a range holding a delete-only and an empty commit passes", () => {
   const r = repoWith({ "a.txt": "x\n", "b.txt": "y\n" });

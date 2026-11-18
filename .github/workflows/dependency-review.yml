@@ -6,12 +6,13 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   dependency-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -22,6 +23,6 @@ jobs:
         with:
           fail-on-severity: low
           fail-on-scopes: runtime, development
-          # The licences measured in the lockfile, each on the ASF Category A list. A new one is a ruling request;
-          # a Category B licence is added only with its package named in docs/decisions/001-quality-tooling.md.
-          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT
+          # The one allow list (docs/decisions/001-quality-tooling.md, Licences); the gate's licences step reads it here
+          # too and also fails a licence pnpm cannot detect. A new licence is a ruling request.
+          allow-licenses: Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT

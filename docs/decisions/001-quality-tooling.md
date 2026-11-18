@@ -36,13 +36,13 @@ pages named, or measured with the command named.
 - **Candidates:**
   - jscpd 5 (native, MIT, no install script: `npm view jscpd` shows only optional platform packages);
   - fallow 3 (native, MIT; duplication plus complexity and dead code; its diff mode needs a base ref).
-- **Decision:** jscpd over the whole repository, any clone fails.
-  - The repository starts at zero clones, so "no clone anywhere" equals "no new block repeats an existing one"
+- **Decision:** jscpd over every non-test script (the dupes class), any clone fails.
+  - The scripts start at zero clones, so "no clone in them" equals "no new block repeats an existing one"
     without a base ref.
   - fallow's complexity check would repeat ESLint's (method section 5, one source).
 - **Measured on jscpd 5.4.3:**
   - a file shorter than the 50-token minimum is not counted as a source; such a file cannot hold a clone;
-  - `--fail-on-empty` exits 1 when no file is analysed;
+  - `--fail-on-empty` exits 1 when no file is analysed (not used: the step demands every file in the report);
   - reported paths are basenames unless `--absolute` is given.
 - **Reopens when:** the repository must accept a known clone.
 
@@ -58,7 +58,7 @@ pages named, or measured with the command named.
   - pnpm re-applies the age to every lockfile entry on each install (pnpm.io, settings, `trustLockfile`). It
     therefore equals Dependabot's shortest npm cooldown, so Dependabot never proposes a version pnpm refuses.
   - A security fix younger than that is listed under `minimumReleaseAgeExclude` with its GHSA id on the same line,
-    and the gate checks it. Reviewer ruling: the cooldown guards against a poisoned release, and a security fix is
+    and the gate checks it. Decided in the review of this change: the cooldown guards against a poisoned release, and a security fix is
     not held back by policy.
 
 ## Licences
@@ -72,20 +72,31 @@ pages named, or measured with the command named.
 - **Programs the checks only run** are outside this rule, whatever their licence: they are never linked, bundled or
   distributed, and they are not packages in the lockfile. The ASF page draws the same line: "using a GPL'ed tool
   during the build is okay, but including GPL'ed source code is not" (https://www.apache.org/legal/resolved.html).
-  Today: git, Node, pnpm, gitleaks, actionlint and shellcheck; with later checks, zizmor and the browsers that
+  Today: git, Node, pnpm, gitleaks, actionlint, shellcheck and zizmor; with later checks, the browsers that
   `playwright install` downloads.
 
-Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included", and "using a GPL'ed
-tool during the build is okay, but including GPL'ed source code is not".
+Source: apache.org/legal/resolved.html. Category B "may be, under certain conditions, included".
 
-Measured with `pnpm licenses list`: every development dependency today is MIT, Apache-2.0, BlueOak-1.0.0,
-BSD-2-Clause, BSD-3-Clause or ISC, all Category A. `dependency-review.yml` allows exactly these.
+**The allowed list**, stated once here; `dependency-review.yml`'s `allow-licenses` is equal to it: Apache-2.0,
+BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT. Another Category A licence or a listed Category B one
+joins both in one commit. Measured with `pnpm licenses list`: every development dependency today is one of these.
+The gate's licences step reads the list there and fails a licence pnpm cannot detect. Known limit: a licence written
+as an SPDX expression (`MIT OR CC0-1.0`) fails its exact match, though dependency-review accepts it (issue #7).
 
 Category B licences in use: none today. Expected:
 
 - MPL-2.0 (lightningcss, under Tailwind 4 and Vite 8);
 - CC-BY-4.0 (caniuse-lite, under the browser-floor check).
   Both are development-only and listed here when they enter.
+
+## Pinned programs
+
+- **zizmor runs offline** (`--offline`): its online audits (does a pinned SHA belong to its tag, is an action known
+  to be vulnerable) do not run, and the `pins` step checks a pin's shape only. Whether CI runs it online with the
+  workflow token is a later ruling.
+- **The `scripts/<name>.version` pins** (actionlint, zizmor, gitleaks) are not watched by Dependabot. A maintainer
+  moves one by hand, in a `build:` commit that changes the version and its sha256 lines together, when a release
+  is at least 7 days old (the actions' cooldown) or at once for a security fix.
 
 ## Commit messages
 
@@ -104,8 +115,11 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 `frontend/eslint.config.js`, `frontend/vite.config.ts`, `frontend/vitest-setup-client.ts`,
 `frontend/playwright.config.ts`, `.github/dependabot.yml` and the `web-tests` job of `.github/workflows/ci.yml`.
 
-**Taken now:** Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
-`include: scope`. The gate's `commits` step checks every commit, so a Dependabot header must be conventional.
+**Taken now:**
+
+- Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
+  `include: scope`: the commit-message check, from the next pull request (issue #6), needs conventional headers;
+- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`).
 
 **To take with the layer that needs it:**
 
@@ -114,14 +128,14 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
   - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
-- with the TypeScript and Svelte lint: `no-undef` off for TypeScript files, as typescript-eslint advises; the
-  Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the TypeScript parser;
+- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
+  TypeScript parser;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**
 
 - ESLint ignores read from `.gitignore`: here the class table alone selects files.
 - The `globals` package: a hand list is enough.
-- Cooldowns of 14 and 7 days: the companion's G11 values and the reviewer's 3-day release-age ruling stand.
+- Cooldowns of 14 and 7 days: the companion's G11 values and the 3-day release age decided in the review of this change stand.
 - Playwright retries in CI: a flaky test is a defect to find, not to retry.
 - Chromium only in CI: the method requires Chromium, Firefox and WebKit.

@@ -8,12 +8,13 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   static:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -32,7 +33,7 @@ jobs:
           version="$(sed -n 's/^version //p' scripts/gitleaks.version)"
           sha="$(sed -n 's/^linux_x64_sha256 //p' scripts/gitleaks.version)"
           archive="gitleaks_${version}_linux_x64.tar.gz"
-          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+          curl -sSfL --retry 3 -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}"
           echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
@@ -42,7 +43,7 @@ jobs:
           version="$(sed -n 's/^version //p' scripts/actionlint.version)"
           sha="$(sed -n 's/^linux_amd64_sha256 //p' scripts/actionlint.version)"
           archive="actionlint_${version}_linux_amd64.tar.gz"
-          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+          curl -sSfL --retry 3 -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/rhysd/actionlint/releases/download/v${version}/${archive}"
           echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
@@ -52,7 +53,7 @@ jobs:
           version="$(sed -n 's/^version //p' scripts/zizmor.version)"
           sha="$(sed -n 's/^linux_x86_64_sha256 //p' scripts/zizmor.version)"
           archive="zizmor-x86_64-unknown-linux-gnu.tar.gz"
-          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+          curl -sSfL --retry 3 -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/zizmorcore/zizmor/releases/download/v${version}/${archive}"
           echo "${sha}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           mkdir "${RUNNER_TEMP}/zizmor-unpacked"
@@ -72,6 +73,7 @@ jobs:
     needs: [static]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:

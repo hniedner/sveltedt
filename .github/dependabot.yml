@@ -4,7 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Headers "ci(deps): ...", "build(deps): ...": the gate's commits step checks every commit (taken from ontoprism).
+    # Headers "ci(deps): ..." here and "build(deps-dev): ..." for npm: conventional, as the commit-message check requires from the next
+    # pull request (issue #6). Origin: docs/decisions/001-quality-tooling.md.
     commit-message:
       prefix: ci
       include: scope
@@ -25,7 +26,7 @@ updates:
     commit-message:
       prefix: build
       include: scope
-    # semver-patch-days must equal pnpm's minimumReleaseAge (pnpm-workspace.yaml); the gate compares them.
+    # The shortest of these must equal pnpm's minimumReleaseAge (pnpm-workspace.yaml); the gate compares them.
     cooldown:
       default-days: 7
       semver-major-days: 30
