@@ -844,17 +844,15 @@ test("lint: passes when ESLint fails its canaries and accepts every script", () 
   const out = expect("lint", repo(script("export const one = 1;\n")), 0);
   assert.match(out, /\.svelte 0$/m);
 });
-test("lint and format: a .js file is linted and formatted like a script", () => {
+test("lint and format: the Svelte config, the one .js file, is linted and formatted like a script", () => {
+  const config = (text: string) => (root: string) =>
+    put(root, "svelte.config.js", text);
   expect(
     "lint",
-    repo((root) => put(root, "x.js", 'export const a = eval("1");\n')),
+    repo(config('export const a = eval("1");\nexport default {};\n')),
     1,
   );
-  expect(
-    "format",
-    repo((root) => put(root, "x.js", "export const a = 1\n")),
-    1,
-  );
+  expect("format", repo(config("export default {}\n")), 1);
 });
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
@@ -978,10 +976,10 @@ test("dupes: a jscpd that fails on the repository cannot be checked", () => {
     /jscpd exited|no jscpd report/,
   );
 });
-// A component project has small files: an index of two lines, a Vite config of 35 tokens, a barrel of four lines.
-// jscpd leaves out a file under its 50 tokens or 5 lines; such a file cannot hold a clone, so it is set aside by name
-// with jscpd's own count. mid.mjs (65 tokens, 7 lines) and five.mjs (5 lines) must be analysed: they pin one minimum
-// each for jscpd and for the comparison.
+// A component project has small files: an index of two lines, a Vite config of 35 tokens, a barrel of four lines
+// (counts by jscpd 5.4.3). jscpd leaves out a file under its 50 tokens or, measured, 5 lines; such a file cannot hold a
+// clone, so it is set aside by name with jscpd's own count. mid.mjs (65 tokens, 7 lines) must be analysed, so a raised
+// token minimum fails; five.mjs (exactly 5 lines) must be analysed, so a raised line minimum fails.
 const SMALL = {
   "scripts/index.mjs":
     'export { one } from "./one.mjs";\nexport const two = 2;\n',
@@ -1011,6 +1009,21 @@ test("dupes: a file too small to hold a clone is set aside by name with jscpd's 
     assert.ok(out.includes(line), `${line}: ${out}`);
   assert.doesNotMatch(out, /mid\.mjs|five\.mjs/);
   assert.match(out, /set aside 5 file\(s\) under 50 tokens or 5 lines/);
+});
+test("dupes: a repository whose every file is too small passes, each set aside by name", () => {
+  // Measured: jscpd exits 0 and writes its report when it analyses no file at all.
+  const out = expect(
+    "dupes",
+    repo((root) => {
+      rmSync(join(root, "scripts", "tool.mjs"));
+      rmSync(join(root, "scripts", "scan-secrets.ts"));
+      small(root);
+      rmSync(join(root, "scripts", "mid.mjs"));
+      rmSync(join(root, "scripts", "five.mjs"));
+    }),
+    0,
+  );
+  assert.match(out, /no clone in 0 of 5 file\(s\); set aside 5 file\(s\)/);
 });
 test("dupes: a clone is still a finding beside the files set aside", () => {
   const out = expect(
@@ -1059,6 +1072,7 @@ process.exit(r.status ?? 1);
     out,
     /left out 1 file\(s\) that could hold a clone of 50 tokens and 5 lines/,
   );
+  assert.match(out, /^ {2}scripts\/\S+: \d+ tokens in \d+ line\(s\)$/m);
 });
 test("dupes: another jscpd version than the pin cannot be checked", () => {
   expect("dupes", repo(pkg((p) => (p.devDependencies.jscpd = "4.0.0"))), 3);
@@ -1201,7 +1215,8 @@ test("svelte: TypeScript that mounts a generic component is checked against its 
   };
   const ok = expect("svelte", repo(project('{ id: 1, name: "a" }')), 0);
   assert.match(ok, /accepted 2 file\(s\)/);
-  // Item's own field is missing: only the explicit Item can say so (TS2741).
+  // Measured: tsc refuses Table<Item> (TS2635); here Item's own field is missing, which only the explicit Item can
+  // say (TS2741).
   const out = expect("svelte", repo(project("{ id: 1 }")), 1);
   assert.match(out, /src\/show\.ts:\d+ 2741 /);
 });
@@ -1249,6 +1264,17 @@ test("svelte: a test and a rune module beside the components are svelte-check's,
     assert.match(out, new RegExp(`${file.replace(".", "\\.")}:\\d+ ${code} `));
   }
 });
+test("svelte: a component Svelte cannot parse is svelte-check's to report, with its own message", () => {
+  const out = expect(
+    "svelte",
+    repo(
+      component('<script lang="ts">\n  const n = ;\n</script>\n\n<p>{n}</p>\n'),
+    ),
+    1,
+  );
+  assert.match(out, /src\/Count\.svelte:\d+ /);
+  assert.doesNotMatch(out, /not lang="ts"/);
+});
 test("svelte: TypeScript outside scripts/ with no component cannot be checked: svelte-check needs one", () => {
   // Measured: svelte-check reports error 100001, no Svelte input, on a program of TypeScript alone.
   const out = expect(
@@ -1265,6 +1291,7 @@ test("svelte: a component without a TypeScript script is a finding: svelte-check
   for (const body of [
     "<p>{1}</p>\n",
     "<script>\n  const n = 1;\n</script>\n\n<p>{n}</p>\n",
+    '<script lang="js">\n  const n = 1;\n</script>\n\n<p>{n}</p>\n',
     `<script module>\n  export const k = 1;\n</script>\n\n${COMPONENT}`,
     '<!-- <script lang="ts"></script> -->\n<p>{1}</p>\n',
   ]) {
@@ -1631,7 +1658,16 @@ test("types: a scripts/tsconfig.json that turns checking off cannot be checked: 
   assert.match(out, /tsc did not report the planted type errors/);
 });
 test("types: a declaration file or a .js file outside the root has no class until one is decided", () => {
-  for (const file of ["src/app.d.ts", "scripts/x.d.ts", "src/x.js"]) {
+  // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
+  for (const file of [
+    "src/app.d.ts",
+    "scripts/x.d.ts",
+    "src/x.d.css.ts",
+    "src/x.d.test.ts",
+    "scripts/a.d.svelte.ts",
+    "src/x.js",
+    "vite.config.js",
+  ]) {
     const out = expect(
       "types",
       repo((r) => put(r, file, "export {};\n")),

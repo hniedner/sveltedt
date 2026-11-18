@@ -44,20 +44,22 @@ The checks today:
   and PRD-S1; no browser
   API above the PRD-E1 floor, as far as eslint-plugin-compat knows it), TypeScript
   type-checks `scripts/` through `scripts/tsconfig.json`, jscpd finds copied
-  code outside tests and components (a file under its 50 tokens or 5 lines cannot hold a clone: it is set aside and
-  named, with jscpd's own count). Not yet banned, following in its own pull request: a style attribute in
+  code outside tests and components (a file under its 50 tokens or, measured, 5 lines cannot hold a clone: it is set
+  aside and named with jscpd's own count, or as blank). Not yet banned, following in its own pull request: a style attribute in
   another case, `<svelte:head>`, `setAttribute("style")`, created `style`, `link` or `script` elements, `innerHTML`,
   `outerHTML` and `insertAdjacentHTML`. The three owner-approved texts (the method, its companion and the PRD) are never reformatted:
   they change only through their owner. Nor are the spec files (`spec/**/*.md`): their sentences are hashed from
   the raw source, so a formatter would turn every test stale.
-- **svelte:** svelte-check type-checks every tracked `.svelte` component and all TypeScript outside `scripts/`,
+- **svelte:** svelte-check type-checks every tracked `.svelte` component and all TypeScript outside `scripts/`
+  except declaration files (a name with `.d.` has no class and blocks),
   strict, through the root `tsconfig.json`: TypeScript that imports a component is checked against the component's
   real type, which tsc does not know. Every component carries a `<script lang="ts">` block, and each of its scripts is
-  TypeScript: svelte-check checks no markup and no script of a component without one (measured), so the step
-  refuses it. A file outside the program's `include`, or a script in it as well as in tsc's, blocks the
+  TypeScript: svelte-check type-checks no markup and no script of a component without one (measured with
+  svelte-check 4.7.8), so the step reports such a component as a finding. A file outside the program, or a script
+  in it as well as in tsc's, blocks the
   gate, since svelte-check would skip the first silently and the two checkers could disagree on the second. TypeScript outside
   `scripts/` with no component at all cannot be checked: svelte-check refuses a program without a component (its
-  error 100001), a limit of the tool, not a rule of ours. With nothing of its own tracked the step is NOT
+  error 100001, measured with svelte-check 4.7.8), a limit of the tool, not a rule of ours. With nothing of its own tracked the step is NOT
   APPLICABLE, after its planted errors were found. It names `svelte.config.js` as the one
   config: otherwise svelte-check imports, and so runs, every `svelte.config.*` and `vite.config.*` below the root
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above

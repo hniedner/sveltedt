@@ -686,31 +686,32 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
-    match: /^[^/]+\.js$/,
+    // The project is TypeScript: the Svelte config is its one .js file; another .js file has no class and blocks
+    // until one is decided.
+    match: /^svelte\.config\.js$/,
     steps: ["format", "lint"],
-    // The project is TypeScript: the one .js file is the Svelte config at the root, so a .js file elsewhere has no
-    // class and blocks until one is decided.
-    why: "dupes: configuration that tools read at the root (svelte.config.js), no logic to copy",
+    why: "dupes: configuration that Svelte's tools read, no logic to copy",
   },
   // TypeScript has one checker by path: tsc through scripts/tsconfig.json for scripts/ (types); svelte-check through
   // the root tsconfig.json for the rest (svelte), which may import a component that tsc sees only as an ambient module.
+  // A declaration file (any name with ".d.", as TypeScript reads it) is in neither: under skipLibCheck no checker
+  // would check it, so it has no class.
   {
-    match: /^scripts\/.*\.test\.ts$/,
+    match: /^scripts\/(?!.*\.d\.[^/]*$).*\.test\.ts$/,
     steps: ["format", "lint", "types"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   {
-    match: /^scripts\/.*(?<!\.d)\.ts$/,
+    match: /^scripts\/(?!.*\.d\.[^/]*$).*\.ts$/,
     steps: ["format", "lint", "types", "dupes"],
   },
   {
-    match: /\.test\.ts$/,
+    match: /^(?!.*\.d\.[^/]*$).*\.test\.ts$/,
     steps: ["format", "lint", "svelte"],
     why: "dupes: as for scripts; types: svelte-check's, since it may import a component",
   },
   {
-    // A declaration file (.d.ts) has no class: skipLibCheck skips it, so a new one is a decision.
-    match: /(?<!\.d)\.ts$/,
+    match: /^(?!.*\.d\.[^/]*$).*\.ts$/,
     steps: ["format", "lint", "svelte", "dupes"],
     why: "types: svelte-check's, since it may import a component",
   },
@@ -799,7 +800,7 @@ function text(root: string, list: Set<string>): Result {
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
 // SVELTE_CHECK_BIN and JSCPD_BIN.
-// An empty value counts as unset in both.
+// An empty value counts as unset in each.
 const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 
@@ -1072,8 +1073,9 @@ const MIN_LINES = 5;
 const jscpdBin = (): string =>
   process.env.JSCPD_BIN || join(HERE, "..", "node_modules", ".bin", "jscpd");
 
-/** jscpd's JSON report for `files` under `root`, from the jscpd installed next to this script, or an error. Its
- * summary names every file analysed with its tokens and lines; `measure` counts files too small for a clone. */
+/** jscpd's JSON report for `files` under `root`, from the installed jscpd (or JSCPD_BIN), or an error. Its summary is
+ * asked to name every file analysed with its tokens and lines; `measure` lowers both minima to 1, so files too small
+ * for a clone are counted too. */
 function jscpdReport(
   root: string,
   files: string[],
@@ -1082,7 +1084,8 @@ function jscpdReport(
   const bin = jscpdBin();
   const out = mkdtempSync(join(tmpdir(), "jscpd-"));
   try {
-    // Defaults written out, so an upgrade cannot change them silently.
+    // jscpd's defaults written out, so an upgrade cannot change them silently (measuring lowers both minima to 1);
+    // --summary with a top of every file given lists each file analysed.
     const args = [
       "--no-gitignore",
       "--absolute",
@@ -1144,9 +1147,10 @@ const DUPES_EXTENSIONS = [".mjs", ".ts"];
 
 // Copy detection over every file of the dupes class (method section 5): any clone is a finding, so a repository that
 // starts at zero stays at zero. The canary pair must be reported as one clone first. jscpd leaves out, without a word,
-// a file under its minimum clone (MIN_TOKENS) or over its size limit (1mb). Its summary names the files it analysed;
-// each file left out is measured by jscpd itself: under MIN_TOKENS it cannot hold a clone and is set aside by name,
-// anything else cannot be checked. A file with no token at all is left out of both runs: it must be blank.
+// a file under its minimum clone (MIN_TOKENS tokens or, measured with jscpd 5.4.3, MIN_LINES lines) or over its size
+// limit (1mb). Its summary names the files it analysed; each file left out is measured again by jscpd: under
+// MIN_TOKENS or MIN_LINES it cannot hold a clone and is set aside by name, anything else cannot be checked. A file
+// with no token at all is left out of both runs: it must be blank.
 function dupes(root: string, list: Set<string>): Result {
   const inputs = toolInputs(list, "dupes");
   if (isResult(inputs)) return inputs;
@@ -1449,7 +1453,8 @@ function projectFiles(root: string): Result | Set<string> {
   return new Set(parsed.fileNames.map((f) => relative(root, f)));
 }
 
-/** Whether the component at `path` has a script, and lang="ts" on each, as Svelte's compiler parses it. */
+/** Whether the component at `path` has a script, and lang="ts" on each, as Svelte's compiler parses it. One that
+ * does not parse counts as typed: svelte-check reports the parse error with its own message. */
 function typedScripts(path: string): boolean {
   const { parse } = createRequire(join(HERE, "..", "package.json"))(
     "svelte/compiler",
@@ -1472,12 +1477,13 @@ function typedScripts(path: string): boolean {
       )
     );
   } catch {
-    return false;
+    return true;
   }
 }
 
-/** Why svelte-check cannot check `mine` as they are, or null: each must be in the root program, no script of tsc's
- * (`theirs`) may be, a component must be among them, and each component's scripts must be TypeScript. */
+/** The result that stops svelte-check over `mine`, or null: each must be in the root program, no script of tsc's
+ * (`theirs`) may be, a component must be among them (these could not check), and each component's scripts must be
+ * TypeScript (a finding). */
 function svelteInputs(
   root: string,
   mine: string[],
@@ -1499,14 +1505,16 @@ function svelteInputs(
       "tsconfig.json also holds scripts that types checks with tsc",
       both,
     );
-  // svelte-check refuses a program with no component (its error 100001, measured), so TypeScript waits for one.
+  // svelte-check refuses a program with no component (its error 100001, NO_SVELTE_INPUT, measured with svelte-check
+  // 4.7.8), so TypeScript waits for one.
   if (!mine.some((f) => f.endsWith(".svelte")))
     return result(
       CANNOT,
       "svelte-check checks TypeScript only beside a component, and no component is tracked",
       mine,
     );
-  // svelte-check checks neither the markup of a component without a script nor a script without lang="ts" (measured):
+  // svelte-check type-checks neither the markup of a component without a script nor a script without lang="ts"
+  // (measured with svelte-check 4.7.8):
   // each component needs a script, and each of its scripts TypeScript. Svelte's own parser reads them.
   const untyped = mine.filter(
     (f) => f.endsWith(".svelte") && !typedScripts(join(root, f)),
