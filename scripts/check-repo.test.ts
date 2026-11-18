@@ -855,6 +855,23 @@ test("lint and format: the Svelte config, the one .js file, is linted and format
   );
   expect("format", repo(config("export default {}\n")), 1);
 });
+test("format: an .html or a .css file is formatted", () => {
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p>a</p>\n")),
+    0,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.html", "<p >a</p>\n")),
+    1,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/a.css", "a{color:red}\n")),
+    1,
+  );
+});
 test("lint: eval is a finding that names the rule", () => {
   assert.match(
     expect("lint", repo(script('export const x = eval("1");\n')), 1),
@@ -910,6 +927,20 @@ test("lint: a floating promise in a TypeScript script is a finding (type-aware)"
   const body =
     "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n";
   assert.match(expect("lint", repo(tsScript(body)), 1), /no-floating-promises/);
+});
+test("lint: a Vitest test without an assertion is a finding that names the rule", () => {
+  const out = expect(
+    "lint",
+    repo((root) =>
+      put(
+        root,
+        "scripts/a.test.ts",
+        'import { test } from "vitest";\ntest("nothing", () => {});\n',
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /vitest\/expect-expect/);
 });
 test("lint: eval in a TypeScript script is a finding", () => {
   expect("lint", repo(tsScript('export const x: unknown = eval("1");\n')), 1);
@@ -1148,6 +1179,136 @@ const component =
   (root: string): void =>
     put(root, path, body);
 const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+/** A tracked Vitest config and test file; the config runs src/ tests only, like a config that forgot site/. */
+const vitestTest =
+  (body: string, path = "src/a.test.ts") =>
+  (root: string): void => {
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { include: ["src/**/*.test.ts"] } };\n',
+    );
+    put(root, path, `import { expect, test } from "vitest";\n${body}`);
+  };
+const PASSING_VITEST = 'test("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n';
+test("test: with no test file and no code under src/ or site/ the step is not applicable, after vitest failed its canary", () => {
+  const r = run(["test", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE test: vitest failed the canary; no test file and no code under src\/ or site\/$/,
+    r.out,
+  );
+});
+test("test: passes when vitest fails its canary and every tracked test file runs and passes", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 0);
+  assert.match(out, /1 test\(s\) in 1 file\(s\) passed/);
+});
+test("test: a failing test is a finding that names the file and the test", () => {
+  const out = expect(
+    "test",
+    repo(vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))),
+    1,
+  );
+  assert.match(out, /src\/a\.test\.ts: failed/);
+  assert.match(out, / {2}adds$/m);
+});
+test("test: a tracked test file the config does not run cannot be checked, and is named", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "site/b.test.ts",
+      `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+    );
+  };
+  assert.match(expect("test", repo(both), 3), /^ {2}site\/b\.test\.ts$/m);
+});
+test("test: without a tracked vitest.config.ts the step cannot be checked", () => {
+  const untracked = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, ".git/info/exclude", "vitest.config.ts\n");
+  };
+  assert.match(
+    expect("test", repo(untracked), 3),
+    /vitest\.config\.ts is not tracked/,
+  );
+});
+test("test: a canary that vitest passes cannot be checked", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    canaries: dir,
+  });
+  assert.match(out, /did not report the planted failing test/);
+});
+test("test: an unhandled rejection is a finding, though the report counts no failed test", () => {
+  const late =
+    'test("adds", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n';
+  const out = expect("test", repo(vitestTest(late)), 1);
+  assert.match(out, /vitest exited 1/);
+  assert.match(out, /late failure/);
+});
+test("test: a test file that fails to load is a finding that names it, and is counted", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, "src/b.test.ts", 'import "./missing.ts";\n');
+  };
+  const out = expect("test", repo(both), 1);
+  assert.match(out, /src\/b\.test\.ts: /);
+  assert.match(out, /1 file\(s\) failed/);
+});
+test("test: a tracked test file whose tests were all skipped cannot be checked, and is named", () => {
+  const skipped = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "src/b.test.ts",
+      `import { describe, expect, test } from "vitest";\ndescribe.skipIf(!process.env.NEVER_SET)("s", () => {\n  ${PASSING_VITEST}});\n`,
+    );
+  };
+  const out = expect("test", repo(skipped), 3);
+  assert.match(out, /^ {2}src\/b\.test\.ts$/m);
+  assert.match(out, /no test passed/);
+});
+test("test: a tracked test file outside src/ and site/, or named .spec.ts, must run too", () => {
+  for (const path of ["test/extra.test.ts", "src/a.spec.ts"]) {
+    const outside = (root: string): void => {
+      vitestTest(PASSING_VITEST)(root);
+      put(
+        root,
+        path,
+        `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+      );
+    };
+    const out = expect("test", repo(outside), 3);
+    assert.match(out, new RegExp(`^ {2}${path.replace(/\./g, "\\.")}$`, "m"));
+    assert.match(out, /did not run/);
+  }
+});
+test("test: tracked source under src/ with no test file cannot be checked", () => {
+  const code = (root: string): void =>
+    put(root, "src/lib/a.ts", "export const a = 1;\n");
+  assert.match(expect("test", repo(code), 3), /no test file/);
+});
+test("test: a config vitest cannot load cannot be checked, and says why", () => {
+  const broken = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "vitest.config.ts",
+      "export default { test: { include: [,,] } ;\n",
+    );
+  };
+  const out = expect("test", repo(broken), 3);
+  assert.match(out, /vitest wrote no report/);
+  assert.match(out, /vitest\.config\.ts/);
+});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -2675,7 +2836,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 2 not applicable: svelte, secrets$/m,
+    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

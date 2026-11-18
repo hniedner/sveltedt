@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -720,7 +721,7 @@ const CLASSES: FileClass[] = [
     steps: ["format", "lint", "svelte"],
     why: "dupes: jscpd 5 counts a component as several sources and lists none, so no file can be proven analysed (#7)",
   },
-  { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
+  { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
       /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|scripts\/[\w-]+\.version)$/,
@@ -996,6 +997,9 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-new-func",
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
+    "vitest/expect-expect",
+    "vitest/no-focused-tests",
+    "vitest/no-disabled-tests",
     "compat/compat",
     "@typescript-eslint/ban-ts-comment",
     "no-restricted-syntax|setAttribute style",
@@ -1727,6 +1731,139 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+const vitestBin = (): string =>
+  join(HERE, "..", "node_modules", ".bin", "vitest");
+/** A tracked Vitest test file: any *.test.ts or *.spec.ts outside scripts/ (whose tests run under node:test). */
+const isVitestTest = (f: string): boolean =>
+  /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/");
+/** Tracked code a test should cover: TypeScript and components under src/ and site/. */
+const isTestedCode = (f: string): boolean =>
+  /^(?:src|site)\/.+\.(?:ts|svelte)$/.test(f) && !isVitestTest(f);
+/** Up to 8 lines a child printed, error lines first, without stack frames or code frames: the reason to show. */
+function tail(text: string): string[] {
+  const lines = text
+    .split("\n")
+    .filter(
+      (l) => l.trim() && !/^\s+(?:at |❯ |\d+\||\|)|JSON report written/.test(l),
+    );
+  const errors = lines.filter((l) => /\bError\b.*:/.test(l));
+  return [...errors, ...lines.filter((l) => !errors.includes(l))].slice(0, 8);
+}
+
+interface VitestReport {
+  numTotalTests: number;
+  numFailedTests: number;
+  numPendingTests: number;
+  numTodoTests: number;
+  testResults: {
+    name: string;
+    status: string;
+    message?: string;
+    assertionResults: { fullName: string; status: string }[];
+  }[];
+}
+
+/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status and output. */
+function vitest(
+  cwd: string,
+  args: string[],
+): { report: VitestReport | null; status: number | null; out: string } {
+  const dir = mkdtempSync(join(tmpdir(), "vitest-"));
+  try {
+    const file = join(dir, "report.json");
+    const r = spawnSync(
+      vitestBin(),
+      // dot prints what the JSON report leaves out: errors thrown outside a test
+      [
+        "run",
+        ...args,
+        "--reporter=dot",
+        "--reporter=json",
+        `--outputFile.json=${file}`,
+      ],
+      { cwd, encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
+    );
+    const report = existsSync(file)
+      ? (JSON.parse(readFileSync(file, "utf8")) as VitestReport)
+      : null;
+    return { report, status: r.status, out: `${r.stdout}${r.stderr}` };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Vitest over every tracked test file outside scripts/, with the one tracked vitest.config.ts. A planted
+// failing test must be reported first; then every tracked test file must have run with at least one passing test,
+// no test may fail, and vitest itself must exit 0 (an error thrown after a test's assertions is in no report).
+function test(root: string, list: Set<string>): Result {
+  const canary = vitest(canaries("test"), []);
+  if (!canary.report || canary.report.numFailedTests < 1)
+    return result(
+      CANNOT,
+      "vitest did not report the planted failing test (canary.test.ts)",
+      tail(canary.out),
+    );
+  const mine = [...list].filter(isVitestTest).sort();
+  if (!mine.length)
+    return [...list].some(isTestedCode)
+      ? result(
+          CANNOT,
+          "no test file is tracked for the code under src/ or site/",
+        )
+      : result(
+          NA,
+          "vitest failed the canary; no test file and no code under src/ or site/",
+        );
+  if (!list.has("vitest.config.ts"))
+    return result(CANNOT, "vitest.config.ts is not tracked");
+  const {
+    report: run,
+    status,
+    out,
+  } = vitest(root, ["--config", join(root, "vitest.config.ts")]);
+  if (!run) return result(CANNOT, "vitest wrote no report", tail(out));
+  // Vitest names each file by its real path; the root may reach it through a link (macOS: /var -> /private/var).
+  const real = realpathSync(root);
+  const byFile = new Map(
+    run.testResults.map((r) => [relative(real, r.name), r]),
+  );
+  const missed = mine.filter((f) => !byFile.has(f));
+  if (missed.length)
+    return result(CANNOT, "tracked test files did not run", missed);
+  const failedFiles = run.testResults.filter((r) => r.status !== "passed");
+  if (failedFiles.length || run.numFailedTests > 0)
+    return result(
+      FINDING,
+      `${failedFiles.length} file(s) failed, ${run.numFailedTests} test(s) failed`,
+      failedFiles.flatMap((r) => [
+        `${relative(real, r.name)}: ${r.message || r.status}`,
+        ...r.assertionResults
+          .filter((a) => a.status === "failed")
+          .map((a) => `  ${a.fullName}`),
+      ]),
+    );
+  if (status !== 0)
+    return result(
+      FINDING,
+      `vitest exited ${status} though no test failed`,
+      tail(out),
+    );
+  const idle = mine.filter(
+    (f) => !byFile.get(f)?.assertionResults.some((a) => a.status === "passed"),
+  );
+  if (idle.length)
+    return result(
+      CANNOT,
+      "no test passed in tracked test files (all skipped?)",
+      idle,
+    );
+  const skipped = run.numPendingTests + run.numTodoTests;
+  return result(
+    PASS,
+    `vitest failed the canary; ${run.numTotalTests - skipped} test(s) in ${byFile.size} file(s) passed, ${skipped} skipped`,
+  );
+}
+
 function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
@@ -1812,6 +1949,7 @@ const CHECKS: Record<string, Check> = {
   lint,
   types,
   svelte,
+  test,
   dupes,
   pins,
   "gate-needs": gateNeeds,
