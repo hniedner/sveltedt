@@ -11,6 +11,14 @@
     "types": ["node", "svelte"],
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts"],
+  "include": [
+    "scripts/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "site/**/*.ts",
+    "site/**/*.svelte",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["scripts/canaries/**"]
 }

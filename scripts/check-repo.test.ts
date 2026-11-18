@@ -904,6 +904,20 @@ test("lint: a floating promise in a TypeScript script is a finding (type-aware)"
     "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n";
   assert.match(expect("lint", repo(tsScript(body)), 1), /no-floating-promises/);
 });
+test("lint: a Vitest test without an assertion is a finding that names the rule", () => {
+  const out = expect(
+    "lint",
+    repo((root) =>
+      put(
+        root,
+        "scripts/a.test.ts",
+        'import { test } from "vitest";\ntest("nothing", () => {});\n',
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /vitest\/expect-expect/);
+});
 test("lint: eval in a TypeScript script is a finding", () => {
   expect("lint", repo(tsScript('export const x: unknown = eval("1");\n')), 1);
 });
@@ -1040,6 +1054,74 @@ const component =
     put(root, path, body);
   };
 const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+/** A tracked Vitest config and test file; the config runs src/ tests only, like a config that forgot site/. */
+const vitestTest =
+  (body: string, path = "src/a.test.ts") =>
+  (root: string): void => {
+    put(
+      root,
+      "vitest.config.ts",
+      'export default { test: { include: ["src/**/*.test.ts"] } };\n',
+    );
+    put(root, path, `import { expect, test } from "vitest";\n${body}`);
+  };
+const PASSING_VITEST = 'test("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n';
+test("test: with no src/ or site/ test file tracked the step is not applicable, after vitest failed its canary", () => {
+  const r = run(["test", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out.trim().split("\n").at(-1) ?? "",
+    /^NOT APPLICABLE test: vitest failed the canary; no src\/ or site\/ test file is tracked$/,
+    r.out,
+  );
+});
+test("test: passes when vitest fails its canary and every tracked test file runs and passes", () => {
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 0);
+  assert.match(out, /1 test\(s\) in 1 file\(s\) passed/);
+});
+test("test: a failing test is a finding that names the file and the test", () => {
+  const out = expect(
+    "test",
+    repo(vitestTest(PASSING_VITEST.replace("toBe(2)", "toBe(3)"))),
+    1,
+  );
+  assert.match(out, /src\/a\.test\.ts: failed/);
+  assert.match(out, / {2}adds$/m);
+});
+test("test: a tracked test file the config does not run cannot be checked, and is named", () => {
+  const both = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "site/b.test.ts",
+      `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+    );
+  };
+  assert.match(expect("test", repo(both), 3), /^ {2}site\/b\.test\.ts$/m);
+});
+test("test: without a tracked vitest.config.ts the step cannot be checked", () => {
+  const untracked = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(root, ".git/info/exclude", "vitest.config.ts\n");
+  };
+  assert.match(
+    expect("test", repo(untracked), 3),
+    /vitest\.config\.ts is not tracked/,
+  );
+});
+test("test: a canary that vitest passes cannot be checked", () => {
+  const dir = canaryDir("test", {
+    "canary.test.ts": `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+  });
+  symlinkSync(
+    join(here, "..", "node_modules"),
+    join(dir, "test", "node_modules"),
+  );
+  const out = expect("test", repo(vitestTest(PASSING_VITEST)), 3, {
+    canaries: dir,
+  });
+  assert.match(out, /did not report the planted failing test/);
+});
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -1899,7 +1981,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 2 not applicable: svelte, secrets$/m,
+    /^PASS all: 15 checks passed, 3 not applicable: svelte, test, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

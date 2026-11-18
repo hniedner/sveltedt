@@ -5,6 +5,7 @@ import js from "@eslint/js";
 import compat from "eslint-plugin-compat";
 import svelte from "eslint-plugin-svelte";
 import ts from "typescript-eslint";
+import vitest from "@vitest/eslint-plugin";
 
 // The Node globals the .mjs scripts use, listed by hand instead of a package: a missing name fails loudly.
 const node = {
@@ -121,6 +122,17 @@ export default [
         "firefox >= 128",
         "safari >= 16.4",
       ],
+    },
+  },
+  // Vitest's rules fire only in files that import "vitest"; node:test files under scripts/ are left alone.
+  {
+    files: ["**/*.test.ts", "**/*.svelte.test.ts"],
+    plugins: { vitest },
+    rules: {
+      // Method section 4: a test without an assertion, a focused test or a skipped test cannot fail as written.
+      "vitest/expect-expect": "error",
+      "vitest/no-focused-tests": "error",
+      "vitest/no-disabled-tests": "error",
     },
   },
 ];

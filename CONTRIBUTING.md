@@ -56,6 +56,9 @@ The checks today:
   (gitignored folders such as `tmp/` too, not `node_modules` or dot-folders), and with no root config those above
   it (measured with svelte-check 4.7.8). A second Svelte or Vite config is not
   added; that file is edited.
+- **test:** Vitest runs the component and site tests (`src/**/*.test.ts`, `site/**/*.test.ts`) with the one
+  `vitest.config.ts`; every tracked test file must have run, and a test that fails is a finding. With no such file
+  tracked the step is NOT APPLICABLE, after its planted failing test was reported.
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).

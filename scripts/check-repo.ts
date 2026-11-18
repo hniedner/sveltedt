@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -951,6 +952,9 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "no-new-func",
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
+    "vitest/expect-expect",
+    "vitest/no-focused-tests",
+    "vitest/no-disabled-tests",
     "compat/compat",
   ],
   // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
@@ -1464,6 +1468,80 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+const vitestBin = (): string =>
+  join(HERE, "..", "node_modules", ".bin", "vitest");
+const VITEST_TESTS = /^(?:src|site)\/.+\.test\.ts$/;
+
+interface VitestReport {
+  numTotalTests: number;
+  numFailedTests: number;
+  testResults: {
+    name: string;
+    status: string;
+    message?: string;
+    assertionResults: { fullName: string; status: string }[];
+  }[];
+}
+
+/** Vitest's JSON report of one run in `cwd` (with `args`), or null when it wrote none. */
+function vitest(cwd: string, args: string[]): VitestReport | null {
+  const dir = mkdtempSync(join(tmpdir(), "vitest-"));
+  try {
+    const file = join(dir, "report.json");
+    spawnSync(
+      vitestBin(),
+      ["run", ...args, "--reporter=json", `--outputFile=${file}`],
+      { cwd, encoding: "utf8", env: childEnv() },
+    );
+    return existsSync(file)
+      ? (JSON.parse(readFileSync(file, "utf8")) as VitestReport)
+      : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Vitest over the component and site tests (PRD-G1), with the one tracked vitest.config.ts. A planted failing test
+// must be reported first; then every tracked test file must have run, at least one test, and none failed.
+function test(root: string, list: Set<string>): Result {
+  const canary = vitest(canaries("test"), []);
+  if (!canary || canary.numFailedTests < 1)
+    return result(
+      CANNOT,
+      "vitest did not report the planted failing test (canary.test.ts)",
+    );
+  const mine = [...list].filter((f) => VITEST_TESTS.test(f)).sort();
+  if (!mine.length)
+    return result(
+      NA,
+      "vitest failed the canary; no src/ or site/ test file is tracked",
+    );
+  if (!list.has("vitest.config.ts"))
+    return result(CANNOT, "vitest.config.ts is not tracked");
+  const run = vitest(root, ["--config", join(root, "vitest.config.ts")]);
+  if (!run) return result(CANNOT, "vitest wrote no report");
+  // Vitest names each file by its real path; the root may reach it through a link (macOS: /var -> /private/var).
+  const real = realpathSync(root);
+  const ran = new Set(run.testResults.map((r) => relative(real, r.name)));
+  const missed = mine.filter((f) => !ran.has(f));
+  if (missed.length)
+    return result(CANNOT, "tracked test files did not run", missed);
+  const failed = run.testResults
+    .filter((r) => r.status !== "passed")
+    .flatMap((r) => [
+      `${relative(real, r.name)}: ${r.message || r.status}`,
+      ...r.assertionResults
+        .filter((a) => a.status === "failed")
+        .map((a) => `  ${a.fullName}`),
+    ]);
+  if (failed.length || run.numFailedTests > 0)
+    return result(FINDING, `${run.numFailedTests} test(s) failed`, failed);
+  return result(
+    PASS,
+    `vitest failed the canary; ${run.numTotalTests} test(s) in ${ran.size} file(s) passed`,
+  );
+}
+
 function inCI(): boolean {
   return process.env.GITHUB_ACTIONS === "true";
 }
@@ -1549,6 +1627,7 @@ const CHECKS: Record<string, Check> = {
   lint,
   types,
   svelte,
+  test,
   dupes,
   pins,
   "gate-needs": gateNeeds,
