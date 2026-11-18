@@ -27,6 +27,8 @@
             >
           {/each}
         </tr>
+      {:else}
+        <tr><td colspan={columns.length}>No records.</td></tr>
       {/each}
     </tbody>
   </table>

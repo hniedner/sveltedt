@@ -142,3 +142,13 @@ describe(spec("RND-01", "4b6167be"), () => {
     expect(firstCells()).toEqual(rows.map((row) => row.id));
   });
 });
+
+describe("STATE-03 first example; the statement's marker arrives with 1c", () => {
+  it("with the default status ready and no rows, shows the empty message in one cell spanning every column", () => {
+    show({ rows: [], columns: [idColumn, nameColumn, noteColumn] });
+    expect(screen.getAllByRole("cell")).toHaveLength(1);
+    expect(
+      screen.getByRole("cell", { name: "No records." }).getAttribute("colspan"),
+    ).toBe("3");
+  });
+});
