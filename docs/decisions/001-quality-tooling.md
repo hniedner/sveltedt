@@ -148,7 +148,9 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 
 - Dependabot's `commit-message.prefix` per ecosystem (`ci` for GitHub Actions, `build` for npm), with
   `include: scope`: the commit-message check, from the next pull request (issue #6), needs conventional headers;
-- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`).
+- `no-undef` off for TypeScript files, as typescript-eslint advises (`eslint.config.mjs`);
+- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
+  TypeScript parser.
 
 **To take with the layer that needs it:**
 
@@ -157,8 +159,6 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
   - the split into a Node project and a jsdom project with `resolve.conditions: ['browser']`;
   - a setup file with the jest-dom matchers and `cleanup()` after each test;
   - a Dependabot group that moves `vitest` and `@vitest/*` together, because they pin one another;
-- with the Svelte lint: the Svelte block with `projectService`, `extraFileExtensions: ['.svelte']` and the
-  TypeScript parser;
 - with the real-browser tests: Playwright's `forbidOnly` in CI, and a `webServer` that builds the site and serves it.
 
 **Left, with the reason:**

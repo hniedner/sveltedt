@@ -1025,7 +1025,7 @@ const component =
     )(root);
     put(root, path, body);
   };
-const COMPONENT = `<script lang="ts">\n  let { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
+const COMPONENT = `<script lang="ts">\n  const { count }: { count: number } = $props();\n</script>\n\n<p>{count}</p>\n`;
 test("svelte: with no Svelte file tracked the step is not applicable, after svelte-check failed its canary", () => {
   const r = run(["svelte", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
@@ -1131,6 +1131,51 @@ test("format: the Svelte canary is checked only while Prettier's config loads th
   expect("format", repo(), 0, { canaries: canaries(plugin) });
   const out = expect("format", repo(), 3, { canaries: canaries({}) });
   assert.match(out, /canary\.svelte/);
+});
+test("lint: a component in allowed markup passes, and the summary counts it per extension", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          "<p class={count > 1 ? 'many' : 'one'}>{count}</p>",
+        ),
+      ),
+    ),
+    0,
+  );
+  assert.match(out, /\.svelte 1$/m);
+});
+test("lint: a class: directive in a component is a finding that names the ban", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          "<p class:many={count > 1}>{count}</p>",
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax class: directive/);
+});
+test("lint: an HTML disable comment does not switch a rule off in a component", () => {
+  const out = expect(
+    "lint",
+    repo(
+      component(
+        COMPONENT.replace(
+          "<p>{count}</p>",
+          '<!-- eslint-disable -->\n<p style="color: red">{count}</p>',
+        ),
+      ),
+    ),
+    1,
+  );
+  assert.match(out, /no-restricted-syntax style attribute/);
 });
 test("svelte: another svelte-check version than the pin cannot be checked", () => {
   expect(

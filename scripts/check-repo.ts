@@ -695,7 +695,7 @@ const CLASSES: FileClass[] = [
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",
   },
   { match: /\.ts$/, steps: ["format", "lint", "types", "dupes"] },
-  { match: /\.svelte$/, steps: ["format", "svelte"] },
+  { match: /\.svelte$/, steps: ["format", "lint", "svelte"] },
   { match: /\.(md|ya?ml|json)$/, steps: ["format"] },
   {
     match:
@@ -931,6 +931,19 @@ const LINT_CANARY_RULES: Record<string, string[]> = {
     "@typescript-eslint/no-explicit-any",
     "@typescript-eslint/no-floating-promises",
   ],
+  // "<rule>|<text>": that rule with a message holding the text, for the markup bans that share one rule.
+  ".svelte": [
+    "@typescript-eslint/no-explicit-any",
+    "svelte/no-at-html-tags",
+    "no-restricted-syntax|class: directive",
+    "no-restricted-syntax|use: action",
+    "no-restricted-syntax|bind: other than bind:this",
+    "no-restricted-syntax|style: directive",
+    "no-restricted-syntax|spread attribute",
+    "no-restricted-syntax|{@attach}",
+    "no-restricted-syntax|style attribute",
+    "no-restricted-syntax|{style} shorthand",
+  ],
 };
 
 /** The planted rules a canary record did not raise, per extension, or "no canary for <ext>". */
@@ -938,10 +951,13 @@ function lintCanaryMisses(canary: EslintRecord): string[] {
   return Object.entries(LINT_CANARY_RULES).flatMap(([ext, rules]) => {
     const files = canary.files.filter((c) => c.f.endsWith(ext));
     if (!files.length) return [`no canary for ${ext}`];
-    const raised = new Set(files.flatMap((c) => c.messages.map((m) => m.rule)));
+    const messages = files.flatMap((c) => c.messages);
     return rules
-      .filter((rule) => !raised.has(rule))
-      .map((rule) => `${ext}: ${rule}`);
+      .filter((entry) => {
+        const [rule, text = ""] = entry.split("|");
+        return !messages.some((m) => m.rule === rule && m.text.includes(text));
+      })
+      .map((entry) => `${ext}: ${entry}`);
   });
 }
 
@@ -986,9 +1002,13 @@ function lint(root: string, list: Set<string>): Result {
       `${details.length} message(s) in ${mine.length} file(s)`,
       details,
     );
+  // Per extension, so a kind with no real file shows 0 instead of hiding behind its canary.
+  const counts = Object.keys(LINT_CANARY_RULES).map(
+    (ext) => `${ext} ${mine.filter((f) => f.endsWith(ext)).length}`,
+  );
   return result(
     PASS,
-    `ESLint ${rec.version} raised every planted rule (${Object.keys(LINT_CANARY_RULES).join(", ")}) and accepted ${mine.length} file(s)`,
+    `ESLint ${rec.version} raised every planted rule (${Object.keys(LINT_CANARY_RULES).join(", ")}) and accepted ${mine.length} file(s): ${counts.join(", ")}`,
   );
 }
 

@@ -1,6 +1,7 @@
 // ESLint for the repository's own scripts. The reasons are in docs/decisions/001-quality-tooling.md or beside the rule.
 // This file stays JavaScript: ESLint would need a further dependency (jiti) to load a TypeScript config.
 import js from "@eslint/js";
+import svelte from "eslint-plugin-svelte";
 import ts from "typescript-eslint";
 
 // The Node globals the .mjs scripts use, listed by hand instead of a package: a missing name fails loudly.
@@ -27,6 +28,25 @@ const linterOptions = {
   reportUnusedDisableDirectives: "error",
 };
 
+// Markup a component may not use. PRD-G2(b): forms the mutation tool does not mutate. PRD-S1: inline styles, in
+// every element and through the {style} shorthand (svelte/no-inline-styles checks only plain HTML elements).
+const markupBans = [
+  [
+    "SvelteDirective[kind='Class']",
+    "class: directive (PRD-G2 b): use a class attribute expression",
+  ],
+  ["SvelteDirective[kind='Action']", "use: action (PRD-G2 b)"],
+  [
+    "SvelteDirective[kind='Binding']:not([key.name.name='this'])",
+    "bind: other than bind:this (PRD-G2 b)",
+  ],
+  ["SvelteStyleDirective", "style: directive (PRD-G2 b, PRD-S1)"],
+  ["SvelteSpreadAttribute", "spread attribute (PRD-G2 b)"],
+  ["SvelteAttachTag", "{@attach} (PRD-G2 b)"],
+  ["SvelteAttribute[key.name='style']", "style attribute (PRD-S1)"],
+  ["SvelteShorthandAttribute[key.name='style']", "{style} shorthand (PRD-S1)"],
+].map(([selector, message]) => ({ selector, message }));
+
 export default [
   js.configs.recommended,
   {
@@ -37,14 +57,20 @@ export default [
   },
   ...ts.configs.recommendedTypeChecked.map((config) => ({
     ...config,
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.svelte"],
   })),
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.svelte"],
     languageOptions: {
       // The planted canaries sit outside tsconfig.json (relative to this file); they get a default project.
       parserOptions: {
-        projectService: { allowDefaultProject: ["scripts/canaries/*/*.ts"] },
+        projectService: {
+          allowDefaultProject: [
+            "scripts/canaries/*/*.ts",
+            "scripts/canaries/*/*.svelte",
+          ],
+        },
+        extraFileExtensions: [".svelte"],
       },
     },
     linterOptions,
@@ -67,6 +93,18 @@ export default [
       ],
       // TypeScript checks undefined names itself; typescript-eslint advises turning this rule off (origin: docs/decisions/001).
       "no-undef": "off",
+    },
+  },
+  // After the TypeScript blocks: the Svelte parser reads components and .svelte.ts runes, TypeScript inside them.
+  ...svelte.configs.recommended,
+  {
+    files: ["**/*.svelte", "**/*.svelte.ts"],
+    languageOptions: { parserOptions: { parser: ts.parser } },
+    linterOptions,
+    rules: {
+      // An HTML comment (<!-- eslint-disable -->) would switch rules off despite noInlineConfig (measured).
+      "svelte/comment-directive": "off",
+      "no-restricted-syntax": ["error", ...markupBans],
     },
   },
 ];
