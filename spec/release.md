@@ -6,7 +6,8 @@
 - **Status:** part 1a of the release spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
-- **Scope:** part 1a: the supply-chain rules for the repository's files (PRD-S5). The release workflow, the publishing
+- **Scope:** part 1a: the supply-chain rules for the repository's files (PRD-S5); SUP-09 and SUP-10 extend two of
+  them to the consumer project's own folder (`consumer/`, `spec/package.md`). The release workflow, the publishing
   path and the release record (PRD-S7, the rest of PRD-S5) come with part 1b.
 
 ## Conventions
@@ -226,6 +227,47 @@ cooldown whose every day field is at least 1, and grouped version updates.
 - Layer: static check.
 - Traces: PRD-S5.
 
+**SUP-09** The Dependabot configuration MUST cover npm for the consumer project's folder `/consumer`, with a cooldown
+whose every day field is at least 1, and grouped version updates.
+- Examples (the scan reads `.github/dependabot.yml`; the test runs every row as a canary; cooldown and group are judged
+  as in SUP-07):
+
+  | Configuration | Result |
+  |---|---|
+  | an `npm` entry for directory `/consumer` with a cooldown of at least 1 day and a `groups` entry for version updates | passes |
+  | the `npm` entry with `directories: ["/", "/consumer"]`, cooldown and group as above | passes |
+  | no `npm` entry covering `/consumer` | finding |
+  | the `/consumer` entry without `cooldown` | finding |
+  | the `/consumer` entry without a group for version updates | finding |
+
+  When the repository has no `consumer/package.json`, the check reports "could not check". Break that turns it red:
+  the `/consumer` entry removed from the configuration.
+- Reason: the consumer project has its own manifest and lockfile (CON-01 of `spec/package.md`), which the root's
+  entry does not cover; its framework and build tools need the same delayed, grouped updates as the root's.
+- Layer: static check.
+- Traces: PRD-S5.
+
+**SUP-10** The consumer project's own package-manager settings MUST let no dependency install script run, except for
+the packages of the reviewed allow-list.
+- Examples (the scan reads `consumer/pnpm-workspace.yaml`, the consumer's own settings file, which the root's settings
+  do not reach because the consumer is not a workspace member; each row is judged as in SUP-06; the test runs every
+  row as a canary):
+
+  | `consumer/pnpm-workspace.yaml` | Result |
+  |---|---|
+  | `esbuild` refused (set to `false`), and an unlisted package with a script fails the install | passes |
+  | `esbuild` allowed with no reason | finding |
+  | every package allowed | finding |
+  | an unlisted package with a script only warned about, the install going on | finding |
+  | the file missing | could not check |
+
+  Break that turns it red: `esbuild: true` with no reason in the consumer's settings.
+- Reason: without settings of its own the consumer's install refuses `esbuild`'s script (MEASURED in this project's
+  probe), and settings that allow every script would run code nobody reviewed before any test; SUP-06 reads only the
+  root's file.
+- Layer: static check.
+- Traces: PRD-S5.
+
 ## Trace
 
 ### Statement -> PRD
@@ -240,11 +282,13 @@ cooldown whose every day field is at least 1, and grouped version updates.
 | SUP-06 | PRD-S5 |
 | SUP-07 | PRD-S5 |
 | SUP-08 | PRD-S5 |
+| SUP-09 | PRD-S5 |
+| SUP-10 | PRD-S5 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-S5 | SUP-01, SUP-02, SUP-03, SUP-04, SUP-05, SUP-06, SUP-07, SUP-08 | in part: "development dependencies locked, installs frozen" is SUP-05; the repository settings (secret scanning with push protection, Dependabot alerts and security updates, read-only default token, the required checks) are read by the owner into the release record of part 1b |
+| PRD-S5 | SUP-01, SUP-02, SUP-03, SUP-04, SUP-05, SUP-06, SUP-07, SUP-08, SUP-09, SUP-10 | in part: "development dependencies locked, installs frozen" is SUP-05; the repository settings (secret scanning with push protection, Dependabot alerts and security updates, read-only default token, the required checks) are read by the owner into the release record of part 1b |
 
 PRD musts of the release path left to later parts: PRD-S7, and PRD-K3's changelog and version rules.

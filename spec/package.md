@@ -6,11 +6,12 @@
 - **Status:** part 1 of the package spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
-- **Scope:** part 1: the root export of the packed package and what the tarball holds (PRD-K2), and the consumer
-  project's install, server rendering, hydration and strict policy (PRD-K4, PRD-W8, the server-rendered half of
-  PRD-S1). Further `exports` subpaths, the Svelte peer floor and the README quick start come with later parts. The
-  rule that `svelte` is the only peer dependency and that there is no runtime dependency is SUP-04 of
-  `spec/release.md`, not restated here.
+- **Scope:** part 1: the root export of the packed package, what the tarball holds and its licence files (PRD-K2,
+  PRD-L1), and the consumer project's install, peer check, type check, Tailwind source line, server rendering,
+  hydration, server HTML and policy header (PRD-K2, PRD-K4, PRD-T3, PRD-W8, part of PRD-S1). The server-rendered
+  zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Further `exports` subpaths,
+  the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
+  dependency and that there is no runtime dependency is SUP-04 of `spec/release.md`, not restated here.
 
 ## Conventions
 
@@ -24,14 +25,16 @@
   - **pack**: the package built and packed from the test's own checkout in the test's run, then the tarball read, or
     handed to the named tool. A tarball left over from an earlier run is never read.
   - **consumer**: a copy of the consumer project with that tarball installed as CON-01 states, built for production in
-    the test's run, then read as files (**consumer files**), started and sent real requests through `node:http` and read
+    the test's run unless the statement names its development server, then read as files or handed to the named tool
+    (**consumer files**), started and sent real requests through `node:http` and read
     as status, headers and body (**consumer HTTP**), or opened in a real engine, in Chromium, Firefox and WebKit unless
     the statement names fewer and says why (**consumer browser**).
   - A row that the test runs as a canary is a manifest or a file planted in a copy, which must be found.
 - **The tarball** is the file the package manager's pack command writes for the repository's root package after the
   package build. **The packed manifest** is the `package.json` inside it.
 - **The strict policy** is the one of PRD section 4.4: `default-src 'self'; script-src 'self'; style-src 'self'`.
-- **The listener** is a script of the consumer project whose bytes equal the site's listener (`spec/site.md`); it adds
+- **The listener** is a script of the consumer project whose bytes equal what the site's server answers at the
+  listener's `src` (POL-01 of `spec/site.md`); it adds
   each `securitypolicyviolation` event of its page, one entry per event, to the array `window.__csp`, which it creates
   and a test reads. "The listener's list" is that array. Being the same bytes, it is proven able to see a violation by
   POL-02 of the site spec.
@@ -41,6 +44,7 @@
   browser; a page is hydrated when `body` has that attribute.
 - **Data.** Example data is synthetic.
 - **Ids.** A statement keeps its id while its meaning stays. A new behaviour takes the next free number in its group.
+  CON-07 is reserved for the server-rendered zero-violation statement, which waits for the owner's decision on PRD-S1.
   A requirement id from `docs/PRD.md` is written `PRD-K2`.
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
   statement. A part written for a later milestone never adds a row, a path or a page to an earlier statement; it
@@ -79,13 +83,13 @@
   |---|---|
   | the real tarball | 0 errors, 0 warnings |
   | the real contents with the packed manifest's `svelte` condition pointing at `./dist/missing.js` | at least one error, found |
-  | the real contents with the packed manifest's `repository` field set to a value publint reports only as a warning (an invalid repository value) | at least one warning, found |
+  | the real contents with the packed manifest's `repository` field set to a value for which publint reports its rule `INVALID_REPOSITORY_VALUE` at the level warning | that rule at that level, found |
 
   publint's suggestions are listed in the output and do not fail. When publint reads no package or exits without a
   report, the check reports "could not check", which blocks like a finding. Break that turns it red: the manifest's
   `files` field leaves out `dist`.
 - Reason: publint checks the published shape the way consumers' tools read it (READ, publint.dev); a warning there
-  is a consumer's broken or slow install.
+  marks a published shape that some consumers' tools read differently from ours.
 - Layer: pack.
 - Traces: PRD-K2.
 
@@ -106,8 +110,9 @@ ending in `.js`, `.svelte` or `.d.ts` whose names contain no `.test.` and no `.s
   | `dist/app.css` | finding: a kind not listed (THEME-04 of `spec/table.md` states the package's no-CSS rule itself) |
   | `.npmrc` | finding: not listed |
 
-  When the tarball cannot be listed, the check reports "could not check". Break that turns it red: the manifest's
-  `files` field removed, so the whole repository is packed.
+  That a listed file is present is not this statement's (PKG-02, PKG-04 and the README's own part check that). When
+  the tarball cannot be listed, the check reports "could not check". Break that turns it red: the manifest's `files`
+  field removed, so the whole repository is packed.
 - Reason: what is not listed is either noise a consumer downloads or something that should never leave the
   repository; the build of the component files from `src/lib` also copies test files beside them unless they are
   kept out, so the list is checked on the tarball, not on the configuration. `LICENSE` and `NOTICE` travel with the
@@ -145,22 +150,22 @@ consumer project, and leave the committed consumer project unchanged.
   |---|---|
   | the copy's `node_modules/@hniedner/sveltedt`, links followed | lies under the copy's `node_modules/.pnpm/`, and holds exactly the tarball's files, with the same names and bytes |
   | the copy's lockfile | records the tarball as the source of `@hniedner/sveltedt` |
-  | `consumer/package.json` and `consumer/pnpm-lock.yaml` in the checkout | unchanged against the commit (`git status` lists neither), and neither names `@hniedner/sveltedt` |
+  | `consumer/package.json` and `consumer/pnpm-lock.yaml` in the checkout | the same bytes after the test as before it, and neither names `@hniedner/sveltedt` |
   | `@hniedner/sveltedt` named in the committed `consumer/package.json` (any dependency field) | finding |
   | the copy's installed package resolving to a folder of the repository outside the copy | finding |
 
-  When the copy holds no installed `@hniedner/sveltedt`, the check reports "could not check". These installs run
-  inside the test, not as steps of a workflow, so SUP-05 of `spec/release.md`, which governs workflow steps, stays as
-  it is. Break that turns it red: the committed `consumer/package.json` given `"@hniedner/sveltedt": "link:.."`.
-- Reason: a package is tested as a consumer gets it: packed, then installed by the package manager into a project of
-  its own; a linked install reads the repository instead, so broken `exports`, missing files or types that only
-  resolve inside the repository pass unseen. The committed project names no tarball, so its frozen install never
-  meets a tarball whose checksum changes with every build, and no `file:` entry is committed. A reader of the README
-  quick start adds the package the same way, with the same command form (`pnpm add -D @hniedner/sveltedt`): as a
-  development dependency, which the Node adapter bundles into the app's server build ("Development dependencies will
-  be bundled into your app", READ, svelte.dev/docs/kit/adapter-node); the Svelte documentation recommends neither
-  form, so this one is stated here once. The two installs run in the consumer test itself; if they ever move into a
-  workflow step, SUP-05 applies to them and this statement must be revisited.
+  The copy includes the consumer's own tracked package-manager settings (SUP-10 of `spec/release.md`). When the copy
+  holds no installed `@hniedner/sveltedt`, the check reports "could not check". Break that turns it red: the committed
+  `consumer/package.json` given `"@hniedner/sveltedt": "link:.."`.
+- Reason: a package is tested as a consumer gets it: packed, then installed by the package manager into a project of its
+  own; a linked install reads the repository instead, so broken `exports`, missing files or types that only resolve
+  inside the repository pass unseen. The committed project names no tarball, so its frozen install never meets a tarball
+  whose checksum changes with every build, and no `file:` entry is committed. A reader of the README quick start adds
+  the package the same way, with the same command form (`pnpm add -D @hniedner/sveltedt`): as a development dependency,
+  which the Node adapter bundles into the app's server build ("Development dependencies will be bundled into your app",
+  READ, svelte.dev/docs/kit/adapter-node); the Svelte documentation recommends neither form (READ, its packaging, FAQ
+  and adapter pages), so this one is stated here once. The two installs run in the consumer test itself; if they ever
+  move into a workflow step, SUP-05 applies to them and this statement must be revisited.
 - Layer: consumer files.
 - Traces: PRD-W8.
 
@@ -176,14 +181,20 @@ consumer project, and leave the committed consumer project unchanged.
 - Traces: PRD-K4, PRD-W8.
 
 **CON-03** The consumer's server-rendered HTML MUST NOT hold a `style` attribute.
-- Example: `GET /`: the status is 200 and the HTML holds the table of CON-02 (otherwise the check reports "could not
-  check"), and no element of the HTML, as an HTML parser reads it, has a `style` attribute; text that only contains the
-  letters `style=` inside a cell is not an attribute. Break that turns it red: SvelteKit's default page
-  shell wrapper `<div style="display: contents">` kept in `consumer/src/app.html`.
+- Examples (the test runs every row; no element of the HTML, as an HTML parser reads it, may have a `style`
+  attribute; text that only contains the letters `style=` inside a cell is not an attribute):
+
+  | Request | The response | `style` attributes |
+  |---|---|---|
+  | `GET /` | status 200, holding the table of CON-02 (otherwise "could not check") | none |
+  | `GET /no-such-page` | status 404, the HTML error page (otherwise "could not check") | none |
+
+  Break that turns it red: SvelteKit's default page shell wrapper `<div style="display: contents">` kept in
+  `consumer/src/app.html`.
 - Reason: under the strict policy a static `style` attribute raises a report (PRD-S1, MEASURED in Chromium), and
   server-rendered HTML is where such attributes appear: in the page shell and in markup a component renders.
 - Layer: consumer HTTP.
-- Traces: PRD-S1.
+- Traces: PRD-S1, PRD-W8.
 
 **CON-04** Every HTML response of the consumer's server MUST carry a `Content-Security-Policy` header that is the
 strict policy with one fresh nonce added to `script-src` and nothing else added.
@@ -208,42 +219,32 @@ strict policy with one fresh nonce added to `script-src` and nothing else added.
 **CON-05** The list page of the consumer MUST load the listener from its own origin so that it runs before every
 other script of the page.
 - Example: `GET /`: the HTML holds a `script` element with a `src` that is a path on the consumer (it starts with one
-  `/` and names no scheme or host), which the server answers with 200 and the bytes of the site's listener, and which
+  `/` and names no scheme or host), which the server answers with 200 and the bytes of the listener, and which
   has no `async`, no `defer` and no `type` attribute; every other `script` element comes after it, or is a module
   script without `async`. Such a script runs as the parser reaches it, so the listener runs first. Break that turns it
   red: the listener's element placed after the framework's bootstrap script.
 - Reason: the listener must record every violation from the page's first script on; a listener that starts late
-  misses them, and the 0 of CON-07 would then prove nothing.
+  misses them, and any check of the page's violations would then prove nothing.
 - Layer: consumer HTTP.
 - Traces: PRD-W8, PRD-S1.
 
 **CON-06** The consumer's list page, built for production, MUST hydrate in place.
-- Example: open `/` in each engine: once the page is hydrated, the `table` element the browser built from the
-  server's HTML is still in the document; it was not replaced by a new one. A page that is not hydrated within the
-  test's time limit fails. Break that turns it red: the list page renders the table inside a branch that differs
-  between the server and the browser, so hydration finds a different structure and Svelte renders the table again.
+- Example: open `/` in each engine: once the page is hydrated, the `table` element the browser built while parsing the
+  server's HTML, taken before any of the page's scripts runs, is still in the document; it was not replaced by a new
+  one. A page that is not hydrated within the test's time limit fails. Break that turns it red: the list page renders
+  the table inside a branch that differs between the server and the browser, so hydration finds a different structure
+  and Svelte renders the table again.
 - Reason: a structural mismatch between the server's HTML and the browser's render makes Svelte throw the server's
-  markup away and render again, which costs the work and moves focus and scroll. A production build does this
-  without a word (its hydration warnings exist only in development), so the only proof there is the element itself;
+  markup away and render again, which costs the work and can move focus and scroll (INFERRED). A production build does
+  this without a word (its hydration warnings exist only in development), so the only proof there is the element itself;
   the warnings are CON-08's.
 - Layer: consumer browser.
 - Traces: PRD-K4.
 
-**CON-07** The consumer's list page MUST raise no policy violation by the time it is hydrated.
-- Example: in each engine, in this order: the response carries the policy of CON-04; the listener's list exists; the
-  page is hydrated; the table shows its 20 body rows; then the list holds 0 entries. A page that does not reach this
-  within the test's time limit fails. Break that turns it red: a `style` attribute on an element inside the `body`
-  of `consumer/src/app.html`.
-- Reason: the component claims 0 violations under the strict policy on a server-rendered page as well as on a
-  client-rendered one (PRD-S1); the order of the reads means a 0 cannot come from a page without the header, without
-  the listener or before hydration.
-- Layer: consumer browser.
-- Traces: PRD-S1, PRD-W8.
-
 **CON-08** Opening the consumer's list page on its development server MUST raise no hydration warning.
 - Examples (the test runs every row in each engine, records the console from the start, and reads it once the page is
   hydrated, or fails at the test's time limit; a warning is a console message that the page's scripts write and whose
-  text starts with `[svelte]`):
+  text contains `[svelte]`; the second row shows, in each engine, that the test reads such a message):
 
   | Consumer | Warnings |
   |---|---|
@@ -256,7 +257,7 @@ other script of the page.
 - Reason: Svelte writes its hydration warnings with their `[svelte]` text only in development (a production build
   is silent on a structural mismatch and writes at most a bare link for a changed attribute), so the development
   server is where every mismatch Svelte reports becomes visible. It runs with SvelteKit's development policy, which
-  is looser than the strict policy; the policy checks (CON-04, CON-07) are on the production build only.
+  is looser than the strict policy; the policy checks (CON-03, CON-04) are on the production build only.
 - Layer: consumer browser.
 - Traces: PRD-K4.
 
@@ -280,7 +281,9 @@ other script of the page.
 
 **CON-10** The component's styles MUST apply in the consumer through its Tailwind `@source` line naming the installed
 package.
-- Examples (the consumer's stylesheet holds `@source` with the path of the installed package folder; the test opens
+- Examples (the consumer's stylesheet holds `@source` with the relative path from the stylesheet to
+  `node_modules/@hniedner/sveltedt`, a link the package manager made, which Tailwind follows (READ, Tailwind's issue
+  tracker); the test opens
   `/` in each engine and measures the caption as A11Y-13 of `spec/table.md` does; the second row is a canary, a copy
   without the `@source` line, which must be found):
 
@@ -298,8 +301,10 @@ package.
 - Traces: PRD-T3, PRD-W8.
 
 **CON-11** The package manager's peer check in the consumer copy MUST report no issue that names `@hniedner/sveltedt`.
-- Examples (the test runs `pnpm peers check` in the copy of CON-01 after the tarball is added; the second row is a
-  canary, a tarball whose packed manifest is planted with the range, added to its own copy, which must be found):
+- Examples (the test runs `pnpm peers check` in the copy of CON-01 after the tarball is added and reads the issues of
+  its report that name `@hniedner/sveltedt`; when the command gives no report, the check reports "could not check";
+  the second row is a canary, a tarball whose packed manifest is planted with the range, added to its own copy, which
+  must be found):
 
   | `peerDependencies.svelte` of the added tarball | `pnpm peers check` |
   |---|---|
@@ -308,9 +313,9 @@ package.
 
   An issue that names only the consumer's own packages is not this statement's. Break that turns it red: the packed
   manifest's peer range raised above the Svelte version the consumer's lockfile holds.
-- Reason: the add command only warns when the installed Svelte is outside the peer range and still exits 0
-  (MEASURED with pnpm 12.19.0); the peer check is the package manager's own command that fails on it, so a consumer
-  whose Svelte the range refuses cannot pass unseen.
+- Reason: the add command only warns when the installed Svelte is outside the peer range and still exits 0 (MEASURED in
+  this project's probe); the peer check is the package manager's own command that fails on it, so a consumer whose
+  Svelte the range refuses cannot pass unseen.
 - Layer: consumer files.
 - Traces: PRD-K2, PRD-W8.
 
@@ -326,11 +331,10 @@ package.
 | PKG-04 | PRD-L1, PRD-K2 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
-| CON-03 | PRD-S1 |
+| CON-03 | PRD-S1, PRD-W8 |
 | CON-04 | PRD-W8, PRD-S1 |
 | CON-05 | PRD-W8, PRD-S1 |
 | CON-06 | PRD-K4 |
-| CON-07 | PRD-S1, PRD-W8 |
 | CON-08 | PRD-K4 |
 | CON-09 | PRD-K2, PRD-W8 |
 | CON-10 | PRD-T3, PRD-W8 |
@@ -340,11 +344,12 @@ package.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces "Are the types wrong?"): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, CON-09, CON-11 | in part; PKG-03 holds the shape of what the build packs (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
-| PRD-W8 | CON-01, CON-02, CON-04, CON-05, CON-07, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
+| PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
 | PRD-T3 | CON-10 | in part: the consumer's `@source`; no CSS shipped and the build's variants are `spec/table.md`'s |
-| PRD-S1 | CON-03, CON-04, CON-05, CON-07 | in part: the server-rendered half; the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` and its build holding no `eval`, `new Function` or string timers have no statement yet (listed as not yet traced in `spec/table.md`) |
+| PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` and its build holding no `eval`, `new Function` or string timers have no statement yet (listed as not yet traced in `spec/table.md`) |
 
-PRD musts touched by this file and left to later parts: PRD-K2 (as above), PRD-W8 (as above).
+PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8 and PRD-S1 (as above). PRD-W9's three engines
+for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the gates'.
