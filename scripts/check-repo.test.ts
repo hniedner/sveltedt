@@ -84,6 +84,7 @@ const TOOL_TS = `export function gross(prices: number[], rate: number): number {
 `;
 interface Pkg {
   name: string;
+  private?: boolean;
   license: string;
   packageManager?: string;
   devDependencies: Record<string, string>;
@@ -92,6 +93,7 @@ interface Pkg {
 }
 const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
+  private: true,
   license: "Apache-2.0",
   packageManager: "pnpm@12.19.0",
   devDependencies: {
@@ -479,6 +481,58 @@ test("lockfile: a release-age exception naming its advisory passes", () => {
   const exclude =
     "minimumReleaseAgeExclude:\n  - prettier@3.9.11 # GHSA-c2f3-h4j5-m6p7\npmOnFail";
   expect("lockfile", repo(edit("pnpm-workspace.yaml", "pmOnFail", exclude)), 0);
+});
+/** The fixture's pnpm-workspace.yaml with `lines` before its first setting. */
+const workspace = (lines: string) =>
+  edit("pnpm-workspace.yaml", "pmOnFail", `${lines}\npmOnFail`);
+const GHSA = "# GHSA-c2f3-h4j5-m6p7";
+test("lockfile: a release-age exception without a version is a finding", () => {
+  // A bare name exempts every later release of the package from the age limit.
+  const bare = workspace(`minimumReleaseAgeExclude:\n  - prettier ${GHSA}`);
+  assert.match(expect("lockfile", repo(bare), 1), /prettier/);
+});
+test("lockfile: a release-age exception after a comment line is still checked", () => {
+  const commented = workspace(
+    `minimumReleaseAgeExclude:\n  # a reason\n  - prettier@3.9.11`,
+  );
+  expect("lockfile", repo(commented), 1);
+});
+test("lockfile: release-age exceptions in flow style are a finding", () => {
+  const flow = workspace(`minimumReleaseAgeExclude: [prettier@3.9.11] ${GHSA}`);
+  expect("lockfile", repo(flow), 1);
+});
+test("lockfile: a package resolved from anywhere but the registry is a finding", () => {
+  const tarball = (root: string) =>
+    put(
+      root,
+      "pnpm-lock.yaml",
+      `${LOCK}\npackages:\n\n  x@1.0.0:\n    resolution: {tarball: https://example.org/x.tgz, integrity: sha512-AA==}\n`,
+    );
+  assert.match(expect("lockfile", repo(tarball), 1), /x@1\.0\.0|resolution/);
+});
+test("lockfile: a Dependabot config without an npm cooldown is a finding that says so", () => {
+  const none = (root: string) =>
+    put(root, ".github/dependabot.yml", "version: 2\nupdates: []\n");
+  assert.match(expect("lockfile", repo(none), 1), /no npm cooldown/);
+});
+test("lockfile: optional and bundled dependencies would ship", () => {
+  const shipped = pkg((p) =>
+    Object.assign(p, {
+      optionalDependencies: { a: "1.0.0" },
+      bundledDependencies: ["b"],
+    }),
+  );
+  const out = expect("lockfile", repo(shipped), 1);
+  assert.match(out, /optionalDependencies: a/);
+  assert.match(out, /bundledDependencies: b/);
+});
+test("lockfile: a package.json not marked private is a finding", () => {
+  // Until the packaging pull request, a stray publish must fail on the manifest.
+  expect("lockfile", repo(pkg((p) => delete p.private)), 1);
+});
+test("files: a missing pin of a pinned program is a finding", () => {
+  const out = expect("files", repo(remove("scripts/zizmor.version")), 1);
+  assert.match(out, /missing: scripts\/zizmor\.version/);
 });
 test("lockfile: a package.json that is not JSON cannot be checked", () => {
   expect(

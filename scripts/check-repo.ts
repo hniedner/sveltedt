@@ -49,6 +49,10 @@ const REQUIRED = [
   "docs/engineering/gates.md",
   "docs/PRD.md",
   "scripts/actionlint.version",
+  "scripts/zizmor.version",
+  "package.json",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
   ".github/workflows/ci.yml",
   ".github/workflows/dependency-review.yml",
   ".github/workflows/scorecard.yml",
@@ -87,6 +91,9 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  bundledDependencies?: string[];
+  private?: boolean;
 }
 
 /** The tracked files, less those deleted from the working tree without `git rm` (nothing left to read). */
@@ -470,7 +477,9 @@ function toolchain(root: string): Result {
 }
 
 const EXACT = /^\d+\.\d+\.\d+$/;
-const ADVISORY = /#\s*GHSA(-[23456789cfghjmpqrvwx]{4}){3}\b/;
+// One exact version (or several joined by ||) and its advisory: a bare name would exempt every later release.
+const EXCEPTION =
+  /^\s+- '?(@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+(\s*\|\|\s*\d+\.\d+\.\d+)*'?\s+#\s*GHSA(-[23456789cfghjmpqrvwx]{4}){3}\b/;
 
 /** The value of `key: <digits>` in YAML lines, or NaN. */
 const yamlNumber = (lines: string[], key: string): number =>
@@ -483,29 +492,40 @@ const yamlNumber = (lines: string[], key: string): number =>
 const readText = (root: string, f: string): string =>
   existsSync(join(root, f)) ? readFileSync(join(root, f), "utf8") : "";
 
-/** The lockfile is tracked and is one YAML document (G11). */
+/** The lockfile is tracked, is one YAML document (G11) and resolves every package from the registry by hash. */
 function lockfileProblems(root: string, list: Set<string>): string[] {
   if (!list.has("pnpm-lock.yaml")) return ["pnpm-lock.yaml is not tracked"];
-  const docs = readText(root, "pnpm-lock.yaml")
-    .split(/^---\s*$/m)
-    .filter((d) => d.trim());
+  const text = readText(root, "pnpm-lock.yaml");
+  const docs = text.split(/^---\s*$/m).filter((d) => d.trim());
+  const sources = text
+    .split("\n")
+    .filter((l) => /^\s+resolution:/.test(l))
+    .filter((l) => !/^\s+resolution: \{integrity: sha512-[\w+/=]+\}$/.test(l))
+    .map((l) => `pnpm-lock.yaml: not a registry package by hash: ${l.trim()}`);
   return docs.length === 1
-    ? []
-    : [`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`];
+    ? sources
+    : [`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`, ...sources];
 }
 
-/** Exact development dependencies; nothing ships but a svelte peer (PRD-S5). */
+/** Private, exact development dependencies; nothing ships but a svelte peer (PRD-S5). */
 function packageProblems(pkg: PackageJson): string[] {
+  // Until the packaging pull request removes it with its statement, a stray publish fails on the manifest.
+  const open =
+    pkg.private === true ? [] : ['package.json: not "private": true'];
   const ranges = Object.entries(pkg.devDependencies ?? {})
     .filter(([, v]) => !EXACT.test(v))
     .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
-  const runtime = Object.keys(pkg.dependencies ?? {}).map(
-    (n) => `dependencies: ${n} would ship; only the svelte peer may`,
-  );
+  const runtime = [
+    ...Object.keys(pkg.dependencies ?? {}).map((n) => `dependencies: ${n}`),
+    ...Object.keys(pkg.optionalDependencies ?? {}).map(
+      (n) => `optionalDependencies: ${n}`,
+    ),
+    ...(pkg.bundledDependencies ?? []).map((n) => `bundledDependencies: ${n}`),
+  ].map((d) => `${d} would ship; only the svelte peer may`);
   const peers = Object.keys(pkg.peerDependencies ?? {})
     .filter((n) => n !== "svelte")
     .map((n) => `peerDependencies: ${n} would ship; only svelte may`);
-  return [...ranges, ...runtime, ...peers];
+  return [...open, ...ranges, ...runtime, ...peers];
 }
 
 /** pnpm's release age equals Dependabot's shortest npm cooldown; every exception names its advisory. */
@@ -515,24 +535,31 @@ function ageProblems(root: string): string[] {
   const bot = readText(root, ".github/dependabot.yml");
   const npm = /- package-ecosystem: npm\n([\s\S]*?)(?=\n {2}- |$)/.exec(bot);
   // So Dependabot never proposes a version pnpm would refuse to install.
-  const days = Math.min(
-    ...[...(npm?.[1] ?? "").matchAll(/^\s*[\w-]*days:\s*(\d+)\s*$/gm)].map(
-      (m) => Number(m[1]),
-    ),
-  );
+  const cooldowns = [
+    ...(npm?.[1] ?? "").matchAll(/^\s*[\w-]*days:\s*(\d+)\s*$/gm),
+  ].map((m) => Number(m[1]));
+  const days = Math.min(...cooldowns);
   const problems: string[] = [];
   if (!(age > 0)) problems.push("pnpm-workspace.yaml: no minimumReleaseAge");
+  else if (!cooldowns.length)
+    problems.push(".github/dependabot.yml: no npm cooldown");
   else if (age !== days * 1440)
     problems.push(
       `minimumReleaseAge ${age} min differs from Dependabot's shortest npm cooldown, ${days} days`,
     );
-  const at = workspace.findIndex((l) => /^minimumReleaseAgeExclude:/.test(l));
-  const entries = at < 0 ? [] : workspace.slice(at + 1);
-  const end = entries.findIndex((l) => !/^\s+-/.test(l));
-  for (const l of end < 0 ? entries : entries.slice(0, end))
-    if (!ADVISORY.test(l))
+  const head = workspace.findIndex((l) => /^minimumReleaseAgeExclude:/.test(l));
+  if (head < 0) return problems;
+  if (!/^minimumReleaseAgeExclude:\s*$/.test(workspace[head]))
+    problems.push("minimumReleaseAgeExclude: write one entry per line");
+  // Its entries run to the next setting; comment and blank lines end nothing.
+  const rest = workspace.slice(head + 1);
+  const end = rest.findIndex((l) => /^\S/.test(l) && !l.startsWith("#"));
+  for (const l of (end < 0 ? rest : rest.slice(0, end)).filter((l) =>
+    /^\s+-/.test(l),
+  ))
+    if (!EXCEPTION.test(l))
       problems.push(
-        `minimumReleaseAgeExclude: "${l.trim()}" names no GHSA advisory`,
+        `minimumReleaseAgeExclude: "${l.trim()}" is not "<name>@<version> # GHSA-..."`,
       );
   return problems;
 }
