@@ -10,7 +10,7 @@ One command runs every check that exists today, in order, stopping at the first 
 
 ```sh
 pnpm install --frozen-lockfile
-git config core.hooksPath .githooks   # once per clone: the hooks below
+git config core.hooksPath .githooks   # once per clone, by hand for now: the hooks below
 pnpm gate
 ```
 
@@ -104,11 +104,11 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
+- **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
+  (see Hooks).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
-- **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
-  (see Hooks).
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI).
 
@@ -120,12 +120,14 @@ find it, so a tool that silently checks nothing cannot pass.
 git runs them from `.githooks/` once `core.hooksPath` is set. Nothing checks that setting yet (see "Not built yet"):
 a clone without it is caught only by the gate's `commits` step.
 
-- **commit-msg:** the header (the first non-blank line) is `<type>(<scope>): <subject>`, at most 100 characters.
+- **commit-msg:** the header (the first non-blank line, as written) is `<type>(<scope>): <subject>`, at most 100
+  characters. A first line starting with `#` is refused: git keeps it for `-m` and drops it from the editor.
   The scope is optional, in lower-case letters, digits and hyphens; `!` before the colon marks a breaking change; the
   subject starts right after one space. The types are the list `TYPES` in `scripts/check-repo.ts`; a header of the
   wrong shape is refused with that list. The changelog is generated from these headers.
   - git's own headers pass: `Merge ...`, and `Revert "<header>"` or `Reapply "<header>"` when the header they wrap
-    does.
+    does, or wraps git's own `Merge ...`. The 100 characters count the header as written, wrapping included: reword a
+    revert of a long header.
   - `fixup!`, `squash!` and `amend!` headers pass the hook, since git writes them for `commit --fixup`, but the gate's
     `commits` step refuses them: such commits are squashed before a pull request. Hook and gate differ here on
     purpose.
@@ -136,9 +138,10 @@ The `commits` step leaves real merge commits out, whatever their message; a one-
 merge is judged. A hook that refuses is answered by fixing the change or rewording the message, never by skipping the
 hook (`--no-verify`).
 
-`core.hooksPath` points into the working tree, so git runs whatever hooks the checked-out branch holds, on checkout as
-well as on commit. Review someone else's branch in a clone or worktree without the setting, or with it switched off
-for that command: `git -c core.hooksPath=/dev/null checkout <branch>`.
+`core.hooksPath` is shared by every worktree of this clone and stays set: once a branch is checked out here, every
+later commit, fetch, branch or rebase in this clone runs that branch's hooks. Read an unreviewed branch here without
+checking it out (`git fetch`, then `git diff main...<ref>`). Check it out, or run its `pnpm install` or `pnpm gate`,
+only in a separate clone where `core.hooksPath` is not set.
 
 ## How a change is made
 

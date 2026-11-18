@@ -2027,41 +2027,42 @@ const TYPES = [
 ];
 const HEADER = new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: \\S`);
 const MAX_HEADER = 100;
-// git's own headers for `git revert` of a commit and of a revert: judged by the header they wrap.
+// git's own headers for `git revert` of a commit and of a revert, judged by the header they wrap, and git's own merge
+// header, which a revert of a merged pull request wraps.
 const WRAPPED = /^(Revert|Reapply) "(.*)"$/;
-// git's headers for `commit --fixup/--squash`: fine while working, squashed before a pull request.
+const MERGE = /^Merge /;
+// git's headers for `commit --fixup[=amend:|reword:]` and `--squash`: fine while working, squashed before a pull
+// request. The hook does not judge what follows the prefix.
 const AUTOSQUASH = /^(fixup|squash|amend)! /;
-function headerProblem(h: string, inHook: boolean): string | null {
-  const wrapped = WRAPPED.exec(h);
-  if (wrapped) return headerProblem(wrapped[2], inHook);
+/** What is wrong with a header as written, or null; the header is quoted escaped, so no control character is printed. */
+function headerProblem(written: string, inHook: boolean): string | null {
+  const shown = JSON.stringify(written);
+  if (written.length > MAX_HEADER)
+    return `${shown}: ${written.length} characters, more than ${MAX_HEADER}`;
+  let h = written;
+  for (let w = WRAPPED.exec(h); w; w = WRAPPED.exec(h)) h = w[2];
+  if (h !== written && MERGE.test(h)) return null;
   if (AUTOSQUASH.test(h))
     return inHook
       ? null
-      : `"${h}": a fixup, squash or amend commit; squash it before the pull request`;
+      : `${shown}: a fixup, squash or amend commit; squash it before the pull request`;
+  if (h.startsWith("#"))
+    return `${shown}: the first line starts with #, which git may keep or drop; start with the type`;
   if (!HEADER.test(h))
-    return `"${h}": not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
-  if (h.length > MAX_HEADER)
-    return `"${h}": ${h.length} characters, more than ${MAX_HEADER}`;
+    return `${shown}: not "<type>(<scope>)?!?: <subject>" with a type of ${TYPES.join(", ")}`;
   return null;
 }
 
 /**
  * A message's header as git stores it: its first non-blank line, only a trailing carriage return and trailing blanks
- * removed (a leading blank or byte-order mark is kept, as git keeps it). In the hook's file git has not yet removed
- * what it adds itself: everything from the scissors line of `commit -v` on, and its comment lines.
+ * removed (a leading blank or byte-order mark is kept, as git keeps it). The hook reads its file the same way: git's
+ * editor template and the diff of `commit -v` come after the message.
  */
-function headerOf(message: string, inHookFile: boolean): string {
-  let lines = message.split("\n");
-  if (inHookFile) {
-    const scissors = lines.indexOf(
-      "# ------------------------ >8 ------------------------",
-    );
-    lines = (scissors < 0 ? lines : lines.slice(0, scissors)).filter(
-      (l) => !l.startsWith("#"),
-    );
-  }
-  return lines.find((l) => l.trim())?.trimEnd() ?? "";
-}
+const headerOf = (message: string): string =>
+  message
+    .split("\n")
+    .find((l) => l.trim())
+    ?.trimEnd() ?? "";
 
 // Every commit of the branch, merges left out, has a conventional header of at most 100 characters.
 function commits(root: string): Result {
@@ -2069,23 +2070,21 @@ function commits(root: string): Result {
   if (isResult(range)) return range;
   const r = spawnSync(
     "git",
-    // The whole message, not %s: git's %s joins a body line written right below the subject into it.
-    ["-C", root, "log", "--no-merges", "--format=%h%x00%B%x1e", range.range],
-    { encoding: "utf8", env: childEnv() },
+    // The whole message, not %s: git's %s joins a body line written right below the subject into it. -z ends each
+    // commit with a NUL, which no commit message can hold.
+    ["-C", root, "log", "-z", "--no-merges", "--format=%h%n%B", range.range],
+    { encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
   );
   if (r.status !== 0)
     return result(
       CANNOT,
-      `git log ${range.range} failed: ${r.stderr?.trim() || errorCode(r.error)}`,
+      `git log ${range.range} failed: ${r.stderr?.trim() || errorCode(r.error) || "no reason given"}`,
     );
-  const records = r.stdout
-    .split("\x1e")
-    .map((rec) => rec.replace(/^\n/, ""))
-    .filter(Boolean);
+  const records = r.stdout.split("\0").filter(Boolean);
   if (!records.length) return emptyRange(range.range);
   const details = records.flatMap((rec) => {
-    const [hash, message] = rec.split("\0");
-    const problem = headerProblem(headerOf(message, false), false);
+    const [hash, ...message] = rec.split("\n");
+    const problem = headerProblem(headerOf(message.join("\n")), false);
     return problem ? [`${hash} ${problem}`] : [];
   });
   if (details.length)
@@ -2104,20 +2103,23 @@ function commits(root: string): Result {
 // leaves real merges out, still catches a non-merge commit that only looks like one. Autosquash headers pass here
 // and not in the gate (above): git writes them for `commit --fixup`, and they are squashed before a pull request.
 function commitMsg(file: string | undefined): Result {
+  if (!file) return result(USAGE, "no message file given");
   let text: string;
   try {
-    text = readFileSync(file ?? "", "utf8");
+    text = readFileSync(file, "utf8");
   } catch (e) {
     return result(
       USAGE,
-      `cannot read the message file ${file ?? ""}: ${errorCode(e as NodeJS.ErrnoException)}`,
+      `cannot read the message file ${file}: ${errorCode(e as NodeJS.ErrnoException) ?? "no reason given"}`,
     );
   }
-  const header = headerOf(text, true);
+  const header = headerOf(text);
   if (!header) return result(FINDING, "the message is empty");
   if (/^Merge /.test(header)) return result(PASS, "a merge header");
   const problem = headerProblem(header, true);
-  return problem ? result(FINDING, problem) : result(PASS, `"${header}"`);
+  return problem
+    ? result(FINDING, problem)
+    : result(PASS, JSON.stringify(header));
 }
 
 const CHECKS: Record<string, Check> = {

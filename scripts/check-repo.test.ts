@@ -2863,7 +2863,7 @@ function commitMsg(text: string, code: number): string {
   return r.out;
 }
 test("commit-msg: a conventional header passes", () => {
-  commitMsg("# a comment git adds\nfeat: add a thing\n\nThe body.\n", 0);
+  commitMsg("feat: add a thing\n\nThe body.\n# a comment git adds\n", 0);
 });
 test("commit-msg: a header without a type is a finding", () => {
   assert.match(commitMsg("Add a thing\n", 1), /^FINDING commit-msg/m);
@@ -2928,19 +2928,86 @@ test("commit-msg: 100 characters pass, 101 are a finding", () => {
 test("commit-msg: a bad first line is a finding even with a conventional line below it", () => {
   commitMsg("Add a thing\n\nfeat: in the body\n", 1);
 });
-// Pins: what git adds to the file itself is not the message: below the scissors line of `commit -v` comes the diff.
-test("commit-msg: nothing below git's scissors line is read", () => {
-  assert.match(
-    commitMsg(
-      "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n",
-      1,
-    ),
-    /^FINDING commit-msg: the message is empty$/m,
-  );
+// Pins: the header is the first non-blank line as it stands, in the hook as in the gate. A first line starting with #
+// is refused: git keeps it for -m and -F and drops it from the editor, so the hook cannot know which line git stores.
+test("commit-msg: a first line starting with # is refused, whatever follows", () => {
+  for (const m of [
+    "#123 fix the thing\n\nfeat: in the body\n",
+    "# only a comment\n",
+  ])
+    assert.match(commitMsg(m, 1), /starts with #/);
+});
+test("commits: a stored first line starting with # is refused, whatever follows", () => {
+  expect("commits", branch("#123 fix the thing\n\nfeat: in the body"), 1);
+});
+// Pins: git's editor template comes after the message, and git -v puts its diff below it: the first line decides.
+test("commit-msg: what git writes below the message is not read", () => {
   commitMsg(
     "feat: x\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n",
     0,
   );
+});
+// Pins: a leading blank line, trailing blanks and a Windows line end do not change the header.
+test("commit-msg: blank lines before the header, trailing blanks and CRLF are not part of it", () => {
+  commitMsg(`\n\nfeat: ${"x".repeat(94)}   \r\n`, 0);
+});
+// Pins: the 100 characters count the header as written, a git revert's wrapping included; nesting and quotes inside
+// are judged by the innermost header; a revert of git's own merge header is git's own header too.
+test("commit-msg: git's Revert and Reapply headers: nesting, quotes, merges, and the length as written", () => {
+  for (const h of [
+    'Revert "Revert "feat: x""',
+    'Revert "fix: stop "null" ids"',
+    'Revert "Merge pull request #43 from a/b"',
+    `Revert "feat: ${"x".repeat(85)}"`,
+  ])
+    commitMsg(`${h}\n`, 0);
+  for (const h of [
+    'Revert "Revert "Add x""',
+    `Revert "feat: ${"x".repeat(86)}"`,
+  ])
+    commitMsg(`${h}\n`, 1);
+});
+test("commits: git's Revert of a merge header and a nested Revert pass", () => {
+  expect(
+    "commits",
+    branch(
+      'Revert "Merge pull request #43 from a/b"',
+      'Revert "Revert "feat: x""',
+    ),
+    0,
+  );
+});
+// Pins: a refused header is printed with its control characters escaped, so it cannot rewrite the terminal or the CI log.
+test("commit-msg: control characters in a refused header are printed escaped", () => {
+  const out = commitMsg("Add x\u001b[2K\rspoof\n", 1);
+  assert.ok(!out.includes("\u001b"), out);
+  assert.match(out, /\\u001b/);
+});
+// Pins: a message holding the old record separator is still one commit, judged.
+test("commits: a message holding a control separator is judged, not a crash", () => {
+  expect("commits", branch("feat: a\u001eb"), 0);
+});
+// Pins: a finding names the bad commit's own hash when several commits have bodies.
+test("commits: the finding names the bad commit's own hash", () => {
+  // The bad commit is the older one: git log lists the newest first, so naming the first record would be wrong.
+  const root = branch(
+    "Add the thing\n\nA body line.",
+    "feat: fine\n\nAnother body line.",
+  );
+  const out = expect("commits", root, 1);
+  assert.match(
+    out,
+    new RegExp(
+      `^  ${git(root, "rev-parse", "--short", "HEAD~1").trim()} "Add the thing"`,
+      "m",
+    ),
+  );
+});
+// Pins: a hook run without its argument says so, never "undefined".
+test("commit-msg: no message file is a usage error that says so", () => {
+  const r = run(["commit-msg"]);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
 });
 // Pins: git's own revert headers pass when the header they wrap does; autosquash commits pass the hook (git writes
 // them for --fixup) and are refused by the gate (above).
@@ -2963,7 +3030,7 @@ test("commit-msg: git runs the hook and refuses a header that is not conventiona
   git(root, "config", "core.hooksPath", ".githooks");
   put(root, "notes/a.md", "# A note\n");
   git(root, "add", "notes/a.md");
-  const gitCommit = (message: string) => {
+  const gitRun = (...args: string[]) => {
     const r = spawnSync(
       "git",
       [
@@ -2975,15 +3042,13 @@ test("commit-msg: git runs the hook and refuses a header that is not conventiona
         "user.email=fixture@example.org",
         "-c",
         "commit.gpgsign=false",
-        "commit",
-        "-q",
-        "-m",
-        message,
+        ...args,
       ],
       { encoding: "utf8", env: GIT_ENV },
     );
     return { code: r.status, out: r.stdout + r.stderr };
   };
+  const gitCommit = (message: string) => gitRun("commit", "-q", "-m", message);
   const head = () => git(root, "log", "-1", "--format=%s").trim();
   const refused = gitCommit("Add a note");
   assert.notEqual(refused.code, 0, refused.out);
@@ -2992,6 +3057,20 @@ test("commit-msg: git runs the hook and refuses a header that is not conventiona
   const taken = gitCommit("docs: add a note");
   assert.equal(taken.code, 0, taken.out);
   assert.equal(head(), "docs: add a note");
+  // git's own wording for a revert and a revert of that revert passes the hook (`revert --no-edit` alone runs no
+  // commit-msg hook, so the revert is committed by `commit --no-edit`), and so does a fixup.
+  for (const want of [
+    /^Revert "docs: add a note"$/,
+    /^(Reapply "docs: add a note"|Revert "Revert "docs: add a note"")$/,
+  ]) {
+    assert.equal(gitRun("revert", "--no-commit", "HEAD").code, 0);
+    const r = gitRun("commit", "-q", "--no-edit");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /^PASS commit-msg: /m);
+    assert.match(head(), want);
+  }
+  const fixup = gitRun("commit", "-q", "--allow-empty", "--fixup", "HEAD");
+  assert.equal(fixup.code, 0, fixup.out);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {

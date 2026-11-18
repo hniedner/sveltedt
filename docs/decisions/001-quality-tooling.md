@@ -6,6 +6,7 @@ pages named, or measured with the command named.
 ## Hook runner
 
 - **Need:** hooks installed by a setup step, verified by the gate (method section 10; companion G9).
+  Until that step exists, the setting is made by hand (CONTRIBUTING, "Not built yet").
 - **Candidates:**
   - git's own `core.hooksPath` with our hook files;
   - husky 9 (a `prepare` script sets `core.hooksPath`);
