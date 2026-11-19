@@ -2488,6 +2488,132 @@ its text.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
+### The filter dialog: opening, closing and focus (milestone 4)
+
+The filter dialog is a popover in the top layer: it is drawn above the page and is not clipped by the region, so a
+statement that places something "inside the region" means the filter button, never the dialog. It closes on a
+press outside it and on Escape by the browser's own light dismiss, and when focus leaves it by Tab through a
+`focusout` handler on the dialog itself; no listener on `document` or `window` is added (FOOT-02; the practice
+check of 2026-11-19 chose this route). The examples use the columns of section 11 plus column Code (id `code`,
+sortable, no filter) after Status; the header cell of a column holds its sort button, then its filter button.
+
+**FILT-02** A press on "Filter <label>" MUST open one dialog named "<label> filter".
+- Examples (the test runs every row):
+
+  | Press | Dialog open after it |
+  |---|---|
+  | "Filter Name" | one element with role `dialog` and name "Name filter" |
+  | "Filter Status" | one element with role `dialog` and name "Status filter" |
+
+- Reason: a screen reader says where the user is (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-34** The open filter dialog MUST be shown whole, also where the region clips its content.
+- Example: the region is 120 CSS px tall and scrolls, with 20 rows; press "Filter Name": for each corner of the
+  dialog's box, moved 2 px inwards, `document.elementFromPoint` returns the dialog or an element inside it.
+- Reason: a dialog cut off by the region hides its own field (PRD-A1, WCAG 2.4.11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-11** A filter button's `aria-expanded` MUST be "true" exactly while its dialog is open.
+- Examples (the test runs every row; "Filter Name" after each step):
+
+  | Steps | `aria-expanded` |
+  |---|---|
+  | none | "false" |
+  | press "Filter Name" | "true" |
+  | press "Filter Name"; Escape | "false" |
+  | press "Filter Name"; press "Filter Name" | "false" |
+  | press "Filter Name"; press "Filter Status" | "false" |
+
+- Reason: assistive technology tells the user whether the dialog is open (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-12** Opening a filter dialog MUST move focus to its first field.
+- Examples (the test runs every row):
+
+  | Press | Focused after it |
+  |---|---|
+  | "Filter Name" | "Filter Name text" |
+  | "Filter Status" | the checkbox "Active", the first option |
+
+- Reason: keyboard users land where they type (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-06** Opening a filter dialog MUST close any other open filter dialog.
+- Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
+  "Status filter".
+- Reason: two open dialogs overlap and split focus.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7.
+
+**FILT-19** A press outside an open filter dialog MUST close it and act as a press on what it hits.
+- Examples (the test runs every row; "Name filter" open, focus in "Filter Name text"; after the press no element
+  with role `dialog` is open, and focus is neither in the dialog nor on "Filter Name"):
+
+  | Press on | Also after it |
+  |---|---|
+  | the text of a body cell | no callback called |
+  | "Sort by Code" | `onsort` called once |
+
+  Where focus goes after the press is the engine's: Chromium and Firefox focus a pressed button, WebKit does not
+  (MDN, the `button` element, "Clicking and focus", FETCHED 2026-11-19).
+- Reason: the press means the user has moved on, and the press must still do what it does (PRD-B6, PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-B19.
+
+**FILT-07** Escape in an open filter dialog MUST close it and return focus to its filter button.
+- Example: press "Filter Name", press Escape: no element with role `dialog` is open, and focus is on "Filter Name".
+- Reason: the user returns to where they started (APG dialog pattern; PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-36** An Escape that closes a filter dialog MUST NOT reach a `keydown` listener the application has on
+`document`, and every other Escape MUST reach it.
+- Examples (the test runs every row; the application's listener is added on `document` before mount and counts
+  Escape key events):
+
+  | Escape pressed | Dialog | Escapes the listener counts |
+  |---|---|---|
+  | in "Filter Name text", "Name filter" open | closes | 0 |
+  | on "Sort by Code", no dialog open | - | 1 |
+
+- Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
+  filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape after the key event has already
+  passed through the document, so the dialog itself stops it.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B19, PRD-B6, PRD-B7.
+
+**FILT-20** Tab out of an open filter dialog MUST close it and leave focus where Tab put it.
+- Example: press "Filter Name", press Tab: no element with role `dialog` is open, and focus is on "Sort by Code".
+- Reason: a dialog left open after Tab can cover the newly focused control (WCAG 2.4.11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-21** Shift+Tab from a dialog's first field to its own filter button MUST keep the dialog open.
+- Example: press "Filter Name", press Shift+Tab: focus is on "Filter Name" and "Name filter" is still open.
+- Reason: the button belongs to the dialog, so going back to it is not leaving.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-35** Closing a filter dialog MUST emit nothing for text typed and not yet emitted.
+- Examples (the test runs every row; type "be" in "Filter Name text" with `filters` holding no filter for Name,
+  then close at 100 ms; at 1000 ms no `onfilter` call; pressing "Filter Name" again shows an empty field):
+
+  | Closed by |
+  |---|
+  | Escape |
+  | a press on the text of a body cell |
+  | Tab |
+
+- Reason: closing is the user's way to leave without a query; a query sent after the dialog has gone would change
+  the rows with no field left to show why (PRD-B2: the unsent text is internal state and goes with the dialog).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B2.
+
 ## Trace
 
 ### Statement -> PRD
@@ -2660,6 +2786,17 @@ its text.
 | FILT-04 | PRD-B7 |
 | FILT-37 | PRD-B6, PRD-B2 |
 | FILT-05 | PRD-B6 |
+| FILT-02 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-34 | PRD-B6, PRD-A1 |
+| FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-12 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-06 | PRD-B6, PRD-B7 |
+| FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
+| FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-36 | PRD-B19, PRD-B6, PRD-B7 |
+| FILT-20 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-21 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-35 | PRD-B6, PRD-B2 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -2675,23 +2812,23 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29 | in part: the filter group states the positive half of RND-12 in its own statement |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37 | in part: the global search statements state the search's half |
-| PRD-B7 | FILT-17, FILT-04, FILT-29 | in part: the filter faults state an applied value that is no option |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36 | in part: the global search statements state the search's half |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36 | in part: the filter faults state an applied value that is no option |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss, a stricter bound than B19's one listener) and states the Escape rule (FILT-36); the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
