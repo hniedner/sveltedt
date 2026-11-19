@@ -27,6 +27,8 @@ and the pinned programs the checks run: actionlint with shellcheck, zizmor and g
 archives that `.github/workflows/ci.yml` installs, checked against the sha256 lines in `scripts/<name>.version`, and shellcheck from
 the package manager (CI uses the runner's copy). Any other version than the pin, older or newer, makes the gate
 answer `COULD NOT CHECK` until the pin moves; Prettier, ESLint, TypeScript and jscpd are pinned by `package.json`.
+The browser step also needs the browsers of the pinned Playwright (`pnpm exec playwright install`; on Linux with
+`--with-deps`) and 127.0.0.1:4173 free: stop `pnpm site:serve` first.
 The gate reads tracked files: a new file counts once it is added with `git add`.
 
 Each check ends with one line: `PASS`, `FINDING`, `COULD NOT CHECK`, or `NOT APPLICABLE` when there is nothing of
@@ -130,6 +132,16 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
+- **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
+  `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
+  (never one already running), after the test step so that address is never shared. The planted failing spec in
+  `scripts/canaries/browser/` must be reported first, through the same reading as the real run. A failed or skipped
+  test, or one marked `test.fail`, is a finding that names its engine. It cannot be checked when a tracked spec did
+  not run in each of the three engines, 127.0.0.1:4173 is taken, a browser is not installed, the report is unreadable
+  or its totals differ from the tests read, or Playwright reports any other error outside the tests. With no tracked
+  spec under `site/browser/` the step is NOT APPLICABLE; a spec without `playwright.config.ts` cannot be checked. In
+  CI the static job leaves it to the job `browser` through the variable `GATE_BROWSER`, which gate-needs allows only
+  outside that job and only beside a job `browser` that runs the step.
 - **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
   (see Commit headers).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for

@@ -151,7 +151,7 @@ CI is on in every repo (owner, 2026-11-17 11:06). Sources, read 2026-11-17 and c
   · *codeql-about* docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql
   · *codeql-suites* docs.github.com/en/code-security/code-scanning/managing-your-code-scanning-configuration/codeql-query-suites
 - *dep-review* github.com/actions/dependency-review-action · *scorecard* github.com/ossf/scorecard-action ·
-  *playwright-ci* playwright.dev/docs/ci · *vitest-browser* vitest.dev/guide/browser · *setup-uv*
+  *playwright-ci* playwright.dev/docs/ci · *setup-uv*
   docs.astral.sh/uv/guides/integration/github
 - *npm-tp* docs.npmjs.com/trusted-publishers · *npm-prov* docs.npmjs.com/generating-provenance-statements · *pypi-tp*
   docs.pypi.org/trusted-publishers/adding-a-publisher · *pypi-action* github.com/pypa/gh-action-pypi-publish ·
@@ -170,10 +170,11 @@ $0 budget, no self-hosted runners.
     only, no shipped CSS), `scan-secrets` (G2) over the pull request's commits, and the synthetic-shape check (G11).
   - `test`: every layer that needs no real browser (unit, component in a simulated DOM, HTTP or public interface),
     with coverage; `diff-coverage` (G4) on pull requests.
-  - `browser`: real-browser component tests and journey tests, a matrix over `chromium`, `firefox` and `webkit` with
-    `fail-fast: false`, so one engine's failure does not hide another's *(inferred)*. Vitest browser mode's Playwright
-    provider runs all three *(fetched, vitest-browser)*. Each job installs only its engine with
-    `playwright install --with-deps <engine>`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
+  - `browser`: real-browser component tests and journey tests, one job running Playwright's three projects `chromium`,
+    `firefox` and `webkit`. The gate's `browser` step requires every spec in each engine and names the engine of each
+    failure, so one engine's failure does not hide another's *(measured: the step's own test rows)*. The job installs
+    the three engines with `playwright install --with-deps`; browsers are not cached, as Playwright advises
+    *(fetched, playwright-ci)*.
   - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI
     *(inferred: G7 needs only the parent commit and that commit's test files)*.
   - `mutation` (G8) on the step diff, Linux only.
