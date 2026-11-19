@@ -895,7 +895,7 @@ describe("STATE-08", () => {
   );
 });
 
-// @spec("RND-06", "744fa35b")
+// @spec("RND-06", "5f1f48db")
 describe("RND-06", () => {
   const foreign: DataTableMessages = {
     loading: "Laden…",
