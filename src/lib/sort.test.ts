@@ -446,3 +446,36 @@ describe("SORT-17", () => {
     },
   );
 });
+// @spec("SORT-23", "0f9c3b08")
+describe("SORT-23", () => {
+  const texts = ["<img src=x onerror=alert(1)>", "<none>"];
+
+  it.each(texts)(
+    "renders the sort words %s as text, never as markup",
+    (text) => {
+      const { container } = mount({
+        sort: order("code asc, name desc"),
+        messages: sortWords(text),
+      });
+      expect(
+        screen.getAllByRole("button", { name: text, description: text }),
+      ).toHaveLength(2);
+      // Two rank marks and the two hidden descriptions
+      expect(screen.getAllByText(text)).toHaveLength(4);
+      expect(container.querySelector("img, none")).toBeNull();
+    },
+  );
+
+  it.each(
+    sortFaults.flatMap(([key, props]) =>
+      texts.map((text) => [key, text, props] as const),
+    ),
+  )(
+    "renders the alert word %s %s as text, never as markup",
+    (_key, text, props) => {
+      const { container } = mount({ ...props, messages: sortWords(text) });
+      expect(screen.getByRole("alert").textContent).toBe(text);
+      expect(container.querySelector("img, none")).toBeNull();
+    },
+  );
+});
