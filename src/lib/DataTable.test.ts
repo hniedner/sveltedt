@@ -1059,6 +1059,22 @@ describe("RND-12", () => {
   );
 });
 
+// @spec("A11Y-04", "550c2ce1")
+describe("A11Y-04", () => {
+  it("has no grid role and no focusable row or cell, 25 rows with a link in a cell snippet", () => {
+    const { container } = render(CellSnippetTable, { rows: manyRows(25) });
+    expect(
+      container.querySelectorAll(
+        '[role="grid"], [role="treegrid"], [role="gridcell"]',
+      ),
+    ).toHaveLength(0);
+    expect(
+      container.querySelectorAll("tr[tabindex], th[tabindex], td[tabindex]"),
+    ).toHaveLength(0);
+    expect(screen.getAllByRole("link")).toHaveLength(25);
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
