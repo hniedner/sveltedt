@@ -3760,9 +3760,9 @@ column before it.
 the table's width MUST count it.
 - Example: `selection` and `widths` `{ name: 200, code: 120, date: 120 }`: the box column's header cell is 40 px wide
   (within 1 px), it holds no element with role `separator`, and the table is 480 px wide.
-- Reason: the box column holds one 24 px box and is no data, so it has a fixed width the user does not change
-  (INFERRED: 40 px, the earlier drafts' width, leaves room for the box and its focus indicator); the sum keeps COL-33's
-  rule that nothing takes spare space (PRD-B12, PRD-B13).
+- Reason: the box column is no data, so it has a fixed width the user does not change (INFERRED: 40 px leaves room for
+  a box of at least 24 by 24 CSS px, the WCAG 2.5.8 minimum, and its focus indicator); the sum keeps COL-33's rule that
+  nothing takes spare space (PRD-B12, PRD-B13).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B13, PRD-B12.
 
