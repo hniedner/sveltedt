@@ -35,7 +35,6 @@ export const errorCode = (
 export const GATE_VARS: readonly string[] = [
   "CANARY_DIR",
   "GATE_BASE",
-  "GATE_BROWSER",
   "GATE_HEAD",
   "GITHUB_ACTIONS",
 ];
