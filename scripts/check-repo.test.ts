@@ -3398,6 +3398,16 @@ test("pre-commit: a secret in a staged file blocks the commit", () => {
   assert.match(r.out, /^FINDING secrets: /m);
   assert.equal(head(root), "chore: add the runner");
 });
+test("pre-commit: a suppression comment in a staged script blocks the commit, though no staged file is of a plain class", () => {
+  const root = hooked();
+  put(root, "scripts/x.ts", `// ${SUPPRESSIONS[1]}\nexport const x = 1;\n`);
+  git(root, "add", "scripts/x.ts");
+  const r = gitCommit(root, "-m", "chore: add x");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING text: /m);
+  assert.match(r.out, /scripts\/x\.ts:1: suppression comment/);
+  assert.equal(head(root), "chore: add the runner");
+});
 test("pre-commit: a staged workflow and a staged package.json run the workflow and lockfile checks", () => {
   const root = hooked();
   put(root, ".github/workflows/scorecard.yml", "on: [push, pull_request]\n");

@@ -763,7 +763,11 @@ const CLASSES: FileClass[] = [
 ];
 
 /** The files `step` checks, or could-not-check when a tracked file has no class or the class holds no file. */
-function ofClass(list: Set<string>, step: string): Result | string[] {
+function ofClass(
+  list: Set<string>,
+  step: string,
+  mayBeNone = false,
+): Result | string[] {
   const mine: string[] = [],
     unknown: string[] = [];
   for (const f of list) {
@@ -777,7 +781,7 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
       `${unknown.length} tracked file(s) of no class`,
       unknown,
     );
-  if (!mine.length) return result(CANNOT, "no file to check");
+  if (!mine.length && !mayBeNone) return result(CANNOT, "no file to check");
   return mine;
 }
 
@@ -799,8 +803,8 @@ const SUPPRESSION = new RegExp(
 
 // For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
 // no conflict marker (Prettier keeps one in Markdown as text). In code: no suppression comment.
-function text(root: string, list: Set<string>): Result {
-  const mine = ofClass(list, "text");
+function text(root: string, list: Set<string>, mayBeNone = false): Result {
+  const mine = ofClass(list, "text", mayBeNone);
   if (isResult(mine)) return mine;
   const details: string[] = [];
   for (const f of list) {
@@ -2206,7 +2210,8 @@ function preCommit(): Result | Stage[] {
     staged ? check : () => result(NA, "no staged file of its kind"),
   ];
   return [
-    when("text", ofStep("text"), () => text(root, files)),
+    // Always: `text` also bans conflict markers in every file and suppression comments in code.
+    ["text", () => text(root, files, true)],
     when("format", ofStep("format"), () => format(root, files)),
     when("lint", ofStep("lint"), () => lint(root, files)),
     when(
