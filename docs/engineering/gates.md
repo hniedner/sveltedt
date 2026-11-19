@@ -33,7 +33,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   range and on a directory that is not a repo.
 - Bytes scanned must be greater than 0 when the commit list is not empty. The config file must exist.
 - Canary: a planted fake token in a temporary copy must be found.
-- Runs locally at pre-push and in CI. GitHub secret scanning, free on public repos *(fetched)*, is a second net, not
+- Runs as the gate step right after the toolchain check, so that a change that fails a later check is still
+  scanned, locally and in CI; in pre-commit on the staged files; and at pre-push once that hook is built. GitHub secret scanning, free on public repos *(fetched)*, is a second net, not
   the gate.
 
 ## G3. `scan-words` (local only)
@@ -127,8 +128,10 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 ## G9. Hooks and the gate record
 
 - `./scripts/setup` sets `core.hooksPath` to `.githooks`. The gate's first step checks that this setting is in place
-  and the hooks are executable, and otherwise is a finding that gives the command to run; in CI, where git runs no
-  hook, it is not applicable.
+  and the hooks are executable, and otherwise is a finding that gives the command to run. A file in `.githooks/` other
+  than the known shims is a finding. G9: the hook shims are checked wherever the gate runs. The core.hooksPath setting
+  is checked in a local clone only; in CI, where no clone-local git config exists, that part reports 'not applicable'
+  (G1).
 - The local gate writes the commit id, tool versions and every step's exit code. The pusher writes that file, so it
   is not proof.
 - The record that counts is CI's `gate` check on the head, written by GitHub and required on main by the ruleset

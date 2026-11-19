@@ -218,8 +218,9 @@ practice is found, the proposal says so. A probe's own result is marked measured
 
 ## 10. Gates and review
 
-- **The local gate runs first.** One command per repo runs formatting, lint, types, all tests, coverage and trace,
-  then mutation at step boundaries, then the secret scan (G9).
+- **The local gate runs first.** One command per repo checks the toolchain, then runs the secret scan, so a change
+  that fails a later check is still scanned, then formatting, lint, types, all tests, coverage and trace, then
+  mutation at step boundaries (G9).
 - **Hooks are installed by a setup step, and the gate checks they are in place** (G9).
 - **The gate record cannot be forged by the person it gates.** The record that counts is CI's `gate` check, which
   GitHub writes and the main ruleset requires (G9, G13).
@@ -289,3 +290,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-18 | Section 4: when a change is below the 95 % floor, an uncovered changed line is removed, given a statement, or reached by a statement's test through the real entry point; a test written to reach it is padding; a line that still cannot be reached is the owner's exception, recorded with its reason | A coverage floor invites tests written for a line count, and the method said what padding is but not what to do with an uncovered line. A test that becomes a statement's own test is kept, not padding: a line whose mutant only a test without a statement kills is given a statement (an existing one whose behaviour the test proves, or a new one through spec review), and that test becomes the statement's test (reviewer's ruling extending step 6's keep rule to this case, 2026-11-18; step 6 text unchanged). Owner's decision on the sentence, 2026-11-18 |
 | 2026-11-18 | Step 7: the gate's own tests (under `scripts/`) are outside the trace; they are contract checks of the companion's rules, not of a statement, and each names the gate outcome it pins; a test there that proves a spec statement is that statement's test and stays in the trace | Step 6 keeps a contract check only under its statement and step 7 fails a test of no statement, yet the gate's own tests pin the companion's rules, which no statement holds; tests under `scripts/` that prove spec statements (statements proved by a static check) stay traced, so none escapes the trace. Step 6's "each under its statement" does not apply to the gate's own tests; step 6 text unchanged. Owner's decision on the sentence, 2026-11-18 |
 | 2026-11-18 | Companion G1: a second non-blocking state, *not applicable*, exits 0 and is printed with its reason; a step may report it only when nothing of its kind is present or the decision belongs to a run this one cannot make, which then decides | Fact correction: the gate's code already has the state; the second case follows the local and CI engine sets of PRD-G3 |
+| 2026-11-19 | Section 10: the secret scan is listed directly after the toolchain step (list order only; companion G2 and G9 say where it runs and what the hooks step checks in CI) | The gate stops at the first non-pass, so the scan runs right after the toolchain check for a change that fails a later check to still be scanned. Reviewer ruling, 2026-11-19 |

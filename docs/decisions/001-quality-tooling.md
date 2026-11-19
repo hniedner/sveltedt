@@ -13,7 +13,8 @@ pages named, or measured with the command named.
 - **Decision:** `core.hooksPath`, no runner.
   - The setup step is `./scripts/setup`, a POSIX shell script that runs `git config core.hooksPath .githooks`; the
     gate's `hooks` step fails until it has run, and prints it. It stops when another `core.hooksPath` is set, as
-    lefthook does (lefthook.dev, install command), instead of replacing it silently.
+    lefthook's install does unless forced (read 2026-11-18, lefthook.dev/usage/commands/install: it stops when
+    `core.hooksPath` is set), instead of replacing it silently.
   - Each hook is a two-line shim into `scripts/check-repo.ts`, the layout husky 9 uses for `.husky/` (read
     2026-11-18, typicode.github.io/husky/get-started.html).
   - pre-commit refuses a staged file that was changed again, instead of hiding the unstaged change in a stash and

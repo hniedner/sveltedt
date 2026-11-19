@@ -1,5 +1,5 @@
 #!/bin/sh
-# One-time set-up of a clone: git runs the hooks in .githooks/ (CONTRIBUTING, "Commit headers"). It stops and changes
+# One-time set-up of a clone: git runs the hooks in .githooks/ (CONTRIBUTING, "Git hooks and commit headers"). It stops and changes
 # nothing when core.hooksPath is already set to another value, in this clone or in a global file.
 set -eu
 cd "$(dirname "$0")/.."
