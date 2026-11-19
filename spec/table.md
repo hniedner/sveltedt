@@ -3805,7 +3805,8 @@ the table's width MUST count it.
 These statements add `stickyHeader` (default `false`), `stickyTop` (CSS px, default 0: the height of the application's
 fixed bar) and a column's `sticky` (default `false`) (PRD-B14, design D of PRD section 5.1: the document scrolls, the
 header sticks to the viewport). Sticky columns come first, in their given order, before every other column whatever
-`columnState.order` says, after the box column when selection is on; the box column is sticky whenever a column is. The
+`columnState.order` says, after the box column (selection on) and the details column (child rows on, section 15); the
+box column and the details column are sticky whenever a column is, in that order, before the sticky data columns. The
 component computes their inline-start offsets from the rendered widths. Without `stickyHeader` the region scrolls
 sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here are tested in a real browser, in
 Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
@@ -3864,10 +3865,11 @@ offset being the sum of the widths of the sticky columns before it.
 - Examples (the test runs every row; `stickyHeader`; 30 columns as in STK-09, Name and Code `sticky`; the window
   scrolled right 2000 px; offsets measured from the viewport's left edge, within 1 px):
 
-  | Selection | Left edge of the box column | of Name | of Code |
-  |---|---|---|---|
-  | off | - | 0 | Name's width |
-  | on | 0 | the box column's width | the box column's and Name's widths |
+  | Selection, child rows | Left edge of the box column | of the details column | of Name | of Code |
+  |---|---|---|---|---|
+  | off, off | - | - | 0 | Name's width |
+  | on, off | 0 | - | the box column's width | the box column's and Name's widths |
+  | on, on | 0 | the box column's width | the box and details columns' widths | those and Name's width |
 
 - Reason: the identifying columns stay in view beside the values being read; the component computes the offsets, so
   the application gives none (PRD-B14, section 5.1).
