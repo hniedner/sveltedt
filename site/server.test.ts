@@ -7,19 +7,12 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { request, type Server } from "node:http";
+import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { get } from "../test/http.ts";
 import { siteServer } from "./server.ts";
-
-interface Answer {
-  status: number;
-  type: string | undefined;
-  body: string;
-  // Every Content-Security-Policy header of the answer, in order
-  policies: string[];
-}
 
 const PARENT = '{ "name": "parent-of-the-build-folder" }';
 const INDEX = "<!doctype html><title>index</title>";
@@ -53,37 +46,6 @@ async function serve(
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   started.push({ server, folder });
   return { server, dist };
-}
-
-// One request (GET unless named), with the path written to the wire exactly as given (a URL parser would remove `..`
-// before sending)
-function get(server: Server, path: string, method = "GET"): Promise<Answer> {
-  const address = server.address();
-  const port =
-    typeof address === "object" && address !== null ? address.port : 0;
-  return new Promise((resolve, reject) => {
-    request(
-      { host: "127.0.0.1", port, path, method, agent: false },
-      (response) => {
-        const chunks: Buffer[] = [];
-        response.on("data", (chunk: Buffer) => chunks.push(chunk));
-        response.on("end", () =>
-          resolve({
-            status: response.statusCode ?? 0,
-            type: response.headers["content-type"],
-            body: Buffer.concat(chunks).toString(),
-            policies: response.rawHeaders.filter(
-              (_value, index, raw) =>
-                index % 2 === 1 &&
-                raw[index - 1]?.toLowerCase() === "content-security-policy",
-            ),
-          }),
-        );
-      },
-    )
-      .on("error", reject)
-      .end();
-  });
 }
 
 // @spec("SRV-01", "a3f33248")
