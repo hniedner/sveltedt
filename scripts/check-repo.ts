@@ -830,7 +830,7 @@ function text(root: string, list: Set<string>, mayBeNone = false): Result {
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
     PASS,
-    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s), no suppression comment in code`,
+    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} ${mayBeNone ? "staged" : "tracked"} file(s), no suppression comment in code`,
   );
 }
 
@@ -2187,24 +2187,32 @@ function preCommit(): Result | Stage[] {
     step,
     staged ? check : () => result(NA, "no staged file of its kind"),
   ];
+  // A whole-repository check reads the work tree: a file it reads with an unstaged change is not what is committed.
+  const unstagedRead = (check: Check, reads: (f: string) => boolean) => {
+    const edited = changed.stdout.split("\0").filter((f) => f && reads(f));
+    return edited.length
+      ? () =>
+          result(
+            CANNOT,
+            `${edited.length} file(s) it reads changed and not staged: stage or restore the change`,
+            edited,
+          )
+      : whole(check);
+  };
+  const lockReads = (f: string) =>
+    /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
+      f,
+    );
   return [
     // Always: `text` also bans conflict markers in every file and suppression comments in code.
     ["text", () => text(root, files, true)],
     when("format", ofStep("format"), () => format(root, files)),
     when("lint", ofStep("lint"), () => lint(root, files)),
-    when(
-      "lockfile",
-      some((f) =>
-        /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
-          f,
-        ),
-      ),
-      whole(lockfile),
-    ),
+    when("lockfile", some(lockReads), unstagedRead(lockfile, lockReads)),
     when(
       "workflows",
       some((f) => f.startsWith(".github/")),
-      whole(workflows),
+      unstagedRead(workflows, (f) => f.startsWith(".github/")),
     ),
     ["secrets", () => stagedSecrets(root, [...files])],
   ];

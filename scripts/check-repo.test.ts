@@ -3294,6 +3294,7 @@ test("pre-commit: a formatted staged file commits; the scan sees only the staged
   assert.equal(r.code, 0, r.out);
   assert.equal(head(root), "docs: add a note");
   assert.match(r.out, /^PASS format: /m);
+  assert.match(r.out, /^PASS text: .*in 1 staged file\(s\)/m);
   assert.match(r.out, /^NOT APPLICABLE lint: /m);
   assert.match(r.out, /^NOT APPLICABLE lockfile: /m);
   assert.match(r.out, /^NOT APPLICABLE workflows: /m);
@@ -3349,6 +3350,34 @@ test("pre-commit: a staged file changed again before the commit cannot be checke
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^COULD NOT CHECK pre-commit: .*changed after staging/m);
   assert.match(r.out, /^\s*notes\/a\.md$/m);
+});
+test("pre-commit: a lockfile edited and not staged beside a staged package.json cannot be checked, and is named", () => {
+  const root = hooked();
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "package.json");
+  put(root, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n# edited\n");
+  const r = gitCommit(root, "-m", "build: describe the package");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK lockfile: /m);
+  assert.match(r.out, /^\s*pnpm-lock\.yaml$/m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a workflow edited and not staged beside a staged one cannot be checked, and is named", () => {
+  const root = hooked((r) => {
+    put(r, ".github/workflows/a.yml", "on: [push]\n");
+    put(r, ".github/workflows/b.yml", "on: [push]\n");
+  });
+  put(root, ".github/workflows/a.yml", "on: [push, pull_request]\n");
+  git(root, "add", ".github/workflows/a.yml");
+  put(root, ".github/workflows/b.yml", "on: [push, pull_request]\n");
+  const r = gitCommit(root, "-m", "ci: run on pull requests");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK workflows: /m);
+  assert.match(r.out, /^\s*\.github\/workflows\/b\.yml$/m);
 });
 test("pre-commit: a secret in a staged file blocks the commit", () => {
   const root = hooked(listingScan);
