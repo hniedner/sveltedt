@@ -674,12 +674,9 @@ describe("RND-10", () => {
   });
 });
 
-describe("EXP-02 first examples; the statement's marker arrives with 1c", () => {
-  it.each<[string, Partial<DataTableProps<Item>>]>([
-    ["status 'ready' (the default), no rows", { rows: [] }],
-    ["status 'ready' (the default), with rows", {}],
-    ["the alert of RND-05", { columns: [] }],
-  ])("renders the actions snippet in %s", (_state, props) => {
+// @spec("EXP-02", "15dd3831")
+describe("EXP-02", () => {
+  it.each(fiveStates)("renders the actions snippet in %s", (_state, props) => {
     showWithSnippets({ ...props, withActions: true });
     expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
       true,
