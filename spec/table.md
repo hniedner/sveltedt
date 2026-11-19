@@ -2320,8 +2320,11 @@ the simulated DOM has no popover (jsdom 31.0.1 implements neither `showPopover` 
 every statement here that opens the dialog is tested in a real browser, in Chromium, Firefox and WebKit, with time
 moved by fake timers as in the slow-load statements. In the examples, column Name (id `name`) has a text filter
 and column Status (id `status`) a categorical filter with the options `active` "Active" and `inactive` "Inactive",
-in that order; "type" means key presses into the open dialog's field, and times are counted from the last key.
-"Filter Name text" is the text field of Name's dialog; "Find Status options" is the find field of Status's dialog.
+in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
+control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
+of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
+(an emoji such as U+1F600 counts 1). A find field among the options of a categorical filter (the earlier drafts'
+FILT-18) is not stated: no requirement asks for it, and PRD-B2 allows it no state.
 
 **FILT-29** A column with a `filter` MUST show the button "Filter <label>" in its header cell.
 - Examples (the test runs every row; columns Name with a text filter and Note without one):
@@ -2343,11 +2346,11 @@ text, and not while typing goes on.
   |---|---|
   | type "beta"; at 399 ms | none |
   | type "beta"; at 400 ms | one: `('name', { kind: 'text', text: 'beta' })` |
-  | type "be"; at 300 ms type "ta"; at 699 ms after the first key | none |
-  | type "be"; at 300 ms type "ta"; 400 ms after "ta" | one, with "beta" |
+  | type "be"; at 300 ms type "ta"; at 699 ms | none |
+  | type "be"; at 300 ms type "ta"; at 700 ms | one, with "beta" |
   | `searchDelay={1000}`; type "beta"; at 999 ms, then at 1000 ms | none, then one with "beta" |
-  | `searchDelay={0}`; type "beta" | four, with "b", "be", "bet", "beta" in that order |
-  | `filters` holds `name: { kind: 'text', text: 'beta' }`; type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+  | `searchDelay={0}`; type "beta", with no time moved | four, each at its key, with "b", "be", "bet", "beta" in that order |
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`, so the field holds "beta" (FILT-37); type "x", then Backspace; at 400 ms | none: the text equals the applied one |
 
 - Reason: the owner's default, as DataTables' `searchDelay` under server-side processing: one query per pause, not
   one per key, and no query for a text already applied (PRD-B6).
@@ -2355,8 +2358,16 @@ text, and not while typing goes on.
 - Traces: PRD-B6.
 
 **FILT-27** Enter in a text filter's field MUST emit `onfilter` at once, and the pause then emits nothing more.
-- Example: type "beta"; at 100 ms press Enter: one call with "beta" at 100 ms, and still one call at 600 ms.
-- Reason: a user who knows the text is complete need not wait (PRD-B6).
+- Examples (the test runs every row):
+
+  | Steps | `onfilter` calls |
+  |---|---|
+  | type "beta"; at 100 ms press Enter | one with "beta" at 100 ms, and still one at 600 ms |
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`; press Enter in the field | none: the text equals the applied one |
+
+- Reason: a user who knows the text is complete need not wait (PRD-B6); an unchanged text is no new query, as in
+  DataTables, which searches only when the text differs from the applied one (READ, DataTables 3.1.5 source). On
+  Enter DataTables waits for the pause unless `search.return` is set (`docs/departures.md`).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
@@ -2391,10 +2402,13 @@ text, and not while typing goes on.
 
   | Typed | Refused because |
   |---|---|
-  | "a", U+0001, "b" | a control character |
-  | "a", U+007F | a control character |
+  | "a", U+0001, "b" (pasted) | a control character |
+  | "a", U+007F (pasted) | a control character |
   | 256 times "x" | longer than `maxLength` |
+  | 256 times U+1F600 (pasted) | longer than `maxLength` |
   | 11 times "x", with `maxLength={10}` | longer than `maxLength` |
+
+  255 times U+1F600 (pasted) is not refused: at 400 ms one call with that text.
 
   The field accepts the 256th character: it has no `maxlength` attribute, so the user sees the refusal of FILT-15
   instead of keys that do nothing.
@@ -2404,12 +2418,12 @@ text, and not while typing goes on.
 
 **FILT-15** While a text filter's field holds refused text, the field MUST be `aria-invalid="true"` and described by
 an alert that says why.
-- Examples (the test runs every row; the checks hold right after the key that made the text refused, before any
-  pause):
+- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused,
+  before any pause):
 
   | Typed | Alert text (default) |
   |---|---|
-  | "a", U+0001 | "Use at most 255 characters without control characters." |
+  | "a", U+0001 (pasted) | "Use at most 255 characters without control characters." |
   | 11 times "x", with `maxLength={10}` | "Use at most 10 characters without control characters." |
 
 - Reason: the user hears why the filter was not applied, at the field (PRD-B6, WCAG 3.3.1).
@@ -2417,7 +2431,7 @@ an alert that says why.
 - Traces: PRD-B6, PRD-A1.
 
 **FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alert.
-- Example: type "a", U+0001, then Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
+- Example: paste "a", U+0001, then press Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
   dialog; at 400 ms one call with "a".
 - Reason: a stale error misleads (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -2446,13 +2460,19 @@ the options' order.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B7.
 
-**FILT-18** A categorical filter's find field MUST narrow the shown options to those whose label contains its text,
-and MUST NOT emit anything or change the selection.
-- Example: `selected ['active']`; type "inact" in "Find Status options": the checkbox "Inactive" is shown and
-  "Active" is not; at 1000 ms no callback has been called; clearing the field shows "Active" again, still checked.
-- Reason: the find field helps the user reach an option in a long list; it is not a filter of its own.
+**FILT-37** A text filter's field MUST show the applied text of `filters` whenever it holds no unsent typing.
+- Examples (the test runs every row; "Filter Name text" after the steps):
+
+  | Steps | Field reads |
+  |---|---|
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`; open the dialog | "beta" |
+  | `filters` holds no filter for Name; open the dialog | "" |
+  | open the dialog with "beta" applied; with nothing typed, `filters` becomes `name: { kind: 'text', text: 'gamma' }` | "gamma" |
+  | type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'betax' }` (opened with "beta") | "betax" |
+
+- Reason: the field shows what narrows the rows; the props are the one source of truth (PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B7.
+- Traces: PRD-B6, PRD-B2.
 
 **FILT-05** When `filters` changes while the open field holds newer typing, the field MUST keep the newer typing.
 - Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `filters` becomes
@@ -2632,7 +2652,7 @@ and MUST NOT emit anything or change the selection.
 | FILT-16 | PRD-B6 |
 | FILT-17 | PRD-B7 |
 | FILT-04 | PRD-B7 |
-| FILT-18 | PRD-B7 |
+| FILT-37 | PRD-B6, PRD-B2 |
 | FILT-05 | PRD-B6 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -2649,12 +2669,12 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29 | in part: the filter group states the positive half of RND-12 in its own statement |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29 | in part: the global search statements state the search's half |
-| PRD-B7 | FILT-17, FILT-04, FILT-18, FILT-29 | in part: the filter faults state an applied value that is no option |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37 | in part: the global search statements state the search's half |
+| PRD-B7 | FILT-17, FILT-04, FILT-29 | in part: the filter faults state an applied value that is no option |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
