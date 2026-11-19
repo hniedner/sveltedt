@@ -176,10 +176,10 @@ let shared: { root: string; run: Result | VitestRun } | undefined;
  * The Vitest run of the gate process (one per root; the last root is kept), shared by `test` and `trace`: the first
  * caller starts it, the next gets the same answer. Flags win over the config (measured): unhandled errors fail the
  * run, a test without an assertion fails, the tests run rather than only being type-checked, a snapshot with nothing
- * stored fails instead of being written (outside CI vitest writes it and passes), and every test carries its own line for the trace.
- * `vitest.config.ts` must be tracked (the callers check). No flag overrides onUnhandledError, and two flags do not
- * reach a project (measured): a config that names either cannot be checked. Read as text: a name in a module the
- * config imports or built at run time is not seen (CONTRIBUTING.md).
+ * stored fails instead of being written (outside CI vitest writes it and passes), and every test carries its own line
+ * for the trace. `vitest.config.ts` must be tracked (the callers check). No flag overrides onUnhandledError, and two
+ * flags do not reach a project (measured): a config that names either cannot be checked. Read as text: a name in a
+ * module the config imports or built at run time is not seen (CONTRIBUTING.md).
  */
 export function testRun(root: string): Result | VitestRun {
   if (shared?.root === root) return shared.run;
