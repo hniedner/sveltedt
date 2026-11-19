@@ -37,7 +37,7 @@ to the consumer as one callback (stated with the statements that add user action
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `'desc'`, in the order a press steps through them) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`.
@@ -1498,10 +1498,13 @@ tests of the statement its marker names red by a failed assertion.
   | `[code asc]` | Name | `[name asc]` |
   | `[code asc, name desc]` | Name | `[name asc]` |
   | `[name asc, code desc]` | Name | `[name desc]` |
+  | `[]` | Date (lists `['desc', 'asc']`) | `[date desc]` |
+  | `[date desc]` | Date (lists `['desc', 'asc']`) | `[date asc]` |
+  | `[date asc]` | Date (lists `['desc', 'asc']`) | `[]` |
 
-  The rule: if the column leads the order, it moves on to the next direction it allows (ascending before
-  descending) and the other columns are dropped; after its last allowed direction it leaves the order. Otherwise it
-  becomes the only sorted column, in the first direction it allows. SORT-04 holds the single-direction rows.
+  The rule: if the column leads the order, it moves on to the next direction in the order its `sortable` lists them
+  and the other columns are dropped; after its last listed direction it leaves the order. Otherwise it becomes the only
+  sorted column, in the first direction its `sortable` lists. SORT-04 holds the single-direction rows.
 - Reason: emitting the whole order means the consumer sends it as is and never merges partial changes.
 - Layer: component.
 - Traces: PRD-B4, PRD-B2.
@@ -1518,9 +1521,10 @@ moved on one step and every other column keeps its relative order and direction.
   | `[name asc, code asc]` | Name | `[name desc, code asc]` |
   | `[name desc, code asc]` | Name | `[code asc]` |
   | `[]` | Name | `[name asc]` |
+  | `[code asc]` | Date (lists `['desc', 'asc']`) | `[code asc, date desc]` |
 
-  A column not yet in the order joins at the end, in the first direction it allows; after its last allowed direction
-  it leaves the order.
+  A column not yet in the order joins at the end, in the first direction its `sortable` lists; it moves on in that
+  order, and after its last listed direction it leaves the order.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1683,6 +1687,7 @@ list.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
+  | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
   | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', desc: false }`) | `sortInvalid` | "The sort is not valid." |
   | an entry of `sort` is `null`, an array or not an object (`[null]`, `[['name']]`, `["name"]`) | `sortInvalid` | "The sort is not valid." |
