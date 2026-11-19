@@ -14,7 +14,7 @@
     actions,
   }: DataTableProps<Row> = $props();
   const fault = $derived(
-    validateTable({ rows, columns, getRowId, caption, regionLabel }),
+    validateTable({ rows, columns, getRowId, caption, regionLabel, status }),
   );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(

@@ -10,6 +10,7 @@ const messages = {
   columnLabelEmpty: "A column label is empty.",
   columnLabelDuplicate: "Two columns share a label.",
   columnContentMissing: "A column has no value and no cell.",
+  rowsNotList: "Table has no list of rows.",
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",
   rowIdUnreadable: "A row id could not be read.",
@@ -35,13 +36,13 @@ const isList = (value: unknown): boolean => Array.isArray(value);
 export function validateTable<Row>(
   input: Pick<
     DataTableProps<Row>,
-    "rows" | "columns" | "getRowId" | "caption" | "regionLabel"
+    "rows" | "columns" | "getRowId" | "caption" | "regionLabel" | "status"
   >,
 ): string | null {
-  const { rows, columns, getRowId, caption, regionLabel } = input;
+  const { rows, columns, getRowId, caption, regionLabel, status } = input;
   if (isEmpty(caption)) return messages.captionEmpty;
   if (isEmpty(regionLabel)) return messages.regionLabelEmpty;
-  if (columns.length === 0) return messages.noColumns;
+  if (!isList(columns) || columns.length === 0) return messages.noColumns;
   if (columns.some((column) => isEmpty(column.id)))
     return messages.columnIdEmpty;
   const duplicateId = firstDuplicate(columns.map((column) => column.id));
@@ -56,7 +57,10 @@ export function validateTable<Row>(
   if (columns.some((column) => !column.value && !column.cell))
     return messages.columnContentMissing;
   // A list still on its way is no fault (STATE-08)
-  if (!isList(rows)) return null;
+  if (!isList(rows))
+    return status === "loading" || status === "failed"
+      ? null
+      : messages.rowsNotList;
   // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
   const rowIds: string[] = [];
   let unreadable = false;

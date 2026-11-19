@@ -351,7 +351,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "c6e0387c")
+// @spec("RND-05", "5e5d6aee")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -367,6 +367,11 @@ describe("RND-05", () => {
       "Table region label must not be empty.",
     ],
     ["columns is empty", { columns: [] }, "Table has no columns."],
+    [
+      "columns is not an array",
+      { columns: undefined },
+      "Table has no columns.",
+    ],
     [
       "a column id is empty",
       { columns: [column("ok", "Ok"), column("", "Name")] },
@@ -515,6 +520,11 @@ describe("RND-05", () => {
         getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
       },
       "Two rows share an id.",
+    ],
+    [
+      "rows is not an array, with status ready",
+      { rows: undefined, status: "ready" },
+      "Table has no list of rows.",
     ],
   ])("shows only one alert, no table, when %s", (_fault, props, message) => {
     const component = show(props);
