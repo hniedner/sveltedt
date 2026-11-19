@@ -182,3 +182,21 @@ describe("SORT-14", () => {
     ).toEqual(["Gamma", "Alpha", "Beta"]);
   });
 });
+// @spec("A11Y-03", "dcf0b4e7")
+describe("A11Y-03", () => {
+  it.each([
+    ["code asc, name desc", "ascending", null],
+    ["name desc", null, "descending"],
+    ["", null, null],
+  ])(
+    "with the order [%s], Code's aria-sort is %s and Name's %s",
+    (before, codeSort, nameSort) => {
+      mount({ sort: order(before) });
+      expect(
+        screen
+          .getAllByRole("columnheader")
+          .map((header) => header.getAttribute("aria-sort")),
+      ).toEqual([codeSort, nameSort]);
+    },
+  );
+});

@@ -1,7 +1,11 @@
 <script lang="ts" generics="Row">
   import { defaultMessages } from "./messages.ts";
   import { nextOrder } from "./sort.ts";
-  import type { DataTableMessages, DataTableProps } from "./types.ts";
+  import type {
+    DataTableMessages,
+    DataTableProps,
+    SortDirection,
+  } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
   const {
@@ -41,6 +45,19 @@
       ? words.rowCount(rows.length)
       : "",
   );
+  // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
+  function sortState(id: string): {
+    direction: SortDirection | null;
+    rank: number | null;
+  } {
+    const place = sort.findIndex((entry) => entry.id === id);
+    const entry = sort[place];
+    if (!entry) return { direction: null, rank: null };
+    return {
+      direction: entry.desc ? "desc" : "asc",
+      rank: sort.length > 1 ? place + 1 : null,
+    };
+  }
 </script>
 
 {@render heading?.()}
@@ -65,7 +82,16 @@
       >
         <tr>
           {#each columns as column, index (column.id)}
-            <th scope="col">
+            {@const state = sortState(column.id)}
+            <!-- aria-sort on the lead column's header only (A11Y-03) -->
+            <th
+              scope="col"
+              aria-sort={sort[0]?.id !== column.id
+                ? undefined
+                : state.direction === "asc"
+                  ? "ascending"
+                  : "descending"}
+            >
               {#if column.sortable}
                 <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
                 <button
