@@ -33,10 +33,15 @@ test("POL-02: the canary page's list holds a violation once the page has loaded"
   page,
 }) => {
   await open(page, "/canary.html");
-  // goto resolves once the page has loaded; the report may come in a later task, so the read is retried
+  // goto resolves once the page has loaded; the report may come in a later task, so the read is retried. The entry
+  // must be the canary's own (a style-src directive), not any other violation the page might raise
   await expect
-    .poll(async () => (await listOf(page))?.length)
-    .toBeGreaterThanOrEqual(1);
+    .poll(async () =>
+      ((await listOf(page)) as { directive?: string }[] | undefined)?.some(
+        (v) => v.directive?.startsWith("style-src"),
+      ),
+    )
+    .toBe(true);
 });
 
 test.describe("POL-04", () => {

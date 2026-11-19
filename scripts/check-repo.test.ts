@@ -1688,9 +1688,16 @@ test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
   });
   assert.equal(ci.code, 0, ci.out);
   assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
-  // Locally, and in CI without the variable (the job browser), nothing is left out
-  expect("browser", site, 1, { extraEnv: { ...pw, GATE_BROWSER: "job" } });
-  expect("browser", site, 1, { extraEnv: { ...pw, GITHUB_ACTIONS: "true" } });
+  // Locally, in CI without the variable, and in the job browser whatever its variables, nothing is left out
+  for (const env of [
+    { GATE_BROWSER: "job" },
+    { GITHUB_ACTIONS: "true" },
+    { GITHUB_ACTIONS: "true", GATE_BROWSER: "job", GITHUB_JOB: "browser" },
+  ] as Record<string, string>[])
+    assert.match(
+      expect("browser", site, 1, { extraEnv: { ...pw, ...env } }),
+      /^FINDING browser: /m,
+    );
 });
 test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
   const out = expect(
@@ -3945,7 +3952,12 @@ const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
     )
     .replace("needs: [static]", "needs: [static, browser]");
 test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
-  for (const ci of [leavesBrowser, browserJob(leavesBrowser, "echo ok")])
+  for (const ci of [
+    leavesBrowser,
+    browserJob(leavesBrowser, "echo ok"),
+    browserJob(leavesBrowser, "echo node scripts/check-repo.ts browser"),
+    browserJob(leavesBrowser, "node scripts/check-repo.ts browser || true"),
+  ])
     assert.match(
       expect("gate-needs", repo(ciWith(ci)), 1),
       /GATE_BROWSER is set but no job named browser runs the step/,
@@ -3969,6 +3981,24 @@ test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a
     expect("gate-needs", repo(ciWith(inJob)), 1),
     /GATE_BROWSER is set in the job browser/,
   );
+});
+test("gate-needs: a job browser that may pass without the step is a finding", () => {
+  for (const line of ["    continue-on-error: true\n", "    if: false\n"])
+    assert.match(
+      expect(
+        "gate-needs",
+        repo(
+          ciWith(
+            browserJob(leavesBrowser).replace(
+              "    steps:\n      - run: node",
+              `${line}    steps:\n      - run: node`,
+            ),
+          ),
+        ),
+        1,
+      ),
+      /the job browser has continue-on-error or if/,
+    );
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
   expect("gate-needs", repo(ciWith(browserJob(CI))), 0);

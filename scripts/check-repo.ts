@@ -181,11 +181,16 @@ function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
   const found = [];
   if (sets(top)) found.push("GATE_BROWSER is set for the whole workflow");
   if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
-  if (
-    [...jobs.values()].some(sets) &&
-    !job?.some((l) => /check-repo\.ts browser\b/.test(l))
-  )
+  // The step's own command line, as `run:` or in a `run: |` block; nothing may let the job pass without it
+  const runs = job?.some((l) =>
+    /^\s*(- run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
+  );
+  if ([...jobs.values()].some(sets) && !runs)
     found.push("GATE_BROWSER is set but no job named browser runs the step");
+  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+    found.push(
+      "the job browser has continue-on-error or if: it may pass without the step",
+    );
   return found;
 }
 
@@ -2354,8 +2359,13 @@ function browser(root: string, list: Set<string>): Result {
     );
   if (!list.has(PW_CONFIG))
     return result(CANNOT, `${PW_CONFIG} is not tracked`, specs);
-  // Checked by gate-needs: GATE_BROWSER may stand only in a job other than browser, beside a job browser that runs it
-  if (inCI() && process.env.GATE_BROWSER === "job")
+  // Checked by gate-needs: GATE_BROWSER may stand only in a job other than browser, beside a job browser that runs it;
+  // the job browser itself never leaves the step out, however the variable reached it
+  if (
+    inCI() &&
+    process.env.GATE_BROWSER === "job" &&
+    process.env.GITHUB_JOB !== "browser"
+  )
     return result(NA, "left to the CI job browser (GATE_BROWSER)");
   const pin = readJson(root, "package.json")?.devDependencies?.[
     "@playwright/test"

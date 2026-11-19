@@ -56,7 +56,8 @@ Then open <http://127.0.0.1:4173>. The site listens on that address only and sen
 policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
 
 The browser tests open the built site in Chromium, Firefox and WebKit (stop `pnpm site:serve` first: they start the
-server on that address themselves; on Linux, `playwright install --with-deps` also installs the system libraries):
+server on that address themselves; on Linux, `pnpm exec playwright install --with-deps` also installs the system
+libraries):
 
 ```sh
 pnpm exec playwright install
