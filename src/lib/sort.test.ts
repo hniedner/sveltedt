@@ -146,3 +146,19 @@ describe("SORT-04", () => {
     },
   );
 });
+// @spec("SORT-12", "e17aab59")
+describe("SORT-12", () => {
+  it.each([
+    ["", "Name", false],
+    ["name asc", "Code", true],
+  ])(
+    "with the order [%s], a press on %s (Shift %s) changes nothing shown",
+    async (before, label, shiftKey) => {
+      const { container, onsort } = mount({ sort: order(before) });
+      const shown = container.innerHTML;
+      await fireEvent.click(sortButton(label), { shiftKey });
+      expect(onsort).toHaveBeenCalledTimes(1);
+      expect(container.innerHTML).toBe(shown);
+    },
+  );
+});
