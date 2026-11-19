@@ -2325,8 +2325,7 @@ and column Status (id `status`) a categorical filter with the options `active` "
 in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
 control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
 of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
-(an emoji such as U+1F600 counts 1). A find field among the options of a categorical filter (the earlier drafts'
-FILT-18) is not stated: no requirement asks for it, and PRD-B2 allows it no state.
+(an emoji such as U+1F600 counts 1).
 
 **FILT-29** A column with a `filter` MUST show the button "Filter <label>" in its header cell.
 - Examples (the test runs every row; columns Name with a text filter and Note without one):
@@ -2544,10 +2543,42 @@ button, then its filter button, and a filter dialog's markup follows its own fil
   |---|---|
   | "Filter Name" | "Filter Name text" |
   | "Filter Status" | the checkbox "Active", the first option |
+  | "Filter Kind" (FILT-52) | "Find Kind options" |
 
 - Reason: keyboard users land where they type (PRD-A1).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B6, PRD-B7, PRD-A1.
+- Traces: PRD-B6, PRD-B7, PRD-A1, PRD-B29.
+
+**FILT-52** A categorical filter's dialog MUST show the find field "Find <label> options" above its options exactly
+while the filter has more than 10 options.
+- Examples (the test runs every row; press the column's filter button):
+
+  | Options | Find field |
+  |---|---|
+  | Status's 2 options | none |
+  | Kind's 11 options | "Find Kind options", before the first checkbox in document order |
+
+  Column Kind (id `kind`) has a categorical filter with the options `k1` "Alpha" to `k10` "Kappa" (the Greek letter
+  names in order) and `k11` "Inactive".
+- Reason: a long vocabulary needs a way to reach an option, and a short list needs none (PRD-B29).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B29, PRD-B7.
+
+**FILT-18** Typing in a find field MUST narrow the shown options to those whose label contains the text, ignoring
+case, and MUST NOT emit anything or change the selection.
+- Examples (the test runs every row; Kind of FILT-52 with `selected ['k1']`; "Find Kind options" after the steps):
+
+  | Steps | Options shown | Also |
+  |---|---|---|
+  | type "inact"; at 1000 ms | "Inactive" only | no callback called |
+  | type "ALP" | "Alpha" only | no callback called |
+  | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
+  | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
+
+- Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
+  dialog (PRD-B29, PRD-B2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B29, PRD-B2.
 
 **FILT-06** Opening a filter dialog MUST close any other open filter dialog.
 - Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
@@ -2798,6 +2829,7 @@ below list.
   |---|---|---|
   | `filterDialog` (a function of the label) | "Name filter" for "Name" | FILT-02 |
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
+  | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
@@ -2806,7 +2838,7 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1, PRD-I2.
+- Traces: PRD-I1, PRD-I2, PRD-B29.
 
 ### The global search (milestone 4)
 
@@ -3090,7 +3122,9 @@ says for a text filter.
 | FILT-02 | PRD-B6, PRD-B7, PRD-A1 |
 | FILT-34 | PRD-B6, PRD-A1 |
 | FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
-| FILT-12 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
+| FILT-52 | PRD-B29, PRD-B7 |
+| FILT-18 | PRD-B29, PRD-B2 |
 | FILT-06 | PRD-B6, PRD-B7 |
 | FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
 | FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
@@ -3110,7 +3144,7 @@ says for a text filter.
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
 | FILT-33 | PRD-I1, PRD-B25 |
-| FILT-47 | PRD-I1, PRD-I2 |
+| FILT-47 | PRD-I1, PRD-I2, PRD-B29 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
 | FILT-42 | PRD-B25, PRD-B6 |
@@ -3135,13 +3169,14 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
+| PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
