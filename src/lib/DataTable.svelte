@@ -35,8 +35,8 @@
 
 {@render heading?.()}
 {@render actions?.()}
-<!-- Both live elements stay in the document in every state, the alert's included, so a change of their text is
-     announced -->
+<!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
+     their text is announced -->
 <div role="status">
   {fault === null && status === "loading" ? words.loading : ""}
 </div>

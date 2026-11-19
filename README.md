@@ -22,8 +22,8 @@ independent project, not affiliated with or endorsed by DataTables.
 There is nothing to install yet. What is on `main` today:
 
 - the read-only table: rows in the order given, text or snippet cells, a caption and a labelled region;
-- the alert for invalid input (an empty caption, missing or duplicate column ids and labels, columns or rows that
-  are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
+- the alert for invalid input (an empty caption, missing or duplicate column ids and labels, columns, or rows while
+  ready, that are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
 - row ids that are strings or finite numbers, as server JSON gives them;
 - the loading, failed and busy states: the loading text in a status element, the failure in an alert, `aria-busy`
   on the table, the rows kept while busy, and the row count in a polite live region;

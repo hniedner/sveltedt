@@ -1,7 +1,7 @@
 import type { DataTableMessages, DataTableProps } from "./types.ts";
 
 // The message keys of RND-05's alert
-export type Fault = Exclude<
+type Fault = Exclude<
   keyof DataTableMessages,
   "loading" | "failed" | "empty" | "rowCount"
 >;
@@ -46,7 +46,7 @@ export function validateTable<Row>(
   if (duplicateLabel !== undefined) return "columnLabelDuplicate";
   if (columns.some((column) => !column.value && !column.cell))
     return "columnContentMissing";
-  // A list still on its way is no fault (STATE-08)
+  // With status loading or failed, rows that are not a list are no fault (STATE-08)
   if (!isList(rows))
     return status === "loading" || status === "failed" ? null : "rowsNotList";
   // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
