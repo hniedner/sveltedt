@@ -169,6 +169,9 @@ $0 budget, no self-hosted runners.
   *(fetched, caching)*). Jobs:
   - `static`: format check, lint, types, the static checks of method §2 (no raw-HTML path, no eval, design tokens
     only, no shipped CSS), `scan-secrets` (G2) over the pull request's commits, and the synthetic-shape check (G11).
+    The steps' reports (`reports/`) are uploaded from this job as one artifact, also when the job fails; the job is
+    split into the jobs below when its measured time passes 12 of its 15 minutes, and with mutation testing at the
+    latest.
   - `test`: every layer that needs no real browser (unit, component in a simulated DOM, HTTP or public interface),
     with coverage; `diff-coverage` (G4) on pull requests.
   - `browser`: real-browser component tests and journey tests, a matrix over `chromium`, `firefox` and `webkit` with

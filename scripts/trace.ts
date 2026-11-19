@@ -2,17 +2,19 @@
 // and says which statements have a passing test, which fail the check, and which no marker names (listed, exit 0).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import {
   baseCommit,
   canaries,
   childEnv,
+  freshReports,
   HERE,
   isResult,
   NA,
   NO_CACHE,
+  reportFile,
   result,
   tail,
   testRun,
@@ -470,8 +472,41 @@ function duplicateIds(statements: Statement[]): string[] {
 /** A spec file the step reads: top level of spec/, Markdown. */
 const SPEC_FILE = /^spec\/[^/]+\.md$/;
 
+/** The marked tests' results: the shared run judged against the markers, its per-file results written to `reports`. */
+function judgeRun(
+  root: string,
+  list: Set<string>,
+  read: Marker[],
+  reports: string,
+): Result | (ReturnType<typeof judgeResults> & { total: number }) {
+  if (!list.has("vitest.config.ts"))
+    return result(CANNOT, "vitest.config.ts is not tracked");
+  const run = testRun(root);
+  if (isResult(run)) return run;
+  if (run.error) return result(CANNOT, run.error);
+  if (!run.report)
+    return result(CANNOT, "vitest wrote no report", tail(run.out));
+  // Same detection as the test step, but a trace that cannot trust the run says COULD NOT CHECK: an error outside any
+  // test (unhandled) fails the run though the report counts no failed test
+  if (run.status !== 0 && run.report.numFailedTests === 0)
+    return result(
+      CANNOT,
+      `vitest exited ${run.status} though no test failed`,
+      tail(run.out),
+    );
+  const ran = testsByFile(run.report, root);
+  for (const f of new Set(read.map((m) => m.file)))
+    writeFileSync(
+      reportFile(reports, `${f}.json`),
+      JSON.stringify(ran.get(f) ?? [], null, 2),
+    );
+  return { ...judgeResults(read, ran), total: run.report.numTotalTests };
+}
+
 /** The step: spec statements and markers read, results judged, untested statements listed. */
 function trace(root: string, list: Set<string>): Result {
+  // This run's reports only: the folder is reset first, whatever the step then finds
+  const reports = freshReports(root, "trace");
   const specFiles = [...list].filter((f) => SPEC_FILE.test(f)).sort();
   const statements: Statement[] = [];
   const findings: string[] = [];
@@ -527,23 +562,9 @@ function trace(root: string, list: Set<string>): Result {
   let results = 0;
   let ok: Marker[] = [];
   if (read.length) {
-    if (!list.has("vitest.config.ts"))
-      return result(CANNOT, "vitest.config.ts is not tracked");
-    const run = testRun(root);
-    if (isResult(run)) return run;
-    if (run.error) return result(CANNOT, run.error);
-    if (!run.report)
-      return result(CANNOT, "vitest wrote no report", tail(run.out));
-    // Same detection as the test step, but a trace that cannot trust the run says COULD NOT CHECK: an error outside any
-    // test (unhandled) fails the run though the report counts no failed test
-    if (run.status !== 0 && run.report.numFailedTests === 0)
-      return result(
-        CANNOT,
-        `vitest exited ${run.status} though no test failed`,
-        tail(run.out),
-      );
-    results = run.report.numTotalTests;
-    const judged = judgeResults(read, testsByFile(run.report, root));
+    const judged = judgeRun(root, list, read, reports);
+    if (isResult(judged)) return judged;
+    results = judged.total;
     findings.push(...judged.findings);
     cannot.push(...judged.cannot);
     ok = judged.ok;

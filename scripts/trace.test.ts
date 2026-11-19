@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -829,4 +830,22 @@ test("trace: on a push to main only the list is printed, whatever the base held"
   const head = advance(root, { "src/a.test.ts": null });
   const out = expectTrace(root, 0, ci("push", base, head));
   assert.match(out, /not yet tested \(2\)/);
+});
+
+test("trace: a file left in reports/ by an earlier run is gone after the run, and the run writes its results there", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  put(root, "reports/test/old.json", "{}");
+  put(root, "reports/trace/old.json", "{}");
+  expectTrace(root, 0);
+  assert.equal(existsSync(join(root, "reports/test/old.json")), false);
+  assert.equal(existsSync(join(root, "reports/trace/old.json")), false);
+  assert.match(
+    readFileSync(join(root, "reports/test/vitest.json"), "utf8"),
+    /"numTotalTests":1\b/,
+  );
+  // the marked file's path with / replaced by __
+  assert.match(
+    readFileSync(join(root, "reports/trace/src__a.test.ts.json"), "utf8"),
+    /"name": "one"/,
+  );
 });

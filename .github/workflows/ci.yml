@@ -70,6 +70,14 @@ jobs:
           # The trace and diff-coverage steps pick their base commit by the event
           GATE_EVENT: ${{ github.event_name }}
         run: pnpm gate
+      # Also when the gate fails: the reports say why. A gate that stopped before writing any only warns.
+      - name: Upload the gate's reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-reports
+          path: reports/
+          if-no-files-found: warn
 
   gate:
     needs: [static]
