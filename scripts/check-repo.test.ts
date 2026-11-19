@@ -3235,6 +3235,50 @@ test("hooks: an unset core.hooksPath is a finding that gives the command", () =>
     /core\.hooksPath is unset: run \.\/scripts\/setup/,
   );
 });
+test("hooks: another local core.hooksPath is a finding that says setup will not replace it and how to proceed", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "/opt/mine");
+  const out = expect("hooks", root, 1);
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/mine" \(file:\S*\.git\/config\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+  assert.match(out, /git config core\.hooksPath \.githooks/);
+  assert.match(out, /whose hooks then stop running in this clone/);
+  assert.doesNotMatch(out, /unset/);
+});
+test("hooks: another global core.hooksPath is a finding that names the global file", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const home = tempDir();
+  put(home, ".gitconfig", "[core]\n\thooksPath = /opt/global\n");
+  const out = expect("hooks", root, 1, {
+    extraEnv: { HOME: home, XDG_CONFIG_HOME: join(home, "xdg") },
+  });
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/global" \(file:\S*\.gitconfig\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+});
+test("hooks: a git that cannot read its configuration is COULD NOT CHECK, not an unset path", () => {
+  const root = repo();
+  // A git first on the PATH that fails `config` (as it does on a broken configuration file) and is git otherwise.
+  const bin = tempDir();
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  put(
+    bin,
+    "git",
+    `#!/bin/sh\ncase " $* " in *" config "*) echo "fatal: bad config line 1" >&2; exit 128;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const out = expect("hooks", root, 3, {
+    extraEnv: { PATH: `${bin}${delimiter}${GIT_ENV.PATH ?? ""}` },
+  });
+  assert.match(out, /git cannot read core\.hooksPath: fatal: bad config/);
+  assert.doesNotMatch(out, /unset/);
+});
 test("hooks: a hook that is not executable is a finding", () => {
   const out = expect(
     "hooks",

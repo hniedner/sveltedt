@@ -9,7 +9,7 @@ if [ -n "$found" ]; then
   value=${found#*"$tab"}
   where=${found%%"$tab"*}
   if [ "$value" != .githooks ]; then
-    echo "setup: core.hooksPath is already \"$value\" ($where); not changed. Unset it, or set it to .githooks." >&2
+    echo "setup: core.hooksPath is \"$value\" ($where); not changed. To use .githooks in this clone, run: git config core.hooksPath .githooks. That replaces the other value here, and its hooks then stop running in this clone." >&2
     exit 1
   fi
   echo "setup: core.hooksPath is already .githooks"

@@ -79,6 +79,8 @@ test("setup: another local core.hooksPath stops it, names the value and where it
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /"\/opt\/mine"/);
   assert.match(r.out, /file:\S*\.git\/config/);
+  assert.match(r.out, /git config core\.hooksPath \.githooks/);
+  assert.match(r.out, /its hooks then stop running in this clone/);
   assert.equal(hooksPath(c), "/opt/mine");
 });
 test("setup: another global core.hooksPath stops it, names the value and where it is set, and changes nothing", () => {

@@ -2147,17 +2147,26 @@ const shim = (hook: string): string =>
 
 function hooks(root: string): Result {
   if (inCI()) return result(NA, "git runs no hook in CI");
-  const path = spawnSync(
+  // git's status: 0 set, 1 unset, anything else is git failing (a broken configuration file), not an unset path.
+  const g = spawnSync(
     "git",
-    ["-C", root, "config", "--get", "core.hooksPath"],
+    ["-C", root, "config", "--show-origin", "--get", "core.hooksPath"],
     { encoding: "utf8", env: childEnv() },
-  ).stdout.trim();
+  );
+  if (g.status !== 0 && g.status !== 1)
+    return result(
+      CANNOT,
+      `git cannot read core.hooksPath: ${g.stderr.trim() || "no reason given"}`,
+    );
+  const [origin, value] = g.stdout.trim().split("\t");
   const details =
-    path === ".githooks"
-      ? []
-      : [
-          `core.hooksPath is ${path ? `"${path}"` : "unset"}: run ./scripts/setup`,
-        ];
+    g.status === 1
+      ? ["core.hooksPath is unset: run ./scripts/setup"]
+      : value === ".githooks"
+        ? []
+        : [
+            `core.hooksPath is "${value}" (${origin}): ./scripts/setup will not replace it; set it to .githooks in this clone (git config core.hooksPath .githooks), which replaces the other value here, whose hooks then stop running in this clone`,
+          ];
   for (const h of HOOKS) {
     const f = join(root, ".githooks", h);
     if (!existsSync(f)) details.push(`.githooks/${h}: missing`);
