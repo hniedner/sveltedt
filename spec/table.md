@@ -45,7 +45,8 @@ to the consumer as one callback (stated with the statements that add user action
   `onclearfilters()`, `onreset()` and the snippet `criteria`.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
-  directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
+  directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
+  `onclearfilter` and `onclearfilters`; an example pager
   passes an `onpage`, and an `onsize` when it has `sizes`.
 - **Pager places.** The pager shows page numbers and gaps; each counts as one place. "Page n" is a page number
   button. A row such as `1 … 4 5 6 … 20` lists the places in order.
@@ -2300,6 +2301,7 @@ receives that number.
   | `pageNumber` | 1234 | "1,234" | PAGE-02 |
   | `pageLabel` | 1234 | "Page 1,234" | PAGE-01 |
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
+  | `textRefused` | 1000 | "Use at most 1,000 characters without control characters." | FILT-15 |
 
   The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
   German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
@@ -2307,7 +2309,7 @@ receives that number.
   that did not take effect fails instead of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
-- Traces: PRD-I2, PRD-I1.
+- Traces: PRD-I2, PRD-I1, PRD-B6.
 
 ## 11. Filters: the fields and what they emit (FILT, milestone 4)
 
@@ -2725,8 +2727,8 @@ before the region, in document order.
 
 **FILT-32** For invalid filter input the table MUST render the alert of RND-05 with the fixed message the examples
 below list.
-- Examples (as RND-05, for the filter props; the test runs every row: one element with `role="alert"` holding the
-  default text, and no `table` element):
+- Examples (as RND-05, for the filter props; the test runs every row and every value or alternative in it: one
+  element with `role="alert"` holding the default text, and no `table` element):
 
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
@@ -2738,12 +2740,13 @@ below list.
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
   | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
-  | a text entry's `text` is not a string, holds a control character or is longer than `maxLength` | `filterStateInvalid` | "An applied filter is not valid." |
+  | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
   | `maxLength` is 0, -1, 1.5, `NaN` or `Infinity` | `maxLengthInvalid` | "The text length limit is not a valid number." |
 
   With several faults at once, a fault of RND-05's table wins, then one of SORT-15's, then the first row above that
-  applies.
+  applies. An applied text that the field would refuse (FILT-03) is no fault: the rows are already narrowed by it, its
+  badge shows it, and the field marks it as FILT-15 says when the dialog opens.
 - Reason: a filter the table cannot show is a wrong table: the user would believe a narrowing the rows do not have,
   or press a control that does nothing (PRD-B16).
 - Layer: component.
@@ -2756,7 +2759,7 @@ below list.
   | Invalid input | Text that must not appear in the alert |
   |---|---|
   | two options of Status with the value `val-q8`, labelled "Secret-6" and "Other" | "val-q8", "Secret-6" |
-  | `filters` holds Name's text "token-9" followed by U+0001 | "token-9" |
+  | Status's `selected` holds `val-p3`, which is no option | "val-p3" |
 
 - Reason: alerts are often logged or screenshotted, and filter values can be confidential (PRD-S4).
 - Layer: component.
@@ -2771,10 +2774,6 @@ below list.
   | Message | English default | Shown by |
   |---|---|---|
   | `filterButton` (a function of the label) | "Filter Name" for "Name" | FILT-29 |
-  | `filterDialog` (a function of the label) | "Name filter" | FILT-02 |
-  | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
-  | `pressEnter` | "Press Enter to apply." | FILT-13 |
-  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255 | FILT-15, I18N-01 |
   | `badgeText` (a function of `{ label, text }`) | "Name: contains “Beta”" | FILT-08 |
   | `badgeOptions` (a function of `{ label, options }`, the option labels) | "Status: Active, Inactive" | FILT-22 |
   | `clearFilter` (a function of the badge's words) | "Clear filter Name: contains “Beta”" | FILT-08 |
@@ -2784,6 +2783,20 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
+- Traces: PRD-I1.
+
+**FILT-47** Every fixed word of the filter dialogs MUST come from a prop with an English default.
+- Examples (as FILT-33, for the words inside a filter dialog, which the simulated DOM cannot open):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `filterDialog` (a function of the label) | "Name filter" for "Name" | FILT-02 |
+  | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
+  | `pressEnter` | "Press Enter to apply." | FILT-13 |
+  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255 | FILT-15, I18N-01 |
+
+- Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I1, PRD-I2.
 
 ## Trace
@@ -2944,7 +2957,7 @@ below list.
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
-| I18N-01 | PRD-I2, PRD-I1 |
+| I18N-01 | PRD-I2, PRD-I1, PRD-B6 |
 | FILT-29 | PRD-B6, PRD-B7, PRD-B3 |
 | FILT-01 | PRD-B6 |
 | FILT-27 | PRD-B6 |
@@ -2980,7 +2993,8 @@ below list.
 | FILT-31 | PRD-B8, PRD-A3 |
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6 |
 | FILT-39 | PRD-S4, PRD-B16 |
-| FILT-33 | PRD-I1, PRD-I2 |
+| FILT-33 | PRD-I1 |
+| FILT-47 | PRD-I1, PRD-I2 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -3000,7 +3014,7 @@ state in their own statements.
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32 | in part: the global search statements state the search's half |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, I18N-01 | in part: the global search statements state the search's half |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31 | in part: the column group states the badges of hidden columns and focus for them, and the global search states that "Reset table" covers it |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
@@ -3017,12 +3031,12 @@ state in their own statements.
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33 | in part: later groups state their own words in their own statements |
-| PRD-I2 | RND-06, SORT-17, I18N-01, FILT-33 | in part: later groups state the numbers they show in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47 | in part: later groups state their own words in their own statements |
+| PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
-| PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in part: the filter group states its refusal messages in its own statement |
+| PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
