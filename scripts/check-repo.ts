@@ -1,13 +1,14 @@
 // check-repo: the repository checks that need no product code, and `all`, the gate command that runs them.
 //   node scripts/check-repo.ts <check> [--root <dir>]   one check, or `all` (what `pnpm gate` runs)
 //   node scripts/check-repo.ts needs '<json>'           CI only: the `needs` context of the `gate` job
-//   node scripts/check-repo.ts commit-msg <file>        the commit-msg hook (.githooks/), run by git
+//   node scripts/check-repo.ts pre-commit | commit-msg <file>   the git hooks (.githooks/), run by git
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -765,8 +766,15 @@ const CLASSES: FileClass[] = [
   },
 ];
 
-/** The files `step` checks, or could-not-check when a tracked file has no class or the class holds no file. */
-function ofClass(list: Set<string>, step: string): Result | string[] {
+/**
+ * The files `step` checks, or could-not-check when a tracked file has no class or the class holds no file; with
+ * `mayBeNone` a class holding no file is an empty list (pre-commit: the staged files may hold none of that kind).
+ */
+function ofClass(
+  list: Set<string>,
+  step: string,
+  mayBeNone = false,
+): Result | string[] {
   const mine: string[] = [],
     unknown: string[] = [];
   for (const f of list) {
@@ -780,7 +788,7 @@ function ofClass(list: Set<string>, step: string): Result | string[] {
       `${unknown.length} tracked file(s) of no class`,
       unknown,
     );
-  if (!mine.length) return result(CANNOT, "no file to check");
+  if (!mine.length && !mayBeNone) return result(CANNOT, "no file to check");
   return mine;
 }
 
@@ -800,10 +808,11 @@ const SUPPRESSION = new RegExp(
     .join("|"),
 );
 
-// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
-// no conflict marker (Prettier keeps one in Markdown as text). In code: no suppression comment.
-function text(root: string, list: Set<string>): Result {
-  const mine = ofClass(list, "text");
+// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every file in `list`
+// (tracked in the gate, staged in the pre-commit hook, which passes `mayBeNone`): no conflict marker (Prettier keeps
+// one in Markdown as text). In code: no suppression comment.
+function text(root: string, list: Set<string>, mayBeNone = false): Result {
+  const mine = ofClass(list, "text", mayBeNone);
   if (isResult(mine)) return mine;
   const details: string[] = [];
   for (const f of list) {
@@ -826,15 +835,16 @@ function text(root: string, list: Set<string>): Result {
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
     PASS,
-    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} tracked file(s), no suppression comment in code`,
+    `${mine.length} file(s): LF, final newline, no trailing whitespace; no conflict marker in ${list.size} ${mayBeNone ? "staged" : "tracked"} file(s), no suppression comment in code`,
   );
 }
 
 // Asks Prettier itself, file by file, whether it ignores the file, which parser it infers and whether the file is
-// formatted, with the options its CLI would use. Prints one JSON record.
+// formatted, with the options its CLI would use. Prints one JSON record. The config is fixed to the root package.json's
+// "prettier" key, so a nested Prettier config can neither change the rules nor run code.
 const PRETTIER_PROBE = `
 import { readFileSync } from "node:fs";
-const [url, root, ...files] = process.argv.slice(1);
+const [url, config, root, ...files] = process.argv.slice(1);
 const p = await import(url);
 const out = { version: p.version, files: [] };
 for (const f of files) {
@@ -842,7 +852,7 @@ for (const f of files) {
   const info = await p.getFileInfo(path, { ignorePath: [] });
   const rec = { f, ignored: info.ignored, parser: info.inferredParser };
   if (rec.parser && !rec.ignored) {
-    const options = { ...(await p.resolveConfig(path, { editorconfig: true })), filepath: path };
+    const options = { ...(await p.resolveConfig(path, { editorconfig: true, config })), filepath: path };
     try { rec.formatted = await p.check(readFileSync(path, "utf8"), options); }
     catch (e) { rec.error = String(e.message).split("\\n")[0]; }
   }
@@ -948,7 +958,9 @@ function format(root: string, list: Set<string>): Result {
   if (isResult(inputs)) return inputs;
   const { mine, dir, planted } = inputs;
   const prettierRecord = (r: string, f: string[]) =>
-    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f);
+    toolRecord<PrettierRecord>("prettier", PRETTIER_PROBE, r, f, [
+      join(root, "package.json"),
+    ]);
   const canary = prettierRecord(dir, planted);
   if ("error" in canary) return result(CANNOT, canary.error);
   const missed = canary.files.filter(
@@ -2000,21 +2012,28 @@ function secrets(root: string): Result {
     [join(root, "scripts", "scan-secrets.ts"), "git", root, range.range],
     { encoding: "utf8", env: childEnv() },
   );
+  return scanResult(
+    r,
+    range.range,
+    `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
+  );
+}
+
+/** The secret scan wrapper's answer as a step result. */
+function scanResult(
+  r: SpawnSyncReturns<string>,
+  what: string,
+  passed: string,
+): Result {
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
-  if (r.status === PASS)
-    return result(
-      PASS,
-      `${count.stdout.trim()} commit(s) in ${range.range} scanned`,
-      out,
-    );
+  if (r.status === PASS) return result(PASS, passed, out);
   // node also exits 1 on an uncaught error: only the wrapper's own line makes it a finding.
   if (
     r.status === FINDING &&
     !out.some((l) => l.startsWith("FINDING scan-secrets:"))
   )
     return result(CANNOT, "the secret scan exited 1 with no FINDING line", out);
-  if (r.status === FINDING)
-    return result(FINDING, `secrets in ${range.range}`, out);
+  if (r.status === FINDING) return result(FINDING, `secrets in ${what}`, out);
   return result(
     CANNOT,
     `the secret scan exited ${r.status ?? errorCode(r.error)}`,
@@ -2168,8 +2187,144 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }
 
+type Stage = [string, () => Result];
+
+// The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
+// index for `git commit -a` or `git commit <path>`: the staged list and the export below keep that environment. The
+// whole-repository listings (`tracked`) drop git's variables and read the real index.
+function preCommit(): Result | Stage[] {
+  const git = (...args: string[]) =>
+    spawnSync("git", args, { encoding: "utf8" });
+  const staged = git(
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+    "--diff-filter=ACMRT",
+  );
+  const changed = git("diff", "--name-only", "-z");
+  if (staged.status !== 0 || changed.status !== 0)
+    return result(CANNOT, "git cannot list the staged files");
+  const files = new Set(staged.stdout.split("\0").filter(Boolean));
+  // The checks read the work tree, so it must hold exactly what is staged.
+  const again = changed.stdout.split("\0").filter((f) => files.has(f));
+  if (again.length)
+    return result(
+      CANNOT,
+      `${again.length} staged file(s) changed after staging: stage or restore the change`,
+      again,
+    );
+  if (!files.size) return result(NA, "no added or changed file is staged");
+  const root = process.cwd();
+  // The two checks that read the whole repository: a failed listing is not narrowed to the staged files.
+  const whole = (check: Check) => (): Result => {
+    const all = tracked(root);
+    return all
+      ? check(root, all)
+      : result(CANNOT, "git cannot list the tracked files");
+  };
+  const some = (match: (f: string) => boolean) => [...files].some(match);
+  // A staged file of no class runs the step, which then names it.
+  const ofStep = (step: string) =>
+    some(
+      (f) => CLASSES.find((k) => k.match.test(f))?.steps.includes(step) ?? true,
+    );
+  const when = (step: string, staged: boolean, check: () => Result): Stage => [
+    step,
+    staged ? check : () => result(NA, "no staged file of its kind"),
+  ];
+  // A whole-repository check reads the work tree: a file it reads with an unstaged change is not what is committed.
+  const unstagedRead = (check: Check, reads: (f: string) => boolean) => {
+    const edited = changed.stdout.split("\0").filter((f) => f && reads(f));
+    return edited.length
+      ? () =>
+          result(
+            CANNOT,
+            `${edited.length} file(s) it reads changed and not staged: stage or restore the change`,
+            edited,
+          )
+      : whole(check);
+  };
+  const inGithub = (f: string) => f.startsWith(".github/");
+  // A package.json at any depth: the step also reads each workspace package's manifest.
+  const lockReads = (f: string) =>
+    /^((.+\/)?package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
+      f,
+    );
+  return [
+    // Always: `text` also bans conflict markers in every file and suppression comments in code.
+    ["text", () => text(root, files, true)],
+    when("format", ofStep("format"), () => format(root, files)),
+    when("lint", ofStep("lint"), () => lint(root, files)),
+    when("lockfile", some(lockReads), unstagedRead(lockfile, lockReads)),
+    when("workflows", some(inGithub), unstagedRead(workflows, inGithub)),
+    ["secrets", () => stagedSecrets(root, [...files])],
+  ];
+}
+
+// The secret scan of the staged blobs, exported from the hook's index.
+function stagedSecrets(root: string, files: string[]): Result {
+  const dir = mkdtempSync(join(tmpdir(), "staged-"));
+  try {
+    const e = spawnSync(
+      "git",
+      ["checkout-index", `--prefix=${dir}/`, "--", ...files],
+      { encoding: "utf8" },
+    );
+    if (e.status !== 0)
+      return result(
+        CANNOT,
+        `git cannot export the staged files: ${e.stderr.trim()}`,
+      );
+    // The scanner takes a tree of regular files with content: a symlink or an empty file holds nothing to scan.
+    const kept = files.filter((f) => {
+      const s = lstatSync(join(dir, f));
+      if (s.isFile() && s.size) return true;
+      rmSync(join(dir, f));
+      return false;
+    });
+    if (!kept.length) return result(NA, "no staged file holds content to scan");
+    const r = spawnSync(
+      process.execPath,
+      [join(root, "scripts", "scan-secrets.ts"), "dir", dir],
+      { encoding: "utf8", env: childEnv() },
+    );
+    return scanResult(
+      r,
+      "the staged files",
+      `${kept.length} staged file(s) scanned`,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Runs the stages in order, stopping at the first that does not pass; one not applicable is counted apart. */
+function runStages(name: string, stages: Stage[]): number {
+  const notApplicable: string[] = [];
+  for (const [step, check] of stages) {
+    const r = check();
+    const code = report(step, r);
+    if (code !== PASS) return report(name, result(code, `stopped at ${step}`));
+    if (r.code === NA) notApplicable.push(step);
+  }
+  const passed = `${stages.length - notApplicable.length} checks passed`;
+  return report(
+    name,
+    result(
+      PASS,
+      notApplicable.length
+        ? `${passed}, ${notApplicable.length} not applicable: ${notApplicable.join(", ")}`
+        : passed,
+    ),
+  );
+}
+
+// `all` stops at the first step that does not pass, so `secrets` comes right after the toolchain check: a pull request
+// red on any later step still gets its secret scan in CI, which has no other.
 const CHECKS: Record<string, Check> = {
   toolchain,
+  secrets,
   selftest,
   files,
   lockfile,
@@ -2190,7 +2345,6 @@ const CHECKS: Record<string, Check> = {
   links,
   actionlint,
   workflows,
-  secrets,
 };
 
 function report(name: string, r: Result): number {
@@ -2203,12 +2357,18 @@ function main(argv: string[]): number {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name === "commit-msg") return report(name, commitMsg(rest[0]));
+  if (name === "pre-commit") {
+    const stages = preCommit();
+    return Array.isArray(stages)
+      ? runStages(name, stages)
+      : report(name, stages);
+  }
   if (name !== "all" && !CHECKS[name])
     return report(
       name ?? "",
       result(
         USAGE,
-        `unknown check; use one of all, needs, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
+        `unknown check; use one of all, needs, pre-commit, commit-msg, ${Object.keys(CHECKS).join(", ")}`,
       ),
     );
   const [flag, given, ...extra] = rest;
@@ -2225,23 +2385,12 @@ function main(argv: string[]): number {
       result(CANNOT, `${root}: git ls-files failed or lists nothing`),
     );
   if (name !== "all") return report(name, CHECKS[name](root, list));
-  const notApplicable: string[] = [];
-  for (const [step, check] of Object.entries(CHECKS)) {
-    const r = check(root, list);
-    const code = report(step, r);
-    if (code !== PASS) return report("all", result(code, `stopped at ${step}`));
-    if (r.code === NA) notApplicable.push(step);
-  }
-  // A step that had nothing to check is counted apart, never as passed.
-  const passed = `${Object.keys(CHECKS).length - notApplicable.length} checks passed`;
-  return report(
+  return runStages(
     "all",
-    result(
-      PASS,
-      notApplicable.length
-        ? `${passed}, ${notApplicable.length} not applicable: ${notApplicable.join(", ")}`
-        : passed,
-    ),
+    Object.entries(CHECKS).map(([step, check]) => [
+      step,
+      () => check(root, list),
+    ]),
   );
 }
 
