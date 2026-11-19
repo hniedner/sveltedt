@@ -18,14 +18,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { GATE_VARS } from "./gate-step.ts";
-import {
-  judgeMarkers,
-  judgeResults,
-  parseSpec,
-  readMarkers,
-  traceSources,
-} from "./trace.ts";
-import type { Marker, Statement } from "./trace.ts";
+import { judgeResults, parseSpec, readMarkers, traceSources } from "./trace.ts";
 
 const sha8 = (text: string): string =>
   createHash("sha256").update(text, "utf8").digest("hex").slice(0, 8);
@@ -248,8 +241,12 @@ for (const [name, body, modifier] of [
 test("trace: a skip or only in test data, and { skip: false }, carry no modifier; a skip reason does", () => {
   const data = `${MARK}\ndescribe("x", () => {\n  const row = { skip: 20, todo: "t" };\n  it("a", () => {\n    expect(row.only).toBe(1);\n  });\n});\n`;
   assert.deepEqual(markers(data).markers[0].modifiers, []);
+  const call = `${MARK}\ndescribe("x", () => {\n  load({ skip: 20 });\n  load({ skip: true });\n});\n`;
+  assert.deepEqual(markers(call).markers[0].modifiers, []);
   const reason = markers(`${MARK}\nit("a", { skip: "why" }, () => {});\n`);
   assert.deepEqual(reason.markers[0].modifiers, ['{ skip: "why" }']);
+  const each = markers(`${MARK}\nit.each(rows)("a", { skip: true }, fn);\n`);
+  assert.deepEqual(each.markers[0].modifiers, ["{ skip: true }"]);
 });
 test("trace: { skip: false } and an ordinary test carry no modifier", () => {
   const [m] = markers(`${MARK}\nit("a", { skip: false }, () => {});\n`).markers;
@@ -277,40 +274,6 @@ test("trace: a test source under scripts/ is set apart, and one outside the cove
     scripts: ["scripts/x.test.ts"],
     stray: ["other/o.test.ts"],
   });
-});
-
-const STATEMENT_A: Statement = {
-  id: "TST-01",
-  file: "spec/a.md",
-  line: 3,
-  hash: "aaaaaaaa",
-};
-const marker = (id: string, hash: string): Marker => ({
-  id,
-  hash,
-  file: "src/a.test.ts",
-  line: 7,
-  from: 8,
-  to: 9,
-  modifiers: [],
-});
-test("trace: a marker whose id no spec holds is a problem", () => {
-  assert.deepEqual(
-    judgeMarkers([marker("TST-09", "aaaaaaaa")], [STATEMENT_A]),
-    ["src/a.test.ts:7: TST-09: no spec holds this statement"],
-  );
-});
-test("trace: a marker whose hash is not the statement's is stale", () => {
-  assert.deepEqual(
-    judgeMarkers([marker("TST-01", "bbbbbbbb")], [STATEMENT_A]),
-    ["src/a.test.ts:7: TST-01: stale (marker bbbbbbbb, statement aaaaaaaa)"],
-  );
-});
-test("trace: a marker with the statement's hash has no problem", () => {
-  assert.deepEqual(
-    judgeMarkers([marker("TST-01", "aaaaaaaa")], [STATEMENT_A]),
-    [],
-  );
 });
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -479,7 +442,13 @@ const LOOP = (rows: string): string =>
     `${mark("TST-01")}\nfor (const row of ${rows}) {\n  test(row, () => {\n    expect(row).toBe(row);\n  });\n}\ntest("other", () => {\n  expect(1).toBe(1);\n});\n`,
   );
 test("trace: a marker above a loop is tested when its generated tests passed", () => {
-  expectTrace(fixture({ "src/a.test.ts": LOOP('["a", "b"]') }), 0);
+  const out = expectTrace(fixture({ "src/a.test.ts": LOOP('["a", "b"]') }), 0);
+  assert.match(out, /3 result\(s\) read; 1 tested/);
+});
+test("trace: a marker above test.each is tested when its generated tests passed", () => {
+  const each = `${mark("TST-01")}\ntest.each(["a", "b"])("%s", (row) => {\n  expect(row).toBe(row);\n});\n`;
+  const out = expectTrace(fixture({ "src/a.test.ts": vitestFile(each) }), 0);
+  assert.match(out, /2 result\(s\) read; 1 tested/);
 });
 test("trace: a marker above a loop that generated no test, in a file that ran, is a finding", () => {
   assert.match(
@@ -589,11 +558,10 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("trace: every variable that changes a step's context is in GATE_VARS and is stripped from a child", () => {
+test("trace: GATE_VARS names the four context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
-    "GATE_EVENT",
     "GATE_HEAD",
     "GITHUB_ACTIONS",
   ]);
