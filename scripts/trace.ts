@@ -112,6 +112,8 @@ export interface Marker {
 
 const MARKER = /^\/\/ @spec\("([^"]+)", "([0-9a-f]{8})"\)\s*$/;
 const MODIFIERS = new Set(["only", "skip", "todo", "fails"]);
+/** The test runner's entry points: a modifier counts only on a call chain rooted at one of these, never in test data. */
+const ROOTS = new Set(["test", "it", "describe", "suite"]);
 /** Anything that looks like a marker, whatever its case or spacing: it must be one, in the one position, or it is a problem. */
 const SPEC_LIKE = /@\s*spec/i;
 
@@ -135,14 +137,31 @@ export function readMarkers(
   const modifiersOf = (stmt: import("typescript").Statement): string[] => {
     const found = new Set<string>();
     const walk = (n: import("typescript").Node): void => {
-      if (ts.isPropertyAccessExpression(n) && MODIFIERS.has(n.name.text))
-        found.add(`.${n.name.text}`);
-      if (
-        ts.isPropertyAssignment(n) &&
-        MODIFIERS.has(n.name.getText(sf)) &&
-        n.initializer.kind !== ts.SyntaxKind.FalseKeyword
-      )
-        found.add(`{ ${n.name.getText(sf)}: ${n.initializer.getText(sf)} }`);
+      if (ts.isCallExpression(n)) {
+        // The call chain `test.skip.each(...)(...)`: names along it, down to the root identifier
+        const names: string[] = [];
+        let e: import("typescript").Expression = n.expression;
+        while (ts.isPropertyAccessExpression(e) || ts.isCallExpression(e)) {
+          if (ts.isPropertyAccessExpression(e)) names.push(e.name.text);
+          e = e.expression;
+        }
+        if (ts.isIdentifier(e) && ROOTS.has(e.text)) {
+          for (const name of names)
+            if (MODIFIERS.has(name)) found.add(`.${name}`);
+          for (const arg of n.arguments)
+            if (ts.isObjectLiteralExpression(arg))
+              for (const p of arg.properties)
+                if (
+                  ts.isPropertyAssignment(p) &&
+                  MODIFIERS.has(p.name.getText(sf)) &&
+                  (p.initializer.kind === ts.SyntaxKind.TrueKeyword ||
+                    ts.isStringLiteralLike(p.initializer))
+                )
+                  found.add(
+                    `{ ${p.name.getText(sf)}: ${p.initializer.getText(sf)} }`,
+                  );
+        }
+      }
       ts.forEachChild(n, walk);
     };
     walk(stmt);
