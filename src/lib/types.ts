@@ -47,6 +47,11 @@ export interface DataTableMessages {
   readonly rowIdUnreadable: string;
   readonly sortBy: (label: string) => string;
   readonly sortRank: (rank: number) => string;
+  // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
+  readonly sortDescription: (state: {
+    direction: SortDirection | null;
+    rank: number | null;
+  }) => string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)

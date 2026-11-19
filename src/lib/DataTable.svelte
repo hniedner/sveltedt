@@ -22,6 +22,8 @@
     heading,
     actions,
   }: DataTableProps<Row> = $props();
+  // Ties each sort button to its description, unique per table on the page
+  const uid = $props.id();
   // An entry given as undefined keeps its default, as a translation lookup that misses gives it
   const words = $derived({
     ...defaultMessages,
@@ -97,6 +99,7 @@
                 <button
                   type="button"
                   aria-label={words.sortBy(column.label)}
+                  aria-describedby={`${uid}-sort-${index}`}
                   onclick={(event) =>
                     onsort?.(
                       nextOrder(
@@ -137,5 +140,15 @@
         {/if}
       </tbody>
     </table>
+  </div>
+  <!-- The sort buttons' descriptions, outside the table so they are no header text -->
+  <div hidden>
+    {#each columns as column, index (column.id)}
+      {#if column.sortable}
+        <span id={`${uid}-sort-${index}`}
+          >{words.sortDescription(sortState(column.id))}</span
+        >
+      {/if}
+    {/each}
   </div>
 {/if}

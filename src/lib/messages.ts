@@ -21,4 +21,11 @@ export const defaultMessages: DataTableMessages = {
   rowIdUnreadable: "A row id could not be read.",
   sortBy: (label) => `Sort by ${label}`,
   sortRank: (rank) => String(rank),
+  sortDescription: ({ direction, rank }) => {
+    const hint =
+      "Shift+click, Shift+Enter or Shift+Space adds this column to the sort.";
+    if (direction === null) return hint;
+    const words = direction === "asc" ? "ascending" : "descending";
+    return `sorted ${words}${rank === null ? "" : `, priority ${rank}`}. ${hint}`;
+  },
 };

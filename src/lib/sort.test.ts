@@ -273,3 +273,24 @@ describe("SORT-05", () => {
     expect(ranks()).toEqual(expected);
   });
 });
+const HINT =
+  "Shift+click, Shift+Enter or Shift+Space adds this column to the sort.";
+
+// @spec("SORT-06", "c799bf34")
+describe("SORT-06", () => {
+  it.each([
+    ["name asc", `sorted ascending. ${HINT}`],
+    ["name desc, code asc", `sorted descending, priority 1. ${HINT}`],
+    ["code asc, date asc, name desc", `sorted descending, priority 3. ${HINT}`],
+    ["code asc", HINT],
+  ])("with the order [%s], Sort by Name is described %j", (before, text) => {
+    mount({
+      columns: [code, sortable("date", "Date"), name],
+      sort: order(before),
+    });
+    expect(
+      screen.getByRole("button", { name: "Sort by Name", description: text })
+        .isConnected,
+    ).toBe(true);
+  });
+});
