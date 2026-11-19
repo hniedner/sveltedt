@@ -3547,7 +3547,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 5 not applicable: svelte, site, test, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {
