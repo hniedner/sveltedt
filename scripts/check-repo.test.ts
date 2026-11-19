@@ -2774,6 +2774,13 @@ test("secrets: a branch with no commit after origin/main is not applicable", () 
 });
 // Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
 // have had its secret scan.
+/** The step names of the result lines `all` printed, in order. */
+const stepsOf = (out: string): string[] =>
+  [
+    ...out.matchAll(
+      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
+    ),
+  ].map((m) => m[1]);
 test("all: scans the branch's commits for secrets before it reaches a later step that fails", () => {
   const root = scanBranch(1);
   put(root, "notes/unformatted.md", "#  Not formatted\n");
@@ -2782,13 +2789,8 @@ test("all: scans the branch's commits for secrets before it reaches a later step
   assert.match(out, /^FINDING secrets: /m);
   assert.match(out, /^FINDING all: stopped at secrets$/m);
   assert.doesNotMatch(out, /format/);
-  // hooks, then toolchain, then secrets: no other step reports before them
-  const steps = [
-    ...out.matchAll(
-      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
-    ),
-  ].map((m) => m[1]);
-  assert.deepEqual(steps, ["hooks", "toolchain", "secrets", "all"]);
+  // toolchain, then secrets: no other step reports before them
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "all"]);
 });
 test("secrets: a repository without origin/main cannot be checked", () => {
   const root = scanBranch(0);
@@ -3242,7 +3244,28 @@ function isolatedHome(global = ""): Record<string, string> {
   };
 }
 test("hooks: passes when core.hooksPath is .githooks and every hook is the executable shim", () => {
-  expect("hooks", repo(), 0);
+  const out = expect("hooks", repo(), 0);
+  assert.match(
+    out,
+    /^PASS hooks: core\.hooksPath \.githooks; pre-commit, commit-msg as shims$/m,
+  );
+});
+test("hooks: a local .githooks over another global core.hooksPath passes", () => {
+  const root = repo();
+  expect("hooks", root, 0, {
+    extraEnv: isolatedHome("[core]\n\thooksPath = /opt/global\n"),
+  });
+});
+test("hooks: an empty core.hooksPath is a finding that shows the empty value", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "");
+  assert.match(expect("hooks", root, 1), /core\.hooksPath is "" \(file:/);
+});
+test("all: hooks runs right after secrets, and its finding stops all there", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("all", root, 1, { extraEnv: isolatedHome() });
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "hooks", "all"]);
 });
 test("hooks: an unset core.hooksPath is a finding that gives the command", () => {
   const root = repo();
@@ -3315,12 +3338,14 @@ test("hooks: a missing hook is a finding", () => {
   assert.match(out, /\.githooks\/pre-commit: missing/);
 });
 const inCI = { extraEnv: { GITHUB_ACTIONS: "true" } };
-test("hooks: in CI the core.hooksPath part is not applicable, and the shims are checked all the same", () => {
+test("hooks: in CI only the shims are checked, and the pass line names core.hooksPath as not checked", () => {
   const root = repo();
   git(root, "config", "--unset", "core.hooksPath");
   const out = expect("hooks", root, 0, inCI);
-  assert.match(out, /core\.hooksPath not applicable in CI/);
-  assert.match(out, /pre-commit, commit-msg as shims/);
+  assert.match(
+    out,
+    /^PASS hooks: pre-commit, commit-msg as shims; core\.hooksPath not checked \(CI has no clone-local git configuration\)$/m,
+  );
 });
 test("hooks: in CI a shim that is not executable is a finding", () => {
   const out = expect(

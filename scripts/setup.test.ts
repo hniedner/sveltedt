@@ -51,7 +51,7 @@ const setup = (c: { root: string; env: NodeJS.ProcessEnv }) => {
     encoding: "utf8",
     env: c.env,
   });
-  return { code: r.status, out: r.stdout + r.stderr };
+  return { code: r.status, out: r.stdout + r.stderr, err: r.stderr };
 };
 
 test("setup: an unset core.hooksPath is set to .githooks for this clone", () => {
@@ -80,7 +80,7 @@ test("setup: another local core.hooksPath stops it, names the value and where it
   assert.match(r.out, /"\/opt\/mine"/);
   assert.match(r.out, /file:\S*\.git\/config/);
   assert.match(r.out, /git config core\.hooksPath \.githooks/);
-  assert.match(r.out, /its hooks then stop running in this clone/);
+  assert.match(r.err, /its hooks then stop running in this clone/);
   assert.equal(hooksPath(c), "/opt/mine");
 });
 test("setup: another global core.hooksPath stops it, names the value and where it is set, and changes nothing", () => {
@@ -89,5 +89,34 @@ test("setup: another global core.hooksPath stops it, names the value and where i
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /"\/opt\/global"/);
   assert.match(r.out, /gitconfig/);
+  assert.equal(hooksPath(c), "");
+});
+test("setup: a local .githooks over another global core.hooksPath is left as it is, and succeeds", () => {
+  const c = clone("[core]\n\thooksPath = /opt/global\n");
+  execFileSync("git", ["-C", c.root, "config", "core.hooksPath", ".githooks"], {
+    env: c.env,
+  });
+  const r = setup(c);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /already \.githooks/);
+});
+test("setup: a git that cannot read its configuration stops it and changes nothing", () => {
+  const c = clone();
+  // A git first on the PATH that fails reading core.hooksPath (as on a broken configuration file) and is git otherwise.
+  const bin = join(c.root, "..", "bin");
+  mkdirSync(bin);
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/sh\ncase " $* " in *" --get "*) echo "fatal: bad config line 1" >&2; exit 128;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const r = spawnSync(join(c.root, "scripts", "setup"), {
+    cwd: tmpdir(),
+    encoding: "utf8",
+    env: { ...c.env, PATH: `${bin}:${c.env.PATH ?? ""}` },
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /setup: git cannot read core\.hooksPath/);
   assert.equal(hooksPath(c), "");
 });

@@ -2137,7 +2137,8 @@ function hooksPath(root: string): Result | string[] {
       CANNOT,
       `git cannot read core.hooksPath: ${g.stderr.trim() || "no reason given"}`,
     );
-  const [origin, value] = g.stdout.trim().split("\t");
+  // Only the line end goes: an empty value leaves "<origin>\t", and trimming that would lose the value.
+  const [origin, value] = g.stdout.replace(/\n$/, "").split("\t");
   if (g.status === 1) return ["core.hooksPath is unset: run ./scripts/setup"];
   return value === ".githooks"
     ? []
@@ -2167,9 +2168,12 @@ function hooks(root: string, list: Set<string>): Result {
   }
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
+  const shims = `${HOOKS.join(", ")} as shims`;
   return result(
     PASS,
-    `${ci ? "core.hooksPath not applicable in CI" : "core.hooksPath .githooks"}; ${HOOKS.join(", ")} as shims`,
+    ci
+      ? `${shims}; core.hooksPath not checked (CI has no clone-local git configuration)`
+      : `core.hooksPath .githooks; ${shims}`,
   );
 }
 
@@ -2306,12 +2310,12 @@ function runStages(name: string, stages: Stage[]): number {
   );
 }
 
-// `all` stops at the first step that does not pass, so `secrets` comes right after the toolchain check: a pull request
-// red on any later step still gets its secret scan in CI, which has no other.
+// `all` stops at the first step that does not pass, so the order is toolchain, secrets, hooks: a pull request red on
+// any later step, `hooks` included, still gets its secret scan in CI, which has no other.
 const CHECKS: Record<string, Check> = {
-  hooks,
   toolchain,
   secrets,
+  hooks,
   selftest,
   files,
   lockfile,

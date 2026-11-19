@@ -4,7 +4,13 @@
 set -eu
 cd "$(dirname "$0")/.."
 tab=$(printf '\t')
-found=$(git config --show-origin --get core.hooksPath || true)
+# git's status: 0 set, 1 unset; anything else is git failing to read its configuration, never an unset path.
+rc=0
+found=$(git config --show-origin --get core.hooksPath) || rc=$?
+if [ "$rc" -gt 1 ]; then
+  echo "setup: git cannot read core.hooksPath (exit $rc); nothing changed" >&2
+  exit 2
+fi
 if [ -n "$found" ]; then
   value=${found#*"$tab"}
   where=${found%%"$tab"*}
