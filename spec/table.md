@@ -232,7 +232,7 @@ its cells.
   | `status` | `busy` | Not shown |
   |---|---|---|
   | `loading` | false | "Loading data…" |
-  | `failed` | false | "The rows could not be loaded." |
+  | `failed` | false | "The data could not be loaded." |
   | `ready` | false | "No records." and any count text |
   | `ready` | true | any count text |
 
@@ -289,7 +289,7 @@ cells MUST be rendered by the same element as before.
   | Message | English default | Shown by |
   |---|---|---|
   | `loading` | "Loading data…" | STATE-01 |
-  | `failed` | "The rows could not be loaded." | STATE-02 |
+  | `failed` | "The data could not be loaded." | STATE-02 |
   | `empty` | "No records." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
@@ -331,7 +331,7 @@ cells MUST be rendered by the same element as before.
 - Traces: PRD-B15.
 
 **STATE-02** With `status 'failed'`, the table MUST show the failed message and MUST NOT show the empty message.
-- Example: `status 'failed'`, `rows []`: "The rows could not be loaded." is shown and "No records." is not.
+- Example: `status 'failed'`, `rows []`: "The data could not be loaded." is shown and "No records." is not.
 - Reason: a failure is not an empty result, and the user must know to try again.
 - Layer: component.
 - Traces: PRD-B15.
@@ -376,7 +376,7 @@ otherwise.
 - Traces: PRD-B15.
 
 **STATE-07** With `status 'failed'`, the table MUST show none of the rows it is given.
-- Example: `status 'failed'` with three rows Beta, Gamma, Delta: "The rows could not be loaded." is shown, and no
+- Example: `status 'failed'` with three rows Beta, Gamma, Delta: "The data could not be loaded." is shown, and no
   body cell holds "Beta", "Gamma" or "Delta".
 - Reason: `failed` means the answer did not arrive, and PRD-B15 gives the failed state no count; a consumer that wants
   to keep the last rows after a failed refetch keeps `status 'ready'` and reports the failure itself.
@@ -391,7 +391,7 @@ alert, when `rows` is not an array.
   |---|---|---|
   | `loading` | `undefined` | "Loading data…" |
   | `loading` | `null` | "Loading data…" |
-  | `failed` | `undefined` | "The rows could not be loaded." |
+  | `failed` | `undefined` | "The data could not be loaded." |
 
 - Reason: a plain JavaScript caller whose request is still pending, or has failed, often has no rows to pass yet; the
   state already says what the user sees, and the alert would call a normal wait a fault. With `status 'ready'` the
@@ -517,7 +517,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
   step; after each step it reads the component's text content, which includes hidden text, and the failed notice of
   A11Y-15, found as the element with `role="alert"` that holds the failed message):
 
-  | Steps | "The rows could not be loaded." after each step |
+  | Steps | "The data could not be loaded." after each step |
   |---|---|
   | `failed`, `loading`, `failed` | in the failed notice; nowhere in the component; in the failed notice |
   | `failed`, `ready` with two rows, `loading`, `failed` | in the failed notice; nowhere; nowhere; in the failed notice |
