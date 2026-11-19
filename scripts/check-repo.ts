@@ -2123,8 +2123,11 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }
 
+// `all` stops at the first step that does not pass, so `secrets` comes right after the toolchain check: a pull request
+// red on any later step still gets its secret scan in CI, which has no other.
 const CHECKS: Record<string, Check> = {
   toolchain,
+  secrets,
   selftest,
   files,
   lockfile,
@@ -2143,7 +2146,6 @@ const CHECKS: Record<string, Check> = {
   links,
   actionlint,
   workflows,
-  secrets,
 };
 
 function report(name: string, r: Result): number {

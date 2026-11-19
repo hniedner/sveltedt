@@ -2747,6 +2747,17 @@ test("secrets: a wrapper that could not check cannot be checked", () => {
 test("secrets: a branch with no commit after origin/main is not applicable", () => {
   notApplicable(["secrets", "--root", repo()]);
 });
+// Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
+// have had its secret scan.
+test("all: scans the branch's commits for secrets before it reaches a later step that fails", () => {
+  const root = scanBranch(1);
+  put(root, "notes/unformatted.md", "#  Not formatted\n");
+  git(root, "add", "-A");
+  const out = expect("all", root, 1);
+  assert.match(out, /^FINDING secrets: /m);
+  assert.match(out, /^FINDING all: stopped at secrets$/m);
+  assert.doesNotMatch(out, /format/);
+});
 test("secrets: a repository without origin/main cannot be checked", () => {
   const root = scanBranch(0);
   git(root, "update-ref", "-d", "refs/remotes/origin/main");
@@ -3579,7 +3590,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 5 not applicable: svelte, site, test, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 5 not applicable: secrets, svelte, site, test, commits$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

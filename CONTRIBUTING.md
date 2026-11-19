@@ -37,6 +37,8 @@ section 6). CI runs the same command; its `gate` check is required on
 The checks today:
 
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
+- **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
+  range in CI). It runs right after `toolchain`, so a later failing step does not skip it.
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
@@ -128,8 +130,6 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
-- **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
-  range in CI).
 
 Every tool step first runs on a planted violation (files in `scripts/canaries/`, or one the step builds) and must
 find it, so a tool that silently checks nothing cannot pass.
