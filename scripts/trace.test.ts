@@ -133,6 +133,51 @@ test("trace: a comment that mentions @spec( and is not a marker is a problem", (
     /src\/a\.test\.ts:1: malformed @spec marker/,
   );
 });
+for (const [name, source, why] of [
+  [
+    "a trailing marker",
+    `it("a", () => {}); ${MARK}\n`,
+    /outside the one recognised position/,
+  ],
+  [
+    "a marker in an array table",
+    `const rows = [\n  ${MARK}\n  1,\n];\n`,
+    /outside the one recognised position/,
+  ],
+  [
+    "a marker in a class body",
+    `class A {\n  ${MARK}\n  m() {}\n}\n`,
+    /outside the one recognised position/,
+  ],
+  [
+    "a marker with a space before the bracket",
+    '// @spec ("TST-01", "aaaaaaaa")\nit("a", () => {});\n',
+    /malformed/,
+  ],
+  [
+    "a marker with another case",
+    '// @Spec("TST-01", "aaaaaaaa")\nit("a", () => {});\n',
+    /malformed/,
+  ],
+  [
+    "a marker in a block comment",
+    '/* @spec("TST-01", "aaaaaaaa") */\nit("a", () => {});\n',
+    /malformed/,
+  ],
+] as const) {
+  test(`trace: ${name} is a problem naming its line, never silently unread`, () => {
+    assert.match(markers(source).problems.join("\n"), why);
+    assert.match(markers(source).problems.join("\n"), /src\/a\.test\.ts:\d+:/);
+  });
+}
+test("trace: two markers on one statement are a problem, and only the first counts", () => {
+  const r = markers(`${MARK}\n${MARK}\nit("a", () => {});\n`);
+  assert.equal(r.markers.length, 1);
+  assert.match(
+    r.problems.join("\n"),
+    /src\/a\.test\.ts:2: .*two markers on one statement/,
+  );
+});
 for (const [name, body, modifier] of [
   ["only", 'it.only("a", () => {});', ".only"],
   ["skip", 'it.skip("a", () => {});', ".skip"],
