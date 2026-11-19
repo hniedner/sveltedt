@@ -129,7 +129,7 @@
             <tr>
               {#each columns as column (column.id)}
                 <td
-                  >{#if column.cell}{@render column.cell(
+                  >{#if typeof column.cell === "function"}{@render column.cell(
                       row,
                       column.id,
                     )}{:else}{column.value?.(row)}{/if}</td

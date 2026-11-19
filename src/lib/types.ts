@@ -41,6 +41,7 @@ export interface DataTableMessages {
   readonly columnLabelEmpty: string;
   readonly columnLabelDuplicate: string;
   readonly columnContentMissing: string;
+  readonly statusUnknown: string;
   readonly rowsNotList: string;
   readonly rowIdEmpty: string;
   readonly rowIdDuplicate: string;

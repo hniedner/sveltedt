@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
+import { createRawSnippet } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
@@ -128,6 +129,7 @@ const faults: [keyof TableWords, Partial<DataTableProps<Item>>][] = [
     "columnContentMissing",
     { columns: [{ id: "a", label: "A" } as unknown as DataTableColumn<Item>] },
   ],
+  ["statusUnknown", { status: "done" as unknown as DataTableStatus }],
   ["rowsNotList", { rows: undefined }],
   ["rowIdEmpty", { getRowId: () => "" }],
   ["rowIdDuplicate", { rows: threeRows, getRowId: () => "same" }],
@@ -416,7 +418,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "5e5d6aee")
+// @spec("RND-05", "2abf046c")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -437,6 +439,18 @@ describe("RND-05", () => {
       { columns: undefined },
       "Table has no columns.",
     ],
+    ...[null, "name"].map(
+      (value): [string, Partial<DataTableProps<Item>>, string] => [
+        `a column is not an object (${String(value)})`,
+        {
+          columns: [
+            column("ok", "Ok"),
+            value as unknown as DataTableColumn<Item>,
+          ],
+        },
+        "A column id is empty.",
+      ],
+    ),
     [
       "a column id is empty",
       { columns: [column("ok", "Ok"), column("", "Name")] },
@@ -483,6 +497,41 @@ describe("RND-05", () => {
       },
       "A column has no value and no cell.",
     ],
+    [
+      "a column's value is not a function and it has no cell",
+      {
+        columns: [
+          column("ok", "Ok"),
+          {
+            id: "a",
+            label: "Name",
+            value: "name",
+          } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "A column has no value and no cell.",
+    ],
+    [
+      "a column's cell is not a snippet and it has no value",
+      {
+        columns: [
+          column("ok", "Ok"),
+          {
+            id: "a",
+            label: "Name",
+            cell: "name",
+          } as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "A column has no value and no cell.",
+    ],
+    ...["done", null].map(
+      (status): [string, Partial<DataTableProps<Item>>, string] => [
+        `status is outside its type (${String(status)})`,
+        { status: status as unknown as DataTableStatus },
+        "Table status is not known.",
+      ],
+    ),
     ["a row id is empty", { getRowId: () => "" }, "A row id is empty."],
     [
       "two rows share an id",
@@ -579,6 +628,21 @@ describe("RND-05", () => {
       "A column has no value and no cell.",
     ],
     [
+      "several faults: a column with neither value nor cell and status 'done'",
+      {
+        columns: [
+          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+        ],
+        status: "done" as unknown as DataTableStatus,
+      },
+      "A column has no value and no cell.",
+    ],
+    [
+      "several faults: status 'done' and rows that are not an array",
+      { status: "done" as unknown as DataTableStatus, rows: undefined },
+      "Table status is not known.",
+    ],
+    [
       "several faults: two rows sharing an id, then a row id that throws",
       {
         rows: [...twoRows, { id: "r3", name: "Gamma" }],
@@ -609,6 +673,43 @@ describe("RND-05", () => {
     show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(firstCells()).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("takes status given as undefined as its default, ready: the table and no alert", () => {
+    const component = show({ status: undefined });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(component.querySelector("table")).not.toBeNull();
+    expect(firstCells()).toEqual(["Beta"]);
+  });
+
+  it("renders a value function beside a cell that is the text name by RND-08", () => {
+    show({
+      columns: [
+        { ...nameColumn, cell: "name" } as unknown as DataTableColumn<Item>,
+      ],
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(cellTexts()).toEqual([["Beta"]]);
+  });
+
+  it("renders a cell snippet beside a value that is the text name by RND-02", () => {
+    const cell = createRawSnippet((row: () => Item) => ({
+      render: () => `<a href="#${row().id}">Open ${row().name}</a>`,
+    }));
+    show({
+      columns: [
+        {
+          id: "name",
+          label: "Name",
+          value: "name",
+          cell,
+        } as unknown as DataTableColumn<Item>,
+      ],
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Beta" }).isConnected).toBe(
+      true,
+    );
   });
 
   it("follows the props: the alert gives way to the table and comes back", async () => {
@@ -870,6 +971,7 @@ const ALERT_TEXTS = [
   "A column label is empty.",
   "Two columns share a label.",
   "A column has no value and no cell.",
+  "Table status is not known.",
   "Table has no list of rows.",
   "A row id is empty.",
   "Two rows share an id.",
@@ -913,6 +1015,7 @@ describe("RND-06", () => {
     columnLabelEmpty: "F-columnLabelEmpty",
     columnLabelDuplicate: "F-columnLabelDuplicate",
     columnContentMissing: "F-columnContentMissing",
+    statusUnknown: "F-statusUnknown",
     rowsNotList: "F-rowsNotList",
     rowIdEmpty: "F-rowIdEmpty",
     rowIdDuplicate: "F-rowIdDuplicate",

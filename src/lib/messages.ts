@@ -15,6 +15,7 @@ export const defaultMessages: DataTableMessages = {
   columnLabelEmpty: "A column label is empty.",
   columnLabelDuplicate: "Two columns share a label.",
   columnContentMissing: "A column has no value and no cell.",
+  statusUnknown: "Table status is not known.",
   rowsNotList: "Table has no list of rows.",
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",

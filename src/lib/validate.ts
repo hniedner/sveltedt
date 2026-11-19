@@ -25,6 +25,9 @@ function firstDuplicate(values: readonly string[]): string | undefined {
 const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
+// The component gives a left-out status its default, ready, before it validates
+const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
+
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
 
@@ -47,7 +50,13 @@ export function validateTable<Row>(
   if (isEmpty(caption)) return "captionEmpty";
   if (isEmpty(regionLabel)) return "regionLabelEmpty";
   if (!isList(columns) || columns.length === 0) return "noColumns";
-  if (columns.some((column) => isEmpty(column.id))) return "columnIdEmpty";
+  // A column that is not an object has no id (RND-05)
+  if (
+    columns.some((column) =>
+      isEmpty((column as Partial<typeof column> | null)?.id),
+    )
+  )
+    return "columnIdEmpty";
   const duplicateId = firstDuplicate(columns.map((column) => column.id));
   if (duplicateId !== undefined) return "columnIdDuplicate";
   if (columns.some((column) => isEmpty(column.label)))
@@ -57,8 +66,15 @@ export function validateTable<Row>(
     columns.map((column) => column.label.trim()),
   );
   if (duplicateLabel !== undefined) return "columnLabelDuplicate";
-  if (columns.some((column) => !column.value && !column.cell))
+  // A cell snippet is a function too
+  if (
+    columns.some(
+      (column) =>
+        typeof column.value !== "function" && typeof column.cell !== "function",
+    )
+  )
     return "columnContentMissing";
+  if (!STATUSES.includes(status)) return "statusUnknown";
   // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
   if (!isList(rows)) {
     if (status !== "loading" && status !== "failed") return "rowsNotList";
