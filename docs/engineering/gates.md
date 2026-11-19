@@ -17,8 +17,7 @@ Every gate tool runs behind a small wrapper with:
 - two non-blocking states: the first, G6's *not yet tested*, exits 0 and is printed under its own name, never as pass;
 - a second non-blocking state, *not applicable*, exits 0 and is printed under its own name with its reason, never as
   pass. A step may report it only when the step itself has established one of two things: nothing of its kind is
-  present (no step diff on a push to main; no shipped stylesheet yet; no changed rule in the step's stylesheet diff;
-  no clone-local hooks setting in a CI checkout),
+  present (no step diff on a push to main; no shipped stylesheet yet; no changed rule in the step's stylesheet diff),
   or the decision belongs to a run this one cannot make (a local run with one browser engine where CI runs three).
   In the second case the CI run decides, and there the same outcome is a finding or *could not check*, never *not
   applicable*.
@@ -128,11 +127,12 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G9. Hooks and the gate record
 
-- `./scripts/setup` sets `core.hooksPath` to `.githooks`. The `hooks` step checks that this setting is in place
-  and the hooks are executable, and otherwise is a finding that gives the command to run; git that cannot read its
-  configuration is could not check. A file in `.githooks/` other than the known shims is a finding. The hook shims
-  are checked wherever the gate runs. The core.hooksPath setting exists only in a developer's clone: in CI nothing of
-  its kind is present, so the step checks the shims only and says so in its pass line (G1, first case).
+- `./scripts/setup` sets `core.hooksPath` to `.githooks`. The `hooks` step checks that this setting is in place and that
+  each hook is present as the executable two-line shim, and otherwise is a finding that gives the command to run; git
+  that cannot read its configuration is could not check. A file in `.githooks/` other than the known shims is a finding.
+  The hook shims are checked wherever the gate runs. The core.hooksPath setting exists only in a developer's clone: in
+  CI nothing of its kind is present, so the step checks the shims only and names core.hooksPath as not checked in its
+  pass line.
 - The local gate writes the commit id, tool versions and every step's exit code. The pusher writes that file, so it
   is not proof.
 - The record that counts is CI's `gate` check on the head, written by GitHub and required on main by the ruleset

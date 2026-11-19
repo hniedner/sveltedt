@@ -41,12 +41,12 @@ section 6). CI runs the same command; its `gate` check is required on
 
 The checks today:
 
-- **hooks:** each hook in `.githooks/` is the executable two-line shim and no other file is tracked there (checked in
-  CI too); in a clone, `core.hooksPath` is `.githooks` as well (in CI, where no clone-local git config exists, that part
-  is reported as not applicable).
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI). It runs right after `toolchain`, so a later failing step does not skip it.
+- **hooks:** each hook in `.githooks/` is the executable two-line shim and no other file is tracked there (checked in
+  CI too); in a clone, `core.hooksPath` is `.githooks` as well (in CI, where no clone-local git config exists, that part
+  is not checked, and the pass line says so).
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
