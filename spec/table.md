@@ -1015,9 +1015,9 @@ tests of the statement its marker names red by a failed assertion.
   | one marked rule deleted, nothing else | not applicable: "rules deleted or moved only", naming the rule |
   | the head stylesheet holds `@charset "utf-8";` and nothing else, the base one marked rule | could not check |
 
-  It lands in the walking-skeleton milestone, once the
-  gate's step-boundary harness and the three engines of the real-browser tests exist, and is not yet tested until
-  then. Limits: a rule its tests do not prove shows red only in CI; a step that only moves rules is not probed.
+  It lands in the walking-skeleton milestone, once the gate's step-boundary harness and the three engines of the
+  real-browser tests exist, and is not yet tested until then. Limits: a rule its tests do not prove shows red only in
+  CI; a step that only moves rules is not probed.
 - Reason: a rule no test needs is dead or unproven (PRD-G4); no established practice for deleting CSS rules was found
   (searched 2026-11-18), so this is the stylesheet's analogue of mutation at step boundaries.
 - Layer: gate wrapper at step boundaries.

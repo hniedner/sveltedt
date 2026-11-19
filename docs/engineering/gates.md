@@ -17,9 +17,10 @@ Every gate tool runs behind a small wrapper with:
 - two non-blocking states: the first, G6's *not yet tested*, exits 0 and is printed under its own name, never as pass;
 - a second non-blocking state, *not applicable*, exits 0 and is printed under its own name with its reason, never as
   pass. A step may report it only when the step itself has established one of two things: nothing of its kind is
-  present (no step diff on a push to main; no shipped stylesheet yet), or the decision belongs to a run this one
-  cannot make (a local run with one browser engine where CI runs three). In the second case the CI run decides, and
-  there the same outcome is a finding or *could not check*, never *not applicable*.
+  present (no step diff on a push to main; no shipped stylesheet yet; no changed rule in the step's stylesheet diff),
+  or the decision belongs to a run this one cannot make (a local run with one browser engine where CI runs three).
+  In the second case the CI run decides, and there the same outcome is a finding or *could not check*, never *not
+  applicable*.
 
 Each wrapper has its own tests showing it refuse every failure listed in its section.
 
