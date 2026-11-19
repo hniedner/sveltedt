@@ -327,6 +327,7 @@ function canary(): Result | null {
       `the planted skipped, marked test was not reported: ${why}`,
       tail(run.out),
     );
+  if (run.error) return bad(run.error);
   if (!run.report) return bad("vitest wrote no report");
   const { statements } = parseSpec(
     "canary.md",
@@ -404,6 +405,13 @@ function trace(root: string, list: Set<string>): Result {
     if (run.error) return result(CANNOT, run.error);
     if (!run.report)
       return result(CANNOT, "vitest wrote no report", tail(run.out));
+    // As the test step: an error outside any test (unhandled) fails the run though the report counts no failed test
+    if (run.status !== 0 && run.report.numFailedTests === 0)
+      return result(
+        CANNOT,
+        `vitest exited ${run.status} though no test failed`,
+        tail(run.out),
+      );
     results = run.report.numTotalTests;
     const judged = judgeResults(read, testsByFile(run.report, root));
     findings.push(...judged.findings);

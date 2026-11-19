@@ -610,3 +610,15 @@ test("trace: a tracked file under spec/ that is not a top-level .md cannot be ch
   const out = expectTrace(fixture({ "spec/sub/b.md": "# x\n" }), 3);
   assert.match(out, /spec\/sub\/b\.md: under spec\/ but not a top-level \.md/);
 });
+
+test("trace: a run that exits non-zero with no failed test (an unhandled error) is COULD NOT CHECK", () => {
+  const late = `${mark("TST-01")}\ntest("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n`;
+  const out = expectTrace(fixture({ "src/a.test.ts": vitestFile(late) }), 3);
+  assert.match(out, /vitest exited 1 though no test failed/);
+});
+test("trace: a vitest that cannot be started is COULD NOT CHECK and says why", () => {
+  const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 3, {
+    VITEST_BIN: join(tempDir(), "no-vitest"),
+  });
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
+});
