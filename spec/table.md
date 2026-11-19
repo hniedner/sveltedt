@@ -29,6 +29,8 @@ to the consumer as one callback (stated with the statements that add user action
     focus (the simulated DOM differs from engines there), focus indicators, hover, axe, time bounds.
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
+  - **gate wrapper at step boundaries**: a gate step that runs on a step's diff against its base and runs other
+    statements' tests on a changed copy, behind a wrapper that must refuse planted canaries.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
   (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
@@ -935,6 +937,55 @@ without its pseudo-elements, and a declaration MUST NOT carry `!important`.
 - Layer: static check.
 - Traces: PRD-S1, PRD-G2.
 
+**THEME-13** Each rule of the package's stylesheet MUST be directly preceded by a marker comment naming a
+real-browser statement.
+- Examples (the check runs every row against a canary stylesheet holding it; the marker is `/* @spec("<id>") */`, the
+  id form of the test markers):
+
+  | Canary stylesheet | Result |
+  |---|---|
+  | `/* @spec("THEME-10") */ .sdt-x { color: inherit }` | passes |
+  | `.sdt-x { color: inherit }` | finding: no marker |
+  | `/* @spec("THEME-99") */ .sdt-x { color: inherit }` | finding: no spec holds the id |
+  | `/* @spec("THEME-12") */ .sdt-x { color: inherit }` | finding: THEME-12 is not a real-browser statement |
+  | `@media (min-width: 40rem) { /* @spec("THEME-10") */ .sdt-x { color: inherit } }` | passes |
+  | `/* @spec("THEME-10") */ @media (min-width: 40rem) { .sdt-x { color: inherit } }` | finding: the rule inside has no marker |
+  | `/* @spec("THEME-10") */ @keyframes sdt-spin { from { opacity: 0 } to { opacity: 1 } }` | passes: one rule |
+  | `@charset "utf-8";` and nothing else | could not check: content and 0 rules |
+
+  A rule is a style rule (also inside `@media`, `@supports` or `@container`), a `@keyframes` block (its keyframe
+  selectors are not rules), a `@font-face` or a `@property` rule. The check reads the stylesheet of THEME-04 and
+  reports how many rules it read; while that stylesheet does not exist it reports "not applicable: no stylesheet".
+  It lands in the walking-skeleton milestone, with the gate's trace check and the stylesheet, and is not yet tested
+  until then.
+- Reason: the gate's other checks cannot see the stylesheet (PRD-G4); a rule that names the statement whose test
+  proves it is what THEME-14 deletes and checks, and only a real-browser test can turn red when a rule goes.
+- Layer: static check.
+- Traces: PRD-G4.
+
+**THEME-14** At each step boundary, deleting a rule of the package's stylesheet that the step changed MUST turn the
+tests of the statement its marker names red by a failed assertion.
+- Examples (the wrapper runs every row on a canary step that changes one rule marked `@spec("THEME-10")`):
+
+  | Tests of THEME-10 with the rule deleted | Run | Result |
+  |---|---|---|
+  | red by a failed assertion in at least one engine | CI, Chromium, Firefox and WebKit | passes |
+  | green in all three engines | CI | finding: the rule is not proven by THEME-10's tests |
+  | not run in WebKit | CI | could not check |
+  | a crash, a time-out or no test run | CI or local | could not check |
+  | green in Chromium | local (Chromium only) | not applicable: "CI decides: not red in Chromium", naming the rule and THEME-10 |
+  | red by a failed assertion in Chromium | local | passes |
+
+  A rule is changed when its at-rule context, selector, declarations and marker, white space normalised, have no
+  equal at the base. A stylesheet diff with no changed rule is "not applicable: format only" when the two normalised
+  stylesheets are equal, and "could not check" otherwise. It lands in the walking-skeleton milestone, once the gate's
+  step-boundary harness and the three engines of the real-browser tests exist, and is not yet tested until then.
+  Limit: a rule its tests do not prove shows red only in CI.
+- Reason: a rule no test needs is dead or unproven (PRD-G4); no established practice for deleting CSS rules was found
+  (searched 2026-11-18), so this is the stylesheet's analogue of mutation at step boundaries.
+- Layer: gate wrapper at step boundaries.
+- Traces: PRD-G4.
+
 ## 7. Server-driven sort (SORT)
 
 **SORT-10** A sortable column MUST show exactly one sort button, in its header cell.
@@ -1836,6 +1887,8 @@ receives that number.
 | THEME-10 | PRD-T11 |
 | THEME-11 | PRD-T11, PRD-D9 |
 | THEME-12 | PRD-T16 |
+| THEME-13 | PRD-G4 |
+| THEME-14 | PRD-G4 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -1945,6 +1998,7 @@ state in their own statements.
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
+| PRD-G4 | THEME-13, THEME-14 | in full |
 
 ### PRD musts not yet traced
 
@@ -1958,9 +2012,7 @@ state in their own statements.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
-- Gate: PRD-G1, PRD-G3, PRD-G4 (PRD-G2 in part, see above). PRD-G4's statements are written with the gate's
-  step-boundary wrappers; until then a comment naming the proving statement before each stylesheet rule is the build's
-  own convention, and the stylesheet does not wait for them.
+- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
