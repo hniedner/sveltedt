@@ -162,3 +162,23 @@ describe("SORT-12", () => {
     },
   );
 });
+// @spec("SORT-14", "0b194844")
+describe("SORT-14", () => {
+  it("renders the rows in the order given while sort is [name asc]", () => {
+    mount({
+      columns: [name],
+      rows: [
+        { id: "r3", name: "Gamma", code: "", date: "" },
+        { id: "r1", name: "Alpha", code: "", date: "" },
+        { id: "r2", name: "Beta", code: "", date: "" },
+      ],
+      sort: order("name asc"),
+    });
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent.trim()),
+    ).toEqual(["Gamma", "Alpha", "Beta"]);
+  });
+});
