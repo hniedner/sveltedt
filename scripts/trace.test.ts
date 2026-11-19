@@ -17,8 +17,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GATE_VARS } from "./gate-step.ts";
-import { judgeMarkers, parseSpec, readMarkers, traceSources } from "./trace.ts";
+import { baseCommit, GATE_VARS, isResult } from "./gate-step.ts";
+import {
+  baseSets,
+  judgeMarkers,
+  parseSpec,
+  readMarkers,
+  traceSources,
+} from "./trace.ts";
 import type { Marker, Statement } from "./trace.ts";
 
 const sha8 = (text: string): string =>
@@ -531,4 +537,149 @@ test("trace: `needs` still runs in a copy of the scripts with no node_modules", 
     },
   );
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+/** Commits `files` on top of the fixture's HEAD (null removes a file); origin/main stays where it was. */
+function advance(root: string, files: Record<string, string | null>): string {
+  for (const [path, text] of Object.entries(files))
+    if (text === null) rmSync(join(root, path));
+    else put(root, path, text);
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "chore: a change");
+  return git(root, "rev-parse", "HEAD").trim();
+}
+const ci = (event: string, base?: string, head?: string) => ({
+  GITHUB_ACTIONS: "true",
+  GATE_EVENT: event,
+  ...(base ? { GATE_BASE: base } : {}),
+  ...(head ? { GATE_HEAD: head } : {}),
+});
+
+/** main at A2, a branch from A at B, and the merge of B into A2 that a pull request is checked out as (HEAD). */
+function history() {
+  const root = fixture();
+  const a = git(root, "rev-parse", "HEAD").trim();
+  const a2 = advance(root, { x: "1\n" });
+  git(root, "update-ref", "refs/remotes/origin/main", a2);
+  git(root, "checkout", "-q", "--detach", a);
+  const b = advance(root, { y: "1\n" });
+  git(root, "checkout", "-q", "--detach", a2);
+  git(root, "merge", "-q", "--no-ff", "-m", "merge", b);
+  return { root, a, a2, b, m: git(root, "rev-parse", "HEAD").trim() };
+}
+/** The base `baseCommit` names with `env` set (and git's and the gate's own variables otherwise unset). */
+function baseWith(root: string, env: Record<string, string>) {
+  const saved = Object.fromEntries(GATE_VARS.map((k) => [k, process.env[k]]));
+  for (const k of GATE_VARS) delete process.env[k];
+  Object.assign(process.env, env);
+  try {
+    return baseCommit(root);
+  } finally {
+    for (const k of GATE_VARS)
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+  }
+}
+test("baseCommit: one case per row of the truth table", () => {
+  const { root, a, a2, b, m } = history();
+  const table: [string, Record<string, string>, unknown][] = [
+    [
+      "a pull request checked out as the merge of its head",
+      ci("pull_request", a, b),
+      { kind: "pull_request", base: a2 },
+    ],
+    [
+      "a pull request that is not that merge: the merge base of GATE_BASE and GATE_HEAD",
+      ci("pull_request", a2, b),
+      { kind: "pull_request", base: a },
+    ],
+    ["a pull request without GATE_HEAD", ci("pull_request", a), null],
+    [
+      "a pull request without GATE_BASE",
+      ci("pull_request", undefined, b),
+      null,
+    ],
+    ["a push with GATE_BASE", ci("push", a, b), { kind: "push", base: a }],
+    ["a push without GATE_BASE", ci("push"), { kind: "push", base: null }],
+    [
+      "a push with an all-zero GATE_BASE",
+      ci("push", "0".repeat(40)),
+      { kind: "push", base: null },
+    ],
+    ["CI with no event", { GITHUB_ACTIONS: "true", GATE_BASE: a }, null],
+    ["CI with another event", ci("schedule", a, b), null],
+    [
+      "locally: the merge base with origin/main",
+      { GATE_BASE: "ignored" },
+      { kind: "local", base: a2 },
+    ],
+  ];
+  for (const [row, env, want] of table) {
+    // the pull-request rows are checked out as the merge m; the "not that merge" row as b itself
+    git(
+      root,
+      "checkout",
+      "-q",
+      "--detach",
+      row.includes("not that merge") ? b : m,
+    );
+    const got = baseWith(root, env);
+    if (want === null) assert.ok(isResult(got) && got.code === 3, row);
+    else assert.deepEqual(got, want, row);
+  }
+});
+test("baseCommit: locally without origin/main there is no base", () => {
+  const { root } = history();
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  const got = baseWith(root, {});
+  assert.ok(isResult(got) && got.code === 3);
+});
+
+const WITHOUT_TST02 = SPEC_TEXT.replace(/\n\*\*TST-02\*\*[\s\S]*$/, "");
+test("trace: on a pull request an id tested at the base and unmarked now is a finding; one whose statement was deleted is not", () => {
+  const root = fixture({
+    "src/a.test.ts": ONE(),
+    "src/b.test.ts": ONE("TST-02"),
+  });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, {
+    "src/a.test.ts": null,
+    "src/b.test.ts": null,
+    "spec/a.md": WITHOUT_TST02,
+  });
+  const out = expectTrace(root, 1, ci("pull_request", base, head));
+  assert.match(out, /TST-01: tested at the base, no marker names it now/);
+  assert.doesNotMatch(out, /TST-02: tested/);
+});
+test("trace: on a pull request a statement untested at both commits exits 0 and is listed", () => {
+  const root = fixture();
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "README.md": "x\n" });
+  const out = expectTrace(root, 0, ci("pull_request", base, head));
+  assert.match(out, /not yet tested \(2\):\n {4}TST-01\n {4}TST-02/);
+});
+test("trace: a spec and test file new in the pull request count as untested at the base: no finding", () => {
+  const root = fixture({ "spec/a.md": "# Empty\n" });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, {
+    "spec/b.md": SPEC_TEXT,
+    "src/a.test.ts": ONE(),
+  });
+  expectTrace(root, 0, ci("pull_request", base, head));
+});
+test("trace: a base commit that git cannot read cannot be checked", () => {
+  const got = baseSets(fixture(), "0123456789abcdef0123456789abcdef01234567");
+  assert.ok(isResult(got) && got.code === 3);
+});
+test("trace: locally the set is compared with the merge base of origin/main, as on a pull request", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  advance(root, { "src/a.test.ts": null });
+  assert.match(expectTrace(root, 1), /TST-01: tested at the base/);
+});
+test("trace: on a push to main only the list is printed, whatever the base held", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "src/a.test.ts": null });
+  const out = expectTrace(root, 0, ci("push", base, head));
+  assert.match(out, /not yet tested \(2\)/);
 });

@@ -1,10 +1,13 @@
 // The trace step (G6): which spec statements have a passing test.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import {
+  baseCommit,
   canaries,
+  childEnv,
   HERE,
   isResult,
   NA,
@@ -299,6 +302,88 @@ function canary(): Result | null {
   return flagged ? null : bad("no finding named it");
 }
 
+/** The ids a commit's specs hold and its test markers name, read from git: what that commit's trace would have listed. */
+export function baseSets(
+  root: string,
+  base: string,
+): Result | { held: Set<string>; named: Set<string> } {
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      env: childEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  if (git("cat-file", "-e", `${base}^{commit}`).status !== 0)
+    return result(CANNOT, `the base commit ${base} cannot be read`);
+  const files = new Set(
+    git("ls-tree", "-r", "--name-only", "-z", base)
+      .stdout.split("\0")
+      .filter(Boolean),
+  );
+  const show = (f: string) => git("show", `${base}:${f}`).stdout;
+  const src = traceSources(files);
+  return {
+    held: new Set(
+      [...files]
+        .filter((f) => /^spec\/[^/]+\.md$/.test(f))
+        .flatMap((f) => parseSpec(f, show(f)).statements.map((s) => s.id)),
+    ),
+    named: new Set(
+      [...src.read, ...src.scripts].flatMap((f) =>
+        readMarkers(f, show(f)).markers.map((m) => m.id),
+      ),
+    ),
+  };
+}
+
+/** The marked tests' results: the canary first, then the shared run judged against the markers. */
+function judgeRun(
+  root: string,
+  list: Set<string>,
+  read: Marker[],
+): Result | (ReturnType<typeof judgeResults> & { total: number }) {
+  const planted = canary();
+  if (planted) return planted;
+  if (!list.has("vitest.config.ts"))
+    return result(CANNOT, "vitest.config.ts is not tracked");
+  const run = testRun(root);
+  if (isResult(run)) return run;
+  if (run.error) return result(CANNOT, run.error);
+  if (!run.report)
+    return result(CANNOT, "vitest wrote no report", tail(run.out));
+  return {
+    ...judgeResults(read, testsByFile(run.report, root)),
+    total: run.report.numTotalTests,
+  };
+}
+
+/**
+ * A pull request, and locally: an id tested at the base (a marker named it) and now without a marker, while its
+ * statement still exists, is a deleted test. On a push to main there is no such comparison; the list is all.
+ */
+function deletedTests(
+  root: string,
+  hashes: Map<string, string | null>,
+  named: Set<string>,
+): { findings: string[]; cannot: string[] } {
+  const base = baseCommit(root);
+  if (isResult(base))
+    return {
+      findings: [],
+      cannot: [`no base to compare with: ${base.summary}`],
+    };
+  if (base.kind === "push" || !base.base) return { findings: [], cannot: [] };
+  const was = baseSets(root, base.base);
+  if (isResult(was)) return { findings: [], cannot: [was.summary] };
+  return {
+    cannot: [],
+    findings: [...was.named]
+      .sort()
+      .filter((id) => was.held.has(id) && hashes.has(id) && !named.has(id))
+      .map((id) => `${id}: tested at the base, no marker names it now`),
+  };
+}
+
 function trace(root: string, list: Set<string>): Result {
   const specFiles = [...list].filter((f) => /^spec\/[^/]+\.md$/.test(f)).sort();
   const statements: Statement[] = [];
@@ -334,27 +419,22 @@ function trace(root: string, list: Set<string>): Result {
   let results = 0;
   let ok: Marker[] = [];
   if (read.length) {
-    const planted = canary();
-    if (planted) return planted;
-    if (!list.has("vitest.config.ts"))
-      return result(CANNOT, "vitest.config.ts is not tracked");
-    const run = testRun(root);
+    const run = judgeRun(root, list, read);
     if (isResult(run)) return run;
-    if (run.error) return result(CANNOT, run.error);
-    if (!run.report)
-      return result(CANNOT, "vitest wrote no report", tail(run.out));
-    results = run.report.numTotalTests;
-    const judged = judgeResults(read, testsByFile(run.report, root));
-    findings.push(...judged.findings);
-    cannot.push(...judged.cannot);
-    ok = judged.ok;
+    results = run.total;
+    findings.push(...run.findings);
+    cannot.push(...run.cannot);
+    ok = run.ok;
   }
   const named = new Set(markers.map((m) => m.id));
-  const untested = statements.filter((s) => !named.has(s.id)).map((s) => s.id);
   const hashes = new Map(statements.map((s) => [s.id, s.hash]));
+  const untested = statements.filter((s) => !named.has(s.id)).map((s) => s.id);
   const tested = new Set(
     ok.filter((m) => hashes.get(m.id) === m.hash).map((m) => m.id),
   );
+  const was = deletedTests(root, hashes, named);
+  findings.push(...was.findings);
+  cannot.push(...was.cannot);
   const listed = untested.length
     ? [
         `not yet tested (${untested.length}):`,
