@@ -190,9 +190,9 @@ function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
   );
   if ([...jobs.values()].some(sets) && !runs)
     found.push("GATE_BROWSER is set but no job named browser runs the step");
-  // continue-on-error anywhere; `if:` at job level only (a step's own `if:`, an upload on failure, is normal; one on the
-  // step that runs the command is a stated limit)
-  if (job?.some((l) => /^ {4}if\s*:|^\s+(-\s+)?continue-on-error\s*:/.test(l)))
+  // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
+  // on failure) narrows this rule in its own branch, with its rows
+  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
     found.push(
       "the job browser has continue-on-error or if: it may pass without the step",
     );

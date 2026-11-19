@@ -178,9 +178,10 @@ $0 budget, no self-hosted runners.
   - `browser`: real-browser component tests and journey tests, one job running Playwright's three projects `chromium`,
     `firefox` and `webkit`. The gate's `browser` step requires every spec in each engine and names the engine of each
     failure, so one engine's failure does not hide another's *(measured: the browser rows of scripts/check-repo.test.ts)*.
-    The `static` job leaves the step to this job through `GATE_BROWSER`, which the gate-needs step allows only there. The job installs
-    the three engines with `playwright install --with-deps`; browsers are not cached, as Playwright advises
-    *(fetched, playwright-ci)*.
+    The `static` job leaves the step to this job through `GATE_BROWSER`; gate-needs allows the variable in any job but
+    `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
+    (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
+    `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
   - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI
     *(inferred: G7 needs only the parent commit and that commit's test files)*.
   - `mutation` (G8) on the step diff, Linux only.

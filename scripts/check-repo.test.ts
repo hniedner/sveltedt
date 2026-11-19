@@ -4145,31 +4145,27 @@ test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a
   );
 });
 test("gate-needs: a job browser that may pass without the step is a finding", () => {
-  for (const line of ["    continue-on-error: true\n", "    if: false\n"])
+  // An if: or a continue-on-error at job level, on the step itself, after it, or on another step
+  for (const shape of [
+    "    continue-on-error: true\n    steps:\n      - run: node",
+    "    if: false\n    steps:\n      - run: node",
+    "    steps:\n      - continue-on-error: true\n        run: node",
+    "    steps:\n      - run: node scripts/check-repo.ts browser\n        continue-on-error: true\n      - run: node",
+    "    steps:\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
+  ]) {
+    const ci = browserJob(leavesBrowser).replace(
+      "    steps:\n      - run: node",
+      shape,
+    );
     assert.match(
-      expect(
-        "gate-needs",
-        repo(
-          ciWith(
-            browserJob(leavesBrowser).replace(
-              "    steps:\n      - run: node",
-              `${line}    steps:\n      - run: node`,
-            ),
-          ),
-        ),
-        1,
-      ),
+      expect("gate-needs", repo(ciWith(ci)), 1),
       /the job browser has continue-on-error or if/,
     );
-  const onStep = browserJob(leavesBrowser).replace(
-    "- run: node",
-    "- continue-on-error: true\n        run: node",
-  );
-  expect("gate-needs", repo(ciWith(onStep)), 1);
-  // A named step's run line, and a step-level if: on another step, are fine
+  }
+  // A named step's run line is fine
   const named = browserJob(leavesBrowser).replace(
-    "      - run: node",
-    "      - name: Upload\n        if: failure()\n        run: echo up\n      - name: Browser\n        run: node",
+    "- run: node",
+    "- name: Browser\n        run: node",
   );
   expect("gate-needs", repo(ciWith(named)), 0);
 });
