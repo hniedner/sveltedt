@@ -3993,16 +3993,20 @@ section 4.3. "Every intent" is the list of the intents' examples below, one row 
 every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
 chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
 
-**A11Y-36** Activating the "Skip past table" link MUST move focus to a target at the end of the table that only script
-can focus.
+**A11Y-36** The "Skip past table" link MUST be the component's first focusable element.
 - Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
-  element before the component lands first on "Skip past table", before "All orders"; Enter on it: focus is on an
-  element after the region, inside the component, with `tabindex="-1"` and no control in it; the next Tab reaches the
-  first focusable element after the component (a `Pagination` the application places after the table included). This
-  target is also the table's own script-only focus target of PRD-A3.
-- Reason: with selection a 1000-row page has over a thousand Tab stops; the link, the component's first focusable item
-  (PRD-A9), lets a keyboard user pass the table in one step. The Tab sequences of A11Y-10 and A11Y-12 gain it at their
-  head with this milestone's build (an edit of their tests, travelling with that build).
+  element before the component lands first on "Skip past table", then on "All orders", then on "Export".
+- Reason: a keyboard user meets the way past the table before its other stops (PRD-A9). The Tab sequences of A11Y-10
+  and A11Y-12 gain it at their head with this milestone's build (an edit of their tests, travelling with that build).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9.
+
+**A11Y-48** Activating the skip link MUST move focus to a target at the end of the table that only script can focus.
+- Example: Enter on "Skip past table": focus is on an element after the region, inside the component, with
+  `tabindex="-1"` and no control in it; the next Tab reaches the first focusable element after the component (a
+  `Pagination` the application places after the table included).
+- Reason: with selection a 1000-row page has over a thousand Tab stops; the link lets a keyboard user pass the table in
+  one step (PRD-A9).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A9, PRD-A3.
 
@@ -4032,7 +4036,7 @@ page body.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
-**A11Y-38** No intent of sections 11 to 15 MUST scroll the window.
+**A11Y-38** The intents in the rows of A11Y-37 after its first MUST NOT scroll the window.
 - Examples (the test runs every row of A11Y-37 but its first, which A11Y-17 states, as A11Y-17 does: the window starts
   mid-page, the row count stays the same, the page sets `overflow-anchor: none`, and the scroll position is read
   before the intent and after the new state is painted). Breaks that turn it red: the table calls `focus()` without
@@ -4352,7 +4356,8 @@ page body.
 | CHILD-16 | PRD-B27, PRD-A3 |
 | CHILD-09 | PRD-B16, PRD-B27 |
 | CHILD-10 | PRD-I1 |
-| A11Y-36 | PRD-A9, PRD-A3 |
+| A11Y-36 | PRD-A9 |
+| A11Y-48 | PRD-A9, PRD-A3 |
 | A11Y-46 | PRD-A9, PRD-A10 |
 | A11Y-37 | PRD-A3 |
 | A11Y-38 | PRD-A3 |
@@ -4403,12 +4408,12 @@ state in their own statements.
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-36, A11Y-37, A11Y-38 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
+| PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
-| PRD-A9 | A11Y-36, A11Y-46 | in full |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
