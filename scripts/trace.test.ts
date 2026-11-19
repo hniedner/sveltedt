@@ -80,6 +80,30 @@ test("trace: a statement without a Reason line is a problem naming it, and does 
     sha8("**TST-02** Next MUST work. - Layer: unit."),
   );
 });
+test("trace: a heading-like line inside a code fence does not end the statement, and a changed fence changes the hash", () => {
+  const fenced = (code: string) =>
+    spec({ example: `\`\`\`\n# ${code}\n\`\`\`` });
+  assert.deepEqual(parseSpec("spec/a.md", fenced("one")).problems, []);
+  assert.notEqual(hashOf(fenced("one")), hashOf(fenced("two")));
+});
+test("trace: an unclosed code fence is a problem", () => {
+  const r = parseSpec("spec/a.md", spec({ example: "```\n# code" }));
+  assert.match(r.problems.join("\n"), /spec\/a\.md:\d+: unclosed code fence/);
+});
+test("trace: a line shaped like a statement id that the reader does not take is a problem", () => {
+  const r = parseSpec(
+    "spec/a.md",
+    `${spec()}\n**tst-02** Lower case MUST NOT pass.\n`,
+  );
+  assert.match(
+    r.problems.join("\n"),
+    /spec\/a\.md:\d+: .*looks like a statement id/,
+  );
+});
+test("trace: a spec file with no statement is a problem", () => {
+  const r = parseSpec("spec/a.md", "# Nothing here\n");
+  assert.match(r.problems.join("\n"), /spec\/a\.md: no statement/);
+});
 test("trace: a statement without a Layer line is a problem naming it", () => {
   const r = parseSpec("spec/a.md", spec({ layer: "" }));
   assert.match(
@@ -576,4 +600,13 @@ test("trace: `needs` still runs in a copy of the scripts with no node_modules", 
     },
   );
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("trace: a statement id defined twice is a finding naming both places", () => {
+  const out = expectTrace(fixture({ "spec/b.md": SPEC_TEXT }), 1);
+  assert.match(out, /spec\/b\.md:3: TST-01: also defined at spec\/a\.md:3/);
+});
+test("trace: a tracked file under spec/ that is not a top-level .md cannot be checked", () => {
+  const out = expectTrace(fixture({ "spec/sub/b.md": "# x\n" }), 3);
+  assert.match(out, /spec\/sub\/b\.md: under spec\/ but not a top-level \.md/);
 });
