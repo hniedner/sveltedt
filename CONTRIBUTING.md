@@ -21,7 +21,7 @@ CI too.
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
 ```sh
-./scripts/setup   # once per clone: the first step, `hooks`, fails until it has run
+./scripts/setup   # once per clone: the `hooks` step fails until it has run
 pnpm install --frozen-lockfile
 pnpm gate
 ```
