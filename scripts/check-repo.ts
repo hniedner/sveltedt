@@ -2367,8 +2367,10 @@ function browser(root: string, list: Set<string>): Result {
 /** The real run's result: every tracked spec in each engine, the report's totals, then each test, then the exit. */
 function pwJudge(run: PwRun, specs: string[]): Result {
   const stopped = pwCannot(run);
-  if (stopped || !run.report) return stopped ?? result(CANNOT, "no report");
-  const tests = pwTests(run.report.suites);
+  if (stopped) return stopped;
+  // pwCannot answers for a run without a report
+  const report = run.report as PwReport;
+  const tests = pwTests(report.suites);
   const missed = specs.flatMap((f) => {
     const ran = new Set(
       tests
@@ -2390,7 +2392,7 @@ function pwJudge(run: PwRun, specs: string[]): Result {
     unexpected = 0,
     flaky = 0,
     skipped = 0,
-  } = run.report.stats;
+  } = report.stats;
   if (expected + unexpected + flaky + skipped !== tests.length)
     return result(
       CANNOT,

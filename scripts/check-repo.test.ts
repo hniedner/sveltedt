@@ -1626,6 +1626,7 @@ function fakePlaywright(
 const out = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
 if (process.argv[2] === "--version") console.log("Version ${version}");
 else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
+process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
 `,
   );
   chmodSync(bin, 0o755);
@@ -1640,7 +1641,7 @@ const pwReport = (
   file = "a.spec.ts",
   engines = ["chromium", "firefox", "webkit"],
 ) => ({
-  stats: { [status === "unexpected" ? "unexpected" : status]: engines.length },
+  stats: { [status]: engines.length },
   errors,
   suites: [
     {
@@ -1686,8 +1687,9 @@ test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
   });
   assert.equal(ci.code, 0, ci.out);
   assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
-  // Locally the variable leaves nothing out
+  // Locally, and in CI without the variable (the job browser), nothing is left out
   expect("browser", site, 1, { extraEnv: { ...pw, GATE_BROWSER: "job" } });
+  expect("browser", site, 1, { extraEnv: { ...pw, GITHUB_ACTIONS: "true" } });
 });
 test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
   const out = expect(
@@ -1774,6 +1776,13 @@ test("browser: a report whose totals differ from its tests, or that cannot be re
   assert.match(
     expect("browser", site, 3, withPw('{"stats":')),
     /playwright wrote no readable report/,
+  );
+});
+test("browser: a run that exits non-zero with every test passed cannot be checked", () => {
+  const pw = withPw(pwReport("expected")).extraEnv;
+  assert.match(
+    expect("browser", repo(browserSite()), 3, { extraEnv: { ...pw, FAKE_EXIT: "1" } }),
+    /playwright exited 1 with every test passed/,
   );
 });
 test("browser: an error outside the tests that the step does not know cannot be checked, and is shown", () => {
@@ -4095,7 +4104,7 @@ test("selftest: a test file the gate runs sees none of the gate's context variab
   const sees = `import assert from "node:assert/strict";
 import { test } from "node:test";
 test("no gate variable", () => {
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
+  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_BROWSER", "GATE_HEAD", "GITHUB_ACTIONS"])
     assert.equal(process.env[k], undefined, k);
 });
 `;
@@ -4107,6 +4116,7 @@ test("no gate variable", () => {
       extraEnv: {
         GITHUB_ACTIONS: "true",
         GATE_BASE: "HEAD",
+        GATE_BROWSER: "job",
         GATE_HEAD: "HEAD",
         CANARY_DIR: join(here, "canaries"),
       },
