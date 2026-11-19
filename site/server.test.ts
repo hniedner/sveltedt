@@ -17,6 +17,8 @@ interface Answer {
   status: number;
   type: string | undefined;
   body: string;
+  // Every Content-Security-Policy header of the answer, in order
+  policies: string[];
 }
 
 const PARENT = '{ "name": "parent-of-the-build-folder" }';
@@ -53,23 +55,32 @@ async function serve(
   return { server, dist };
 }
 
-// One GET, with the path written to the wire exactly as given (a URL parser would remove `..` before sending)
-function get(server: Server, path: string): Promise<Answer> {
+// One request (GET unless named), with the path written to the wire exactly as given (a URL parser would remove `..`
+// before sending)
+function get(server: Server, path: string, method = "GET"): Promise<Answer> {
   const address = server.address();
   const port =
     typeof address === "object" && address !== null ? address.port : 0;
   return new Promise((resolve, reject) => {
-    request({ host: "127.0.0.1", port, path, agent: false }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.on("end", () =>
-        resolve({
-          status: response.statusCode ?? 0,
-          type: response.headers["content-type"],
-          body: Buffer.concat(chunks).toString(),
-        }),
-      );
-    })
+    request(
+      { host: "127.0.0.1", port, path, method, agent: false },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () =>
+          resolve({
+            status: response.statusCode ?? 0,
+            type: response.headers["content-type"],
+            body: Buffer.concat(chunks).toString(),
+            policies: response.rawHeaders.filter(
+              (_value, index, raw) =>
+                index % 2 === 1 &&
+                raw[index - 1]?.toLowerCase() === "content-security-policy",
+            ),
+          }),
+        );
+      },
+    )
       .on("error", reject)
       .end();
   });
@@ -193,4 +204,30 @@ describe("SRV-03", () => {
   it.each(kinds)("answers %s with the content type %s", async (path, type) => {
     expect((await get(server, `/${path}`)).type).toBe(type);
   });
+});
+
+const STRICT = "default-src 'self'; script-src 'self'; style-src 'self'";
+
+// @spec("SRV-02", "e2b280d6")
+describe("SRV-02", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX, "assets/app.js": APP }))
+      .server;
+  });
+
+  it.each([
+    ["GET", "/", 200],
+    ["GET", "/assets/app.js", 200],
+    ["GET", "/no-such-page", 404],
+    ["GET", "/../package.json", 404],
+    ["POST", "/", null],
+  ] as const)(
+    "answers %s %s with exactly one strict policy header",
+    async (method, path, status) => {
+      const answer = await get(server, path, method);
+      if (status !== null) expect(answer.status).toBe(status);
+      expect(answer.policies).toEqual([STRICT]);
+    },
+  );
 });
