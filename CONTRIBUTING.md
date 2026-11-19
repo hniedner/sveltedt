@@ -58,7 +58,9 @@ The checks today:
   as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
   `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
   constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
-  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). One exception: the site's test files
+  (`site/**/*.test.ts`) may use `DOMParser`, to read the site's own build; PRD-S2 keeps raw HTML out of the component
+  and the site's source, not out of a test of the build. The bans read names as written
   (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
   run time or written as a template literal; a cast or non-null assertion on the object a ban reads
   (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as
@@ -94,6 +96,13 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   it (measured with svelte-check 4.7.8). A second Svelte config is not added; that file is edited. The two Vite
   configs (`vitest.config.ts`, `site/vite.config.ts`) load it through the Svelte plugin; svelte-check, given
   `--config`, imports neither.
+- **site:** Vite builds the test site (`vite build --config site/vite.config.ts`, the same build as `pnpm site:build`)
+  into `site/dist`, before the test step: the site's HTTP tests read that folder (run `pnpm site:build` before
+  running them on their own). It removes `site/dist` first, so an earlier build never passes for this one. The plain
+  scripts directly in `site/public/` (served as they are) are formatted, linted with browser globals and checked for
+  copies; a deeper file there has no class. A build that fails is a finding; a
+  build that leaves no HTML page in `site/dist` cannot be checked. Without a tracked `site/vite.config.ts` the step
+  is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`

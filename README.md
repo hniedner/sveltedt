@@ -22,11 +22,14 @@ independent project, not affiliated with or endorsed by DataTables.
 There is nothing to install yet. What is on `main` today:
 
 - the read-only table: rows in the order given, text or snippet cells, a caption and a labelled region;
-- the alert for invalid input (an empty caption, missing or duplicate column ids and labels, empty, duplicate or
-  unreadable row ids), shown instead of a wrong table;
-- row ids that are strings or finite numbers, as server JSON gives them.
+- the alert for invalid input (an empty caption, missing or duplicate column ids and labels, columns, or rows while
+  ready, that are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
+- row ids that are strings or finite numbers, as server JSON gives them;
+- the loading, failed and busy states: the loading text in a status element, the failure in an alert, `aria-busy`
+  on the table, the rows kept while busy, and the row count in a polite live region;
+- every fixed word as a `messages` prop with an English default.
 
-Not yet: the loading, failed and busy states, sort, the pager, search, filters, column features, selection, the
+Not yet: sort, the pager, search, filters, column features, selection, the
 connection helper and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
@@ -46,7 +49,8 @@ pnpm site:build
 pnpm site:serve
 ```
 
-Then open <http://127.0.0.1:4173>. The site listens on that address only.
+Then open <http://127.0.0.1:4173>. The site listens on that address only and sends the strict content-security
+policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
 
 ## Documents
 

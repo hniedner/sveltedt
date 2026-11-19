@@ -7,17 +7,12 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { request, type Server } from "node:http";
+import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { get } from "../test/http.ts";
 import { siteServer } from "./server.ts";
-
-interface Answer {
-  status: number;
-  type: string | undefined;
-  body: string;
-}
 
 const PARENT = '{ "name": "parent-of-the-build-folder" }';
 const INDEX = "<!doctype html><title>index</title>";
@@ -51,28 +46,6 @@ async function serve(
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   started.push({ server, folder });
   return { server, dist };
-}
-
-// One GET, with the path written to the wire exactly as given (a URL parser would remove `..` before sending)
-function get(server: Server, path: string): Promise<Answer> {
-  const address = server.address();
-  const port =
-    typeof address === "object" && address !== null ? address.port : 0;
-  return new Promise((resolve, reject) => {
-    request({ host: "127.0.0.1", port, path, agent: false }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.on("end", () =>
-        resolve({
-          status: response.statusCode ?? 0,
-          type: response.headers["content-type"],
-          body: Buffer.concat(chunks).toString(),
-        }),
-      );
-    })
-      .on("error", reject)
-      .end();
-  });
 }
 
 // @spec("SRV-01", "a3f33248")
@@ -193,4 +166,30 @@ describe("SRV-03", () => {
   it.each(kinds)("answers %s with the content type %s", async (path, type) => {
     expect((await get(server, `/${path}`)).type).toBe(type);
   });
+});
+
+const STRICT = "default-src 'self'; script-src 'self'; style-src 'self'";
+
+// @spec("SRV-02", "e2b280d6")
+describe("SRV-02", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX, "assets/app.js": APP }))
+      .server;
+  });
+
+  it.each([
+    ["GET", "/", 200],
+    ["GET", "/assets/app.js", 200],
+    ["GET", "/no-such-page", 404],
+    ["GET", "/../package.json", 404],
+    ["POST", "/", null],
+  ] as const)(
+    "answers %s %s with exactly one strict policy header",
+    async (method, path, status) => {
+      const answer = await get(server, path, method);
+      if (status !== null) expect(answer.status).toBe(status);
+      expect(answer.policies).toEqual([STRICT]);
+    },
+  );
 });

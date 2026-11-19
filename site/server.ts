@@ -11,6 +11,9 @@ const TYPES: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
 };
 
+// The strict policy (PRD section 4.4), on every answer: the browser enforces it only where it is sent (SRV-02)
+const POLICY = "default-src 'self'; script-src 'self'; style-src 'self'";
+
 interface BuiltFile {
   body: Buffer;
   type: string;
@@ -42,6 +45,7 @@ function serve(files: ReadonlyMap<string, BuiltFile>): Server {
   return createServer((request, response) => {
     const [path = ""] = (request.url ?? "").split("?", 1);
     const file = files.get(path);
+    response.setHeader("Content-Security-Policy", POLICY);
     if (!file) {
       response.writeHead(404).end();
       return;

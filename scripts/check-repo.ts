@@ -711,8 +711,14 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
-    // The project is TypeScript: the Svelte config is its one .js file; another .js file has no class and blocks
-    // until one is decided.
+    // The test site's plain scripts, served as they are from Vite's public folder (a page's first, classic script
+    // cannot be a module the build compiles)
+    match: /^site\/public\/[^/]+\.js$/,
+    steps: ["format", "lint", "dupes"],
+  },
+  {
+    // The project is TypeScript: the Svelte config and the site's public scripts are its .js files; another .js file
+    // has no class and blocks until one is decided.
     match: /^svelte\.config\.js$/,
     steps: ["format", "lint"],
     why: "dupes: configuration that Svelte's tools read, no logic to copy",
@@ -1094,10 +1100,17 @@ const SCRIPT_BANS = ".ts";
 const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
   ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
 );
+// The one named exception: the site's test files may use DOMParser to read the site's own build (reviewer's ruling,
+// 2026-11-18); for them the canaries' proof expects every other ban, and only that one may be missing.
+const SITE_TESTS = /^site\/.+\.test\.ts$/;
+const LIFTED = "DOMParser (PRD-S2)";
 function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
-  const bans = (c: { rules: Record<string, unknown> }) =>
+  const severity = (c: { rules: Record<string, unknown> }) =>
+    (c.rules["no-restricted-syntax"] as unknown[] | undefined)?.[0];
+  const bans = (c: { rules: Record<string, unknown> }, lifted = false) =>
     ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
       .slice(1)
+      .filter((e) => !lifted || (e as { message?: string }).message !== LIFTED)
       .map((e) => JSON.stringify(e));
   // The SCRIPT_BANS canary raised each of its bans first (lintCanaryMisses), so it has a config.
   const proven = Object.entries(canary.configs).find(
@@ -1109,9 +1122,10 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
     const want = planted ? canary.configs[planted] : null;
     const got = rec.configs[probe];
     if (!want || !got) return [`${probe}: no config`];
+    const lifted = SITE_TESTS.test(probe);
     const rules = [
       ...new Set((LINT_CANARY_RULES[ext] ?? []).map((e) => e.split("|")[0])),
-    ];
+    ].filter((r) => !lifted || r !== "no-restricted-syntax");
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
     return [
@@ -1119,7 +1133,10 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
       ...(same(got.settings, want.settings) ? [] : ["settings"]),
       ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
       ...(["processor", "parser"] as const).filter((k) => got[k] !== want[k]),
-      ...(bans(proven).every((b) => bans(got).includes(b))
+      ...(lifted && severity(got) !== severity(want)
+        ? ["no-restricted-syntax severity"]
+        : []),
+      ...(bans(proven, lifted).every((b) => bans(got).includes(b))
         ? []
         : [
             `no-restricted-syntax without each ban of the ${SCRIPT_BANS} canary`,
@@ -1749,6 +1766,43 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+const viteBin = (): string =>
+  process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
+const SITE_CONFIG = "site/vite.config.ts";
+
+// The site's build, before the test step: the HTTP and browser tests read the real build folder site/dist. A build
+// that fails is a finding; a build that leaves no HTML page in site/dist cannot be checked (nothing to test).
+function site(root: string, list: Set<string>): Result {
+  if (!list.has(SITE_CONFIG))
+    return result(NA, `no tracked ${SITE_CONFIG}: no site to build`);
+  // A folder left from an earlier build must not pass for this one
+  const dist = join(root, "site", "dist");
+  rmSync(dist, { recursive: true, force: true });
+  const r = spawnSync(viteBin(), ["build", "--config", SITE_CONFIG], {
+    cwd: root,
+    encoding: "utf8",
+    env: childEnv(),
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (r.error)
+    return result(CANNOT, `cannot run ${viteBin()}: ${errorCode(r.error)}`);
+  if (r.status !== 0)
+    return result(
+      FINDING,
+      `vite build exited ${r.status}`,
+      tail(`${r.stdout}${r.stderr}`),
+    );
+  // Pages, not files: Vite copies site/public into the folder even when it builds no page
+  const pages = existsSync(dist)
+    ? readdirSync(dist, { recursive: true, withFileTypes: true }).filter(
+        (e) => e.isFile() && e.name.endsWith(".html"),
+      ).length
+    : 0;
+  return pages
+    ? result(PASS, `vite build wrote ${pages} page(s) to site/dist`)
+    : result(CANNOT, "the build left no HTML page in site/dist");
+}
+
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
 // test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
@@ -2055,6 +2109,7 @@ const CHECKS: Record<string, Check> = {
   lint,
   types,
   svelte,
+  site,
   test,
   trace,
   dupes,
