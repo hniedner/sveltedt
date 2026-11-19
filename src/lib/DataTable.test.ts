@@ -1035,6 +1035,16 @@ describe("RND-07", () => {
   });
 });
 
+// @spec("RND-11", "505ee36c")
+describe("RND-11", () => {
+  it("shows no filter button for the columns Name and Note, neither with a filter", () => {
+    show({ columns: [nameColumn, noteColumn] });
+    expect(screen.queryAllByRole("button", { name: /^Filter/ })).toHaveLength(
+      0,
+    );
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
