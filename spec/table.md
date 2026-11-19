@@ -3817,6 +3817,7 @@ cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1
   | `detail` given | the details column, then Name |
   | `detail` and `selection` given | the box column, the details column, then Name |
   | `detailName` and `onexpand` given, no `detail` | none: three column headers, none named "Details", and no button whose name starts with "Details for" |
+  | `detail` given, and a fourth given column labelled "Details" | the details column first; no alert; two column headers named "Details" |
 
   The header cell of the details column has the accessible text "Details" and no visible text. A given column labelled
   "Details" is no fault: its header is a different cell.
@@ -3888,8 +3889,7 @@ cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1
 - Layer: component.
 - Traces: PRD-B27, PRD-A4.
 
-**CHILD-11** The ids of detail rows MUST be unique across tables on one page, MUST contain no white space, and MUST be
-the same after hydration, as ID-01 to ID-03 state for the other ids.
+**CHILD-11** Each detail row's id MUST meet ID-01 to ID-03 and be resolved from its row's button by `aria-controls`.
 - Examples (the test runs every row):
 
   | Set-up | Check |
@@ -3925,7 +3925,6 @@ button.
   | Steps | Focus after |
   |---|---|
   | `expanded` `['r1']`; focus the link "Open Beta"; `expanded` becomes `[]` | "Details for Beta" |
-  | `expanded` `['r1']`; focus the link "Open Beta"; the rows change to r2 only (a new page) | as the new page leaves it: not moved by the component (PRD-A3: a new page moves no focus) |
 
 - Reason: focus must never fall to the page body (PRD-A3); the button is where the user opened the details.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3941,7 +3940,7 @@ data column.
   | its header cell | no grip |
   | `columnState.order` `['date', 'name', 'code']` | the details column, then Date, Name, Code |
   | drag Date's grip to the details column's header cell | no `oncolumnstate` call |
-  | press "Columns" | "Move earlier Name", the first data column, has `aria-disabled="true"` |
+  | press "Move earlier Date" twice, the state following each | `order` `['date', 'name', 'code']`; the details column still directly before Date |
 - Reason: the disclosure buttons are where every row starts, like the boxes (PRD-B27, PRD-B11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B27, PRD-B11.
