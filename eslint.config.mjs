@@ -156,6 +156,11 @@ export default [
     linterOptions,
     rules: { ...shared, "no-restricted-syntax": ["error", ...scriptBans] },
   },
+  {
+    // The test site's plain scripts, served as they are (Vite's public folder): browser globals, listed by hand
+    files: ["site/public/**/*.js"],
+    languageOptions: { globals: { window: "writable", document: "readonly" } },
+  },
   ...ts.configs.recommendedTypeChecked.map((config) => ({
     ...config,
     files: ["**/*.ts", "**/*.svelte"],

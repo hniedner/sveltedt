@@ -723,8 +723,14 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
-    // The project is TypeScript: the Svelte config is its one .js file; another .js file has no class and blocks
-    // until one is decided.
+    // The test site's plain scripts, served as they are from Vite's public folder (a page's first, classic script
+    // cannot be a module the build compiles)
+    match: /^site\/public\/[^/]+\.js$/,
+    steps: ["format", "lint", "dupes"],
+  },
+  {
+    // The project is TypeScript: the Svelte config and the site's public scripts are its .js files; another .js file
+    // has no class and blocks until one is decided.
     match: /^svelte\.config\.js$/,
     steps: ["format", "lint"],
     why: "dupes: configuration that Svelte's tools read, no logic to copy",

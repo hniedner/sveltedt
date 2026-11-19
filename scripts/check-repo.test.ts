@@ -2165,7 +2165,11 @@ test("lint: a raw-HTML sink named without being called or assigned is a finding"
   }
 });
 test("lint: a raw-HTML sink in a .js or .mjs file is a finding", () => {
-  for (const file of ["svelte.config.js", "scripts/x.mjs"]) {
+  for (const file of [
+    "svelte.config.js",
+    "scripts/x.mjs",
+    "site/public/x.js",
+  ]) {
     const out = expect(
       "lint",
       repo((r) =>
@@ -2612,6 +2616,7 @@ test("types: a declaration file, or any .js file but the root svelte.config.js, 
     "src/x.js",
     "vite.config.js",
     "docs/svelte.config.js",
+    "site/public/deep/x.js",
   ]) {
     const out = expect(
       "types",
