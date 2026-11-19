@@ -843,8 +843,12 @@ snippet's controls, then the region while it is a stop, then the controls in the
 ### Slow loads: announcements and focus (milestone 3)
 
 Times as in the slow-load statements of section 2 (counted from mount, moved by fake timers). "Added" counts the
-times the words are put into the status region, as a `MutationObserver` on it records them; a live region announces
-what is added to it.
+mutation records, from a `MutationObserver` on the status region with `childList`, `characterData`,
+`characterDataOldValue` and `subtree`, that put the words in: an added node whose text holds them, or a text change
+from a value without them to one with them. A text rewritten to the same words counts 0; a node removed and added
+again with the same words counts 1, since a screen reader announces the added node again. The stopped message is
+then in two places, the body cell of STATE-20 and the status region: a statement that says it is shown reads it
+within the `table` element.
 
 **A11Y-20** The still-loading text MUST be in the status region exactly while it is shown, and be added to it once each
 time it appears.
@@ -878,18 +882,20 @@ once each time `status` becomes `stopped`.
 - Traces: PRD-A4, PRD-B24.
 
 **A11Y-27** "Cancel" MUST NOT take focus when it appears.
-- Examples (the test runs every row; `oncancel` passed, an `actions` snippet holding "Export"; at 6000 ms "Cancel"
-  appears): "Export" focused at 5000 ms: it is still the focused element at 6000 ms; nothing focused: `document.body`
+- Examples (the test runs every row; `status 'loading'`, `oncancel` passed, an `actions` snippet holding "Export"; at
+  6000 ms "Cancel" appears): "Export" focused at 5000 ms: it is still the focused element at 6000 ms; nothing focused: `document.body`
   is still the focused element at 6000 ms.
 - Reason: a control that grabs focus as it appears interrupts the user, who may be reading or working elsewhere
   (WCAG 3.2.1, PRD-B23).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B23, PRD-A3.
 
-**A11Y-28** When "Cancel" goes while it has focus, focus MUST move to the `table` element without scrolling.
-- Examples (the test runs every row; `status 'loading'`, `oncancel` passed; the window is scrolled so the table's top
-  lies above the viewport; "Cancel" is focused at 6000 ms, then the consumer passes the props of the row; after it the
-  `table` element is the focused element, and the window's and the region's scroll positions are those before):
+**A11Y-28** While the input stays valid, when "Cancel" goes while it has focus, focus MUST move to the `table` element
+without scrolling.
+- Examples (the test runs every row; `status 'loading'`, `oncancel` passed; at 6000 ms the test focuses "Cancel" with
+  `focus({ preventScroll: true })`, scrolls the window so the table's top lies above the viewport, reads the window's
+  and the region's scroll positions, then passes the props of the row; after it the `table` element is the focused
+  element and both scroll positions are the ones read):
 
   | Consumer passes |
   |---|
@@ -898,7 +904,8 @@ once each time `status` becomes `stopped`.
   | `status 'failed'` |
 
 - Reason: focus that falls to the page body sends a keyboard user back to the top of the page (WCAG 2.4.3); a scroll
-  would move the content the user was reading (PRD-B23).
+  would move the content the user was reading (PRD-B23). With invalid input there is no `table` element (RND-13);
+  where focus goes then is not stated here.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B23, PRD-A3.
 
@@ -910,10 +917,12 @@ once each time `status` becomes `stopped`.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B24, PRD-A3.
 
-**A11Y-30** When "Try again" goes while it has focus, focus MUST move to the `table` element without scrolling.
-- Examples (the test runs every row; `onretry` passed; the window is scrolled so the table's top lies above the
-  viewport; "Try again" is focused and pressed with Enter, then the consumer passes the props of the row; after it the
-  `table` element is the focused element, and the window's and the region's scroll positions are those before):
+**A11Y-30** While the input stays valid, when "Try again" goes while it has focus, focus MUST move to the `table`
+element without scrolling.
+- Examples (the test runs every row; `onretry` passed; the test focuses "Try again" with `focus({ preventScroll:
+  true })`, scrolls the window so the table's top lies above the viewport, presses Enter, reads the window's and the
+  region's scroll positions, then passes the props of the row; after it the `table` element is the focused element and
+  both scroll positions are the ones read):
 
   | State before | Consumer passes |
   |---|---|
@@ -922,7 +931,8 @@ once each time `status` becomes `stopped`.
   | `status 'stopped'` | `status 'ready'` with 25 rows |
 
 - Reason: PRD-B24 names the retry that turns `status` to `loading`; any other way the button goes would drop focus to
-  the page body the same way (WCAG 2.4.3).
+  the page body the same way (WCAG 2.4.3). With invalid input there is no `table` element (RND-13); where focus goes
+  then is not stated here.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B24, PRD-A3.
 
@@ -936,6 +946,16 @@ controls in the cells (as A11Y-10, for this group).
   (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3, PRD-B23.
+
+**A11Y-32** The still-loading text and the stopped message MUST each be visible in exactly one place.
+- Examples (the test runs every row; "visible" means an element whose own text holds the words and whose box is wider
+  and higher than 1 px, not clipped to less): `status 'loading'` at 6000 ms: "Still loading" once; `status 'ready'`
+  with two rows, `busy true`, at 6000 ms: "Still loading" once; `status 'stopped'`: "Loading stopped" once, in the
+  `table` element.
+- Reason: the status region of A11Y-20 and A11Y-26 may hold a second copy for assistive technology; a sighted user
+  must not read the same words twice (PRD-B22, PRD-B24).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22, PRD-B24.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
@@ -2358,6 +2378,7 @@ receives that number.
 | A11Y-29 | PRD-B24, PRD-A3 |
 | A11Y-30 | PRD-B24, PRD-A3 |
 | A11Y-31 | PRD-A3, PRD-B23 |
+| A11Y-32 | PRD-B22, PRD-B24 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -2470,9 +2491,9 @@ state in their own statements.
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
-| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30 | in full |
+| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
