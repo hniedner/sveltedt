@@ -3422,6 +3422,36 @@ test("pre-commit: a staged workflow and a staged package.json run the workflow a
   assert.match(r.out, /^PASS workflows: /m);
   assert.match(r.out, /^PASS lockfile: /m);
 });
+test("pre-commit: a whole-repository listing that fails cannot be checked, and is not narrowed to the staged files", () => {
+  const root = hooked();
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "package.json");
+  // The hook run directly, with a git first on the PATH that fails `ls-files` and is git otherwise (git's own hook
+  // runs put git's executable folder ahead of the PATH, so a stand-in cannot be reached through `git commit`).
+  const bin = tempDir();
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  put(
+    bin,
+    "git",
+    `#!/bin/sh\ncase " $* " in *" ls-files "*) exit 1;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "check-repo.ts"), "pre-commit"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...GIT_ENV, PATH: `${bin}${delimiter}${GIT_ENV.PATH ?? ""}` },
+    },
+  );
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stdout, /^COULD NOT CHECK lockfile: /m);
+});
 test("pre-commit: a commit that only deletes files has nothing to check", () => {
   const root = hooked();
   git(root, "rm", "-q", "AGENTS.md");

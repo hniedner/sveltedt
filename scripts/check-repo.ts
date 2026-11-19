@@ -2173,7 +2173,8 @@ function hooks(root: string): Result {
 type Stage = [string, () => Result];
 
 // The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
-// index for `git commit -a` or `git commit <path>`: the listings and the export below keep that environment.
+// index for `git commit -a` or `git commit <path>`: the staged list and the export below keep that environment. The
+// whole-repository listings (`tracked`) drop git's variables and read the real index.
 function preCommit(): Result | Stage[] {
   const git = (...args: string[]) =>
     spawnSync("git", args, { encoding: "utf8" });
@@ -2198,7 +2199,13 @@ function preCommit(): Result | Stage[] {
     );
   if (!files.size) return result(NA, "no added or changed file is staged");
   const root = process.cwd();
-  const whole = () => tracked(root) ?? files;
+  // The two checks that read the whole repository: a failed listing is not narrowed to the staged files.
+  const whole = (check: Check) => (): Result => {
+    const all = tracked(root);
+    return all
+      ? check(root, all)
+      : result(CANNOT, "git cannot list the tracked files");
+  };
   const some = (match: (f: string) => boolean) => [...files].some(match);
   // A staged file of no class runs the step, which then names it.
   const ofStep = (step: string) =>
@@ -2221,12 +2228,12 @@ function preCommit(): Result | Stage[] {
           f,
         ),
       ),
-      () => lockfile(root, whole()),
+      whole(lockfile),
     ),
     when(
       "workflows",
       some((f) => f.startsWith(".github/")),
-      () => workflows(root, whole()),
+      whole(workflows),
     ),
     ["secrets", () => stagedSecrets(root, [...files])],
   ];
