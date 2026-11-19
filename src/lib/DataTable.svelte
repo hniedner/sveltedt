@@ -23,7 +23,14 @@
     ) as Partial<DataTableMessages>),
   });
   const fault = $derived(
-    validateTable({ rows, columns, getRowId, caption, regionLabel, status }),
+    validateTable({
+      rows,
+      columns,
+      getRowId,
+      caption,
+      regionLabel,
+      status,
+    }),
   );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
@@ -54,8 +61,16 @@
         class="bg-[var(--sdt-header-surface,ButtonFace)] text-[var(--sdt-header-text,ButtonText)]"
       >
         <tr>
-          {#each columns as column (column.id)}
-            <th scope="col">{column.label}</th>
+          {#each columns as column, index (column.id)}
+            <th scope="col">
+              {#if column.sortable}
+                <button type="button" aria-label={words.sortBy(column.label)}
+                  >{column.label}</button
+                >
+              {:else}
+                {column.label}
+              {/if}
+            </th>
           {/each}
         </tr>
       </thead>

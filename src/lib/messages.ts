@@ -1,6 +1,6 @@
 import type { DataTableMessages } from "./types.ts";
 
-// The English default of every fixed word the table shows or announces (RND-06). The alert texts hold no value taken
+// The English default of every fixed word the table shows or announces (RND-06, SORT-17). The alert texts hold no value taken
 // from the input (RND-09).
 export const defaultMessages: DataTableMessages = {
   loading: "Loading data…",
@@ -19,4 +19,5 @@ export const defaultMessages: DataTableMessages = {
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",
   rowIdUnreadable: "A row id could not be read.",
+  sortBy: (label) => `Sort by ${label}`,
 };
