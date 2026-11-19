@@ -898,6 +898,10 @@ test("format: an unformatted Markdown file is a finding that names it", () => {
   const bad = edit("CONTRIBUTING.md", "# Contributing\n", "#   Contributing\n");
   assert.match(expect("format", repo(bad), 1), /CONTRIBUTING\.md/);
 });
+test("format: an unformatted site public script is a finding that names it", () => {
+  const bad = (root: string) => put(root, "site/public/x.js", "window.a=1\n");
+  assert.match(expect("format", repo(bad), 1), /site\/public\/x\.js/);
+});
 test("format: an unformatted JSON file is a finding", () => {
   expect(
     "format",
@@ -2165,7 +2169,11 @@ test("lint: a raw-HTML sink named without being called or assigned is a finding"
   }
 });
 test("lint: a raw-HTML sink in a .js or .mjs file is a finding", () => {
-  for (const file of ["svelte.config.js", "scripts/x.mjs"]) {
+  for (const file of [
+    "svelte.config.js",
+    "scripts/x.mjs",
+    "site/public/x.js",
+  ]) {
     const out = expect(
       "lint",
       repo((r) =>
@@ -2600,7 +2608,7 @@ test("types: a scripts/tsconfig.json that turns checking off cannot be checked: 
   });
   assert.match(out, /tsc did not report the planted type errors/);
 });
-test("types: a declaration file, or any .js file but the root svelte.config.js, has no class until one is decided", () => {
+test("types: a declaration file, or a .js file other than svelte.config.js and site/public/*.js, has no class", () => {
   // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
   for (const file of [
     "src/app.d.ts",
@@ -2612,6 +2620,8 @@ test("types: a declaration file, or any .js file but the root svelte.config.js, 
     "src/x.js",
     "vite.config.js",
     "docs/svelte.config.js",
+    // Only a script directly in site/public has a class
+    "site/public/deep/x.js",
   ]) {
     const out = expect(
       "types",
@@ -3569,7 +3579,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 4 not applicable: svelte, test, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 5 not applicable: svelte, site, test, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {
@@ -3696,4 +3706,146 @@ test("lockfile: bundleDependencies, npm's own spelling, would ship", () => {
 });
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
+});
+
+// A site the real vite builds: a config with no plugin and a page with no script
+const siteFiles =
+  (config = "export default { root: import.meta.dirname };\n") =>
+  (root: string): void => {
+    put(root, "site/vite.config.ts", config);
+    put(root, "site/index.html", "<!doctype html><title>site</title>\n");
+  };
+test("site: without a tracked site/vite.config.ts the step is not applicable", () => {
+  const r = run(["site", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE site: no tracked site\/vite\.config\.ts/m,
+  );
+});
+test("site: an untracked site/vite.config.ts is not applicable either", () => {
+  const untracked = (root: string): void => {
+    siteFiles()(root);
+    put(root, ".git/info/exclude", "site/\n");
+  };
+  const r = run(["site", "--root", repo(untracked)]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE site:/m);
+});
+test("site: passes when vite builds the site into site/dist, and counts the files", () => {
+  assert.match(
+    expect("site", repo(siteFiles()), 0),
+    /vite build wrote 1 page\(s\) to site\/dist/,
+  );
+});
+test("site: a build that fails is a finding that says why", () => {
+  assert.match(
+    expect("site", repo(siteFiles('throw new Error("broken config");\n')), 1),
+    /broken config/,
+  );
+});
+test("site: a build that leaves site/dist missing or empty cannot be checked", () => {
+  const elsewhere = siteFiles(
+    'export default { root: import.meta.dirname, build: { outDir: "../out" } };\n',
+  );
+  assert.match(
+    expect("site", repo(elsewhere), 3),
+    /no HTML page in site\/dist/,
+  );
+  const empty = (root: string): void => {
+    elsewhere(root);
+    mkdirSync(join(root, "site", "dist"));
+  };
+  assert.match(expect("site", repo(empty), 3), /no HTML page in site\/dist/);
+  // A site/dist left from an earlier build does not pass for this one
+  const stale = (root: string): void => {
+    elsewhere(root);
+    put(root, "site/dist/index.html", "<!doctype html><title>old</title>\n");
+  };
+  assert.match(expect("site", repo(stale), 3), /no HTML page in site\/dist/);
+});
+test("site: a build that writes no HTML page cannot be checked", () => {
+  const scriptOnly = (root: string): void => {
+    siteFiles(
+      'export default { root: import.meta.dirname, build: { rollupOptions: { input: import.meta.dirname + "/main.js" } } };\n',
+    )(root);
+    put(root, "site/main.js", "export const a = 1;\n");
+  };
+  assert.match(
+    expect("site", repo(scriptOnly), 3),
+    /no HTML page in site\/dist/,
+  );
+});
+test("site: a vite that cannot be started cannot be checked, and says why", () => {
+  assert.match(
+    expect("site", repo(siteFiles()), 3, {
+      extraEnv: { VITE_BIN: "/no/such/vite" },
+    }),
+    /cannot run \/no\/such\/vite: ENOENT/,
+  );
+});
+
+// The site's test files read the site's own build with DOMParser (the one named exception to its ban)
+const PARSES = `import { expect, test } from "vitest";
+test("parses", () => {
+  expect(new DOMParser().parseFromString("<p></p>", "text/html").body).toBeTruthy();
+});
+`;
+test("lint: DOMParser passes in a site test file and still fires in site/src and in a src/lib test file", () => {
+  expect(
+    "lint",
+    repo((r) => put(r, "site/a.test.ts", PARSES)),
+    0,
+  );
+  for (const file of ["site/src/x.ts", "src/lib/x.test.ts"]) {
+    const out = expect(
+      "lint",
+      repo((r) => put(r, file, PARSES)),
+      1,
+    );
+    assert.ok(out.includes("DOMParser (PRD-S2)"), `${file}: ${out}`);
+  }
+});
+test("lint: a DOMParser lift elsewhere, or a wider lift for site tests, cannot be checked", () => {
+  const real = join(here, "..", "eslint.config.mjs");
+  const lift = (files: string, drop: string) =>
+    `{ files: [${JSON.stringify(files)}], rules: { "no-restricted-syntax": ["error", ...base.flatMap((b) => b.files?.includes("**/*.ts") ? (b.rules?.["no-restricted-syntax"] ?? []).slice(1) : []).filter((e) => !${drop}.test(e.message))] } }`;
+  for (const [block, file, named] of [
+    [
+      lift("src/lib/**/*.test.ts", "/DOMParser/"),
+      "src/lib/x.test.ts",
+      "src/lib/x.test.ts: no-restricted-syntax",
+    ],
+    [
+      lift("site/**/*.test.ts", "/DOMParser|createElement /"),
+      "site/a.test.ts",
+      "site/a.test.ts: no-restricted-syntax",
+    ],
+    [
+      lift("site/**/*.test.ts", "/DOMParser/").replace('["error"', '["off"'),
+      "site/a.test.ts",
+      "site/a.test.ts: no-restricted-syntax",
+    ],
+  ]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect(
+      "lint",
+      repo((r) =>
+        put(
+          r,
+          file,
+          `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+        ),
+      ),
+      3,
+      {
+        extraEnv: { ESLINT_CONFIG: config },
+      },
+    );
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
 });

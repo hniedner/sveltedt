@@ -46,7 +46,8 @@ pnpm site:build
 pnpm site:serve
 ```
 
-Then open <http://127.0.0.1:4173>. The site listens on that address only.
+Then open <http://127.0.0.1:4173>. The site listens on that address only and sends the strict content-security
+policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
 
 ## Documents
 
