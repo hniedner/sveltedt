@@ -2495,7 +2495,8 @@ statement that places something "inside the region" means the filter button, nev
 press outside it and on Escape by the browser's own light dismiss, and when focus leaves it by Tab through a
 `focusout` handler on the dialog itself; no listener on `document` or `window` is added (FOOT-02; the practice
 check of 2026-11-19 chose this route). The examples use the columns of section 11 plus column Code (id `code`,
-sortable, no filter) after Status; the header cell of a column holds its sort button, then its filter button.
+sortable, no filter) after Status; Name and Status are not sortable. The header cell of a column holds its sort
+button, then its filter button, and a filter dialog's markup follows its own filter button in document order.
 
 **FILT-02** A press on "Filter <label>" MUST open one dialog named "<label> filter".
 - Examples (the test runs every row):
@@ -2510,8 +2511,11 @@ sortable, no filter) after Status; the header cell of a column holds its sort bu
 - Traces: PRD-B6, PRD-B7, PRD-A1.
 
 **FILT-34** The open filter dialog MUST be shown whole, also where the region clips its content.
-- Example: the region is 120 CSS px tall and scrolls, with 20 rows; press "Filter Name": for each corner of the
-  dialog's box, moved 2 px inwards, `document.elementFromPoint` returns the dialog or an element inside it.
+- Example: a 1280 by 800 CSS px viewport; the table at the top of the page, its region 60 CSS px tall (lower than
+  the dialog) and scrolling, with 20 rows; press "Filter Name": the dialog's box lies inside the viewport, and at the
+  midpoint of each of its four edges, moved 2 px inwards, `document.elementFromPoint` returns the dialog or an
+  element inside it. Break that turns it red: the dialog without `popover`, as an absolutely positioned child of
+  Name's header cell, which the region clips.
 - Reason: a dialog cut off by the region hides its own field (PRD-A1, WCAG 2.4.11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-A1.
@@ -2579,16 +2583,19 @@ sortable, no filter) after Status; the header cell of a column holds its sort bu
   | Escape pressed | Dialog | Escapes the listener counts |
   |---|---|---|
   | in "Filter Name text", "Name filter" open | closes | 0 |
+  | on "Filter Name" after Shift+Tab from "Filter Name text" (FILT-21), "Name filter" open | closes | 0 |
   | on "Sort by Code", no dialog open | - | 1 |
 
 - Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
-  filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape after the key event has already
-  passed through the document, so the dialog itself stops it.
+  filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape only after the `keydown` event has
+  been dispatched through the document, unless it was cancelled (HTML, close requests, FETCHED 2026-11-19), so the
+  dialog and its filter button stop that event themselves.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B19, PRD-B6, PRD-B7.
 
 **FILT-20** Tab out of an open filter dialog MUST close it and leave focus where Tab put it.
-- Example: press "Filter Name", press Tab: no element with role `dialog` is open, and focus is on "Sort by Code".
+- Example: press "Filter Name", press Tab: no element with role `dialog` is open, and focus is on "Filter Status",
+  the next control after "Filter Name".
 - Reason: a dialog left open after Tab can cover the newly focused control (WCAG 2.4.11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-B7, PRD-A1.
@@ -2824,7 +2831,7 @@ state in their own statements.
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss, a stricter bound than B19's one listener) and states the Escape rule (FILT-36); the column chooser states its own |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle says the open-dialog delta "is one passive outside-press listener", and whether none meets it awaits the owner's word; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
