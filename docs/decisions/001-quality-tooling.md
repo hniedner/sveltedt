@@ -36,8 +36,9 @@ pages named, or measured with the command named.
   - Prettier reads `.editorconfig` (prettier.io, configuration), so editors and the formatter share one file.
   - The gate fixes Prettier's config to the `prettier` key of the root `package.json`: a Prettier config file
     anywhere else is not read, so it cannot change what "formatted" means in its folder or run code.
-  - A `.editorconfig` outside the root has no file class, so the gate and the pre-commit hook refuse it at the
-    `text` step: the format rules of a folder are not changed by a file the gate does not classify.
+  - A `.editorconfig` outside the root has no file class, so the gate and the pre-commit hook refuse it as a file of
+    no class (the `text` step names it): the format rules of a folder are not changed by a file the gate does not
+    classify.
   - ESLint's `complexity` stays at its documented default of 20 (eslint.org, rules/complexity) and is an error.
 - **Reopens when:** Biome's Svelte support is stable and has the rules the Svelte checks need.
 
