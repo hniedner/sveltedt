@@ -204,6 +204,8 @@ let shared: { root: string; run: Result | VitestRun } | undefined;
  */
 export function testRun(root: string): Result | VitestRun {
   if (shared?.root === root) return shared.run;
+  // This run's reports only, whichever branch follows: an earlier run's report is never left to be read
+  const reports = freshReports(root, "test");
   const config = join(root, "vitest.config.ts");
   const unchecked = [
     ["onUnhandledError", "lets an unhandled error pass"],
@@ -229,7 +231,7 @@ export function testRun(root: string): Result | VitestRun {
           "--update=none",
           "--includeTaskLocation",
         ],
-        freshReports(root, "test"),
+        reports,
       );
   shared = { root, run };
   return run;

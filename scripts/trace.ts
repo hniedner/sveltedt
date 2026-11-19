@@ -406,25 +406,37 @@ export function baseSets(
     });
   if (git("cat-file", "-e", `${base}^{commit}`).status !== 0)
     return result(CANNOT, `the base commit ${base} cannot be read`);
-  const files = new Set(
-    git("ls-tree", "-r", "--name-only", "-z", base)
-      .stdout.split("\0")
-      .filter(Boolean),
-  );
-  const show = (f: string) => git("show", `${base}:${f}`).stdout;
-  const src = traceSources(files);
-  return {
-    held: new Set(
-      [...files]
-        .filter((f) => SPEC_FILE.test(f))
-        .flatMap((f) => parseSpec(f, show(f)).statements.map((s) => s.id)),
-    ),
-    named: new Set(
-      [...src.read, ...src.scripts].flatMap((f) =>
-        readMarkers(f, show(f)).markers.map((m) => m.id),
-      ),
-    ),
+  const tree = git("ls-tree", "-r", "--name-only", "-z", base);
+  if (tree.status !== 0)
+    return result(CANNOT, `cannot read the file list at ${base}`);
+  const files = new Set(tree.stdout.split("\0").filter(Boolean));
+  // A file the reader cannot take at the base makes its set unreliable: never an empty set that passes
+  let unread: Result | null = null;
+  const read = <T extends { problems: string[] }>(
+    f: string,
+    parse: (f: string, text: string) => T,
+  ): T | null => {
+    const shown = git("show", `${base}:${f}`);
+    if (shown.status !== 0) {
+      unread ??= result(CANNOT, `cannot read ${f} at ${base}`);
+      return null;
+    }
+    const parsed = parse(f, shown.stdout);
+    if (parsed.problems.length)
+      unread ??= result(
+        CANNOT,
+        `${f} at ${base} has ${parsed.problems.length} problem(s) for the reader: ${parsed.problems[0]}`,
+      );
+    return parsed;
   };
+  const src = traceSources(files);
+  const held = [...files]
+    .filter((f) => SPEC_FILE.test(f))
+    .flatMap((f) => read(f, parseSpec)?.statements.map((s) => s.id) ?? []);
+  const named = [...src.read, ...src.scripts].flatMap(
+    (f) => read(f, readMarkers)?.markers.map((m) => m.id) ?? [],
+  );
+  return unread ?? { held: new Set(held), named: new Set(named) };
 }
 
 /**
@@ -591,7 +603,7 @@ function trace(root: string, list: Set<string>): Result {
       ...listed,
     ]);
   if (cannot.length)
-    return result(CANNOT, `${cannot.length} marker(s) or file(s) not checked`, [
+    return result(CANNOT, `${cannot.length} item(s) not checked`, [
       ...cannot,
       ...listed,
     ]);

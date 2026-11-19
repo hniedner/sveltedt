@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -848,4 +849,51 @@ test("trace: a file left in reports/ by an earlier run is gone after the run, an
     readFileSync(join(root, "reports/trace/src__a.test.ts.json"), "utf8"),
     /"name": "one"/,
   );
+});
+
+/** A git that fails `sub` (the subcommand after `-C <root>`) and runs everything else; returns the PATH to run with. */
+function pathWithGitFailing(sub: string): string {
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  const dir = tempDir();
+  const bin = join(dir, "git");
+  writeFileSync(
+    bin,
+    `#!/bin/sh\nif [ "$3" = "${sub}" ]; then echo "fatal: planted" >&2; exit 128; fi\nexec ${real} "$@"\n`,
+  );
+  chmodSync(bin, 0o755);
+  return `${dir}:${process.env.PATH}`;
+}
+test("trace: a base whose file list or file git cannot read cannot be checked, naming what it could not read", () => {
+  for (const [sub, what] of [
+    ["ls-tree", "the file list"],
+    ["show", "spec/a.md"],
+  ]) {
+    const root = fixture({ "src/a.test.ts": ONE() });
+    const out = expectTrace(root, 3, { PATH: pathWithGitFailing(sub) });
+    assert.match(out, new RegExp(`cannot read ${what} at [0-9a-f]{40}`), sub);
+    assert.match(out, /\d+ item\(s\) not checked/, sub);
+  }
+});
+test("trace: a spec or test file at the base that the reader reports problems for cannot be checked, naming the file", () => {
+  for (const [path, text] of [
+    ["spec/old.md", "# Nothing here\n"],
+    ["src/old.test.ts", `${vitestFile("// @spec(\n")}`],
+  ]) {
+    const root = fixture({ "src/a.test.ts": ONE(), [path]: text });
+    advance(root, { [path]: null });
+    const out = expectTrace(root, 3);
+    assert.match(
+      out,
+      new RegExp(`${path.replace(".", "\\.")} at [0-9a-f]{40}`),
+    );
+  }
+});
+test("trace: a vitest.config.ts the step cannot check still empties reports/test", () => {
+  const root = fixture({
+    "src/a.test.ts": ONE(),
+    "vitest.config.ts": "export default { test: { projects: [] } };\n",
+  });
+  put(root, "reports/test/old.json", "{}");
+  expectTrace(root, 3);
+  assert.equal(existsSync(join(root, "reports/test/old.json")), false);
 });
