@@ -3940,7 +3940,7 @@ NOT be fully hidden by the bar, the sticky header or a sticky column, unless it 
   |---|---|---|
   | `stickyTop` is -1, `NaN` or `Infinity` | `stickyTopInvalid` | "The sticky top offset is not a valid number." |
 
-  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25 and SEL-10 win, in that order.
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order.
 - Reason: a header stuck at a wrong place hides rows (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-B14.
