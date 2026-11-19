@@ -1820,10 +1820,18 @@ function site(root: string, list: Set<string>): Result {
 // POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom uses
 // (docs/decisions/001-quality-tooling.md), never by a regular expression, as a browser with scripting on reads it.
 // Stated limits: a `script` of any type with any text counts, blank or beside a `src` too; every attribute whose
-// name starts with `on` counts as an event handler; a `javascript:` URL is looked for only in URL_ATTRS (WHATWG URL parsing, as a
-// browser reads it); not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
+// name starts with `on` counts as an event handler; a `javascript:` or `vbscript:` URL is looked for only in URL_ATTRS
+// (WHATWG URL parsing, as a browser reads it); a `data:` URL only where a script or an embedded document is loaded from
+// it (DATA_LOADS), never in an `img`, a `link`, a `source` or an `a`: Vite writes small assets as data: URLs, and they
+// run no script. Not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
 // `srcdoc` and a `meta` refresh. A `style` attribute is POL-04's, found in the browser.
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
+const DATA_LOADS: Record<string, string> = {
+  script: "src",
+  iframe: "src",
+  embed: "src",
+  object: "data",
+};
 function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
   if ("tagName" in node) {
     if (node.tagName === "style") found.push("a style element");
@@ -1832,8 +1840,11 @@ function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
       found.push("a script element with text");
     for (const { name, value } of node.attrs) {
       if (name.startsWith("on")) found.push(`the event handler ${name}`);
-      if (URL_ATTRS.has(name) && URL.parse(value)?.protocol === "javascript:")
-        found.push(`a javascript: URL in ${name}`);
+      const scheme = URL_ATTRS.has(name) ? URL.parse(value)?.protocol : null;
+      if (scheme === "javascript:" || scheme === "vbscript:")
+        found.push(`a ${scheme} URL in ${name}`);
+      if (scheme === "data:" && DATA_LOADS[node.tagName] === name)
+        found.push(`a data: URL in ${node.tagName} ${name}`);
     }
   }
   if ("childNodes" in node) for (const c of node.childNodes) inlineIn(c, found);
@@ -1868,6 +1879,8 @@ const INLINE_CANARIES: Record<string, string> = {
   "style.html": "a style element",
   "handler.html": "the event handler onload",
   "javascript-url.html": "a javascript: URL in href",
+  "vbscript-url.html": "a vbscript: URL in href",
+  "data-url.html": "a data: URL in script src",
 };
 
 // After the site step, which builds site/dist afresh. Each planted canary must raise its own finding first.

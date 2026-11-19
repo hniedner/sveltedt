@@ -4414,21 +4414,21 @@ test("inline: names each file and kind it finds", () => {
   assert.match(out, /^ {2}index\.html: a script element with text$/m);
   assert.match(out, /in 3 place\(s\)/);
 });
-test("inline: looks for javascript: in each URL attribute it lists, in nested pages too", () => {
-  for (const [tag, attr] of [
-    ["img", "src"],
-    ["form", "action"],
-    ["button", "formaction"],
-    ["object", "data"],
+test("inline: looks for javascript: and vbscript: in each URL attribute it lists, in nested pages too", () => {
+  for (const [scheme, tag, attr] of [
+    ["javascript", "img", "src"],
+    ["vbscript", "form", "action"],
+    ["javascript", "button", "formaction"],
+    ["vbscript", "object", "data"],
   ]) {
     const page = (root: string) => {
       put(root, "site/vite.config.ts", "export default {};\n");
-      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="javascript:x()">`);
+      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="${scheme}:x()">`);
     };
     const out = expect("inline", repo(page), 1);
     assert.match(
       out,
-      new RegExp(`^ {2}sub/page\\.html: a javascript: URL in ${attr}$`, "m"),
+      new RegExp(`^ {2}sub/page\\.html: a ${scheme}: URL in ${attr}$`, "m"),
     );
   }
 });
