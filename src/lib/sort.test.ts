@@ -368,3 +368,81 @@ describe("SORT-16", () => {
     for (const word of words) expect(text).not.toContain(word);
   });
 });
+// Non-English sort words for SORT-17 and the texts SORT-23 passes through them
+function sortWords(text?: string) {
+  return {
+    sortBy: (label: string) => text ?? `Sortieren nach ${label}`,
+    sortRank: (rank: number) => text ?? `Nr ${rank}`,
+    sortDescription: ({
+      direction,
+      rank,
+    }: {
+      direction: SortDirection | null;
+      rank: number | null;
+    }) => text ?? `Richtung ${direction ?? "keine"}, Rang ${rank ?? "keiner"}`,
+    ...Object.fromEntries(
+      Object.keys(SORT_ALERTS).map((key) => [key, text ?? `F-${key}`]),
+    ),
+  };
+}
+
+// @spec("SORT-17", "cb106f2c")
+describe("SORT-17", () => {
+  const english = [
+    "Sort by",
+    "sorted ascending",
+    "sorted descending",
+    "priority",
+    HINT,
+    ...Object.values(SORT_ALERTS),
+  ];
+  // The page's text, accessible names and descriptions (aria-label values and the hidden description elements)
+  const page = (): string =>
+    [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+        [...element.attributes].map((attribute) => attribute.value),
+      ),
+    ].join("\n");
+
+  it.each([
+    [
+      "sortBy",
+      "",
+      "the name",
+      () => screen.getByRole("button", { name: "Sortieren nach Name" }),
+    ],
+    [
+      "sortRank",
+      "code asc, name desc",
+      "the rank mark",
+      () => screen.getByText("Nr 2"),
+    ],
+    [
+      "sortDescription",
+      "name desc, code asc",
+      "the description",
+      () =>
+        screen.getByRole("button", {
+          name: "Sortieren nach Name",
+          description: "Richtung desc, Rang 1",
+        }),
+    ],
+  ])(
+    "shows the given %s word with the order [%s] in %s, and no English default",
+    (_word, before, _where, find) => {
+      mount({ sort: order(before), messages: sortWords() });
+      expect(find().isConnected).toBe(true);
+      for (const word of english) expect(page()).not.toContain(word);
+    },
+  );
+
+  it.each(sortFaults)(
+    "shows the given %s alert word, and no English default",
+    (key, props) => {
+      mount({ ...props, messages: sortWords() });
+      expect(screen.getByRole("alert").textContent).toBe(`F-${key}`);
+      for (const word of english) expect(page()).not.toContain(word);
+    },
+  );
+});
