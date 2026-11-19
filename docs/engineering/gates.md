@@ -17,7 +17,8 @@ Every gate tool runs behind a small wrapper with:
 - two non-blocking states: the first, G6's *not yet tested*, exits 0 and is printed under its own name, never as pass;
 - a second non-blocking state, *not applicable*, exits 0 and is printed under its own name with its reason, never as
   pass. A step may report it only when the step itself has established one of two things: nothing of its kind is
-  present (no step diff on a push to main; no shipped stylesheet yet; no changed rule in the step's stylesheet diff),
+  present (no step diff on a push to main; no shipped stylesheet yet; no changed rule in the step's stylesheet diff;
+  no clone-local hooks setting in a CI checkout),
   or the decision belongs to a run this one cannot make (a local run with one browser engine where CI runs three).
   In the second case the CI run decides, and there the same outcome is a finding or *could not check*, never *not
   applicable*.
@@ -128,7 +129,10 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 ## G9. Hooks and the gate record
 
 - `./scripts/setup` sets `core.hooksPath` to `.githooks`. The gate's first step checks that this setting is in place
-  and the hooks are executable, and otherwise returns *could not check*.
+  and the hooks are executable, and otherwise is a finding that gives the command to run. A file in `.githooks/` other
+  than the known shims is a finding. The hook shims are checked wherever the gate runs. The core.hooksPath setting
+  exists only in a developer's clone: in CI nothing of its kind is present, so that part reports 'not applicable'
+  (G1, first case).
 - The local gate writes the commit id, tool versions and every step's exit code. The pusher writes that file, so it
   is not proof.
 - The record that counts is CI's `gate` check on the head, written by GitHub and required on main by the ruleset

@@ -10,13 +10,18 @@ works. This page is the short version.
 An unreviewed branch's `pnpm install` and `pnpm gate` run its code as you, wherever they run: leave them to CI, which
 runs a pull request with a read-only token and no secrets. Read such a branch with `git fetch` and
 `git diff origin/main...<ref>`, and check it out, merge it or pull it only in a separate clone without
-`core.hooksPath`: with it set, git runs any hook the branch puts in `.githooks/`, such as post-checkout on a checkout
-or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg on a merge commit (Commit
-headers).
+`core.hooksPath`, or with `git -c core.hooksPath=/dev/null` in front of the checkout, merge or pull command. That
+option covers only the command it precedes: every later git command in that clone (a commit, a merge, a pull) runs the
+hooks of the checked-out tree again. With the setting in place, git runs any hook the branch puts in `.githooks/`, such
+as post-checkout on a checkout or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg
+on a merge commit (Git hooks and commit headers). A tracked hooks folder runs what the checked-out tree holds, as in
+every project that tracks its hooks; the gate's `hooks` step refuses a file there that is not one of the two shims, in
+CI too.
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
 
 ```sh
+./scripts/setup   # once per clone: the first step, `hooks`, fails until it has run
 pnpm install --frozen-lockfile
 pnpm gate
 ```
@@ -36,6 +41,9 @@ section 6). CI runs the same command; its `gate` check is required on
 
 The checks today:
 
+- **hooks:** each hook in `.githooks/` is the executable two-line shim and no other file is tracked there (checked in
+  CI too); in a clone, `core.hooksPath` is `.githooks` as well (in CI, where no clone-local git config exists, that part
+  is reported as not applicable).
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
 - **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
   range in CI). It runs right after `toolchain`, so a later failing step does not skip it.
@@ -126,7 +134,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
 - **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
-  (see Commit headers).
+  (see Git hooks and commit headers).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
@@ -134,7 +142,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 Every tool step first runs on a planted violation (files in `scripts/canaries/`, or one the step builds) and must
 find it, so a tool that silently checks nothing cannot pass.
 
-## Commit headers
+## Git hooks and commit headers
 
 The `commits` step judges every non-merge commit of the branch by its header: the first non-blank line, without its
 trailing blanks and carriage return.
@@ -153,11 +161,17 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-To run the hooks before each commit, set once per clone, by choice (nothing checks the setting yet):
+The hooks run before each commit once this clone has been set up, which the gate's `hooks` step checks:
 
 ```sh
-git config core.hooksPath .githooks
+./scripts/setup
 ```
+
+It sets `core.hooksPath` to `.githooks` for this clone, and stops without changing anything, naming the value and
+where it is set, when another `core.hooksPath` is already set, in any file git reads (this clone, global, system or an
+include; `git config --show-origin --get core.hooksPath` shows it). To use `.githooks` in this clone anyway, run
+`git config core.hooksPath .githooks`: a local value replaces the other one here, and the hooks it named then stop
+running in this clone.
 
 git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
 commit, and `.githooks/pre-commit` before `git commit` writes it, a commit that concludes a conflicted merge included.
@@ -165,9 +179,9 @@ A `git merge` that needs no conflict resolution runs no pre-commit hook (measure
 `pre-merge-commit`, for which this project has no hook, then commit-msg). The hooks need the Node version of
 `.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell;
 pre-commit also needs the installed dependencies (`pnpm install`, in every new worktree too, or it cannot run
-Prettier and ESLint) and gitleaks. The setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for
-this clone, and there is no supported place for a hook of your own yet: do not copy one into the tracked `.githooks/`,
-and run your own checks, such as a secret scan, by hand.
+Prettier and ESLint) and gitleaks. The setting replaces the hooks in `.git/hooks` for this clone and those of a
+global `core.hooksPath`, and there is no supported place for a hook of your own yet: do not copy one into the tracked
+`.githooks/`, and run your own checks, such as a secret scan, by hand.
 
 - **pre-commit**, on the staged files: `text` on all of them, `format` and `lint` on the files of their class;
   `lockfile` when `package.json`, the lockfile, `pnpm-workspace.yaml` or `dependabot.yml` is staged; `workflows` when
@@ -206,9 +220,7 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the pre-push hook
-  (issue #6); only the pre-commit and commit-msg hooks exist (Commit headers). Until the rest exist, maintainers run
-  the private word scan by hand before every push;
+- the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

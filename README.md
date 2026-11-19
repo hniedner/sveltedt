@@ -44,6 +44,7 @@ The test site shows the table on a list page of synthetic orders. With Node (the
 and pnpm (the version in `package.json`'s `packageManager`):
 
 ```sh
+./scripts/setup   # once per clone: sets git's hooks path to .githooks (CONTRIBUTING)
 pnpm install --frozen-lockfile
 pnpm site:build
 pnpm site:serve
