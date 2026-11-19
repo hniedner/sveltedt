@@ -3378,12 +3378,14 @@ COL-14 says.
 
 ### Column width: separators and the chooser's buttons (milestone 5)
 
-These statements add `widths` to `columnState`: an object from column id to a width in CSS px (PRD-B12). Each column's
-header cell ends with a focusable separator, found by role `separator` and its name; its pointer target is at least
-24 by 24 CSS px and is centred on the column's end edge. The width model, from the practice check of 2026-11-19:
+These statements add `widths` to `columnState`: an object from column id to a width in CSS px (PRD-B12). Columns are
+resizable exactly while `columnState.widths` is given (an empty object included) and `oncolumnstate` is given: the
+widths are the application's state, so a table whose application holds none keeps the browser's layout from its
+content and shows no separator and no width buttons. While resizable, each column's header cell ends with a focusable
+separator, found by role `separator` and its name, whose pointer target is at least 24 by 24 CSS px and lies inside
+the header cell at its end edge. The width model, from the practice check of 2026-11-19:
 
-- While `widths` holds no entry for a shown column, the browser lays the table out from its content.
-- Once it holds one, the table has a fixed layout and is exactly as wide as the sum of its shown columns' widths
+- While resizable, the table has a fixed layout and is exactly as wide as the sum of its shown columns' widths
   (TanStack Table's total, FETCHED), so no column takes spare space; the region scrolls when that sum is wider (A11Y-12).
 - A shown column's width is its entry, or 150 CSS px where it has none (TanStack Table's default, FETCHED); an entry
   that is not a finite number counts as none; a width below 50 is drawn at 50 (MUI X's minimum, FETCHED), above 1000
@@ -3392,22 +3394,25 @@ header cell ends with a focusable separator, found by role `separator` and its n
 
 The examples are those of section 12 with `widths` `{ name: 200, code: 120, date: 120 }` unless a row says otherwise.
 
-**COL-21** Each column's separator MUST have the name "<label> width", `aria-orientation="vertical"`, the drawn width as
-`aria-valuenow`, 50 as `aria-valuemin` and 1000 as `aria-valuemax`.
+**COL-21** While columns are resizable, each column's separator MUST have the name "<label> width",
+`aria-orientation="vertical"`, the drawn width as `aria-valuenow`, 50 as `aria-valuemin` and 1000 as `aria-valuemax`.
 - Examples (the test runs every row; the separator "Name width"):
 
   | `widths` | `aria-valuenow` |
   |---|---|
   | `{ name: 200, code: 120, date: 120 }` | "200" |
+  | `{}` | "150" |
   | `{ code: 120 }` | "150" |
   | `{ name: 30 }` | "50" |
   | `{ name: 'wide', code: 120 }` | "150" |
+  | not given | no element with role `separator` in the table, and no "Narrower" or "Wider" in the chooser |
 
-  In each row it has `aria-orientation="vertical"`, `aria-valuemin="50"` and `aria-valuemax="1000"`, and it is in the
-  Tab order after Name's header controls.
+  Where it exists it has `aria-orientation="vertical"`, `aria-valuemin="50"` and `aria-valuemax="1000"`; Tab from
+  Name's last header control reaches it next; its box is at least 24 by 24 CSS px and lies inside Name's header cell,
+  ending at the cell's end edge, Date's included at the table's end.
 - Reason: the APG window-splitter pattern; a screen-reader user hears which width they change and its bounds (PRD-B12,
-  PRD-A1).
-- Layer: component.
+  PRD-A1); a separator that changed nothing the application keeps would be a dead control.
+- Layer: real browser (Chromium, Firefox, WebKit), since the Tab order and the box are among the checks.
 - Traces: PRD-B12, PRD-A1.
 
 **COL-22** Left, Right, Home and End on a separator MUST emit `oncolumnstate` once with the column's next width, limited
@@ -3424,7 +3429,7 @@ to 50 and 1000, and nothing when the width would not change.
   | 200 | End | 1000 |
   | 1000 | Right | no call |
   | 200 | Up, then Down | no call |
-  | no entry (150) | Right | 160 |
+  | `widths` `{}`, so 150 | Right | 160 |
   | 200, the page's `html` element with `dir="rtl"` | Left | 210 |
 
   The rest of `columnState` is passed on as given. In a right-to-left table the column's end edge is on the left, so
@@ -3448,10 +3453,12 @@ wherever the pointer is; a press with no move, Escape during the drag, or a canc
   | move 60 px, press Escape, release | no call | 0 |
   | move 60 px, `pointercancel` on the separator for that pointer, release | no call | - |
   | no drag, focus on "Name width", press Escape | no call | 1 |
+  | (all three engines) read the separator's computed `touch-action` | "none" | - |
+  | (Chromium) a trusted touch drag of "Name width" 60 px towards the end, through the Chrome DevTools Protocol | once, `widths.name` 260 | - |
 
   A press on the separator leaves focus on it, so a key during the drag goes to it, and the separator captures the
-  pointer. Its computed `touch-action` is "none" in all three engines, and a touch drag works as COL-19 states for the
-  grip, with the same route and limit.
+  pointer. The touch rows follow COL-19: the Chromium route is INFERRED until the build verifies it, and a trusted
+  touch drag is not tested in Firefox and WebKit (COL-19's stated limit).
 - Reason: per-pixel emits flood the application, a click that focuses the separator for the keys is no resize, and
   Escape is the way out (WCAG 2.5.2; PRD-B12, PRD-B19).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3482,8 +3489,8 @@ with the button `aria-disabled="true"` and keeping focus, at the bound it cannot
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12, PRD-A1.
 
-**COL-33** Once `widths` holds an entry for a shown column, each shown column MUST be drawn at its width of the model
-above, the table as wide as their sum, with every cell's text wrapping inside its cell.
+**COL-33** While columns are resizable, each shown column MUST be drawn at its width of the model above, the table as
+wide as their sum, with every cell's text wrapping inside its cell.
 - Examples (the test runs every row; widths measured on the header cells' border boxes, within 1 px; the cell text of
   Name in row 1 is "Supercalifragilisticexpialidocious", one word):
 
@@ -3492,10 +3499,11 @@ above, the table as wide as their sum, with every cell's text wrapping inside it
   | `{ name: 200, code: 120, date: 120 }` | 200, 120, 120; the table 440 wide in a 600 px wide region |
   | `{ name: 50 }` | Name 50, Code and Date 150 each; Name's long word wraps onto more lines inside the cell (the text range's box lies within the cell's border box) |
   | `{ name: 30, code: 2000 }` | Name 50, Code 1000, Date 150 |
+  | `{ name: 200, code: 200, date: 200 }` in a region 600 px wide | the table 600 wide; the region does not overflow, so it is no Tab stop (A11Y-12) |
   | not given | every column as the browser lays it out from its content |
 
-  No cell shows an ellipsis, and at 50 px every control of a header cell keeps a target of at least 24 by 24 CSS px,
-  none overlapping another (they wrap onto more lines).
+  No cell shows an ellipsis, and at 50 px every control of a header cell, its grip and its separator included, keeps a
+  target of at least 24 by 24 CSS px inside that cell, none overlapping another (they wrap onto more lines).
 - Reason: a fixed layout keeps the widths the user chose; cut text would be lost data for every user (PRD-B12, PRD-A6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12, PRD-A6.
