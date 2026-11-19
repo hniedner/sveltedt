@@ -72,8 +72,11 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   statement is never this state; with no test it fails.
 - Without a mode the check exits 0 on untested statements and prints their ids under the heading `not yet tested`,
   never under pass. On a pull request it also compares the set of untested ids with the base commit's: an id that
-  was tested there and is untested now fails, so a deleted test fails. Locally it makes the same comparison with the
+  a marker named at the base, whose statement still exists and which no marker names now fails, so a deleted test
+  fails; a renamed or deleted statement is not a finding. Locally it makes the same comparison with the
   merge base of `origin/main` and `HEAD`; on a push to main there is no base, and only the list is printed.
+  A base that cannot be named or read (no `origin/main` locally, an unknown event in CI, an unreadable commit) is
+  could not check.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
   recorded in the closing comment, which no check enforces) exits 1 while any of them is untested; an empty list or
   an id no spec holds is exit 2. `trace --release` runs in the release build: from 1.0 on (a 1.0 release candidate
@@ -170,8 +173,8 @@ $0 budget, no self-hosted runners.
   - `static`: format check, lint, types, the static checks of method §2 (no raw-HTML path, no eval, design tokens
     only, no shipped CSS), `scan-secrets` (G2) over the pull request's commits, and the synthetic-shape check (G11).
     The steps' reports (`reports/`) are uploaded from this job as one artifact, also when the job fails; the job is
-    split into the jobs below when its measured time passes 12 of its 15 minutes, and with mutation testing at the
-    latest.
+    split into the jobs below when the job's time on main passes 12 of its 15 minutes in three runs in a row, and
+    with mutation testing at the latest.
   - `test`: every layer that needs no real browser (unit, component in a simulated DOM, HTTP or public interface),
     with coverage; `diff-coverage` (G4) on pull requests.
   - `browser`: real-browser component tests and journey tests, a matrix over `chromium`, `firefox` and `webkit` with

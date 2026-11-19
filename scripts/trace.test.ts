@@ -773,7 +773,7 @@ test("baseCommit: locally without origin/main there is no base", () => {
 });
 
 const WITHOUT_TST02 = SPEC_TEXT.replace(/\n\*\*TST-02\*\*[\s\S]*$/, "");
-test("trace: on a pull request an id tested at the base and unmarked now is a finding; one whose statement was deleted is not", () => {
+test("trace: on a pull request an id marked at the base and unmarked now is a finding; one whose statement was deleted is not", () => {
   const root = fixture({
     "src/a.test.ts": ONE(),
     "src/b.test.ts": ONE("TST-02"),
@@ -785,7 +785,7 @@ test("trace: on a pull request an id tested at the base and unmarked now is a fi
     "spec/a.md": WITHOUT_TST02,
   });
   const out = expectTrace(root, 1, ci("pull_request", base, head));
-  assert.match(out, /TST-01: tested at the base, no marker names it now/);
+  assert.match(out, /TST-01: marked at the base, no marker names it now/);
   assert.doesNotMatch(out, /TST-02: tested/);
 });
 test("trace: on a pull request a statement untested at both commits exits 0 and is listed", () => {
@@ -823,7 +823,7 @@ test("trace: a base commit that cannot be named, in CI, cannot be checked", () =
 test("trace: locally the set is compared with the merge base of origin/main, as on a pull request", () => {
   const root = fixture({ "src/a.test.ts": ONE() });
   advance(root, { "src/a.test.ts": null });
-  assert.match(expectTrace(root, 1), /TST-01: tested at the base/);
+  assert.match(expectTrace(root, 1), /TST-01: marked at the base/);
 });
 test("trace: on a push to main only the list is printed, whatever the base held", () => {
   const root = fixture({ "src/a.test.ts": ONE() });

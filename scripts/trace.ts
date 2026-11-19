@@ -1,5 +1,8 @@
 // The trace step (G6): reads the spec statements, the @spec markers in the tests and the shared test run's results,
 // and says which statements have a passing test, which fail the check, and which no marker names (listed, exit 0).
+// It also compares the ids marked at the base commit (a pull request's, or the merge base with origin/main locally)
+// with the ids marked now, so a deleted test is a finding. It writes the shared test run's report to reports/test/
+// and each marked test file's results to reports/trace/.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -440,7 +443,7 @@ export function baseSets(
 }
 
 /**
- * A pull request, and locally: an id tested at the base (a marker named it) and now without a marker, while its
+ * A pull request, and locally: an id a marker named at the base and now without a marker, while its
  * statement still exists, is a deleted test. On a push to main there is no such comparison; the list is all.
  */
 function deletedTests(
@@ -462,7 +465,7 @@ function deletedTests(
     findings: [...was.named]
       .sort()
       .filter((id) => was.held.has(id) && hashes.has(id) && !named.has(id))
-      .map((id) => `${id}: tested at the base, no marker names it now`),
+      .map((id) => `${id}: marked at the base, no marker names it now`),
   };
 }
 
@@ -515,7 +518,10 @@ function judgeRun(
   return { ...judgeResults(read, ran), total: run.report.numTotalTests };
 }
 
-/** The step: spec statements and markers read, results judged, untested statements listed. */
+/**
+ * The step: spec statements and markers read, results judged, untested statements listed, and the ids marked at the
+ * base commit compared with those marked now. The marked files' results go to reports/trace/.
+ */
 function trace(root: string, list: Set<string>): Result {
   // This run's reports only: the folder is reset first, whatever the step then finds
   const reports = freshReports(root, "trace");
