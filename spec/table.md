@@ -42,7 +42,7 @@ to the consumer as one callback (stated with the statements that add user action
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
   `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
-  `onclearfilters()`, `onreset()` and the snippet `criteria`.
+  `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -2740,6 +2740,7 @@ below list.
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
   | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
   | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
+  | `search` is not a string, holds a control character or is longer than `maxLength` | `searchInvalid` | "The applied search is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
   | `maxLength` is 0, -1, 1.5, `NaN` or `Infinity` | `maxLengthInvalid` | "The text length limit is not a valid number." |
 
@@ -2778,6 +2779,7 @@ below list.
   | `clearFilter` (a function of the badge's words) | "Clear filter Name: contains “Beta”" | FILT-08 |
   | `clearFilters` | "Clear column filters" | FILT-10 |
   | `reset` | "Reset table" | FILT-30 |
+  | `searchLabel` | "Search" | FILT-40 |
   | each alert message of FILT-32 | its default in FILT-32 | FILT-32 |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
@@ -2800,6 +2802,86 @@ below list.
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I1, PRD-I2.
+
+### The global search (milestone 4)
+
+These statements add `search`, the applied search text (default `""`), and `onsearch(text)` (PRD-B25). The search
+field follows the same rules as a text filter's field (PRD-B6), with `onsearch(text)` in place of `onfilter`; it is
+not in a dialog, so its statements are tested in the simulated DOM, with time moved by fake timers, counted from the
+first key, keys taking no time and a control character pasted, as in section 11. "Search" is the field found by role
+`searchbox` and that name. What matches the text is the data source's (PRD-B25).
+
+**FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given.
+- Examples (the test runs every row):
+
+  | `onsearch` | Fields with role `searchbox` |
+  |---|---|
+  | given | one, named "Search", with `autocomplete="off"` |
+  | not given | none |
+
+- Reason: the search box of DataTables' default layout, shown only where the application can answer it (PRD-B25);
+  browser suggestions would show earlier searches to the next user of a shared machine (as FILT-14).
+- Layer: component.
+- Traces: PRD-B25.
+
+**FILT-41** The search field MUST emit `onsearch` by the rules of FILT-01, FILT-27 and FILT-28.
+- Examples (the test runs every row; `search` is `""`):
+
+  | Steps | `onsearch` calls |
+  |---|---|
+  | type "beta"; at 399 ms, then at 400 ms | none, then one: `('beta')` |
+  | type "beta"; at 100 ms press Enter | one at 100 ms, and still one at 600 ms |
+  | `searchOnEnter`; type "beta"; at 1000 ms, then press Enter | none, then one |
+  | `searchDelay={0}`; type "be", with no time moved | two, with "b" and "be" |
+  | `search` is "beta"; type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+
+- Reason: one setting governs both kinds of search box, as PRD-B6 asks; the user learns one behaviour.
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, by the rule of FILT-03, and while it holds
+such text MUST be `aria-invalid="true"` and described by the alert of FILT-15, both gone once the text is valid.
+- Examples (the test runs every row):
+
+  | Steps | Checks |
+  |---|---|
+  | paste "a", U+0001; at 400 ms press Enter | no call; `aria-invalid="true"`; described by "Use at most 255 characters without control characters." |
+  | type 11 times "x", with `maxLength={10}`; at 400 ms | no call; described by "Use at most 10 characters without control characters." |
+  | paste "a", U+0001, then press Backspace; at 400 ms | one call with "a"; `aria-invalid` is not "true"; no alert |
+
+- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-43** The search field MUST be described by "Press Enter to apply." exactly while `searchOnEnter` is set.
+- Examples (the test runs every row): `searchOnEnter` true: the description of "Search" contains "Press Enter to
+  apply."; false: it does not.
+- Reason: as FILT-13, for the search field (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-44** The search field MUST take the applied text of `search` by the rule of FILT-37, and keep newer typing by
+the rule of FILT-05.
+- Examples (the test runs every row; "Search" after the steps):
+
+  | Steps | Field reads |
+  |---|---|
+  | mount with `search` "beta" | "beta" |
+  | mount with `search` ""; with nothing typed, `search` becomes "gamma" | "gamma" |
+  | type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel" | "melanoma" |
+  | type "x"; at 400 ms one call with "x"; at 450 ms, `search` unchanged | "x" |
+
+- Reason: the field shows what narrows the rows, and a slow answer must not erase newer typing (PRD-B2, PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6, PRD-B2.
+
+**FILT-45** The search field MUST come before the badges of FILT-31 and before the region, in document order.
+- Example: `onsearch` given, Name's text "Beta" applies: "Search" comes before the badge "Clear filter Name: contains
+  “Beta”", which comes before the region.
+- Reason: the search narrows every column, so it leads what narrows the rows (DataTables' default layout puts it at
+  the top; WCAG 1.3.2).
+- Layer: component.
+- Traces: PRD-B25, PRD-A3.
 
 ## Trace
 
@@ -2997,6 +3079,12 @@ below list.
 | FILT-39 | PRD-S4, PRD-B16 |
 | FILT-33 | PRD-I1 |
 | FILT-47 | PRD-I1, PRD-I2 |
+| FILT-40 | PRD-B25 |
+| FILT-41 | PRD-B25, PRD-B6 |
+| FILT-42 | PRD-B25, PRD-B6 |
+| FILT-43 | PRD-B25, PRD-B6 |
+| FILT-44 | PRD-B25, PRD-B6, PRD-B2 |
+| FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -3012,13 +3100,14 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32 | in part: the global search statements state the search's half |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
-| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31 | in part: the column group states the badges of hidden columns and focus for them, and the global search states that "Reset table" covers it |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-43, FILT-44, FILT-45, FILT-32, FILT-33 | in full |
+| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39 | in full for the props so far; later groups state the faults of their own props in their own statements |
@@ -3030,7 +3119,7 @@ state in their own statements.
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47 | in part: later groups state their own words in their own statements |
