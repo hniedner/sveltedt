@@ -130,6 +130,15 @@ const faults: [keyof DataTableMessages, Partial<DataTableProps<Item>>][] = [
   ["rowIdUnreadable", { getRowId: unreadable }],
 ];
 
+// The five states of RND-14 and of EXP-01 and EXP-02
+const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
+  ["status 'loading'", { status: "loading" }],
+  ["status 'failed'", { status: "failed" }],
+  ["status 'ready', no rows", { rows: [] }],
+  ["status 'ready', with rows", {}],
+  ["the alert of RND-05", { columns: [] }],
+];
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -955,6 +964,22 @@ describe("RND-13", () => {
       for (const text of hidden)
         expect(component.textContent).not.toContain(text);
       expect(liveCount(component)?.textContent.trim() ?? "").toBe("");
+    },
+  );
+});
+
+// @spec("RND-14", "ca53efc4")
+describe("RND-14", () => {
+  it.each(fiveStates)(
+    "renders the heading before the region, or before the alert, in %s",
+    (_state, props) => {
+      showWithSnippets({ ...props, withHeading: true });
+      const heading = screen.getByRole("heading", { name: "Orders" });
+      const next = screen.queryByRole("region") ?? screen.getByRole("alert");
+      expect(
+        heading.compareDocumentPosition(next) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     },
   );
 });
