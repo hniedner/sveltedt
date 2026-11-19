@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse, type DefaultTreeAdapterTypes } from "parse5";
+import type { DefaultTreeAdapterTypes } from "parse5";
 import {
   binaryOf,
   CANNOT,
@@ -1844,6 +1844,10 @@ function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
  */
 function inlineScan(folder: string): { file: string; found: string[] }[] {
   if (!existsSync(folder)) return [];
+  // Loaded here, not at the top: the gate's `needs` runs in CI without node_modules
+  const { parse } = createRequire(join(HERE, "..", "package.json"))(
+    "parse5",
+  ) as typeof import("parse5");
   return readdirSync(folder, { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile() && e.name.endsWith(".html"))
     .map((e) => {
