@@ -29,16 +29,16 @@ async function open(page: Page, path: string): Promise<void> {
   expect(await listOf(page)).toEqual(expect.any(Array));
 }
 
-// @spec("POL-02", "761ff66e")
 test("POL-02: the canary page's list holds a violation once the page has loaded", async ({
   page,
 }) => {
   await open(page, "/canary.html");
   // goto resolves once the page has loaded; the report may come in a later task, so the read is retried
-  await expect.poll(async () => (await listOf(page))?.length).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(async () => (await listOf(page))?.length)
+    .toBeGreaterThanOrEqual(1);
 });
 
-// @spec("POL-04", "235dc0cc")
 test.describe("POL-04", () => {
   for (const file of pages.filter((p) => p !== "canary.html")) {
     test(`${file} raises no violation once loaded and its table shown`, async ({
