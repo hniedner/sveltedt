@@ -160,7 +160,7 @@ describe("POL-03", () => {
     const page = before(
       built,
       "</head>",
-      '<script src="/x.js">\n</script><link rel="stylesheet" href="/assets/x.css"><p style="margin: 0"></p>',
+      '<script src="/x.js"></script><link rel="stylesheet" href="/assets/x.css"><p style="margin: 0"></p>',
     );
     const r = inlineStep(page);
     expect(r).toMatchObject({ code: 0 });

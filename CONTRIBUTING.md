@@ -104,7 +104,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   build that leaves no HTML page in `site/dist` cannot be checked. Without a tracked `site/vite.config.ts` the step
   is NOT APPLICABLE.
 - **inline:** after the site step, parse5 reads every `.html` file in `site/dist` and its folders; a `script`
-  element of any type with text (beside a `src`, non-blank text), any attribute whose name starts with `on`, a
+  element of any type with any text (blank, or beside a `src`, too), any attribute whose name starts with `on`, a
   `javascript:` URL in `href`, `src`, `action`, `formaction` or `data`, or a `style` element is a finding (POL-03).
   Not read: a `template`'s content, `noscript`, `iframe` `srcdoc`, a `meta` refresh; a `style` attribute is left to
   the browser tests. Each planted page in `scripts/canaries/inline/` must first raise its own finding, or the step

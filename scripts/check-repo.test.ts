@@ -3806,7 +3806,7 @@ test("inline: a planted canary the scan misses, or none planted, cannot be check
 });
 test("inline: names each file and kind it finds", () => {
   const two =
-    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a><script>\n</script>\n";
+    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a><script src=/a.js>\n</script>\n";
   const out = expect("inline", repo(builtPage(two)), 1);
   assert.match(out, /^ {2}index\.html: a style element$/m);
   assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);

@@ -1803,20 +1803,16 @@ function site(root: string, list: Set<string>): Result {
 
 // POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom uses
 // (docs/decisions/001-quality-tooling.md), never by a regular expression, as a browser with scripting on reads it.
-// Stated limits: a `script` of any type counts with any text, or beside a `src` with non-blank text; every attribute whose name starts with
-// `on` counts as an event handler; a `javascript:` URL is looked for only in URL_ATTRS (WHATWG URL parsing, as a
+// Stated limits: a `script` of any type with any text counts, blank or beside a `src` too; every attribute whose
+// name starts with `on` counts as an event handler; a `javascript:` URL is looked for only in URL_ATTRS (WHATWG URL parsing, as a
 // browser reads it); not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
 // `srcdoc` and a `meta` refresh. A `style` attribute is POL-04's, found in the browser.
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
 function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
   if ("tagName" in node) {
     if (node.tagName === "style") found.push("a style element");
-    // A browser checks a script with no src whose text is not empty; text beside a src never runs
-    const src = node.attrs.some((a) => a.name === "src");
-    const text = node.childNodes.some(
-      (c) => "value" in c && (src ? c.value.trim() : c.value),
-    );
-    if (node.tagName === "script" && text)
+    // Any text node counts, as POL-03 words it: the scan fails closed on text a browser might not run
+    if (node.tagName === "script" && node.childNodes.length)
       found.push("a script element with text");
     for (const { name, value } of node.attrs) {
       if (name.startsWith("on")) found.push(`the event handler ${name}`);
