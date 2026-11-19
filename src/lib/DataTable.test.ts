@@ -619,6 +619,16 @@ describe("STATE-06", () => {
   );
 });
 
+// @spec("STATE-07", "2cfeee35")
+describe("STATE-07", () => {
+  it("with status failed, shows the failed message and none of the rows", () => {
+    show({ status: "failed", rows: threeRows });
+    expect(screen.getByText(FAILED).isConnected).toBe(true);
+    for (const name of ["Beta", "Gamma", "Delta"])
+      expect(screen.queryByRole("cell", { name })).toBeNull();
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
