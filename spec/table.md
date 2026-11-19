@@ -389,9 +389,10 @@ alert, when `rows` is not an array.
   | `loading` | `null` | "Loading data…" |
   | `failed` | `undefined` | "The rows could not be loaded." |
 
-- Reason: an application whose request is still pending, or has failed, often has no rows to pass yet; the state
-  already says what the user sees, and the alert would call a normal wait a fault. With `status 'ready'` the same
-  input is a fault (RND-05).
+- Reason: a plain JavaScript caller whose request is still pending, or has failed, often has no rows to pass yet; the
+  state already says what the user sees, and the alert would call a normal wait a fault. With `status 'ready'` the
+  same input is a fault (RND-05). The type keeps `rows` a required array, as for the "left out" rows of RND-05: this
+  serves callers the type does not reach, and a test passes such a value through a cast.
 - Layer: component.
 - Traces: PRD-B15, PRD-B16.
 
