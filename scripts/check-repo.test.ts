@@ -1626,7 +1626,7 @@ function fakePlaywright(
 const out = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
 if (process.argv[2] === "--version") console.log("Version ${version}");
 else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
-process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
+if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
 `,
   );
   chmodSync(bin, 0o755);
@@ -1769,7 +1769,9 @@ test("browser: a report whose totals differ from its tests, or that cannot be re
 test("browser: a run that exits non-zero with every test passed cannot be checked", () => {
   const pw = withPw(pwReport("expected")).extraEnv;
   assert.match(
-    expect("browser", repo(browserSite()), 3, { extraEnv: { ...pw, FAKE_EXIT: "1" } }),
+    expect("browser", repo(browserSite()), 3, {
+      extraEnv: { ...pw, FAKE_EXIT: "1" },
+    }),
     /playwright exited 1 with every test passed/,
   );
 });

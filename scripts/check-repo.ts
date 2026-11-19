@@ -2378,12 +2378,7 @@ function pwJudge(run: PwRun, specs: string[]): Result {
       missed,
     );
   // The report's own totals must count the tests read, or the reading missed some
-  const {
-    expected = 0,
-    unexpected = 0,
-    flaky = 0,
-    skipped = 0,
-  } = report.stats;
+  const { expected = 0, unexpected = 0, flaky = 0, skipped = 0 } = report.stats;
   if (expected + unexpected + flaky + skipped !== tests.length)
     return result(
       CANNOT,
