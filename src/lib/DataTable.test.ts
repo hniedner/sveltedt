@@ -245,14 +245,23 @@ describe("RND-16", () => {
   });
 });
 
-describe("STATE-03 first example; the statement's marker arrives with 1c", () => {
-  it("with the default status ready and no rows, shows the empty message in one cell spanning every column", () => {
-    show({ rows: [], columns: [idColumn, nameColumn, noteColumn] });
-    expect(screen.getAllByRole("cell")).toHaveLength(1);
-    expect(
-      screen.getByRole("cell", { name: "No records." }).getAttribute("colspan"),
-    ).toBe("3");
-  });
+// @spec("STATE-03", "bbe099c5")
+describe("STATE-03", () => {
+  it.each([false, true])(
+    "with status ready, busy %s and no rows, shows the empty message in one cell spanning every column",
+    (busy) => {
+      show({
+        rows: [],
+        columns: [idColumn, nameColumn, noteColumn],
+        status: "ready",
+        busy,
+      });
+      expect(screen.getAllByRole("cell")).toHaveLength(1);
+      expect(
+        screen.getByRole("cell", { name: "No data." }).getAttribute("colspan"),
+      ).toBe("3");
+    },
+  );
 });
 
 describe("RND-03 first examples; the statement's marker arrives with 1c", () => {

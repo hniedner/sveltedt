@@ -16,6 +16,9 @@ export type DataTableColumn<Row> = {
     }
 );
 
+// Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)
+export type DataTableStatus = "loading" | "ready" | "failed";
+
 export interface DataTableProps<Row> {
   rows: readonly Row[];
   columns: readonly DataTableColumn<Row>[];
@@ -23,6 +26,10 @@ export interface DataTableProps<Row> {
   getRowId: (row: Row) => string | number;
   caption: string;
   regionLabel: string;
+  // Default "ready"
+  status?: DataTableStatus;
+  // A newer answer is on its way while the rows shown stay; default false
+  busy?: boolean;
   heading?: Snippet;
   actions?: Snippet;
 }

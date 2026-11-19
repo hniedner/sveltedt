@@ -46,7 +46,7 @@
             {/each}
           </tr>
         {:else}
-          <tr><td colspan={columns.length}>No records.</td></tr>
+          <tr><td colspan={columns.length}>No data.</td></tr>
         {/each}
       </tbody>
     </table>
