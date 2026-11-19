@@ -417,7 +417,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "2abf046c")
+// @spec("RND-05", "e545c208")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -988,7 +988,7 @@ describe("STATE-08", () => {
   );
 });
 
-// @spec("RND-06", "43497d92")
+// @spec("RND-06", "5a7fccfd")
 describe("RND-06", () => {
   const foreign: TableWords = {
     loading: "Laden…",
@@ -1086,8 +1086,10 @@ describe("RND-06", () => {
     ["noColumns", null, { columns: [] }, alert, "Table has no columns."],
     ["loading", 5, { status: "loading" }, status, LOADING],
     ["rowCount", "Zeilen", {}, live, "1 row displayed"],
+    ["noColumns", "", { columns: [] }, alert, "Table has no columns."],
+    ["loading", "  ", { status: "loading" }, status, LOADING],
   ])(
-    "keeps the English default of %s when its entry is %j, not of its type",
+    "keeps the English default of %s when its entry is %j",
     (key, entry, props, where, text) => {
       show({
         ...props,
