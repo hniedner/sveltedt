@@ -2301,7 +2301,6 @@ receives that number.
   | `pageNumber` | 1234 | "1,234" | PAGE-02 |
   | `pageLabel` | 1234 | "Page 1,234" | PAGE-01 |
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
-  | `textRefused` | 1000 | "Use at most 1,000 characters without control characters." | FILT-15 |
 
   The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
   German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
@@ -2309,7 +2308,7 @@ receives that number.
   that did not take effect fails instead of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
-- Traces: PRD-I2, PRD-I1, PRD-B6.
+- Traces: PRD-I2, PRD-I1.
 
 ## 11. Filters: the fields and what they emit (FILT, milestone 4)
 
@@ -2793,7 +2792,7 @@ below list.
   | `filterDialog` (a function of the label) | "Name filter" for "Name" | FILT-02 |
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
-  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255 | FILT-15, I18N-01 |
+  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -2957,7 +2956,7 @@ below list.
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
-| I18N-01 | PRD-I2, PRD-I1, PRD-B6 |
+| I18N-01 | PRD-I2, PRD-I1 |
 | FILT-29 | PRD-B6, PRD-B7, PRD-B3 |
 | FILT-01 | PRD-B6 |
 | FILT-27 | PRD-B6 |
@@ -3014,7 +3013,7 @@ state in their own statements.
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, I18N-01 | in part: the global search statements state the search's half |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32 | in part: the global search statements state the search's half |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31 | in part: the column group states the badges of hidden columns and focus for them, and the global search states that "Reset table" covers it |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
