@@ -98,3 +98,22 @@ describe("SORT-01", () => {
     },
   );
 });
+// SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are owed to the real-browser sort step, so the
+// statement carries no marker until then.
+describe("SORT-02, Shift+click rows", () => {
+  it.each([
+    ["code asc", "code asc, name asc"],
+    ["code asc, name asc", "code asc, name desc"],
+    ["code asc, name desc", "code asc"],
+    ["name asc, code asc", "name desc, code asc"],
+    ["name desc, code asc", "code asc"],
+    ["", "name asc"],
+  ])(
+    "a Shift+click on Name with the order [%s] emits [%s] once",
+    async (before, after) => {
+      const { onsort } = mount({ sort: order(before) });
+      await fireEvent.click(sortButton("Name"), { shiftKey: true });
+      expect(onsort.mock.calls).toEqual([[order(after)]]);
+    },
+  );
+});
