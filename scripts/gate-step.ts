@@ -28,19 +28,34 @@ export const errorCode = (
   e: NodeJS.ErrnoException | undefined,
 ): string | undefined => e?.code;
 
-/** This process's environment without git's variables: a child started inside a git hook must not reach the repo. */
+/**
+ * The variables that change a step's context (`inCI()`, `canaries()`, the range). `childEnv()` strips them, so a child
+ * started with `env: childEnv()` never sees them; a spawn that passes no `env` inherits them.
+ */
+export const GATE_VARS: readonly string[] = [
+  "CANARY_DIR",
+  "GATE_BASE",
+  "GATE_HEAD",
+  "GITHUB_ACTIONS",
+];
+
+/**
+ * This process's environment without git's variables (a child started inside a git hook must not reach the repo)
+ * and without GATE_VARS (a child's verdict must not depend on the gate's own context).
+ */
 export function childEnv(): NodeJS.ProcessEnv {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
   );
+  for (const k of GATE_VARS) delete env[k];
   delete env.NODE_TEST_CONTEXT; // set when this runs inside a test run; it would change the child's reporter
   return env;
 }
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
-// Test seams, unset in normal use: CANARY_DIR (planted folders), <NAME>_BIN (fakes, see binaryOf in pinned.ts),
-// SVELTE_CHECK_BIN, VITEST_BIN, JSCPD_BIN and ESLINT_CONFIG.
-// An empty value counts as unset in each.
+// Test seams held here, unset in normal use: CANARY_DIR (planted folders) and VITEST_BIN (a fake vitest). An empty
+// value counts as unset in each. The other seams (<NAME>_BIN via binaryOf in pinned.ts, SVELTE_CHECK_BIN, JSCPD_BIN,
+// ESLINT_CONFIG) are read in check-repo.ts.
 export const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 

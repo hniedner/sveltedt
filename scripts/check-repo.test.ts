@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { GATE_VARS } from "./gate-step.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLI = join(here, "check-repo.ts");
@@ -363,8 +364,7 @@ function run(
     GITLEAKS_BIN: gitleaks,
     ...extraEnv,
   };
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
-    if (!(k in extraEnv)) delete env[k];
+  for (const k of GATE_VARS) if (!(k in extraEnv)) delete env[k];
   if (canaries) env.CANARY_DIR = canaries;
   const r = spawnSync(process.execPath, [CLI, ...args], {
     encoding: "utf8",
@@ -3461,6 +3461,28 @@ test("actionlint: a linter that does not run shellcheck cannot be checked", () =
 
 test("selftest: passes when the repository's own tests run and pass", () => {
   expect("selftest", repo(), 0);
+});
+test("selftest: a test file the gate runs sees none of the gate's context variables", () => {
+  const sees = `import assert from "node:assert/strict";
+import { test } from "node:test";
+test("no gate variable", () => {
+  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
+    assert.equal(process.env[k], undefined, k);
+});
+`;
+  expect(
+    "selftest",
+    repo((root) => put(root, "scripts/check-repo.test.ts", sees)),
+    0,
+    {
+      extraEnv: {
+        GITHUB_ACTIONS: "true",
+        GATE_BASE: "HEAD",
+        GATE_HEAD: "HEAD",
+        CANARY_DIR: join(here, "canaries"),
+      },
+    },
+  );
 });
 test("selftest: a failing test is a finding", () => {
   const failing = PASSING_TEST.replace(
