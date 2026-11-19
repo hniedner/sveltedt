@@ -1597,7 +1597,8 @@ const browserSite =
     );
   };
 // A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
-// its one test with the status `canary`
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
+// the real run's exit code
 function fakePlaywright(
   report: object | string,
   version = PINS["@playwright/test"],
@@ -1623,9 +1624,10 @@ function fakePlaywright(
   writeFileSync(
     bin,
     `#!/usr/bin/env node
-const out = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+const out = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
 if (process.argv[2] === "--version") console.log("Version ${version}");
 else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
+if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
 `,
   );
   chmodSync(bin, 0o755);
@@ -1640,7 +1642,7 @@ const pwReport = (
   file = "a.spec.ts",
   engines = ["chromium", "firefox", "webkit"],
 ) => ({
-  stats: { [status === "unexpected" ? "unexpected" : status]: engines.length },
+  stats: { [status]: engines.length },
   errors,
   suites: [
     {
@@ -1677,17 +1679,6 @@ test("browser: without a tracked spec the step is not applicable; a spec without
     expect("browser", noConfig, 3),
     /playwright\.config\.ts is not tracked/,
   );
-});
-test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
-  const site = repo(browserSite());
-  const pw = withPw(pwReport("unexpected")).extraEnv;
-  const ci = run(["browser", "--root", site], {
-    extraEnv: { ...pw, GITHUB_ACTIONS: "true", GATE_BROWSER: "job" },
-  });
-  assert.equal(ci.code, 0, ci.out);
-  assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
-  // Locally the variable leaves nothing out
-  expect("browser", site, 1, { extraEnv: { ...pw, GATE_BROWSER: "job" } });
 });
 test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
   const out = expect(
@@ -1776,6 +1767,15 @@ test("browser: a report whose totals differ from its tests, or that cannot be re
     /playwright wrote no readable report/,
   );
 });
+test("browser: a run that exits non-zero with every test passed cannot be checked", () => {
+  const pw = withPw(pwReport("expected")).extraEnv;
+  assert.match(
+    expect("browser", repo(browserSite()), 3, {
+      extraEnv: { ...pw, FAKE_EXIT: "1" },
+    }),
+    /playwright exited 1 with every test passed/,
+  );
+});
 test("browser: an error outside the tests that the step does not know cannot be checked, and is shown", () => {
   const out = expect(
     "browser",
@@ -1787,7 +1787,8 @@ test("browser: an error outside the tests that the step does not know cannot be 
 });
 // The two could-not-check rows with the real Playwright: neither starts a browser
 test("browser: a taken 127.0.0.1:4173 cannot be checked (the web server refuses a running one)", async () => {
-  // Held by another process: this one blocks while the gate runs; a port already taken fails the row, never hangs it
+  // A child process holds 127.0.0.1:4173 while the gate runs. The row needs that port free (stop pnpm site:serve, no
+  // second gate run at once): a port already taken fails the row, never hangs it
   const holder = spawn(process.execPath, [
     "-e",
     'require("node:http").createServer((q, s) => s.end("held")).listen(4173, "127.0.0.1", () => console.log("up"))',
@@ -3916,50 +3917,6 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
     /extra/,
   );
 });
-// The static job leaves the browser step to its own CI job through GATE_BROWSER; only a browser job gate needs may
-// take it over
-const ciWith = (ci: string) => (root: string) =>
-  put(root, ".github/workflows/ci.yml", ci);
-const leavesBrowser = CI.replace(
-  "    runs-on: ubuntu-latest\n    steps:\n      - uses",
-  "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
-);
-const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
-  ci
-    .replace(
-      "  gate:",
-      `  browser:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n  gate:`,
-    )
-    .replace("needs: [static]", "needs: [static, browser]");
-test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
-  for (const ci of [leavesBrowser, browserJob(leavesBrowser, "echo ok")])
-    assert.match(
-      expect("gate-needs", repo(ciWith(ci)), 1),
-      /GATE_BROWSER is set but no job named browser runs the step/,
-    );
-  expect("gate-needs", repo(ciWith(browserJob(leavesBrowser))), 0);
-});
-test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a finding", () => {
-  const top = browserJob(CI).replace(
-    "jobs:\n",
-    "env:\n  GATE_BROWSER: job\njobs:\n",
-  );
-  assert.match(
-    expect("gate-needs", repo(ciWith(top)), 1),
-    /GATE_BROWSER is set for the whole workflow/,
-  );
-  const inJob = browserJob(leavesBrowser).replace(
-    "  browser:\n    runs-on: ubuntu-latest\n",
-    "  browser:\n    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n",
-  );
-  assert.match(
-    expect("gate-needs", repo(ciWith(inJob)), 1),
-    /GATE_BROWSER is set in the job browser/,
-  );
-});
-test("gate-needs: a browser job without GATE_BROWSER passes", () => {
-  expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
-});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -4461,21 +4418,21 @@ test("inline: names each file and kind it finds", () => {
   assert.match(out, /^ {2}index\.html: a script element with text$/m);
   assert.match(out, /in 3 place\(s\)/);
 });
-test("inline: looks for javascript: in each URL attribute it lists, in nested pages too", () => {
-  for (const [tag, attr] of [
-    ["img", "src"],
-    ["form", "action"],
-    ["button", "formaction"],
-    ["object", "data"],
+test("inline: looks for javascript: and vbscript: in each URL attribute it lists, in nested pages too", () => {
+  for (const [scheme, tag, attr] of [
+    ["javascript", "img", "src"],
+    ["vbscript", "form", "action"],
+    ["javascript", "button", "formaction"],
+    ["vbscript", "object", "data"],
   ]) {
     const page = (root: string) => {
       put(root, "site/vite.config.ts", "export default {};\n");
-      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="javascript:x()">`);
+      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="${scheme}:x()">`);
     };
     const out = expect("inline", repo(page), 1);
     assert.match(
       out,
-      new RegExp(`^ {2}sub/page\\.html: a javascript: URL in ${attr}$`, "m"),
+      new RegExp(`^ {2}sub/page\\.html: a ${scheme}: URL in ${attr}$`, "m"),
     );
   }
 });

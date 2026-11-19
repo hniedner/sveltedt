@@ -171,24 +171,6 @@ function pins(root: string, list: Set<string>): Result {
   );
 }
 
-/**
- * GATE_BROWSER leaves the browser step to the job `browser`, which gate must need (gateNeeds) and which runs it; the
- * problems, given the workflow's lines above `jobs:` and its jobs.
- */
-function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
-  const sets = (l: string[]) => l.some((x) => /^\s+GATE_BROWSER\s*:/.test(x));
-  const job = jobs.get("browser");
-  const found = [];
-  if (sets(top)) found.push("GATE_BROWSER is set for the whole workflow");
-  if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
-  if (
-    [...jobs.values()].some(sets) &&
-    !job?.some((l) => /check-repo\.ts browser\b/.test(l))
-  )
-    found.push("GATE_BROWSER is set but no job named browser runs the step");
-  return found;
-}
-
 function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
@@ -229,7 +211,6 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
-  details.push(...browserJob(lines.slice(0, start), jobs));
   if (details.length)
     return result(
       FINDING,
@@ -1839,10 +1820,18 @@ function site(root: string, list: Set<string>): Result {
 // POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom uses
 // (docs/decisions/001-quality-tooling.md), never by a regular expression, as a browser with scripting on reads it.
 // Stated limits: a `script` of any type with any text counts, blank or beside a `src` too; every attribute whose
-// name starts with `on` counts as an event handler; a `javascript:` URL is looked for only in URL_ATTRS (WHATWG URL parsing, as a
-// browser reads it); not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
+// name starts with `on` counts as an event handler; a `javascript:` or `vbscript:` URL is looked for only in URL_ATTRS
+// (WHATWG URL parsing, as a browser reads it); a `data:` URL only where a script or an embedded document is loaded from
+// it (DATA_LOADS), never in an `img`, a `link`, a `source` or an `a`: Vite writes small assets as data: URLs, and they
+// run no script. Not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
 // `srcdoc` and a `meta` refresh. A `style` attribute is POL-04's, found in the browser.
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
+const DATA_LOADS: Record<string, string> = {
+  script: "src",
+  iframe: "src",
+  embed: "src",
+  object: "data",
+};
 function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
   if ("tagName" in node) {
     if (node.tagName === "style") found.push("a style element");
@@ -1851,8 +1840,11 @@ function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
       found.push("a script element with text");
     for (const { name, value } of node.attrs) {
       if (name.startsWith("on")) found.push(`the event handler ${name}`);
-      if (URL_ATTRS.has(name) && URL.parse(value)?.protocol === "javascript:")
-        found.push(`a javascript: URL in ${name}`);
+      const scheme = URL_ATTRS.has(name) ? URL.parse(value)?.protocol : null;
+      if (scheme === "javascript:" || scheme === "vbscript:")
+        found.push(`a ${scheme} URL in ${name}`);
+      if (scheme === "data:" && DATA_LOADS[node.tagName] === name)
+        found.push(`a data: URL in ${node.tagName} ${name}`);
     }
   }
   if ("childNodes" in node) for (const c of node.childNodes) inlineIn(c, found);
@@ -1887,6 +1879,8 @@ const INLINE_CANARIES: Record<string, string> = {
   "style.html": "a style element",
   "handler.html": "the event handler onload",
   "javascript-url.html": "a javascript: URL in href",
+  "vbscript-url.html": "a vbscript: URL in href",
+  "data-url.html": "a data: URL in script src",
 };
 
 // After the site step, which builds site/dist afresh. Each planted canary must raise its own finding first.
@@ -1910,7 +1904,7 @@ function inline(root: string, list: Set<string>): Result {
 }
 
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
-// test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
+// test file outside scripts/ (node:test files and canaries) and site/browser/ must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
 function test(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.vitest;
@@ -1930,7 +1924,7 @@ function test(root: string, list: Set<string>): Result {
       tail(canary.out),
     );
   const mine = [...list]
-    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs
+    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs (*.spec.ts only)
     .filter(
       (f) =>
         /\.(?:test|spec)\.ts$/.test(f) &&
@@ -2223,7 +2217,8 @@ const PW_CONFIG = "playwright.config.ts";
 const playwrightBin = (): string =>
   process.env.PLAYWRIGHT_BIN ||
   join(HERE, "..", "node_modules", ".bin", "playwright");
-// The stable parts of Playwright 1.65.1's own messages (measured 2026-11-19); any other error cannot be checked
+// Substrings of Playwright's own messages at the pinned version (measured on 1.65.1, 2026-11-19; re-measure when the
+// pin moves: the two real-Playwright rows fail if they drift); any other error cannot be checked
 const PORT_TAKEN = "is already used, make sure that nothing is running";
 const NO_BROWSER = "Executable doesn't exist at";
 // Every tracked spec must run in each of the three engines the method names
@@ -2266,7 +2261,7 @@ function playwright(cwd: string): PwRun {
       {
         cwd,
         encoding: "utf8",
-        env: { ...childEnv(), PLAYWRIGHT_JSON_OUTPUT_NAME: file },
+        env: { ...childEnv(), PLAYWRIGHT_JSON_OUTPUT_FILE: file },
         maxBuffer: 64 * 1024 * 1024,
       },
     );
@@ -2315,7 +2310,10 @@ function pwCannot(run: PwRun): Result | null {
   return null;
 }
 
-/** A test that did not pass, or passed only as an expected failure (test.fail), as one line with its reason. */
+/**
+ * A test that did not pass, or passed only as an expected failure (test.fail): one line, the first three lines of
+ * its reason as tail() keeps them (error lines first, no stack frames), joined by " / ".
+ */
 const pwBad = ([file, title, t]: [string, string, PwTest]): string[] => {
   const head = `${file} > ${title} [${t.projectName}]`;
   if (t.annotations?.some((a) => a.type === "fail"))
@@ -2337,9 +2335,6 @@ function browser(root: string, list: Set<string>): Result {
     );
   if (!list.has(PW_CONFIG))
     return result(CANNOT, `${PW_CONFIG} is not tracked`, specs);
-  // Checked by gate-needs: GATE_BROWSER may stand only in a job other than browser, beside a job browser that runs it
-  if (inCI() && process.env.GATE_BROWSER === "job")
-    return result(NA, "left to the CI job browser (GATE_BROWSER)");
   const pin = readJson(root, "package.json")?.devDependencies?.[
     "@playwright/test"
   ];
@@ -2367,8 +2362,10 @@ function browser(root: string, list: Set<string>): Result {
 /** The real run's result: every tracked spec in each engine, the report's totals, then each test, then the exit. */
 function pwJudge(run: PwRun, specs: string[]): Result {
   const stopped = pwCannot(run);
-  if (stopped || !run.report) return stopped ?? result(CANNOT, "no report");
-  const tests = pwTests(run.report.suites);
+  if (stopped) return stopped;
+  // pwCannot answers for a run without a report
+  const report = run.report as PwReport;
+  const tests = pwTests(report.suites);
   const missed = specs.flatMap((f) => {
     const ran = new Set(
       tests
@@ -2385,12 +2382,7 @@ function pwJudge(run: PwRun, specs: string[]): Result {
       missed,
     );
   // The report's own totals must count the tests read, or the reading missed some
-  const {
-    expected = 0,
-    unexpected = 0,
-    flaky = 0,
-    skipped = 0,
-  } = run.report.stats;
+  const { expected = 0, unexpected = 0, flaky = 0, skipped = 0 } = report.stats;
   if (expected + unexpected + flaky + skipped !== tests.length)
     return result(
       CANNOT,

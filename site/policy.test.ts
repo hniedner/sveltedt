@@ -119,7 +119,7 @@ function inlineStep(page: string): { code: number | null; out: string } {
   }
 }
 
-// @spec("POL-03", "c7780e46")
+// @spec("POL-03", "91f706eb")
 describe("POL-03", () => {
   const built = existsSync(join(DIST, "index.html"))
     ? readFileSync(join(DIST, "index.html"), "utf8")
@@ -143,6 +143,20 @@ describe("POL-03", () => {
     ],
     ["<style>body { margin: 0 }</style>", "a style element"],
     ['<a href="javascript:start()">Start</a>', "a javascript: URL in href"],
+    ['<a href="vbscript:start()">Start</a>', "a vbscript: URL in href"],
+    [
+      '<script src="data:text/javascript,start()"></script>',
+      "a data: URL in script src",
+    ],
+    [
+      '<iframe src="data:text/html,start"></iframe>',
+      "a data: URL in iframe src",
+    ],
+    ['<embed src="data:text/html,start">', "a data: URL in embed src"],
+    [
+      '<object data="data:text/html,start"></object>',
+      "a data: URL in object data",
+    ],
   ])("finds the planted %s", (canary, kind) => {
     const r = inlineStep(before(built, "</body>", canary));
     expect(r).toMatchObject({ code: 1 });
@@ -156,11 +170,11 @@ describe("POL-03", () => {
     expect(r.out).toContain("index.html: the event handler onload");
   });
 
-  it("passes a script with a src and no text, a stylesheet link and a style attribute, and counts the files", () => {
+  it("passes a script with a src and no text, a stylesheet link, a data: image and a style attribute, and counts the files", () => {
     const page = before(
       built,
       "</head>",
-      '<script src="/x.js"></script><link rel="stylesheet" href="/assets/x.css"><p style="margin: 0"></p>',
+      '<script src="/x.js"></script><link rel="stylesheet" href="/assets/x.css"><img src="data:image/png;base64,iVBORw0KGgo=" alt=""><p style="margin: 0"></p>',
     );
     const r = inlineStep(page);
     expect(r).toMatchObject({ code: 0 });

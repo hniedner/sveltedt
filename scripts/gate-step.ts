@@ -35,7 +35,6 @@ export const errorCode = (
 export const GATE_VARS: readonly string[] = [
   "CANARY_DIR",
   "GATE_BASE",
-  "GATE_BROWSER",
   "GATE_HEAD",
   "GITHUB_ACTIONS",
 ];
@@ -56,7 +55,7 @@ export function childEnv(): NodeJS.ProcessEnv {
 export const HERE = dirname(fileURLToPath(import.meta.url));
 // Test seams held here, unset in normal use: CANARY_DIR (planted folders) and VITEST_BIN (a fake vitest). An empty
 // value counts as unset in each. The other seams (<NAME>_BIN via binaryOf in pinned.ts, SVELTE_CHECK_BIN, JSCPD_BIN,
-// ESLINT_CONFIG) are read in check-repo.ts.
+// VITE_BIN, PLAYWRIGHT_BIN, ESLINT_CONFIG) are read in check-repo.ts.
 export const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 
