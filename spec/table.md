@@ -3941,6 +3941,7 @@ data column.
   | `columnState.order` `['date', 'name', 'code']` | the details column, then Date, Name, Code |
   | drag Date's grip to the details column's header cell | no `oncolumnstate` call |
   | press "Move earlier Date" twice, the state following each | `order` `['date', 'name', 'code']`; the details column still directly before Date |
+
 - Reason: the disclosure buttons are where every row starts, like the boxes (PRD-B27, PRD-B11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B27, PRD-B11.
