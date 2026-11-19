@@ -3808,17 +3808,18 @@ cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1
 `{ id: 'r2', name: 'alpha' }`, `detailName: (r) => 'Details for ' + r.name`, a `detail` snippet holding the paragraph
 "More about <name>" and a link "Open <name>", and `onexpand` passed.
 
-**CHILD-01** With `detail`, the table MUST show a leading column whose header cell is named "Details" and is hidden
-visually, and whose body cells each hold one button named by `detailName(row)`.
+**CHILD-01** With `detail`, the table MUST show a leading column whose header cell holds the word `detailsColumn`
+("Details") hidden visually, and whose body cells each hold one button named by `detailName(row)`.
 - Examples (the test runs every row):
 
   | Props | Leading columns, in order |
   |---|---|
   | `detail` given | the details column, then Name |
   | `detail` and `selection` given | the box column, the details column, then Name |
-  | no `detail` | none: no button whose name starts with "Details for" |
+  | `detailName` and `onexpand` given, no `detail` | none: three column headers, none named "Details", and no button whose name starts with "Details for" |
 
-  The header cell of the details column has the accessible text "Details" and no visible text.
+  The header cell of the details column has the accessible text "Details" and no visible text. A given column labelled
+  "Details" is no fault: its header is a different cell.
 - Reason: a disclosure button the user can reach in every row, named by its row (PRD-B27); a column header names what
   the column holds.
 - Layer: component.
@@ -3851,7 +3852,7 @@ visually, and whose body cells each hold one button named by `detailName(row)`.
 - Traces: PRD-B27, PRD-B2.
 
 **CHILD-05** Each open row MUST be followed by exactly one detail row: one cell spanning every shown column, filled by
-`detail` with that row, and named as the target of the row's button while it is open.
+`detail` with that row.
 - Examples (the test runs every row; three data columns):
 
   | `expanded` | Rows of the body, in order |
@@ -3860,13 +3861,46 @@ visually, and whose body cells each hold one button named by `detailName(row)`.
   | `['r1', 'r2']` | r1, its detail row, r2, its detail row |
   | `[]` | r1, r2 |
 
-  The detail row's one cell has `colspan` equal to the number of shown columns, the box and details columns included;
-  the open button's `aria-controls` holds the detail row's id, and a closed button has no `aria-controls`. The live
-  count (A11Y-05) counts data rows only: with `['r1']` it says "2 rows displayed".
-- Reason: the details belong under their row, across the whole width (PRD-B27); `aria-controls` never points at
-  nothing.
+  The detail row's one cell has `colspan` equal to the number of shown columns, the box and details columns included:
+
+  | Columns | `colspan` |
+  |---|---|
+  | Name, Code, Date, details column | 4 |
+  | Code hidden | 3 |
+  | with `selection` | 5 |
+
+- Reason: the details belong under their row, across the whole width (PRD-B27).
+- Layer: component.
+- Traces: PRD-B27.
+
+**CHILD-14** An open row's button MUST name its detail row in `aria-controls`, and a closed row's button MUST have no
+`aria-controls`.
+- Example: `expanded` `['r1']`: "Details for Beta" has `aria-controls` holding the detail row's id; "Details for alpha"
+  has none.
+- Reason: the APG disclosure's optional reference, and a reference never points at nothing (FETCHED, practice check of
+  2026-11-19).
+- Layer: component.
+- Traces: PRD-B27.
+
+**CHILD-15** The live count MUST count data rows only, not detail rows.
+- Example: `expanded` `['r1']`, `status 'ready'`: the live count of A11Y-05 says "2 rows displayed".
+- Reason: a detail row is part of its row, not a row of the data (PRD-A4).
 - Layer: component.
 - Traces: PRD-B27, PRD-A4.
+
+**CHILD-11** The ids of detail rows MUST be unique across tables on one page, MUST contain no white space, and MUST be
+the same after hydration, as ID-01 to ID-03 state for the other ids.
+- Examples (the test runs every row):
+
+  | Set-up | Check |
+  |---|---|
+  | two tables side by side, both with r1 open | their detail-row ids differ, and each `aria-controls` names a row inside its own table |
+  | a row whose id is "a b", open | its detail row's id holds no white space, and the button's `aria-controls` resolves to it |
+  | a server-rendered table with r1 open, hydrated as in ID-03 | the detail row's id and the reference are the same before and after |
+
+- Reason: a reference that resolves into a neighbour, or one split at a space, reads the wrong thing (PRD-B18).
+- Layer: component.
+- Traces: PRD-B18, PRD-B27.
 
 **CHILD-06** After `rows` changes to the same row ids in another order, each detail row MUST be rendered by the same
 element as before, as RND-15 states for the rows.
@@ -3877,14 +3911,21 @@ element as before, as RND-15 states for the rows.
 - Layer: component.
 - Traces: PRD-B27, PRD-B1.
 
-**CHILD-07** After a press, focus MUST stay on the pressed button, and when an open detail closes while focus is inside
-it, focus MUST move to its row's button.
+**CHILD-07** After a press on a row's button, focus MUST stay on that button.
+- Example: focus "Details for Beta", press Enter; `expanded` becomes `['r1']`: focus is on "Details for Beta"; press
+  Enter again, `expanded` becomes `[]`: still there.
+- Reason: the user toggles the details from one place (PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-A3.
+
+**CHILD-13** When `expanded` closes a detail while focus is inside it and its row stays, focus MUST move to that row's
+button.
 - Examples (the test runs every row):
 
   | Steps | Focus after |
   |---|---|
-  | focus "Details for Beta", press Enter; `expanded` becomes `['r1']` | "Details for Beta" |
   | `expanded` `['r1']`; focus the link "Open Beta"; `expanded` becomes `[]` | "Details for Beta" |
+  | `expanded` `['r1']`; focus the link "Open Beta"; the rows change to r2 only (a new page) | as the new page leaves it: not moved by the component (PRD-A3: a new page moves no focus) |
 
 - Reason: focus must never fall to the page body (PRD-A3); the button is where the user opened the details.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3892,11 +3933,36 @@ it, focus MUST move to its row's button.
 
 **CHILD-08** The details column MUST stay in place as the box column does (SEL-09): directly after it, before every
 data column.
-- Examples (the test runs every row; `oncolumnstate` passed): the chooser holds no checkbox for it; its header cell
-  holds no grip; `columnState.order` `['date', 'name', 'code']` shows it before Date.
+- Examples (the test runs every row; `oncolumnstate` passed):
+
+  | Steps | Result |
+  |---|---|
+  | press "Columns" | no checkbox for the details column |
+  | its header cell | no grip |
+  | `columnState.order` `['date', 'name', 'code']` | the details column, then Date, Name, Code |
+  | drag Date's grip to the details column's header cell | no `oncolumnstate` call |
+  | press "Columns" | "Move earlier Name", the first data column, has `aria-disabled="true"` |
 - Reason: the disclosure buttons are where every row starts, like the boxes (PRD-B27, PRD-B11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B27, PRD-B11.
+
+**CHILD-12** While columns are resizable (section 12), the details column MUST be drawn 40 CSS px wide with no separator,
+and the table's width MUST count it, as SEL-12 states for the box column.
+- Example: `detail`, `selection` and `widths` `{ name: 200, code: 120, date: 120 }`: the details column's header cell is
+  40 px wide (within 1 px), holds no element with role `separator`, and the table is 520 px wide.
+- Reason: the column holds one button and is no data (INFERRED: 40 px leaves room for a 24 by 24 target and its focus
+  indicator); the sum keeps COL-33's rule (PRD-B12, PRD-B27).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-B12.
+
+**CHILD-16** The Tab order MUST reach, in each row, its box, its details button and its cells' controls, then the
+controls of its open detail row, before the next row.
+- Example: `selection` given, the Name cells hold a link "Go <name>", `expanded` `['r1']`: Tab from "Select all rows on
+  this page" through the header's controls reaches "Select row Beta", "Details for Beta", "Go Beta", "Open Beta",
+  "Select row alpha", "Details for alpha", "Go alpha", in that order.
+- Reason: reading order and Tab order match (WCAG 2.4.3; PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-A3.
 
 **CHILD-09** For invalid child-row input the table MUST render the alert of RND-05 with the fixed message below.
 - Examples (as RND-05; the test runs every row and every alternative in it):
@@ -4191,10 +4257,16 @@ data column.
 | CHILD-02 | PRD-B27 |
 | CHILD-03 | PRD-B27, PRD-B2 |
 | CHILD-04 | PRD-B27, PRD-B2 |
-| CHILD-05 | PRD-B27, PRD-A4 |
+| CHILD-05 | PRD-B27 |
+| CHILD-14 | PRD-B27 |
+| CHILD-15 | PRD-B27, PRD-A4 |
+| CHILD-11 | PRD-B18, PRD-B27 |
 | CHILD-06 | PRD-B27, PRD-B1 |
 | CHILD-07 | PRD-B27, PRD-A3 |
+| CHILD-13 | PRD-B27, PRD-A3 |
 | CHILD-08 | PRD-B27, PRD-B11 |
+| CHILD-12 | PRD-B27, PRD-B12 |
+| CHILD-16 | PRD-B27, PRD-A3 |
 | CHILD-09 | PRD-B16, PRD-B27 |
 | CHILD-10 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
@@ -4221,11 +4293,11 @@ state in their own statements.
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, CHILD-08 | in part: the sticky columns staying in place come with the sticky statements |
-| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12 | in full |
+| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
-| PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-06, CHILD-07, CHILD-08, CHILD-09, CHILD-10 | in full |
+| PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -4234,15 +4306,15 @@ state in their own statements.
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
-| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
+| PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-05 | in full |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
