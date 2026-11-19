@@ -7,8 +7,8 @@
 [![tested with Svelte](https://img.shields.io/github/package-json/dependency-version/hniedner/sveltedt/dev/svelte?label=tested%20with%20Svelte)](package.json)
 [![TypeScript](https://img.shields.io/github/package-json/dependency-version/hniedner/sveltedt/dev/typescript?label=TypeScript)](package.json)
 
-An accessible, server-driven data table for Svelte 5, inspired by DataTables and usable under a strict
-content-security policy.
+A data table for Svelte 5, inspired by DataTables, built to be accessible and usable under a strict content-security
+policy.
 
 SvelteDT brings the utility of DataTables (datatables.net) to Svelte 5: a data table for server-side and client-side
 data, built idiomatically for Svelte with components, props, callbacks and snippets rather than as an imitation of
@@ -32,8 +32,8 @@ connection helper and the published package. The order is in the
 
 The install steps arrive with the package files and the consumer project that installs them
 ([spec/package.md](spec/package.md)). Until then the badges above show the Svelte and TypeScript versions the tests run
-with; once the package states its supported peer range, the badges will show that range instead. The npm package will be `@hniedner/sveltedt` (npm refused the bare name `sveltedt` as too similar to
-an existing package).
+with; once the package states its supported peer range, the badges will show that range instead. The npm package will
+be `@hniedner/sveltedt` (npm refused the bare name `sveltedt` as too similar to an existing package).
 
 ## See it running
 
