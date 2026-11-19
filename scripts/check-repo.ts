@@ -36,12 +36,15 @@ import {
   inCI,
   isResult,
   NA,
+  NO_CACHE,
   result,
   tail,
+  testRun,
   vitest,
   vitestBin,
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
+import { check as trace } from "./trace.ts";
 
 const WORD: Record<number, string> = {
   [PASS]: "PASS",
@@ -1813,7 +1816,7 @@ function test(root: string, list: Set<string>): Result {
       CANNOT,
       `vitest ${got} is installed ("${v.line}"), package.json pins ${pin}`,
     );
-  const canary = vitest(canaries("test"), []);
+  const canary = vitest(canaries("test"), NO_CACHE);
   if (!canary.report || canary.report.numFailedTests < 1)
     return result(
       CANNOT,
@@ -1836,38 +1839,10 @@ function test(root: string, list: Set<string>): Result {
         );
   if (!list.has("vitest.config.ts"))
     return result(CANNOT, "vitest.config.ts is not tracked");
-  // No flag overrides onUnhandledError, and two flags do not reach a project (measured). Read as text: a name in a
-  // module the config imports or built at run time is not seen (CONTRIBUTING.md)
-  const config = readFileSync(join(root, "vitest.config.ts"), "utf8");
-  const unchecked = [
-    ["onUnhandledError", "lets an unhandled error pass"],
-    [
-      "projects",
-      `names "projects" (read as text), which two of the step's flags do not reach`,
-    ],
-  ].filter(([name]) => config.includes(name));
-  if (unchecked.length)
-    return result(
-      CANNOT,
-      `vitest.config.ts ${unchecked.map(([, why]) => why).join("; ")}`,
-      unchecked.map(([name]) => name),
-    );
-  // Each flag wins over the opposite setting in the config (measured): unhandled errors fail the run, a test
-  // without an assertion fails, the tests run rather than only being type-checked, and a snapshot with nothing
-  // stored fails instead of being written (outside CI vitest writes it and passes)
-  const {
-    report: run,
-    status,
-    out,
-    error,
-  } = vitest(root, [
-    "--config",
-    join(root, "vitest.config.ts"),
-    "--dangerouslyIgnoreUnhandledErrors=false",
-    "--expect.requireAssertions",
-    "--typecheck.enabled=false",
-    "--update=none",
-  ]);
+  // The run is shared with `trace`; see testRun for the flags it forces and the configs it cannot check
+  const shared = testRun(root);
+  if (isResult(shared)) return shared;
+  const { report: run, status, out, error } = shared;
   if (error) return result(CANNOT, error);
   if (!run) return result(CANNOT, "vitest wrote no report", tail(out));
   // Vitest names each file by its real path; the root may reach it through a link (macOS: /var -> /private/var).
@@ -2136,6 +2111,7 @@ const CHECKS: Record<string, Check> = {
   svelte,
   site,
   test,
+  trace,
   dupes,
   commits,
   pins,
