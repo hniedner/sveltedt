@@ -76,7 +76,8 @@ to the consumer as one callback (stated with the statements that add user action
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
   id or a class, except THEME-09, which tests the public classes
-  of PRD-K3 themselves, and THEME-23 to THEME-29, which test the classes the hook props write.
+  of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
+  hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -4167,7 +4168,8 @@ These statements add a column's `class` and `headerClass` (strings), a column's 
 `'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string
 (PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
 only, DEP-36). A hook adds classes: the component's own classes (THEME-09) stay. "Data cells" are the body cells of
-the given columns in data rows. A hook or class given as `undefined` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
+the given columns in data rows. A hook, class or alignment given as
+`undefined` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
 `{ id: 'r2', name: 'alpha', code: 'A-1' }` and the columns Name and Code.
 
 **THEME-23** A column's `class` MUST appear, as given, on that column's header cell and on each of its data cells.
@@ -4177,7 +4179,7 @@ the given columns in data rows. A hook or class given as `undefined` counts as n
   |---|---|---|
   | `'num wide'` | hold `num` and `wide`, and `sdt-th` or `sdt-cell` | hold neither |
   | `''` | hold no class but `sdt-th` or `sdt-cell` | as before |
-  | not given | as for `''` | as before |
+  | not given, or `undefined` | as for `''` | as before |
 
 - Reason: DataTables users style columns by class (PRD-T7).
 - Layer: component.
@@ -4209,14 +4211,16 @@ result MUST appear on that cell's `td`, after the column's `class`.
 - Example: Code's `class` `'num'`, `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : ''`:
   r2's Code cell holds `num` before `low`, and `sdt-cell`; r1's Code cell holds `num` only besides `sdt-cell`; the
   Name cells hold neither; with `selection` given, the box cells hold no class from `cellClass`, and every call of
-  `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code), each pair at least once.
+  `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code; compared by `r.id` and `c.id`), each pair at least
+  once.
 - Reason: DataTables' `createdCell` marks cells by their value (PRD-T8).
 - Layer: component.
 - Traces: PRD-T8.
 
 **THEME-29** The classes from `rowClass` and `cellClass` MUST follow a change of the reactive state the functions read
 and the replacement of a row by a new object, and an unchanged row MUST keep its classes.
-- Examples (the test runs every row; `hot` a `$state` variable of the test's host starting at `'r1'`):
+- Examples (the test runs every row; `hot` a `$state` variable of the test's host starting at `'r1'`; `rows` held in
+  `$state.raw`, so "r1 the same object" is the object given before):
 
   | Hook | Change | r1 | r2 |
   |---|---|---|---|
@@ -4236,7 +4240,7 @@ and the replacement of a row by a new object, and an unchanged row MUST keep its
 
   | Code's `align` | Code's `text-align` | Name's `text-align` |
   |---|---|---|
-  | not given | `start` | `start` |
+  | not given, or `undefined` | `start` | `start` |
   | `'start'` | `start` | `start` |
   | `'center'` | `center` | `start` |
   | `'end'` | `end` | `start` |
@@ -4248,9 +4252,9 @@ and the replacement of a row by a new object, and an unchanged row MUST keep its
 **THEME-30** A sortable column's sort button, holding its text and its mark, MUST sit at the inline edge its `align`
 names.
 - Examples (the test runs every row; Code sortable, 300 CSS px wide while resizable (`columnState.widths`
-  `{ code: 300 }` and `oncolumnstate` passed); `sort` `[code asc]`, so the mark shows; edges of the box of a range over
-  the sort button's contents, its text and its mark, against the header cell's content box, within 1 px; the test
-  first asserts that this box is at least 100 px narrower than the content box):
+  `{ code: 300 }` and `oncolumnstate` passed); `sort` `[code asc]`, so the mark shows; edges of the sort button's
+  border box against the header cell's content box, within 1 px; the test first asserts that the button is at least
+  100 px narrower than the content box, so the check cannot pass by a full-width button):
 
   | `align` | Direction | Edge |
   |---|---|---|
