@@ -30,7 +30,8 @@ to the consumer as one callback (stated with the statements that add user action
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
-  (a snippet); `getRowId(row)`; `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
+  (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
+  later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
@@ -51,10 +52,14 @@ to the consumer as one callback (stated with the statements that add user action
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
-- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty.
+- **Empty.** A text or an id is empty when nothing is left after trimming white space; `" "` is empty. A row id that
+  is a number is never empty; a column id or a text that is not a string counts as empty (RND-05).
+- **Same row id.** Two row ids are the same when their text forms are equal: the number 1 and the string "1" are the
+  same id.
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
-  element of a named tag or selector; never a test id or a class.
+  element of a named tag or selector; never a test id or a class, except THEME-09, which tests the public classes
+  of PRD-K3 themselves.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -166,16 +171,24 @@ its cells.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | `caption` is empty | `captionEmpty` | "Table caption must not be empty." |
+  | `caption` is not a string (left out by a plain JavaScript caller) | `captionEmpty` | "Table caption must not be empty." |
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
+  | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
   | a column label is empty | `columnLabelEmpty` | "A column label is empty." |
+  | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
+  | two rows share an id in its text form (the number 1 and the string "1") | `rowIdDuplicate` | "Two rows share an id." |
   | `getRowId` throws | `rowIdUnreadable` | "A row id could not be read." |
+  | `getRowId` returns a value that is neither a string nor a finite number (`NaN`, `Infinity`, `null`) | `rowIdUnreadable` | "A row id could not be read." |
+
+  A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
+  no alert.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
@@ -656,12 +669,12 @@ anything to the document head.
   A static check sees literal names and plain string literals only: a name built at run time, a template literal, a
   cast, an alias (`const make = document.createElement.bind(document); make("style")`), `Reflect.set`, `setAttributeNS` or a computed `svelte:element`
   `this` is not seen, and such code is left to review.
-- Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 that no CSS ships: an injected
-  inline style or script is refused under the strict policy, so a consumer would have to loosen its policy, and a
-  sheet the component adds sits outside the consumer's one stylesheet build; the document head belongs to the app
-  (PRD-B19).
+- Reason: PRD-S1 asks that the component inject no style, link or script, and PRD-T3 and PRD-T15 that the one shipped
+  stylesheet is the only CSS: an injected inline style or script is refused under the strict policy, so a consumer would
+  have to loosen its policy, and a sheet the component adds is not the one the application imports; the document head
+  belongs to the app (PRD-B19).
 - Layer: static check.
-- Traces: PRD-S1, PRD-T3, PRD-B19.
+- Traces: PRD-S1, PRD-T3, PRD-T15, PRD-B19.
 
 ---
 
@@ -670,45 +683,51 @@ anything to the document head.
 The component's look comes from prefixed custom properties the consumer may define. Without them it falls back to
 the browser's system colours and stays usable.
 
-**THEME-01** Every colour class in the component MUST be a complete literal class whose value reads a `--sdt-*`
-custom property with a CSS system-colour fallback.
-- Examples (the scan runs every row against a canary file holding it; only the last row passes):
+**THEME-01** Every colour value in a declaration of the package's stylesheet MUST read a `--sdt-*` custom property
+with a CSS system-colour fallback, except the keywords `inherit`, `currentColor` and `transparent`, a zero-width
+border, and declarations inside `@media (forced-colors: active)`.
+- Examples (the scan runs every row against a canary stylesheet holding it; only the last four rows pass):
 
-  | Class in a canary file | Result |
+  | Declaration in a canary stylesheet | Result |
   |---|---|
-  | `bg-blue-500` (a palette class) | finding |
-  | `` bg-[${tone}] `` (a class built at run time) | finding |
-  | `bg-[var(--sdt-surface,#fff)]` (fallback is not a system colour) | finding |
-  | `bg-[var(--sdt-surface)]` (no fallback) | finding |
-  | `bg-[var(--app-surface,Canvas)]` (not the `--sdt-` prefix) | finding |
-  | `bg-[var(--sdt-surface,Canvas)]` | pass |
+  | `.sdt-x { color: #333 }` | finding |
+  | `.sdt-x { border: 1px solid blue }` (a shorthand with a named colour) | finding |
+  | `.sdt-x { background-image: linear-gradient(red, var(--sdt-a, Canvas)) }` (a gradient with one raw colour) | finding |
+  | `.sdt-x { color: var(--sdt-text, #333) }` (fallback is not a system colour) | finding |
+  | `.sdt-x { color: var(--sdt-text) }` (no fallback) | finding |
+  | `.sdt-x { color: var(--app-text, CanvasText) }` (not the `--sdt-` prefix) | finding |
+  | `.sdt-x { color: Canvas }` (a system colour outside `forced-colors` and outside a fallback) | finding |
+  | `.sdt-x { color: var(--sdt-text, CanvasText) }` | pass |
+  | `.sdt-x { color: currentColor; border: 0 solid red }` (a keyword; a zero-width border) | pass |
+  | `@media (forced-colors: active) { .sdt-x { outline-color: Highlight } }` | pass |
+  | `.sdt-x { background: transparent }` | pass |
 
-  A colour class is one with the utility prefix `bg-`, `text-`, `border-`, `outline-`, `ring-`, `divide-`,
-  `decoration-`, `accent-`, `caret-`, `fill-`, `stroke-`, `from-`, `via-`, `to-`, `shadow-`, `inset-shadow-`,
-  `inset-ring-`, `drop-shadow-` or `text-shadow-` whose value is a colour (not a size, a width or a style keyword).
-  The values `transparent`, `current` and `inherit` name no colour of their own and pass. A system colour is one of
-  the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`).
-  The scan reads the component source and, once the package is built (PRD-K2), the built package; it finds no
-  finding, and it reports how many class literals it read (more than 0).
-- Reason: prefixed names cannot collide with an application's tokens, and Tailwind only generates classes it finds as
-  complete literals in the source; a palette class would ignore the consumer's theme.
+  A colour value is a CSS Color 4 colour anywhere in a property's value: a named colour, a hex colour or a colour
+  function (`rgb()`, `hsl()`, `oklch()`, `color-mix()` and the others of CSS Color 4 and 5), or a system colour
+  anywhere but as the fallback of a `--sdt-*` property. A system colour is one of
+  the system-colour keywords of CSS Color 4 (for example `Canvas`, `CanvasText`, `ButtonText`, `Highlight`). The scan
+  reads the package's stylesheet (THEME-04) in the source and, once the package is built (PRD-K2), in the tarball; it
+  reports how many declarations it read, and with no stylesheet or 0 declarations it reports "could not check", which
+  blocks like a finding.
+- Reason: prefixed names cannot collide with an application's tokens, and a raw colour would ignore the consumer's
+  theme; the system-colour fallback keeps the table usable without tokens (PRD-T2).
 - Layer: static check.
 - Traces: PRD-T1.
 
-**THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the component's class literals
-use.
-- Example: a class literal reading `--sdt-border` with no `--sdt-border` row in the table is a finding; a table row
-  `--sdt-unused` that no class reads is a finding. The class literals are read as in THEME-01 (source, and the built
-  package once it exists).
-- Reason: the token names are public interface; a list kept by hand drifts from the code unless a check compares
-  them.
+**THEME-02** The token table in the documentation MUST list exactly the `--sdt-*` names the package's stylesheet
+reads.
+- Example: a declaration reading `var(--sdt-border, CanvasText)` with no `--sdt-border` row in the table is a
+  finding; a table row `--sdt-unused` that no declaration reads is a finding. The stylesheet is read as in THEME-01;
+  with no token table, or 0 names read from the stylesheet, the check reports "could not check".
+- Reason: the token names are public interface (PRD-K3); a list kept by hand drifts from the stylesheet unless a
+  check compares them.
 - Layer: static check.
 - Traces: PRD-T1.
 
 **THEME-03** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
 table.
-- Example: a site page with Tailwind and no token definitions, in each state of A11Y-06: axe reports 0 serious or
-  critical violations (its colour-contrast rule included).
+- Example: a site page with the package's stylesheet and no token definitions, in each state of A11Y-06: axe reports
+  0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true; a consumer who themes nothing must
   get a plain table, not a broken one.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -722,22 +741,155 @@ table.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
 
-**THEME-04** The package MUST ship no CSS file and no `<style>` block.
-- Example: the packed package holds no `.css` file and no `.svelte` file with a `<style>` block; a canary `.svelte`
-  file with a `<style>` block is found.
-- Reason: there is one stylesheet build per application (the consumer's Tailwind, which adds the package as an
-  `@source`), and a shipped stylesheet could not follow the consumer's tokens.
-- Layer: static check.
-- Traces: PRD-T3.
+**THEME-04** The package MUST ship exactly one stylesheet, which holds no `@layer` and no `@import` rule, and no
+`.svelte` file of the component may hold a `<style>` block.
+- Examples (the first row is the real source; every other row is a canary planted in a copy of it, which must be
+  found):
 
-**THEME-05** The component's class literals MUST use only Tailwind's built-in variants.
-- Example: `hover:`, `focus-visible:`, `dark:` and `forced-colors:` pass; a canary class `app-dense:p-1` is a
-  finding. The list of built-in variants is read from the pinned Tailwind package, not kept by hand; the scan reads
-  the component source and, once it exists, the built package.
-- Reason: a custom variant needs a matching definition in the consumer's stylesheet, which a consumer would have to
-  know about and copy.
+  | Source | Result |
+  |---|---|
+  | the real source: one `.css` file under `src/lib`, no `<style>` block | passes |
+  | a second `.css` file under `src/lib` | finding: two stylesheets |
+  | no `.css` file under `src/lib` | finding: no stylesheet |
+  | `@layer sdt { .sdt-x { color: inherit } }` in the stylesheet | finding: a layer |
+  | `@import "./more.css";` in the stylesheet | finding: an import |
+  | `<style>.x { color: inherit }</style>` at the top level of a `.svelte` file under `src/lib` | finding: a style block |
+
+  Once the package is built (PRD-K2), the same holds for the tarball: exactly one `.css` file, the target of the
+  `./styles.css` export (PKG-05 of `spec/package.md`). An added `<style>` element is FOOT-04's.
+- Reason: PRD-T3 asks for one static, unlayered file: an unlayered file held under Bootstrap 5.3's unlayered reboot
+  where a layered copy failed (MEASURED 2026-11-18, PRD-T3), the application chooses the layer when it imports the
+  file, and an `@import` would make the consumer's bundler fetch a second file (INFERRED); a `<style>` block is
+  compiled by the application's Svelte settings (PRD-T15, INFERRED).
 - Layer: static check.
-- Traces: PRD-T3.
+- Traces: PRD-T3, PRD-T15.
+
+**THEME-08** Every class the component writes MUST be `sdt` or start with `sdt-`, or come from a hook prop.
+- Examples (the scan runs every row as a canary planted in a copy of the source, which must be found unless the row
+  says it passes; the real source passes):
+
+  | Canary | Result |
+  |---|---|
+  | `<td class="app-x">` in a `.svelte` file | finding |
+  | ``<td class={`x-${kind}`}>`` in a `.svelte` file (a form not in the list) | finding |
+  | `<td class={["sdt-cell", "app-x"]}>` in a `.svelte` file | finding |
+  | `<td class={{ "app-x": on }}>` in a `.svelte` file (a form not in the list) | finding |
+  | `export const stripe = "app-x";` in `src/lib/classes.ts` | finding |
+  | `const c = rowClass(row);` then `<tr class={c}>` (a form not in the list) | finding |
+  | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` | passes |
+  | `<tr class={["sdt-row", rowClass?.(row)]}>` | passes |
+
+  The scan reads every `class` attribute of the `.svelte` files under `src/lib`. It knows these forms: a quoted literal
+  (`class="sdt-x sdt-y"`); and an expression that is a string literal or an array whose elements are each a string
+  literal, `condition && "literal"`, a member `class` or `headerClass` of a column value (PRD-T7, PRD-T14), a call of
+  `rowClass` or `cellClass`, optional call included (PRD-T8), or a name imported from `src/lib/classes.ts`. Every
+  literal must consist of class names that are `sdt` or start with `sdt-`, and so must every string in
+  `src/lib/classes.ts`, the one `.ts` file that holds class strings (a `.ts` file elsewhere holds none: review, PRD-G2
+  (e)). A class attribute in any other form is a finding; a form joins this list when a statement needs it. Once the
+  package is built (PRD-K2), the same holds for the tarball. The scan reports how many class attributes it read; with 0
+  it reports "could not check".
+- Reason: one prefix keeps the component's classes from colliding with an application's or a framework's (PRD-T15),
+  and the application's own classes enter only where it put them.
+- Layer: static check.
+- Traces: PRD-T15.
+
+**THEME-09** The public classes MUST sit exactly on these elements: `sdt` on the one element that holds everything
+the table component renders (the `heading` and `actions` snippets, the region, and the alert of RND-13),
+`sdt-table` on the `table`, `sdt-head-row` on the header row, `sdt-th` on every header cell, `sdt-row` on every body
+data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
+- Examples (the test counts the elements carrying each class, and checks each sits on the element named):
+
+  | Props | `sdt` | `sdt-table` | `sdt-head-row` | `sdt-th` | `sdt-row` | `sdt-cell` |
+  |---|---|---|---|---|---|---|
+  | `status 'ready'`, 3 rows, 2 columns | 1 | 1 | 1 | 2 | 3 | 6 |
+  | `status 'ready'`, 0 rows, 2 columns (the empty text in its body row) | 1 | 1 | 1 | 2 | 0 | 1 |
+  | `status 'ready'`, 2 rows, 2 columns, a `heading` and an `actions` snippet | 1 | 1 | 1 | 2 | 2 | 4 |
+  | `columns []` (the alert of RND-13), a `heading` snippet | 1 | 0 | 0 | 0 | 0 | 0 |
+
+  In every row the element with `sdt` contains the heading, the actions, the region and the alert where they are
+  rendered. A `Pagination` with `offset 0, limit 10, total 25` has exactly one element with `sdt-pager`, its `nav`. No
+  other element carries one of the seven classes.
+- Reason: the seven classes are public interface, and removing one or moving it to another element is a breaking
+  change (PRD-K3); an application's selectors rely on where they sit.
+- Layer: component.
+- Traces: PRD-K3.
+
+**THEME-10** On each host page, every element of the table MUST have, for each property of PRD-T11's named set
+listed for it below, the computed value that the literal table of its test states.
+- Examples (the test loads each host page in its own browser context and first asserts the order of
+  `document.styleSheets`; then it runs every row on both hosts, with a table of `caption` "Orders", `regionLabel`
+  "Orders table", 2 columns, none sortable, and 2 rows, `status 'ready'`, then again with 0 rows; the page holds no
+  `Pagination`):
+
+  | Host page | Its stylesheets, in this order, each a static file linked unbundled |
+  |---|---|
+  | none | the package's stylesheet |
+  | Bootstrap 5.3 | Bootstrap 5.3's compiled CSS (unlayered), then the package's stylesheet |
+
+  | Element | Properties |
+  |---|---|
+  | the region of A11Y-09 | `display`, `position`, `box-sizing`, `margin-*`, `padding-*`, `border-*-width`, `border-*-style` |
+  | `table` | the region's, and `border-collapse` |
+  | `caption` | the region's, `caption-side`, `text-align`, `clip`, `clip-path`, `overflow`, `white-space`, `width`, `height` |
+  | the header row and each body row (the empty message's row included) | the region's |
+  | each header cell, each body cell, the empty message's cell (STATE-03) | the region's, and `text-align` |
+  | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
+
+  The builder writes each expected value literally: the computed form of the stylesheet's declaration for that element
+  and property (lengths in CSS px at a 16 px root), or, where the stylesheet sets nothing for it, the value computed on
+  the "none" page in each engine; where the engines differ, the row gives one value per engine. The default row divider
+  (no `row-border` variant, `docs/departures.md`) is in these rows: each body data row but the last has a block-end
+  border on its cells; the last row and the empty message's cell have none. The caption also measures at most 1 by 1 CSS
+  px on both hosts, as A11Y-13 measures. The test lands with the first stylesheet commit (PRD-T11), so that commit comes
+  with or after the first commit after which the CI `browser` job (`docs/engineering/gates.md`) runs a test; until
+  then this statement is not yet tested.
+- Reason: the table must look the same whatever the application loaded first (PRD-T11 (a)); a literal table makes the
+  "none" host able to fail, where a comparison with it could not. Bootstrap's reboot changed caption padding, `th`
+  alignment and the dividers of a seed table (MEASURED 2026-11-18 in an earlier probe). Loaded in the reverse order (the
+  stylesheet before Bootstrap 5.3.9), a stub of the stylesheet whose selectors are at most one class, on that seed table
+  (a caption, a header row and 20 body rows), gave computed values with 0 differences from the advised order in 22
+  properties of the table, caption, header cell, body cell and first and last body rows (MEASURED 2026-11-18, headless
+  Chrome 157 only); the properties the stub set nowhere took Bootstrap's values in both orders (among them the caption's
+  and rows' `box-sizing` and the inherited `caption-side`, font and colour), which is why every named property is a row.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11.
+
+**THEME-11** On each host, an application rule of a class and an element on a body cell MUST override the
+stylesheet's padding.
+- Example: each host page of THEME-10 with, after the package's stylesheet, one application file holding
+  `.app td { padding: 4px }`, and the table of THEME-10 inside an element with class `app`: every body cell's
+  `padding-top`, `padding-right`, `padding-bottom` and `padding-left` compute to `4px`. A second table outside
+  `.app`, `regionLabel` "Other table", on the same page keeps the stylesheet's padding. These are their own pages:
+  THEME-10's pages hold no application file. Not yet tested until then, as THEME-10.
+- Reason: an application restyles the table with an ordinary rule, without `!important` (PRD-T11 (b), PRD-D9); the
+  stylesheet's one-class selectors (THEME-12) make that hold in this load order.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11, PRD-D9.
+
+**THEME-12** A selector of the package's stylesheet MUST NOT have a specificity above one class (0,1,0), counted
+without its pseudo-elements, and a declaration MUST NOT carry `!important`.
+- Examples (the check runs every row against a canary stylesheet holding it):
+
+  | Rule in a canary stylesheet | Result |
+  |---|---|
+  | `.sdt-a .sdt-b { color: inherit }` (0,2,0) | finding |
+  | `.sdt-row:not(:last-child) { color: inherit }` (0,2,0) | finding |
+  | `#x { color: inherit }` (1,0,0) | finding |
+  | `:is(.sdt-a, .sdt-b .sdt-c) { color: inherit }` (0,2,0, the most specific argument) | finding |
+  | `.sdt-a:has(.sdt-b) { color: inherit }` (0,2,0) | finding |
+  | `.sdt-a { & .sdt-b { color: inherit } }` (nested: 0,2,0) | finding |
+  | `.sdt-x { color: inherit !important }` | finding |
+  | `.sdt-x { color: inherit }` (0,1,0) | passes |
+  | `.sdt-x::after { content: "" }` (0,1,0 without the pseudo-element) | passes |
+  | `.sdt-row:where(:not(:last-child)) { color: inherit }` (0,1,0) | passes |
+
+  Specificity follows Selectors Level 4 (`:is()`, `:not()` and `:has()` take their most specific argument, `:where()`
+  counts 0), a nested rule counts with its parents, and the pseudo-elements are left out. The check reads the
+  stylesheet of THEME-04, reports how many selectors it read, and with 0 reports "could not check".
+- Reason: an application's unlayered rule of a class and an element (0,1,1) then wins in any load order, and an
+  `!important` in the shipped sheet would beat every override (PRD-T16, PRD-D9).
+- Layer: static check.
+- Traces: PRD-T16.
 
 **THEME-07** The component source MUST NOT give an element a `style` attribute, in markup or through
 `setAttribute`, nor a `style:` directive.
@@ -1044,8 +1196,8 @@ list.
 
 **SORT-21** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in the states of
 SORT-20.
-- Example (as THEME-03, for the sort controls): a site page with Tailwind and no token definitions, in each state of
-  SORT-20: axe reports 0 serious or critical violations (its colour-contrast rule included).
+- Example (as THEME-03, for the sort controls): a site page with the package's stylesheet and no token definitions, in
+  each state of SORT-20: axe reports 0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true for the sort controls too.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
@@ -1083,6 +1235,21 @@ or `window` beyond those Svelte adds for any component.
   handlers.
 - Layer: component.
 - Traces: PRD-B19.
+
+**SORT-25** On each host page of THEME-10, each sort button MUST have, for each property listed for it below, the
+computed value that the literal table of its test states.
+- Example (as THEME-10, for the sort buttons: its host pages, its order check and its rule for the expected values;
+  the table's first column sortable with an `onsort`):
+
+  | Element | Properties |
+  |---|---|
+  | each sort button (SORT-10) | THEME-10's properties of the region, `appearance` and `text-align` |
+  | each sort button | `font-family`, `font-size` and `line-height` equal those of its parent element |
+
+- Reason: the sort controls must look the same whatever the application loaded first, as THEME-10 states for the
+  table (PRD-T11 (a)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11.
 
 ## 8. The pager (PAGE)
 
@@ -1346,11 +1513,10 @@ named "entries per page", with `limit` selected.
 - Traces: PRD-B9.
 
 **PAGE-24** The page-size select's name MUST be text that is visible on the page.
-- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and
-  inside the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text
-  colour has an alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the
-  visible text and the name are both "Zeilen". A visually hidden label (Tailwind's `sr-only`) or one moved off-screen
-  fails.
+- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and inside
+  the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text colour has an
+  alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the visible text and the
+  name are both "Zeilen". A visually hidden label (clipped to 1 by 1 CSS px) or one moved off-screen fails.
 - Reason: a sighted user must see what the bare number means (WCAG 3.3.2, 2.5.3); a label hidden by CSS passes in a
   simulated DOM, so this needs an engine.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -1503,7 +1669,8 @@ those Svelte adds for any component.
 
 **PAGE-34** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in any state of the
 pager.
-- Example (as THEME-03, for the pager): a site page with Tailwind and no token definitions, in each state of PAGE-30:
+- Example (as THEME-03, for the pager): a site page with the package's stylesheet and no token definitions, in
+  each state of PAGE-30:
   axe reports 0 serious or critical violations (its colour-contrast rule included).
 - Reason: the system-colour fallbacks are what make "usable without tokens" true for the pager too.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -1515,6 +1682,22 @@ indicator.
 - Reason: the focus indicator must not depend on a token the consumer may not define.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T2, PRD-A1.
+
+**PAGE-36** On each host page of THEME-10, the pager's elements MUST have, for each property listed for them below,
+the computed value that the literal table of its test states.
+- Example (as THEME-10, for the pager: its host pages, its order check and its rule for the expected values; beside
+  the table each page holds a `Pagination` with `label` "Pages", `offset 0, limit 10, total 25` and `sizes [10, 25]`):
+
+  | Element | Properties |
+  |---|---|
+  | the pager's `nav` | THEME-10's properties of the region |
+  | each button of the pager and its page-size `select` | THEME-10's properties of the region, and `appearance` |
+  | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
+
+- Reason: the pager must look the same whatever the application loaded first, as THEME-10 states for the table
+  (PRD-T11 (a)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T11.
 
 ## 9. Ids across instances and server rendering (ID)
 
@@ -1622,13 +1805,17 @@ receives that number.
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
-| FOOT-04 | PRD-S1, PRD-T3, PRD-B19 |
+| FOOT-04 | PRD-S1, PRD-T3, PRD-T15, PRD-B19 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
 | THEME-06 | PRD-T2, PRD-A1 |
-| THEME-04 | PRD-T3 |
-| THEME-05 | PRD-T3 |
+| THEME-04 | PRD-T3, PRD-T15 |
+| THEME-08 | PRD-T15 |
+| THEME-09 | PRD-K3 |
+| THEME-10 | PRD-T11 |
+| THEME-11 | PRD-T11, PRD-D9 |
+| THEME-12 | PRD-T16 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -1653,6 +1840,7 @@ receives that number.
 | SORT-22 | PRD-T2, PRD-A1 |
 | SORT-23 | PRD-S2 |
 | SORT-24 | PRD-B19 |
+| SORT-25 | PRD-T11 |
 | PAGE-09 | PRD-B9, PRD-A1 |
 | PAGE-10 | PRD-B9, PRD-A3 |
 | PAGE-01 | PRD-B9, PRD-B2 |
@@ -1685,6 +1873,7 @@ receives that number.
 | PAGE-33 | PRD-B19, PRD-A3 |
 | PAGE-34 | PRD-T2, PRD-A1 |
 | PAGE-35 | PRD-T2, PRD-A1 |
+| PAGE-36 | PRD-T11 |
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
@@ -1730,7 +1919,11 @@ state in their own statements.
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
-| PRD-T3 | THEME-04, THEME-05, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2) ("the consumer adds `@source`" is shown by the consumer project, PRD-W8) |
+| PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
+| PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
+| PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
+| PRD-T16 | THEME-12 | in full |
+| PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 
 ### PRD musts not yet traced
@@ -1740,13 +1933,15 @@ state in their own statements.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
-- Theming: PRD-T4 (the example token set, light and dark).
+- Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
 - Internationalisation: PRD-I3.
-- Large pages and size: PRD-P1, PRD-P3.
+- Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
-- Packaging: PRD-K1, PRD-K2, PRD-K3.
-- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7.
+- Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
+- Gate: PRD-G1, PRD-G3, PRD-G4 (PRD-G2 in part, see above). PRD-G4's statements are written with the gate's
+  step-boundary wrappers; until then a comment naming the proving statement before each stylesheet rule is the build's
+  own convention, and the stylesheet does not wait for them.
+- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
