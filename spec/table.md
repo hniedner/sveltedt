@@ -2794,6 +2794,9 @@ below list.
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
+  The 1000 case runs once more in a browser context with the locale `de-DE`: the test first asserts that
+  `(1000).toLocaleString()` gives "1.000" there, and still expects "1,000".
+
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I1, PRD-I2.
