@@ -117,3 +117,12 @@ describe("SORT-02, Shift+click rows", () => {
     },
   );
 });
+// SORT-03's click row. Its Enter and Space rows are owed to the real-browser sort step, so the statement carries no
+// marker until then.
+describe("SORT-03, click row", () => {
+  it("one click on Name with the order [] emits exactly one onsort", async () => {
+    const { onsort } = mount();
+    await fireEvent.click(sortButton("Name"));
+    expect(onsort).toHaveBeenCalledTimes(1);
+  });
+});
