@@ -4253,8 +4253,9 @@ and the replacement of a row by a new object, and an unchanged row MUST keep its
 names.
 - Examples (the test runs every row; Code sortable, 300 CSS px wide while resizable (`columnState.widths`
   `{ code: 300 }` and `oncolumnstate` passed); `sort` `[code asc]`, so the mark shows; edges of the sort button's
-  border box against the header cell's content box, within 1 px; the test first asserts that the button is at least
-  100 px narrower than the content box, so the check cannot pass by a full-width button):
+  border box against "the free span", the part of the header cell's content box on the button's line not covered by
+  the boxes of Code's grip (COL-13) and separator, within 1 px; the test first asserts that the button is at least
+  100 px narrower than the free span, so the check cannot pass by a full-width button):
 
   | `align` | Direction | Edge |
   |---|---|---|
