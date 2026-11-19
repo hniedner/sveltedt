@@ -2710,6 +2710,7 @@ come with the column statements (milestone 5), which state the badges and focus 
   |---|---|
   | the order `[code asc]` and Name's text "Beta" | `onsort`, `onclearfilters` |
   | the order `[code asc]` and `search` "beta", `onsearch` given | `onsort`, `onsearch`; "Search" still reads "beta" until `search` changes (FILT-44) |
+
 - Reason: the application restores sort and filters in one query (PRD-B2, PRD-B8).
 - Layer: component.
 - Traces: PRD-B8, PRD-B2, PRD-B25.
