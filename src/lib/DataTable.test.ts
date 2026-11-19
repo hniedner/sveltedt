@@ -774,6 +774,44 @@ describe("A11Y-22", () => {
   );
 });
 
+// The default texts of RND-05's alert, one per message key
+const ALERT_TEXTS = [
+  "Table caption must not be empty.",
+  "Table region label must not be empty.",
+  "Table has no columns.",
+  "A column id is empty.",
+  "Two columns share an id.",
+  "A column label is empty.",
+  "Two columns share a label.",
+  "A column has no value and no cell.",
+  "Table has no list of rows.",
+  "A row id is empty.",
+  "Two rows share an id.",
+  "A row id could not be read.",
+];
+
+// @spec("STATE-08", "afee0d46")
+describe("STATE-08", () => {
+  it.each<[DataTableStatus, unknown, string]>([
+    ["loading", undefined, LOADING],
+    ["loading", null, LOADING],
+    ["failed", undefined, FAILED],
+  ])(
+    "with status %s and rows %s, shows that state's message and not the alert",
+    (status, rows, text) => {
+      // A caller the type does not reach: a pending fetch passes no list yet
+      const component = show({
+        status,
+        rows: rows as Item[],
+        columns: [nameColumn, codeColumn],
+      });
+      expect(screen.getByText(text).isConnected).toBe(true);
+      for (const message of ALERT_TEXTS)
+        expect(component.textContent).not.toContain(message);
+    },
+  );
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2

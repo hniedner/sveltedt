@@ -28,6 +28,9 @@ function firstDuplicate(values: readonly string[]): string | undefined {
 const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
+// No type guard on purpose: Array.isArray would widen a readonly array to any[]
+const isList = (value: unknown): boolean => Array.isArray(value);
+
 // The message of the first fault, in the order of RND-05's table, or null when the input is valid
 export function validateTable<Row>(
   input: Pick<
@@ -52,6 +55,8 @@ export function validateTable<Row>(
   if (duplicateLabel !== undefined) return messages.columnLabelDuplicate;
   if (columns.some((column) => !column.value && !column.cell))
     return messages.columnContentMissing;
+  // A list still on its way is no fault (STATE-08)
+  if (!isList(rows)) return null;
   // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
   const rowIds: string[] = [];
   let unreadable = false;
