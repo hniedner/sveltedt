@@ -3,5 +3,7 @@ export type {
   DataTableColumn,
   DataTableMessages,
   DataTableProps,
+  DataTableSortEntry,
   DataTableStatus,
+  SortDirection,
 } from "./types.ts";
