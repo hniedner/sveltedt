@@ -76,7 +76,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   fails; a renamed or deleted statement is not a finding. Locally it makes the same comparison with the
   merge base of `origin/main` and `HEAD`; on a push to main there is no base, and only the list is printed.
   A base that cannot be named or read (no `origin/main` locally, an unknown event in CI, an unreadable commit) is
-  could not check.
+  could not check. A pull request that changes the readers so that main's own files no longer read is could not
+  check; it lands the fixes to those files first, in their own pull request, so its base reads clean.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
   recorded in the closing comment, which no check enforces) exits 1 while any of them is untested; an empty list or
   an id no spec holds is exit 2. `trace --release` runs in the release build: from 1.0 on (a 1.0 release candidate

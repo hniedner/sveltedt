@@ -244,10 +244,10 @@ export interface Base {
 const COMMIT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 /**
- * The commit a step compares its answer with, one truth table for the steps that compare with a base (`trace` today; `diff-coverage` will). A pull request is
- * checked out as the merge of its head, so the base is that merge's first parent; else the merge base of GATE_BASE and
- * GATE_HEAD. A push has GATE_BASE (the commits before it) or none. Locally it is the merge base with origin/main.
- * Anything else, in CI, has no base: the step says so, never guesses.
+ * The commit a step compares its answer with, one truth table for the steps that compare with a base (`trace` today;
+ * `diff-coverage` will). A pull request is checked out as the merge of its head, so the base is that merge's first
+ * parent; else the merge base of GATE_BASE and GATE_HEAD. A push has GATE_BASE (the commits before it) or none. Locally
+ * it is the merge base with origin/main. Anything else, in CI, has no base: the step says so, never guesses.
  */
 export function baseCommit(root: string): Result | Base {
   const git = (...args: string[]): string | null => {
