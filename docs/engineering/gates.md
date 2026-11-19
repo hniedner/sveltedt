@@ -131,8 +131,12 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G9. Hooks and the gate record
 
-- `./scripts/setup` sets `core.hooksPath` to `.githooks`. The gate's first step checks that this setting is in place
-  and the hooks are executable, and otherwise returns *could not check*.
+- `./scripts/setup` sets `core.hooksPath` to `.githooks`. The `hooks` step checks that this setting is in place and that
+  each hook is present as the executable two-line shim, and otherwise is a finding that gives the command to run; git
+  that cannot read its configuration is could not check. A file in `.githooks/` other than the known shims is a finding.
+  The hook shims are checked wherever the gate runs. The core.hooksPath setting exists only in a developer's clone: in
+  CI nothing of its kind is present, so the step checks the shims only and names core.hooksPath as not checked in its
+  pass line.
 - The local gate writes the commit id, tool versions and every step's exit code. The pusher writes that file, so it
   is not proof.
 - The record that counts is CI's `gate` check on the head, written by GitHub and required on main by the ruleset
