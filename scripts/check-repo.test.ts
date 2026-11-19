@@ -1624,7 +1624,7 @@ function fakePlaywright(
   writeFileSync(
     bin,
     `#!/usr/bin/env node
-const out = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+const out = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
 if (process.argv[2] === "--version") console.log("Version ${version}");
 else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
 if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.exitCode = Number(process.env.FAKE_EXIT ?? 0);

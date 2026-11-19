@@ -156,6 +156,17 @@ Development dependencies on the same terms as the test toolchain.
   2026-11-18). An early-development feature may change in a minor release: when the Node pin moves, the site
   server's start is checked against that release's notes.
 
+## Real-browser toolchain (build 2a)
+
+- **@playwright/test 1.65.1** (Apache-2.0, exact pin; with playwright and playwright-core 1.65.1, Apache-2.0, no install
+  script): runs the real-browser layer against the built test site in Chromium, Firefox and WebKit, behind the gate's
+  `browser` step. Vitest browser mode was left: it injects inline code into the page under test, which the strict
+  policy of PRD-S1 refuses on the very page the tests read; Playwright's component testing was left as well (its own
+  bundler, not the site's build that POL-04 proves).
+- **The browsers** come from `playwright install`, from Playwright's download hosts over TLS with no hash pinned by
+  this repository: they are programs the checks run (Licences, above). A Playwright bump changes them, so its pull
+  request is read with the release notes.
+
 ## Accepted advisories
 
 - **GHSA-fc5q-39xc-vjpf** (picomatch <= 4.0.7, ReDoS from a crafted glob pattern, high, no fixed version), reached
