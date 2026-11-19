@@ -3993,20 +3993,23 @@ section 4.3. "Every intent" is the list of the intents' examples below, one row 
 every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
 chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
 
-**A11Y-36** A "Skip past table" link MUST be the component's first focusable element, and activating it MUST move focus
-to a target after the table that only script can focus.
-- Example: Tab from the element before the component lands on the link "Skip past table"; Enter on it: focus is on an
-  element after the region and after the pager, which has `tabindex="-1"`, holds no control, and is inside the
-  component; the next Tab reaches the first focusable element after the component.
-- Reason: with selection a 1000-row page has over a thousand Tab stops; the link lets a keyboard user pass the table in
-  one step (PRD-A9).
+**A11Y-36** Activating the "Skip past table" link MUST move focus to a target at the end of the table that only script
+can focus.
+- Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
+  element before the component lands first on "Skip past table", before "All orders"; Enter on it: focus is on an
+  element after the region, inside the component, with `tabindex="-1"` and no control in it; the next Tab reaches the
+  first focusable element after the component (a `Pagination` the application places after the table included). This
+  target is also the table's own script-only focus target of PRD-A3.
+- Reason: with selection a 1000-row page has over a thousand Tab stops; the link, the component's first focusable item
+  (PRD-A9), lets a keyboard user pass the table in one step. The Tab sequences of A11Y-10 and A11Y-12 gain it at their
+  head with this milestone's build (an edit of their tests, travelling with that build).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A9, PRD-A3.
 
 **A11Y-46** The skip link MUST be visible exactly while it has focus.
 - Examples (the test runs every row): not focused: its box lies outside the viewport or measures at most 1 by 1 CSS px;
-  focused: its box lies inside the viewport, at least 24 by 24 CSS px, and its text is drawn (its computed `clip-path`
-  is "none" and its `opacity` is not 0).
+  focused: its box lies inside the viewport, at least 24 by 24 CSS px, and its text is drawn (its computed `clip` is
+  "auto", its `clip-path` "none", and its `opacity` not 0).
 - Reason: a sighted keyboard user sees where focus is; others are not shown a control they do not need (PRD-A9, PRD-A10,
   WCAG 2.4.7).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -4029,22 +4032,23 @@ page body.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
-**A11Y-38** No intent but the skip link MUST scroll the window.
-- Examples (the test runs every row of A11Y-37, as A11Y-17 does: the window starts mid-page, the row count stays the
-  same, the page sets `overflow-anchor: none`, and the scroll position is read before the intent and after the new
-  state is painted; the skip link's row: the window may scroll).
-- Reason: users keep their place (PRD-A3); A11Y-17 states this for sort and the pager, this statement for the intents
-  of later sections.
+**A11Y-38** No intent of sections 11 to 15 MUST scroll the window.
+- Examples (the test runs every row of A11Y-37 but its first, which A11Y-17 states, as A11Y-17 does: the window starts
+  mid-page, the row count stays the same, the page sets `overflow-anchor: none`, and the scroll position is read
+  before the intent and after the new state is painted). Breaks that turn it red: the table calls `focus()` without
+  `preventScroll` on a control it moves focus to, or `scrollIntoView` on a row.
+- Reason: users keep their place; only the skip link may scroll (PRD-A3).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
-**A11Y-43** A printable character key MUST act only in a focused text field.
+**A11Y-43** A printable character key other than Space MUST act only in a focused text field.
 - Examples (the test runs every row; the keys "s", "1" and "?" pressed with focus on each):
 
   | Focus on | Result |
   |---|---|
   | a sort button, a pager button, a row box, a details button, a badge, the region, a separator | no callback, no scroll, no change on screen |
   | "Filter Name text", the search field | the character is typed into the field |
+  | (Space instead) a sort button | it acts once, as a press does (SORT-01) |
 
 - Reason: a single-key shortcut fires by accident under speech input (WCAG 2.1.4); the table defines none (PRD section
   4.3).
