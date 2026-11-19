@@ -8,6 +8,7 @@
     getRowId,
     caption,
     regionLabel,
+    status = "ready",
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -21,6 +22,7 @@
 {#if fault}
   <div role="alert">{fault}</div>
 {:else}
+  <div role="status">{status === "loading" ? "Loading data…" : ""}</div>
   <div role="region" aria-label={regionLabel}>
     <table>
       <caption>{caption}</caption>
@@ -46,7 +48,9 @@
             {/each}
           </tr>
         {:else}
-          <tr><td colspan={columns.length}>No data.</td></tr>
+          {#if status === "ready"}
+            <tr><td colspan={columns.length}>No data.</td></tr>
+          {/if}
         {/each}
       </tbody>
     </table>

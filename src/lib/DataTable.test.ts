@@ -71,6 +71,9 @@ function showWithSnippets(
   return render(SnippetsTable, { ...base, ...props }).container;
 }
 
+const LOADING = "Loading data…";
+const EMPTY = "No data.";
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -574,6 +577,15 @@ describe("EXP-02 first examples; the statement's marker arrives with 1c", () => 
     expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
       true,
     );
+  });
+});
+
+// @spec("STATE-01", "e9669674")
+describe("STATE-01", () => {
+  it("with status loading and no rows, shows the loading message and not the empty message", () => {
+    show({ status: "loading", rows: [] });
+    expect(screen.getByText(LOADING).isConnected).toBe(true);
+    expect(screen.queryByText(EMPTY)).toBeNull();
   });
 });
 
