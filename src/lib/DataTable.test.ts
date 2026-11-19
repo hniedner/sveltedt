@@ -113,7 +113,10 @@ const codeColumn: DataTableColumn<Item> = {
 };
 
 // Props that raise each message of RND-05's alert, keyed by the message
-const faults: [keyof DataTableMessages, Partial<DataTableProps<Item>>][] = [
+// The words of RND-05 and RND-06; the sort words are SORT-17's
+type TableWords = Omit<DataTableMessages, `sort${string}`>;
+
+const faults: [keyof TableWords, Partial<DataTableProps<Item>>][] = [
   ["captionEmpty", { caption: "" }],
   ["regionLabelEmpty", { regionLabel: "" }],
   ["noColumns", { columns: [] }],
@@ -897,7 +900,7 @@ describe("STATE-08", () => {
 
 // @spec("RND-06", "5f1f48db")
 describe("RND-06", () => {
-  const foreign: DataTableMessages = {
+  const foreign: TableWords = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",
     empty: "Keine Daten.",
