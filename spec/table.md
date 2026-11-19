@@ -2956,9 +2956,10 @@ These statements add `columnState`, the application's column state, `{ hidden }`
 (later statements of this section add the order and the widths to it), and `oncolumnstate(next)`, called with the
 whole next column state (PRD-B10). A column listed in `hidden` is hidden; every other given column is shown. The
 column chooser is a dialog opened by the button "Columns"; like the filter dialog it is a popover in the top layer,
-so every statement that opens it is tested in a real browser, in Chromium, Firefox and WebKit. In the examples the
-columns are Name (id `name`), Code (id `code`, sortable) and Date (id `date`, sortable), in that order, and "Columns"
-is passed an `oncolumnstate`.
+so every statement that opens it is tested in a real browser, in Chromium, Firefox and WebKit. The chooser's markup
+follows the button "Columns" in document order. In the examples the columns are Name (id `name`), Code (id `code`)
+and Date (id `date`), in that order, all three sortable, with no filter unless the example gives one, `onsort` and
+`oncolumnstate` passed, and the table short enough that the region is not a Tab stop (A11Y-12).
 
 **COL-01** The table MUST show exactly the given columns that are not in `columnState.hidden`, in their given order.
 - Examples (the test runs every row; the header cells and the cells of each row):
@@ -2973,24 +2974,54 @@ is passed an `oncolumnstate`.
 - Layer: component.
 - Traces: PRD-B10, PRD-B2.
 
-**COL-24** The button "Columns" MUST be shown exactly while `oncolumnstate` is given, and a press on it MUST open one
-dialog named "Columns" that opens and closes as a filter dialog does.
-- Examples (the test runs every row; "Columns" and its dialog after the steps):
+**COL-24** The button "Columns" MUST be shown exactly while `oncolumnstate` is given.
+- Examples (the test runs every row): `oncolumnstate` given: one button "Columns"; not given: none.
+- Reason: the chooser is offered only where the application stores the choice (PRD-B10, PRD-B2).
+- Layer: component.
+- Traces: PRD-B10.
 
-  | Steps | Dialog | Focus |
-  |---|---|---|
-  | `oncolumnstate` not given | no button "Columns" | - |
-  | press "Columns" | open, `aria-expanded="true"` on "Columns" | the first checkbox, "Name" |
-  | press "Columns", press Escape | closed, `aria-expanded="false"` | "Columns" |
-  | press "Columns", press on the text of a body cell | closed | not in the dialog |
-  | press "Columns", press Tab until focus leaves the dialog | closed | where Tab put it |
-  | press "Columns", press "Filter Name" (Name with a text filter) | closed; "Name filter" open | "Filter Name text" |
+**COL-29** "Columns" MUST come after the controls of FILT-31 and before the region, in document order.
+- Example: Code sortable, `onreset` given: in document order "Reset table", then "Columns", then the region.
+- Reason: the view control follows the controls that narrow and reset the rows, all before the table (WCAG 1.3.2).
+- Layer: component.
+- Traces: PRD-B10, PRD-A3.
 
-  An Escape that closes the dialog does not reach an application `keydown` listener on `document`, as FILT-36 states
-  for a filter dialog; an Escape on "Columns" with the dialog closed does.
-- Reason: the chooser is reached in one place and behaves like the other dialogs of the table (PRD-B10, PRD-B19).
+**COL-26** A press on "Columns" MUST open one dialog named "Columns" and move focus to its first checkbox.
+- Example: press "Columns": one element with role `dialog` and name "Columns" is open, "Columns" has
+  `aria-expanded="true"`, and focus is on the checkbox "Name".
+- Reason: a screen reader says where the user is, and keyboard users land where they act (PRD-A1).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B10, PRD-B19, PRD-A1.
+- Traces: PRD-B10, PRD-A1.
+
+**COL-27** The column chooser MUST close as a filter dialog closes (FILT-07, FILT-19, FILT-20, FILT-06).
+- Examples (the test runs every row; "Columns" pressed first; afterwards no dialog named "Columns" is open and
+  "Columns" has `aria-expanded="false"`):
+
+  | Then | Focus after it |
+  |---|---|
+  | press Escape | "Columns" |
+  | press on the text of a body cell | not in the dialog and not on "Columns" |
+  | press Tab from the checkbox "Date", the last control in the dialog | "Sort by Name", the next control |
+  | press "Filter Name" (Name with a text filter) | "Filter Name text", in the open "Name filter" |
+
+- Reason: the chooser behaves like the table's other dialogs, so the user learns one way to leave them (PRD-B10,
+  PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B10, PRD-A1.
+
+**COL-28** An Escape that closes the column chooser MUST NOT reach a `keydown` listener the application has on
+`document`, and every other Escape MUST reach it, as FILT-36 states for a filter dialog.
+- Examples (the test runs every row; the application's listener as in FILT-36):
+
+  | Escape pressed | Chooser | Escapes the listener counts |
+  |---|---|---|
+  | on the checkbox "Name", the chooser open | closes | 0 |
+  | after a mouse press on the checkbox "Date" in the open chooser | closes | 0 |
+  | on "Columns", the chooser closed | - | 1 |
+
+- Reason: PRD-B19's Escape rule, for the chooser.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B19, PRD-B10.
 
 **COL-02** The column chooser MUST hold one checkbox per given column, named by its label, in the columns' order,
 checked exactly while the column is shown.
@@ -3009,7 +3040,7 @@ checked exactly while the column is shown.
   | `{ hidden: ['code'] }` | "Code" | `{ hidden: [] }` |
   | `{ hidden: ['code'] }` | "Date" | `{ hidden: ['code', 'date'] }` |
 
-  Keys of `columnState` other than `hidden` are passed on as given.
+  Keys of `columnState` other than `hidden`, and ids in `hidden` that name no given column, are passed on as given.
 - Reason: the application stores the whole state as it is and never merges partial changes (PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B10, PRD-B2.
@@ -3031,7 +3062,8 @@ checked exactly while the column is shown.
 
 **COL-04** Hiding or showing a column MUST keep the sort order and the filters, and emit nothing but the chooser's
 `oncolumnstate`.
-- Example: the order `[code asc]` and Code's text filter "x1" apply; `columnState` changes to `{ hidden: ['code'] }`:
+- Example: Code with a text filter; the order `[code asc]` and Code's text "x1" apply; `columnState` changes to
+  `{ hidden: ['code'] }`:
   no callback is called; the summary of SORT-08 and the badge of FILT-23 show both.
 - Reason: a view change must not cost a query or drop the user's criteria (PRD-B10).
 - Layer: component.
@@ -3057,6 +3089,13 @@ checked exactly while the column is shown.
 - Layer: component.
 - Traces: PRD-B4, PRD-B10.
 
+**SORT-27** A sort press without Shift MUST emit the order of SORT-01 also while columns in the order are hidden.
+- Example: the order `[code asc]` with Code hidden; press "Sort by Name": `onsort([name asc])`.
+- Reason: a press without Shift starts a new order for every column alike (SORT-01); the summary of SORT-08 showed the
+  hidden sort before the press, so the user saw what the press replaces (PRD-B4).
+- Layer: component.
+- Traces: PRD-B4, PRD-B10.
+
 **SORT-08** While a column in the order is hidden, the table MUST state the whole order in words, marking each hidden
 column, before the region.
 - Examples (the test runs every row):
@@ -3078,7 +3117,7 @@ column, before the region.
 - Traces: PRD-A2, PRD-B5.
 
 **FILT-23** The badges of hidden columns MUST come after all other badges, each marked "(hidden column)".
-- Example: Name's text "Beta" and Code's text "x1" apply, Code hidden: the badges "Name: contains “Beta”", then "Code
+- Example: Name and Code with text filters; Name's text "Beta" and Code's text "x1" apply, Code hidden: the badges "Name: contains “Beta”", then "Code
   (hidden column): contains “x1”".
 - Reason: a filter on a column the user cannot see still narrows the rows, so it must stay visible and removable
   (PRD-B8, PRD-B10).
@@ -3086,14 +3125,16 @@ column, before the region.
 - Traces: PRD-B8, PRD-B10.
 
 **FILT-50** After the badge of a hidden column is pressed, focus MUST move to the region.
-- Example: Code hidden, its text "x1" applies; focus its badge and press Enter; then `filters` holds no filter: focus
-  is on the region.
+- Example: Code with a text filter, hidden, its text "x1" applies; focus its badge and press Enter; then `filters`
+  holds no filter: focus is on the region. The region takes focus by script also while it is not a Tab stop, and
+  Tab from it reaches the table's first control.
 - Reason: the hidden column has no filter button to return to, and focus must not fall to the page body (WCAG 2.4.3).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B8, PRD-A3.
 
 **FILT-51** "Clear column filters" MUST be shown while a filter applies only on a hidden column.
-- Example: Code hidden, its text "x1" applies and no other filter: "Clear column filters" is shown.
+- Example: Code with a text filter, hidden, its text "x1" applies and no other filter: "Clear column filters" is
+  shown.
 - Reason: the hidden filter still narrows the rows (PRD-B8).
 - Layer: component.
 - Traces: PRD-B8, PRD-B10.
@@ -3105,10 +3146,12 @@ below list.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | `columnState.hidden` is not a list | `columnStateInvalid` | "The column state is not valid." |
-  | `hidden` names a column that is not given, or a column twice | `columnStateInvalid` | "The column state is not valid." |
   | `hidden` names every given column | `columnStateInvalid` | "The column state is not valid." |
+  | `columnState` is given and is not an object | `columnStateInvalid` | "The column state is not valid." |
 
-  With several faults at once, the faults of RND-05, SORT-15 and FILT-32 win, in that order, then this table's.
+  With several faults at once, the faults of RND-05, SORT-15 and FILT-32 win, in that order, then this table's. An id
+  in `hidden` that names no given column, or a column named twice, is no fault: it hides nothing more, and a stored
+  preference often outlives a release that removed a column.
 - Reason: a column state the table cannot show is a wrong table (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-B10.
@@ -3118,7 +3161,7 @@ below list.
 
   | Message | English default | Shown by |
   |---|---|---|
-  | `columns` | "Columns", the button and its dialog | COL-24 |
+  | `columns` | "Columns", the button and its dialog | COL-24, COL-26 |
   | `hiddenColumn` (a function of the label) | "Code (hidden column)" for "Code" | FILT-23, SORT-08 |
   | `sortSummary` (a function of the order's entries, each `{ label, desc, hidden }`) | "Sort: Code (hidden column) ascending, then Name descending" | SORT-08 |
   | the alert message of COL-25 | its default in COL-25 | COL-25 |
@@ -3334,7 +3377,11 @@ below list.
 | FILT-49 | PRD-B25, PRD-B6 |
 | FILT-46 | PRD-B8, PRD-B25 |
 | COL-01 | PRD-B10, PRD-B2 |
-| COL-24 | PRD-B10, PRD-B19, PRD-A1 |
+| COL-24 | PRD-B10 |
+| COL-29 | PRD-B10, PRD-A3 |
+| COL-26 | PRD-B10, PRD-A1 |
+| COL-27 | PRD-B10, PRD-A1 |
+| COL-28 | PRD-B19, PRD-B10 |
 | COL-02 | PRD-B10 |
 | COL-05 | PRD-B10, PRD-B2 |
 | COL-06 | PRD-B10, PRD-B2 |
@@ -3342,6 +3389,7 @@ below list.
 | COL-04 | PRD-B10, PRD-B2 |
 | SORT-07 | PRD-B5, PRD-B10 |
 | SORT-26 | PRD-B4, PRD-B10 |
+| SORT-27 | PRD-B4, PRD-B10 |
 | SORT-08 | PRD-B5, PRD-A2 |
 | A11Y-35 | PRD-A2, PRD-B5 |
 | FILT-23 | PRD-B8, PRD-B10 |
@@ -3367,11 +3415,11 @@ state in their own statements.
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
-| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26 | in full |
+| PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
-| PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25 | in full |
+| PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -3380,13 +3428,13 @@ state in their own statements.
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-24 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle says the open-dialog delta "is one passive outside-press listener", and whether none meets it awaits the owner's word; the column chooser states its own |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle says the open-dialog delta "is one passive outside-press listener", and whether none meets it awaits the owner's word; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-24 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23 | in part: later groups state their own words in their own statements |
