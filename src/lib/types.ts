@@ -52,6 +52,12 @@ export interface DataTableMessages {
     direction: SortDirection | null;
     rank: number | null;
   }) => string;
+  readonly sortableInvalid: string;
+  readonly sortHandlerMissing: string;
+  readonly sortColumnUnknown: string;
+  readonly sortColumnNotSortable: string;
+  readonly sortDirectionNotAllowed: string;
+  readonly sortColumnDuplicate: string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)

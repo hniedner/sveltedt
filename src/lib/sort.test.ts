@@ -294,3 +294,58 @@ describe("SORT-06", () => {
     ).toBe(true);
   });
 });
+// The default texts of SORT-15's alert, by message key
+const SORT_ALERTS = {
+  sortableInvalid: "A column's sort directions are invalid.",
+  sortHandlerMissing: "A sortable column has no sort handler.",
+  sortColumnUnknown: "The sort names an unknown column.",
+  sortColumnNotSortable: "The sort names a column that cannot be sorted.",
+  sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
+  sortColumnDuplicate: "The sort names a column twice.",
+};
+
+// Props that raise each message of SORT-15's alert
+const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
+  [
+    ["sortableInvalid", { columns: [sortable("name", "Name", [])] }],
+    [
+      "sortableInvalid",
+      {
+        columns: [
+          sortable("name", "Name", ["up"] as unknown as SortDirection[]),
+        ],
+      },
+    ],
+    ["sortHandlerMissing", { onsort: undefined }],
+    ["sortColumnUnknown", { sort: order("zzz asc") }],
+    [
+      "sortColumnNotSortable",
+      { columns: [code, note], sort: order("note asc") },
+    ],
+    [
+      "sortDirectionNotAllowed",
+      {
+        columns: [sortable("date", "Date", ["desc"])],
+        sort: order("date asc"),
+      },
+    ],
+    ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
+  ];
+
+// @spec("SORT-15", "fea0df3f")
+describe("SORT-15", () => {
+  it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
+    const { container } = mount(props);
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([SORT_ALERTS[key]]);
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {
+    mount({ caption: "", sort: order("zzz asc") });
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Table caption must not be empty.",
+    );
+  });
+});

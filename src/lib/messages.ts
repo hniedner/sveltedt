@@ -28,4 +28,10 @@ export const defaultMessages: DataTableMessages = {
     const words = direction === "asc" ? "ascending" : "descending";
     return `sorted ${words}${rank === null ? "" : `, priority ${rank}`}. ${hint}`;
   },
+  sortableInvalid: "A column's sort directions are invalid.",
+  sortHandlerMissing: "A sortable column has no sort handler.",
+  sortColumnUnknown: "The sort names an unknown column.",
+  sortColumnNotSortable: "The sort names a column that cannot be sorted.",
+  sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
+  sortColumnDuplicate: "The sort names a column twice.",
 };

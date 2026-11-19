@@ -39,6 +39,8 @@
       caption,
       regionLabel,
       status,
+      sort,
+      onsort,
     }),
   );
   // Counted only while the rows shown are the answer (A11Y-05)
