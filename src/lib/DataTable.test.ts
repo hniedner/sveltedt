@@ -1000,7 +1000,7 @@ describe("STATE-08", () => {
   );
 });
 
-// @spec("RND-06", "5f1f48db")
+// @spec("RND-06", "43497d92")
 describe("RND-06", () => {
   const foreign: TableWords = {
     loading: "Laden…",
@@ -1087,6 +1087,24 @@ describe("RND-06", () => {
     "keeps the English default of %s when its entry is given as undefined, as a lookup that misses gives it",
     (_message, props, where, text) => {
       show(props);
+      expect(where().trim()).toBe(text);
+    },
+  );
+
+  // A caller the type does not reach: untyped translation data
+  it.each<
+    [string, unknown, Partial<DataTableProps<Item>>, () => string, string]
+  >([
+    ["noColumns", null, { columns: [] }, alert, "Table has no columns."],
+    ["loading", 5, { status: "loading" }, status, LOADING],
+    ["rowCount", "Zeilen", {}, live, "1 row displayed"],
+  ])(
+    "keeps the English default of %s when its entry is %j, not of its type",
+    (key, entry, props, where, text) => {
+      show({
+        ...props,
+        messages: { [key]: entry } as unknown as Partial<DataTableMessages>,
+      });
       expect(where().trim()).toBe(text);
     },
   );
