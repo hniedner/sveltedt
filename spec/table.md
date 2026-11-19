@@ -43,7 +43,8 @@ to the consumer as one callback (stated with the statements that add user action
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
   `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
   `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search);
-  the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12).
+  the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
+  statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -3634,6 +3635,147 @@ for them below, the computed value that the literal table of its test states.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T11.
 
+## 13. Row selection (SEL, milestone 6)
+
+These statements add `selection`, an object with `isSelected(row)` (true or false) and `name(row)` (the accessible
+name of that row's box), and the callbacks `onselectrow({ rowId, selected, range })`, with `range` present only on a
+range press, and `onselectpage(selected)` (PRD-B13). The application owns the selected set and the range anchor; the
+table shows what `isSelected` says. In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
+`{ id: 'r2', name: 'alpha' }`, in that order, with `name: (r) => 'Select row ' + r.name` and both callbacks passed.
+
+**SEL-01** With `selection`, the table MUST show a first column of boxes whose header box is named "Select all rows on
+this page" and whose header cell shows no visible text.
+- Example: the first header cell holds one checkbox named "Select all rows on this page", and that cell's visible text
+  is empty; each body row's first cell holds one checkbox. Without `selection`: no checkbox in the table.
+- Reason: the box column is the first thing reached in each row, and the name says what the header box does (PRD-B13).
+- Layer: component.
+- Traces: PRD-B13, PRD-A1.
+
+**SEL-06** Each row's box MUST be named by `selection.name(row)`.
+- Example: the boxes "Select row Beta" and "Select row alpha", in row order.
+- Reason: a screen-reader user must know which row a box belongs to, and only the application knows which column names
+  a row (PRD-A1).
+- Layer: component.
+- Traces: PRD-B13, PRD-A1.
+
+**SEL-02** The header box MUST show the state of the shown rows only, by this table.
+- Examples (the test runs every row):
+
+  | Rows on the page | `isSelected` true for | Header box |
+  |---|---|---|
+  | r1, r2 | none | not checked, not mixed |
+  | r1, r2 | r1 | mixed |
+  | r1, r2 | r1, r2 | checked |
+  | r1, r2 | only r9, which is not on the page | not checked, not mixed |
+  | none | none | not checked, not mixed |
+
+- Reason: the header box speaks for this page, so rows selected elsewhere must not make it look full (PRD-B13).
+- Layer: component.
+- Traces: PRD-B13.
+
+**SEL-03** A press on a row's box MUST emit `onselectrow` once with the row's id and the box's next state.
+- Examples (the test runs every row; one press, as "emits once" defines it):
+
+  | `isSelected(r1)` | Press | `onselectrow` receives |
+  |---|---|---|
+  | false | "Select row Beta" | `{ rowId: 'r1', selected: true }` |
+  | true | "Select row Beta" | `{ rowId: 'r1', selected: false }` |
+  | false, with `getRowId` giving the number 7 for r1 | "Select row Beta" | `{ rowId: 7, selected: true }` |
+
+- Reason: the application updates its selection from the event; the id is handed back as given (RND-05's numeric ids).
+- Layer: component.
+- Traces: PRD-B13, PRD-B2.
+
+**SEL-07** A press on the header box MUST emit `onselectpage` once, with false only when every shown row is selected.
+- Examples (the test runs every row):
+
+  | Shown rows selected | `onselectpage` receives |
+  |---|---|
+  | none | true |
+  | r1 | true |
+  | r1, r2 | false |
+
+- Reason: a mixed page is filled first, which is what a "select all" box is expected to do (PRD-B13).
+- Layer: component.
+- Traces: PRD-B13, PRD-B2.
+
+**SEL-08** A press on a row outside its box MUST emit nothing.
+- Example: a press on the text "Beta" in r1 calls no callback.
+- Reason: a press on a row is often meant for a link or for selecting text, not for the selection (PRD-B13).
+- Layer: component.
+- Traces: PRD-B13.
+
+**SEL-04** A press with Shift on a row's box MUST add `range: true` to the event, and the table MUST NOT emit the rows in
+between.
+- Examples (the test runs every row; `isSelected` false for both):
+
+  | Input on "Select row alpha" | Calls |
+  |---|---|
+  | Shift and click | one: `onselectrow({ rowId: 'r2', selected: true, range: true })` |
+  | Shift and Space, with focus on the box | one: `onselectrow({ rowId: 'r2', selected: true, range: true })` |
+  | click | one: `onselectrow({ rowId: 'r2', selected: true })` |
+
+- Reason: the range runs from an anchor the application keeps across server answers, which the table does not see
+  (PRD-B13).
+- Layer: component.
+- Traces: PRD-B13.
+
+**SEL-05** A box MUST show only what `isSelected` says: after a press it MUST NOT change until `isSelected` does.
+- Examples (the test runs every row; an `onselectrow` and an `onselectpage` that change nothing):
+
+  | Press | Box after it |
+  |---|---|
+  | "Select row Beta" | not checked |
+  | "Select all rows on this page" | not checked, not mixed |
+
+- Reason: the application prunes and stores the selection; a box that changed by itself could show a row as selected
+  that an export would leave out (PRD-B2). The earlier table's native box kept its own state after a press: a defect
+  this statement removes.
+- Layer: component.
+- Traces: PRD-B13, PRD-B2.
+
+**SEL-09** The box column MUST stay first: it is not in the column chooser, has no grip, and no move or drop places a
+column before it.
+- Examples (the test runs every row; `oncolumnstate` passed):
+
+  | Steps | Result |
+  |---|---|
+  | press "Columns" | the chooser holds no checkbox for the box column |
+  | drag Date's grip to the box column's header cell | no `oncolumnstate` call |
+  | `columnState.order` `['date', 'name', 'code']` | the box column first, then Date, Name, Code |
+
+- Reason: the box column is the selection, not data; it stays where every row starts (PRD-B11, PRD-B13).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-B13.
+
+**SEL-10** For invalid selection input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05, for the selection props; the test runs every row and every alternative in it):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | `selection` is given and is not an object | `selectionInvalid` | "The row selection is not valid." |
+  | `selection.isSelected` or `selection.name` is not a function | `selectionInvalid` | "The row selection is not valid." |
+  | `selection` is given and `onselectrow` or `onselectpage` is not | `selectionInvalid` | "The row selection is not valid." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32 and COL-25 win, in that order. A
+  `selection.name` that returns an empty text or throws for a row, or an `isSelected` that throws, is that row's
+  fault: the alert of RND-05 with this message, as for `getRowId` (RND-05).
+- Reason: a box with no name or no state misleads, and a box that does nothing is a dead control (PRD-B16, PRD-B3).
+- Layer: component.
+- Traces: PRD-B16, PRD-B13.
+
+**SEL-11** Every fixed word of the selection MUST come from a prop with an English default.
+- Examples (as RND-06, for the selection words):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `selectPage` | "Select all rows on this page" | SEL-01 |
+  | the alert message of SEL-10 | its default in SEL-10 | SEL-10 |
+
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
 ## Trace
 
 ### Statement -> PRD
@@ -3889,6 +4031,17 @@ for them below, the computed value that the literal table of its test states.
 | COL-35 | PRD-B12, PRD-B2 |
 | COL-36 | PRD-I1, PRD-B12 |
 | THEME-16 | PRD-T11 |
+| SEL-01 | PRD-B13, PRD-A1 |
+| SEL-06 | PRD-B13, PRD-A1 |
+| SEL-02 | PRD-B13 |
+| SEL-03 | PRD-B13, PRD-B2 |
+| SEL-07 | PRD-B13, PRD-B2 |
+| SEL-08 | PRD-B13 |
+| SEL-04 | PRD-B13 |
+| SEL-05 | PRD-B13, PRD-B2 |
+| SEL-09 | PRD-B11, PRD-B13 |
+| SEL-10 | PRD-B16, PRD-B13 |
+| SEL-11 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -3905,36 +4058,37 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37 | in full |
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
+| PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
@@ -3954,7 +4108,6 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
