@@ -89,20 +89,26 @@ export interface VitestReport {
     name: string;
     status: string;
     message?: string;
-    assertionResults: { fullName: string; status: string }[];
+    assertionResults: {
+      fullName: string;
+      status: string;
+      location?: { line: number; column: number }; // the test's own line, present with --includeTaskLocation
+    }[];
   }[];
 }
 
-/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn error. */
-export function vitest(
-  cwd: string,
-  args: string[],
-): {
+/** Flags for a canary run: Vitest's two caches would write under the canaries folder, which a run must leave as is. */
+export const NO_CACHE = ["--cache=false", "--fsModuleCache=false"];
+
+export interface VitestRun {
   report: VitestReport | null;
   status: number | null;
   out: string;
   error?: string;
-} {
+}
+
+/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn error. */
+export function vitest(cwd: string, args: string[]): VitestRun {
   const dir = mkdtempSync(join(tmpdir(), "vitest-"));
   try {
     const file = join(dir, "report.json");
@@ -162,4 +168,44 @@ export function commitRange(root: string): Result | { range: string } {
   if (r.status !== 0)
     return result(CANNOT, "no merge base with origin/main (fetch it first)");
   return { range: `${r.stdout.trim()}..HEAD` };
+}
+
+let shared: { root: string; run: Result | VitestRun } | undefined;
+
+/**
+ * The Vitest run of the gate process (one per root; the last root is kept), shared by `test` and `trace`: the first
+ * caller starts it, the next gets the same answer. Flags win over the config (measured): unhandled errors fail the
+ * run, a test without an assertion fails, the tests run rather than only being type-checked, a snapshot with nothing
+ * stored fails instead of being written (outside CI vitest writes it and passes), and every test carries its own line
+ * for the trace. `vitest.config.ts` must be tracked (the callers check). No flag overrides onUnhandledError, and two
+ * flags do not reach a project (measured): a config that names either cannot be checked. Read as text: a name in a
+ * module the config imports or built at run time is not seen (CONTRIBUTING.md).
+ */
+export function testRun(root: string): Result | VitestRun {
+  if (shared?.root === root) return shared.run;
+  const config = join(root, "vitest.config.ts");
+  const unchecked = [
+    ["onUnhandledError", "lets an unhandled error pass"],
+    [
+      "projects",
+      `names "projects" (read as text), which two of the step's flags do not reach`,
+    ],
+  ].filter(([name]) => readFileSync(config, "utf8").includes(name));
+  const run = unchecked.length
+    ? result(
+        CANNOT,
+        `vitest.config.ts ${unchecked.map(([, why]) => why).join("; ")}`,
+        unchecked.map(([name]) => name),
+      )
+    : vitest(root, [
+        "--config",
+        config,
+        "--dangerouslyIgnoreUnhandledErrors=false",
+        "--expect.requireAssertions",
+        "--typecheck.enabled=false",
+        "--update=none",
+        "--includeTaskLocation",
+      ]);
+  shared = { root, run };
+  return run;
 }

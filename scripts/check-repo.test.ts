@@ -3233,6 +3233,7 @@ function hooked(change: (root: string) => void = () => {}): string {
       "scripts/check-repo.ts",
       "scripts/gate-step.ts",
       "scripts/pinned.ts",
+      "scripts/trace.ts",
     ])
       symlinkSync(join(here, "..", f), join(r, f));
     for (const f of [
@@ -3887,13 +3888,42 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no test file and no commit after origin/main: svelte, test, commits and secrets
-  // have nothing to check.
+  // The fixture has no component, no test file, no spec and no commit after origin/main: svelte, test, trace, commits
+  // and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 5 not applicable: secrets, svelte, site, test, commits$/m,
+    /^PASS all: 15 checks passed, 6 not applicable: secrets, svelte, site, test, trace, commits$/m,
   );
+});
+test("all: test and trace share one vitest run", () => {
+  // A wrapper around the real vitest that counts the runs of the repository's tests (the canaries run without --config)
+  const calls = join(tempDir(), "calls");
+  const wrapper = join(tempDir(), "vitest");
+  const real = join(here, "..", "node_modules", ".bin", "vitest");
+  writeFileSync(
+    wrapper,
+    `#!/bin/sh\ncase " $* " in *" --config "*) echo run >> "${calls}";; esac\nexec "${real}" "$@"\n`,
+  );
+  chmodSync(wrapper, 0o755);
+  const marked = (root: string): void => {
+    vitestTest(
+      '// @spec("TST-01", "cee49bc1")\ntest("adds", () => {\n  expect(1 + 1).toBe(2);\n});\n',
+    )(root);
+    put(
+      root,
+      "spec/a.md",
+      "# Spec\n\n**TST-01** A sum MUST add.\n\n- Reason: a sum is useful.\n- Layer: unit.\n- Traces: PRD-A1.\n",
+    );
+    // ESLint's type-aware rules need the config in the program, as the real tsconfig.json has it
+    edit("tsconfig.json", '"test"]', '"test", "vitest.config.ts"]')(root);
+    component(COMPONENT)(root); // the svelte step cannot pass without one
+  };
+  const out = expect("all", repo(marked), 0, {
+    extraEnv: { VITEST_BIN: wrapper },
+  });
+  assert.match(out, /^PASS trace: .*1 marker\(s\)/m);
+  assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 1);
 });
 test("all: returns the failing step's finding and names the step", () => {
   const out = expect(
