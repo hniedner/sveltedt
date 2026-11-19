@@ -384,7 +384,7 @@ test("trace: a marked test that ran and passed is tested, and the PASS line coun
   const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 0);
   assert.match(
     out,
-    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 test\(s\) ran; 1 of 2 statements tested/,
+    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 test result\(s\) read; 1 of 2 statements tested/,
   );
 });
 test("trace: a statement no marker names exits 0 under `not yet tested`, and not in the PASS line", () => {
@@ -443,12 +443,12 @@ const LOOP = (rows: string): string =>
   );
 test("trace: a marker above a loop is tested when its generated tests passed", () => {
   const out = expectTrace(fixture({ "src/a.test.ts": LOOP('["a", "b"]') }), 0);
-  assert.match(out, /3 test\(s\) ran; 1 of 2 statements tested/);
+  assert.match(out, /3 test result\(s\) read; 1 of 2 statements tested/);
 });
 test("trace: a marker above test.each is tested when its generated tests passed", () => {
   const each = `${mark("TST-01")}\ntest.each(["a", "b"])("%s", (row) => {\n  expect(row).toBe(row);\n});\n`;
   const out = expectTrace(fixture({ "src/a.test.ts": vitestFile(each) }), 0);
-  assert.match(out, /2 test\(s\) ran; 1 of 2 statements tested/);
+  assert.match(out, /2 test result\(s\) read; 1 of 2 statements tested/);
 });
 test("trace: a marker above a loop that generated no test, in a file that ran, is a finding", () => {
   assert.match(
@@ -530,21 +530,29 @@ function canaryThatPasses(): string {
   );
   return dir;
 }
-test("trace: a canary whose marker the reader cannot find is COULD NOT CHECK, though no test marker was read", () => {
-  // The reader finding nothing (a TypeScript change to the comment API, say) must not turn into a pass
-  const dir = tempDir();
-  cpSync(join(here, "canaries"), dir, { recursive: true });
-  const file = join(dir, "trace", "canary.test.ts");
-  writeFileSync(
-    file,
-    readFileSync(file, "utf8").replace(/^\/\/ @spec.*\n/m, ""),
-  );
-  const plain = vitestFile('test("one", () => {\n  expect(1).toBe(1);\n});\n');
-  const out = expectTrace(fixture({ "src/a.test.ts": plain }), 3, {
-    CANARY_DIR: dir,
+// The reader finding nothing (a TypeScript change to the comment API, say) must not turn into a pass or into not
+// applicable: modelled by a canary that has no marker to find, with a test source the step reads and no marker in it.
+for (const [where, file, withSpec] of [
+  ["a src/ test, with a spec", "src/a.test.ts", true],
+  ["a src/ test, with no spec file", "src/a.test.ts", false],
+  ["only a scripts/ test", "scripts/x.test.ts", true],
+] as const)
+  test(`trace: a canary that has no marker to find is COULD NOT CHECK: ${where}`, () => {
+    const dir = tempDir();
+    cpSync(join(here, "canaries"), dir, { recursive: true });
+    const canaryTest = join(dir, "trace", "canary.test.ts");
+    writeFileSync(
+      canaryTest,
+      readFileSync(canaryTest, "utf8").replace(/^\/\/ @spec.*\n/m, ""),
+    );
+    const plain = vitestFile(
+      'test("one", () => {\n  expect(1).toBe(1);\n});\n',
+    );
+    const root = fixture({ [file]: plain });
+    if (!withSpec) git(root, "rm", "-q", "spec/a.md");
+    const out = expectTrace(root, 3, { CANARY_DIR: dir });
+    assert.match(out, /not reported: no finding named it/);
   });
-  assert.match(out, /the planted skipped, marked test was not reported/);
-});
 test("trace: a marker that is malformed, with no spec file at all, is a finding and not NA", () => {
   const bad = vitestFile(
     `// @spec('TST-01', 'aaaaaaaa')\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`,

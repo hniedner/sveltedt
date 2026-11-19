@@ -108,17 +108,22 @@ export interface Marker {
   line: number; // of the marker comment
   from: number; // first and last line of the code statement it leads
   to: number;
-  modifiers: string[]; // `.only`, `.skip`, `.todo`, `.fails`, or an options object with one of those names set to `true` or a string
+  // `.only`, `.skip`, `.todo`, `.fails`, or an options object with one of those names set to `true` or a string
+  modifiers: string[];
 }
 
 const MARKER = /^\/\/ @spec\("([^"]+)", "([0-9a-f]{8})"\)\s*$/;
 const MODIFIERS = new Set(["only", "skip", "todo", "fails"]);
 /**
  * The test runner's entry points: a modifier counts only on a call chain rooted at one of these, never in test data.
- * Stated limit: a chain rooted elsewhere (the result of `it.extend`, an alias) is not seen; the results still show a skip or todo, not a `.fails` or `.only`.
+ * Stated limit: a chain rooted elsewhere (the result of `it.extend`, an alias) is not seen; the results still show a
+ * skip or todo, not a `.fails` or `.only`.
  */
 const ROOTS = new Set(["test", "it", "describe", "suite"]);
-/** Any comment that mentions `@spec` (any case, any spacing, even inside a longer word) must be a marker in the one position, or it is a problem. */
+/**
+ * Any comment that mentions `@spec` (any case, any spacing, even inside a longer word) must be a marker in the one
+ * position, or it is a problem.
+ */
 const SPEC_LIKE = /@\s*spec/i;
 
 /**
@@ -216,7 +221,8 @@ export function readMarkers(
     ts.forEachChild(node, visit);
   };
   visit(sf);
-  // Fail closed: one marker position (a leading comment of its statement); a comment like a marker anywhere else is a finding.
+  // Fail closed: one marker position (a leading comment of its statement); a comment like a marker anywhere else is
+  // a finding.
   // Every comment comes from the scanner, as the leading or trailing trivia of some token: strings and regexes are
   // never mistaken for comments, whatever they hold.
   const all = new Map<number, number>();
@@ -247,7 +253,7 @@ const COVERED = /^(?:src|site|test)\//;
  * own node:test files, whose markers are read but whose results this step does not read) and `stray` (outside the
  * covered folders and scripts/: the trace cannot say it ran them; their markers are not read). Canary fixtures are
  * inputs, never tests, and appear nowhere. Stated limit: a marker in a stray test file, a helper, a .tsx or a .svelte
- * file is not seen (the TEST_SOURCE pattern below is all the step reads).
+ * file is not seen: the step reads markers only in files TEST_SOURCE matches, under src/, site/, test/ or scripts/.
  */
 export function traceSources(list: Set<string>): {
   read: string[];
@@ -292,10 +298,11 @@ export interface Ran {
 
 /**
  * What the results say about each marker: a test counts for a marker when it ran in the marker's file on a line inside
- * the code statement the marker leads (the JSON's `location` is the test's own line). A marked statement with a modifier,
- * a failed or skipped test, or no test at all in a file that ran is a finding; a file that did not run at all cannot
- * be checked. `ok` is each marker whose tests all passed. Limit: a test that a helper defines (the call is not under
- * the marked statement) has no line there, so such a marker reports "no test ran": loud, never a silent pass.
+ * the code statement the marker leads (the JSON's `location` is the test's own line). A marked statement with a
+ * modifier, a failed or skipped test, or no test at all in a file that ran is a finding; a file that did not run at
+ * all cannot be checked. `ok` holds each marker with no modifier and at least one test, all passed. Limit: a test
+ * that a helper defines (the call is not under the marked statement) has no line there, so such a marker reports
+ * "no test ran": loud, never a silent pass.
  */
 export function judgeResults(
   markers: Marker[],
@@ -429,6 +436,14 @@ function trace(root: string, list: Set<string>): Result {
       (f) => `${f}: a test file outside src/, site/, test/ and scripts/`,
     ),
   );
+  // The positive control runs whenever a test source is read (src/, site/, test/ or scripts/), before anything can
+  // pass or be not applicable: a reader that finds nothing (say after a TypeScript change) must fail the canary,
+  // never pass or turn a finding into not applicable.
+  if (src.read.length || src.scripts.length) {
+    const planted = canary();
+    if (planted) return planted;
+  }
+  // Not applicable only when nothing at all was found: no spec file, no marker, no unread file, no problem (G1)
   if (
     !specFiles.length &&
     !markers.length &&
@@ -447,12 +462,6 @@ function trace(root: string, list: Set<string>): Result {
   const read = markers.filter((m) => src.read.includes(m.file));
   let results = 0;
   let ok: Marker[] = [];
-  // The positive control runs whenever there is a test source to read, not only when a marker was found: a reader
-  // that finds nothing (say after a TypeScript change) must fail the canary, never pass with every statement untested.
-  if (src.read.length) {
-    const planted = canary();
-    if (planted) return planted;
-  }
   if (read.length) {
     if (!list.has("vitest.config.ts"))
       return result(CANNOT, "vitest.config.ts is not tracked");
@@ -500,7 +509,7 @@ function trace(root: string, list: Set<string>): Result {
     ]);
   return result(
     PASS,
-    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} test(s) ran; ${tested.size} of ${statements.length} statements tested`,
+    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} test result(s) read; ${tested.size} of ${statements.length} statements tested`,
     listed,
   );
 }
