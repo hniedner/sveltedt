@@ -3790,7 +3790,13 @@ test("selftest: a test file the gate runs sees none of the gate's context variab
   const sees = `import assert from "node:assert/strict";
 import { test } from "node:test";
 test("no gate variable", () => {
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
+  for (const k of [
+    "CANARY_DIR",
+    "GATE_BASE",
+    "GATE_EVENT",
+    "GATE_HEAD",
+    "GITHUB_ACTIONS",
+  ])
     assert.equal(process.env[k], undefined, k);
 });
 `;
@@ -3801,6 +3807,7 @@ test("no gate variable", () => {
     {
       extraEnv: {
         GITHUB_ACTIONS: "true",
+        GATE_EVENT: "pull_request",
         GATE_BASE: "HEAD",
         GATE_HEAD: "HEAD",
         CANARY_DIR: join(here, "canaries"),

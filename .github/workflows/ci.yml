@@ -67,6 +67,8 @@ jobs:
           # A missing base makes either step answer could-not-check, never a silent pass.
           GATE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           GATE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          # The trace and diff-coverage steps pick their base commit by the event
+          GATE_EVENT: ${{ github.event_name }}
         run: pnpm gate
 
   gate:

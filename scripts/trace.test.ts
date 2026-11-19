@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GATE_VARS } from "./gate-step.ts";
+import { baseCommit, GATE_VARS, isResult } from "./gate-step.ts";
 import { judgeResults, parseSpec, readMarkers, traceSources } from "./trace.ts";
 
 const sha8 = (text: string): string =>
@@ -589,10 +589,11 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("gate: GATE_VARS names the four context variables, and childEnv strips each from a child", () => {
+test("gate: GATE_VARS names the five context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
+    "GATE_EVENT",
     "GATE_HEAD",
     "GITHUB_ACTIONS",
   ]);
@@ -669,4 +670,102 @@ test("trace: a pending or disabled result is reported as skipped", () => {
     );
     assert.match(r.findings.join("\n"), /skipped: a/);
   }
+});
+
+/** Commits `files` on top of the fixture's HEAD (null removes a file); origin/main stays where it was. */
+function advance(root: string, files: Record<string, string | null>): string {
+  for (const [path, text] of Object.entries(files))
+    if (text === null) rmSync(join(root, path));
+    else put(root, path, text);
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "chore: a change");
+  return git(root, "rev-parse", "HEAD").trim();
+}
+const ci = (event: string, base?: string, head?: string) => ({
+  GITHUB_ACTIONS: "true",
+  GATE_EVENT: event,
+  ...(base ? { GATE_BASE: base } : {}),
+  ...(head ? { GATE_HEAD: head } : {}),
+});
+
+/** main at A2, a branch from A at B, and the merge of B into A2 that a pull request is checked out as (HEAD). */
+function history() {
+  const root = fixture();
+  const a = git(root, "rev-parse", "HEAD").trim();
+  const a2 = advance(root, { x: "1\n" });
+  git(root, "update-ref", "refs/remotes/origin/main", a2);
+  git(root, "checkout", "-q", "--detach", a);
+  const b = advance(root, { y: "1\n" });
+  git(root, "checkout", "-q", "--detach", a2);
+  git(root, "merge", "-q", "--no-ff", "-m", "merge", b);
+  return { root, a, a2, b, m: git(root, "rev-parse", "HEAD").trim() };
+}
+/** The base `baseCommit` names with `env` set (and git's and the gate's own variables otherwise unset). */
+function baseWith(root: string, env: Record<string, string>) {
+  const saved = Object.fromEntries(GATE_VARS.map((k) => [k, process.env[k]]));
+  for (const k of GATE_VARS) delete process.env[k];
+  Object.assign(process.env, env);
+  try {
+    return baseCommit(root);
+  } finally {
+    for (const k of GATE_VARS)
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+  }
+}
+// The pull-request rows run with HEAD at the merge m, whose first parent a2 is not the merge base a: a base taken from
+// the merge base instead of HEAD^1 (or the reverse) names the wrong commit.
+test("baseCommit: one case per row of the truth table", () => {
+  const { root, a, a2, b, m } = history();
+  const table: [string, Record<string, string>, unknown][] = [
+    [
+      "a pull request checked out as the merge of its head",
+      ci("pull_request", a, b),
+      { kind: "pull_request", base: a2 },
+    ],
+    [
+      "a pull request that is not that merge: the merge base of GATE_BASE and GATE_HEAD",
+      ci("pull_request", a2, b),
+      { kind: "pull_request", base: a },
+    ],
+    ["a pull request without GATE_HEAD", ci("pull_request", a), null],
+    [
+      "a pull request without GATE_BASE",
+      ci("pull_request", undefined, b),
+      null,
+    ],
+    ["a push with GATE_BASE", ci("push", a, b), { kind: "push", base: a }],
+    ["a push without GATE_BASE", ci("push"), { kind: "push", base: null }],
+    [
+      "a push with an all-zero GATE_BASE",
+      ci("push", "0".repeat(40)),
+      { kind: "push", base: null },
+    ],
+    ["CI with no event", { GITHUB_ACTIONS: "true", GATE_BASE: a }, null],
+    ["CI with another event", ci("schedule", a, b), null],
+    [
+      "locally: the merge base with origin/main",
+      { GATE_BASE: "ignored" },
+      { kind: "local", base: a2 },
+    ],
+  ];
+  for (const [row, env, want] of table) {
+    // the pull-request rows are checked out as the merge m; the "not that merge" row as b itself
+    git(
+      root,
+      "checkout",
+      "-q",
+      "--detach",
+      row.includes("not that merge") ? b : m,
+    );
+    const got = baseWith(root, env);
+    if (want === null) assert.ok(isResult(got) && got.code === 3, row);
+    else assert.deepEqual(got, want, row);
+  }
+});
+test("baseCommit: locally without origin/main there is no base", () => {
+  const { root } = history();
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  const got = baseWith(root, {});
+  assert.ok(isResult(got) && got.code === 3);
 });
