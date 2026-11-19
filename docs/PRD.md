@@ -26,7 +26,7 @@
   "data" for the data and "rows" for rows, so the information line counts rows (PRD-B26). A requirement changes only
   by the owner from here on. Amended by the owner on 2026-11-19 ("yes, put the find field in"; a vocabulary column as
   "not critical"): the find field of a categorical filter (PRD-B29) and the vocabulary helper of the local data source
-  (PRD-B30, should), with PRD-B2's internal state.
+  (PRD-B30, later: "keep the row in the PRD but not in scope for 1.0"), with PRD-B2's internal state.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -155,7 +155,7 @@ and the release record holds that step's pass or fail. A manual step not recorde
 | PRD-B27 | Child rows: shown only when the application gives a detail snippet; each row then has a disclosure button (`aria-expanded`) with an accessible name that names its row; the open rows are a prop the application owns, as with selection (PRD-B13), and a press emits one callback; an open row is followed by one detail row filled by the snippet, and a row keeps its detail row when rows come in another order (PRD-B1). | DataTables' `row().child()` and its row-details examples (READ 2026-11-17); owner, 2026-11-18: in for 1.0, built in a milestone after the core table. | must |
 | PRD-B28 | A column definition may give a footer (text or a snippet); when any column has one, the table shows one footer row with each column's footer in that column's place, hidden, moved and resized with its column. The application fills it; the table computes nothing for it (no totals). | DataTables' footer is the application's markup and callbacks (`footerCallback`, READ 2026-11-17); totals stay the application's, so the non-goal on aggregation rows stands. | must |
 | PRD-B29 | A categorical filter with more than 10 options shows a find field above its options in its dialog: typing narrows the options shown to those whose label contains the text, ignoring case; it emits nothing, changes no selection, and its text is dropped when the dialog closes; its label is a prop. | A long vocabulary needs a way to reach an option; the earlier table had this field (owner, 2026-11-19: "yes, put the find field in"); a short list needs none. | must |
-| PRD-B30 | The local data source (PRD-B21) offers a helper that, for a column the application marks as a vocabulary column, returns the column's distinct values as categorical filter options (PRD-B7) when they number at most a limit (a parameter, default 20), and no options otherwise, so that column keeps a text filter. In server mode the application passes the options as before (PRD-B7). | Owner, 2026-11-19, a nice-to-have: a multiselect for a column with few distinct values; only a source that holds all rows knows them, since the table sees one page. | should |
+| PRD-B30 | The local data source (PRD-B21) offers a helper that, for a column the application marks as a vocabulary column, returns the column's distinct values as categorical filter options (PRD-B7) when they number at most a limit (a parameter, default 20), and no options otherwise, so that column keeps a text filter. In server mode the application passes the options as before (PRD-B7). | Owner, 2026-11-19, a nice-to-have: a multiselect for a column with few distinct values; only a source that holds all rows knows them, since the table sees one page; owner, 2026-11-19: "keep the row in the PRD but not in scope for 1.0". | later |
 
 **Slow data sources** (explanatory: it restates PRD-B15, PRD-A4, PRD-B20, PRD-B22 to PRD-B24 and PRD-D6 in one place,
 and adds no requirement). Loading shows the loading text, never the empty text, with `aria-busy` (PRD-B15) and a polite
@@ -350,11 +350,11 @@ production server.
 | PRD-W11 | Request and answer fixtures, recorded once over PRD-W3's synthetic dataset from five DataTables server-side backends: `yajra/laravel-datatables-oracle` (PHP), the `ssp.class.php` helper of DataTables' server-side examples (PHP), django-rest-framework-datatables (Python), DataTables.AspNet (.NET) and spring-data-jpa-datatables (Java). Each fixture set states its backend, the backend's version and licence, and the one pinned DataTables client whose requests every set records (2.3 or later, named in the fixture sets, in the protocol form the connection helper covers; a new client pin or a new backend version is a new recording; requests of 1.x clients, which lack `order[i][name]`, are not recorded), and holds, per backend: a first page, a sort, a column search, a global search value as the client sends it, an error answer as the body the backend returns together with its HTTP status, and the answer fields that backend adds; the request as sent (query string, form body, or the dotted or JSON form a backend needs) and the answer body as returned, with no headers, hosts or paths; each with its backend's licence notice (MIT for four, Apache-2.0 for spring-data-jpa-datatables); checked in after the synthetic-shape check and the word scan; contract tests run the helper's request serialiser and answer mapper against every set. | The switch is proven against what real backends send and expect, not against our own endpoint. The five cover the most used backend (the Packagist package `yajra/laravel-datatables-oracle`, about 1.27 million installs a month), the reference helper, a Python package with 153,612 downloads a month (pypistats), a .NET package archived since 2024-01-08, and the one backend that reads only dotted names or a JSON body (registry figures, licences and the archived state FETCHED 2026-11-18). | must |
 
 **Later:** (PRD-X1, header drag to reorder, moved into 1.0 by the owner: B11 b); PRD-X2 fit width to content; PRD-X3 columns sticky at the inline end;
-PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1); PRD-X6 a built-in number or date
+PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1); PRD-B30 the vocabulary helper of the local data source; PRD-X6 a built-in number or date
 range filter (until then the application's criteria, section 5.2).
 
-**Counts:** 98 must (none depends on an open question), 8 should,
-4 later.
+**Counts:** 98 must (none depends on an open question), 7 should,
+5 later.
 
 ## 5. Decisions made in this PRD
 
