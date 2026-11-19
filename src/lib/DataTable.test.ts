@@ -171,6 +171,80 @@ describe("RND-01", () => {
   });
 });
 
+// The body row that has a cell named by the given id
+function bodyRow(id: string): HTMLElement {
+  const row = screen.getByRole("cell", { name: id }).closest("tr");
+  if (!row) throw new Error(`no row for ${id}`);
+  return row;
+}
+
+// @spec("RND-15", "93c4507b")
+describe("RND-15", () => {
+  it("renders each row by the same element after new row objects arrive with the same ids in another order", async () => {
+    const make = (ids: string[]): Item[] =>
+      ids.map((id) => ({ id, name: `Name ${id}` }));
+    const { rerender } = render(DataTable<Item>, {
+      ...base,
+      rows: make(["r1", "r2", "r3"]),
+      columns: [idColumn],
+    });
+    const before = new Map(["r1", "r2", "r3"].map((id) => [id, bodyRow(id)]));
+    await rerender({ rows: make(["r3", "r1", "r2"]) });
+    expect(firstCells()).toEqual(["r3", "r1", "r2"]);
+    for (const [id, element] of before) expect(bodyRow(id)).toBe(element);
+  });
+});
+
+// @spec("RND-16", "03866104")
+describe("RND-16", () => {
+  const cityColumn: DataTableColumn<Item> = {
+    id: "city",
+    label: "City",
+    value: (row) => `City ${row.id}`,
+  };
+  // The header cell, then the cell in each body row (every row after the header row), of the column with the given label
+  function columnElements(label: string): HTMLElement[] {
+    const header = screen.getByRole("columnheader", { name: label });
+    const columnIndex = [...(header.parentElement?.children ?? [])].indexOf(
+      header,
+    );
+    const cells = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => {
+        const cell = within(row).getAllByRole("cell")[columnIndex];
+        if (!cell) throw new Error(`no ${label} cell in a body row`);
+        return cell;
+      });
+    return [header, ...cells];
+  }
+
+  it("renders each column's header cell and cells by the same elements after new column objects arrive in another order", async () => {
+    const { rerender } = render(DataTable<Item>, {
+      ...base,
+      rows: [
+        { id: "r1", name: "Alpha" },
+        { id: "r2", name: "Beta" },
+      ],
+      columns: [{ ...nameColumn }, { ...cityColumn }],
+    });
+    const before = ["Name", "City"].map((label) => columnElements(label));
+    await rerender({ columns: [{ ...cityColumn }, { ...nameColumn }] });
+    expect(
+      screen.getAllByRole("columnheader").map((header) => header.textContent),
+    ).toEqual(["City", "Name"]);
+    expect(cellTexts()).toEqual([
+      ["City r1", "Alpha"],
+      ["City r2", "Beta"],
+    ]);
+    ["Name", "City"].forEach((label, column) => {
+      columnElements(label).forEach((element, position) => {
+        expect(element).toBe(before[column]?.[position]);
+      });
+    });
+  });
+});
+
 describe("STATE-03 first example; the statement's marker arrives with 1c", () => {
   it("with the default status ready and no rows, shows the empty message in one cell spanning every column", () => {
     show({ rows: [], columns: [idColumn, nameColumn, noteColumn] });
