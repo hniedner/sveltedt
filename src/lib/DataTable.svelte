@@ -9,6 +9,7 @@
     caption,
     regionLabel,
     status = "ready",
+    busy = false,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -27,7 +28,7 @@
     <div role="alert">The data could not be loaded.</div>
   {/if}
   <div role="region" aria-label={regionLabel}>
-    <table>
+    <table aria-busy={busy || status === "loading"}>
       <caption>{caption}</caption>
       <thead
         class="bg-[var(--sdt-header-surface,ButtonFace)] text-[var(--sdt-header-text,ButtonText)]"

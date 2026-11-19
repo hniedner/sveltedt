@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
-import type { DataTableColumn, DataTableProps } from "./types.ts";
+import type {
+  DataTableColumn,
+  DataTableProps,
+  DataTableStatus,
+} from "./types.ts";
 
 interface Item {
   id: string;
@@ -81,6 +85,11 @@ const threeRows: Item[] = [
   { id: "r2", name: "Gamma" },
   { id: "r3", name: "Delta" },
 ];
+
+// The props a rerender passes in full, so no prop of an earlier state stays behind
+function state(props: Partial<DataTableProps<Item>>): DataTableProps<Item> {
+  return { ...base, status: "ready", busy: false, ...props };
+}
 
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
@@ -626,6 +635,33 @@ describe("STATE-07", () => {
     expect(screen.getByText(FAILED).isConnected).toBe(true);
     for (const name of ["Beta", "Gamma", "Delta"])
       expect(screen.queryByRole("cell", { name })).toBeNull();
+  });
+});
+
+// @spec("STATE-04", "c14f993d")
+describe("STATE-04", () => {
+  it.each<[DataTableStatus, boolean, string]>([
+    ["ready", false, "false"],
+    ["ready", true, "true"],
+    ["loading", false, "true"],
+    ["failed", false, "false"],
+  ])(
+    "with status %s and busy %s, the table's aria-busy is %s and the region has none",
+    (status, busy, expected) => {
+      show({ status, busy });
+      expect(screen.getByRole("table").getAttribute("aria-busy")).toBe(
+        expected,
+      );
+      expect(screen.getByRole("region").hasAttribute("aria-busy")).toBe(false);
+    },
+  );
+
+  it("turns true into false when busy ends", async () => {
+    const { rerender } = render(DataTable<Item>, state({ busy: true }));
+    const table = screen.getByRole("table");
+    expect(table.getAttribute("aria-busy")).toBe("true");
+    await rerender(state({}));
+    expect(table.getAttribute("aria-busy")).toBe("false");
   });
 });
 
