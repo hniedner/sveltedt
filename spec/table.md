@@ -4179,7 +4179,8 @@ the "Cancel" and "Try again" buttons MUST stay visible.
 
   | Item | Check |
   |---|---|
-  | every control A11Y-45 reaches by Tab, the column separators and the region included, but the skip link | focused and unfocused differ |
+  | every control A11Y-45 reaches by Tab, the column separators included, but the skip link | focused and unfocused differ |
+  | the region, on A11Y-07's 30-column table in a 600 px viewport, once the test has asserted it is a Tab stop | focused and unfocused differ |
   | the skip link | focused, and focused with `outline-style: none` and `box-shadow: none` set through the CSSOM, differ (unfocused it is hidden, A11Y-46) |
   | "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) and "Try again" (`onretry`, `status 'stopped'`) | each: focused and unfocused differ |
   | a row box | unchecked, checked and, for the header box, mixed differ pairwise |
