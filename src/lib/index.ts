@@ -1,2 +1,7 @@
 export { default as DataTable } from "./DataTable.svelte";
-export type { DataTableColumn, DataTableProps } from "./types.ts";
+export type {
+  DataTableColumn,
+  DataTableMessages,
+  DataTableProps,
+  DataTableStatus,
+} from "./types.ts";
