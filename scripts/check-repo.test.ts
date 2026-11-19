@@ -3431,6 +3431,15 @@ test("pre-commit: git commit -a checks the changes -a stages", () => {
   assert.match(r.out, /^\s*README\.md\b/m);
   assert.equal(head(root), "chore: add the runner");
 });
+test("pre-commit: git commit -a exports exactly the files -a stages to the secret scan", () => {
+  const root = hooked(listingScan);
+  put(root, "README.md", "# Fixture\n\nChanged.\n");
+  put(root, "notes/untracked.md", "# Untracked\n");
+  const r = gitCommit(root, "-a", "-m", "docs: reword the readme");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir README\.md$/m);
+  assert.equal(head(root), "docs: reword the readme");
+});
 test("pre-commit: git commit <path> checks that path only, whatever else is changed or staged", () => {
   const root = hooked();
   put(root, "README.md", "#  Fixture\n");
