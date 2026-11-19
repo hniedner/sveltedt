@@ -3292,7 +3292,7 @@ from assistive technology.
   | Name's grip to a body cell of Date | `{ hidden: [], order: ['code', 'date', 'name'] }`, once |
   | Code hidden; Name's grip to Date's header cell | `{ hidden: ['code'], order: ['code', 'date', 'name'] }`, once |
   | Name's grip, released over Name's own header cell | no call |
-  | Name's grip, released below the table; then the mouse moves over Date's header cell and clicks there | no call |
+  | Name's grip, released below the table; then the mouse moves over Date's header cell and clicks there | no `oncolumnstate` call |
 
   The pointer moves at least 40 CSS px between the press and the release, in steps of 10 px. The order of the other
   columns, hidden ones included, stays as it was. A release outside the table ends the drag: the pointer is captured
@@ -3302,8 +3302,9 @@ from assistive technology.
 - Traces: PRD-B11, PRD-B2.
 
 **COL-20** The component MUST offer no control that resets the column order, the hidden columns or the widths.
-- Example: with the chooser open, no button whose accessible name contains "Reset columns" or "Reset column" (any
-  case) is in the table or the chooser; "Reset table" (FILT-30) emits `onreset` only.
+- Example: `onreset` passed, the chooser open: its buttons "Move earlier Name" to "Move later Date" (COL-08) are found,
+  and no button whose accessible name contains "reset column" (any case) is in the table or the chooser; a press on
+  "Reset table" (FILT-30) calls `onreset` once, as "emits once" defines it, so `oncolumnstate` is not called.
 - Reason: the column defaults are the application's; a reset is its intent, not the component's (PRD-B11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11.
@@ -3329,7 +3330,7 @@ reorder.
   |---|---|---|
   | press Name's grip, move over Date's header cell, press Escape, release there | no call | 0 |
   | press Escape with focus on "Sort by Code", no drag | no call | 1 |
-  | drag Name's grip to Date's header cell and release; the state follows; press Escape | one call, on the release | 1 |
+  | press Name's grip and release it with no move; focus is on Name's grip; press Escape | no call | 1 |
 
   A press on a grip leaves focus on that grip, which takes focus by script and is no Tab stop (COL-13), so the key
   goes to the grip during the drag; that WebKit focuses an element from a pointer press handler is INFERRED (no fetched
