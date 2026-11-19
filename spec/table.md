@@ -2439,7 +2439,7 @@ an alert that says why.
 - Traces: PRD-B6.
 
 **FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
-order, each checked exactly while its value is in `selected`.
+order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
 - Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
   checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
 - Reason: the server accepts only its own vocabulary, so the user picks from it (PRD-B7).
@@ -2574,6 +2574,7 @@ case, and MUST NOT emit anything or change the selection.
   | type "ALP" | "Alpha" only | no callback called |
   | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
   | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
+  | type "xyz" | none; the text "No options match." in their place | no callback called |
 
 - Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
   dialog (PRD-B29, PRD-B2).
@@ -2830,6 +2831,7 @@ below list.
   | `filterDialog` (a function of the label) | "Name filter" for "Name" | FILT-02 |
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
+  | `noOptions` | "No options match." | FILT-18 |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
