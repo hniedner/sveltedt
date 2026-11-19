@@ -3462,6 +3462,28 @@ test("pre-commit: a commit of only a new symlink has no secret scan to run, and 
   assert.doesNotMatch(r.out, /scan-secrets dir/);
   assert.equal(head(root), "docs: link the readme");
 });
+test("pre-commit: git commit <path> scans the content of that path, not the index's other staged files", () => {
+  const root = hooked(listingScan);
+  put(root, "README.md", "# Fixture\n\nA leak.\n");
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: reword the readme", "--", "README.md");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir README\.md$/m);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a symlink staged beside a regular file does not hide the file from the scan", () => {
+  const root = hooked(listingScan);
+  symlinkSync("README.md", join(root, "link.md"));
+  put(root, "notes/a.md", "# A leak\n");
+  git(root, "add", "link.md", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note and a link");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir a\.md$/m);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
 test("pre-commit: a file that replaces a symlink is scanned", () => {
   const root = hooked((r) => {
     listingScan(r);
