@@ -473,7 +473,7 @@ true holds and the progress indicator has been present for 5 seconds or more.
   | `status 'loading'`, at 6000 ms | shown |
   | `status 'ready'` with two rows, `busy true`, at 6000 ms | shown |
   | `status 'loading'`; at 7000 ms `status 'ready'` with two rows, `busy false` | not shown at 7000 ms |
-  | `status 'loading'`; at 6100 ms `status 'failed'` | not shown at 6100 ms, while the indicator stays to 6500 ms (STATE-10) |
+  | `status 'loading'`; at 6100 ms `status 'failed'` | not shown at 6100 ms; the indicator also goes at 6100 ms (STATE-10) |
   | `status 'loading'`; at 1100 ms `status 'ready'`, `busy false`; at 1200 ms `status 'loading'` | shown at 6000 ms: the indicator never went, so its 5 seconds run from 1000 ms |
 
 - Reason: a load that takes long must say so in words, not only by an indicator that has stopped moving (PRD-B22).
