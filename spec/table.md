@@ -221,6 +221,9 @@ its cells.
   it renders by RND-08 or RND-02 (a `value` function beside `cell` the text "name" shows the value's text; a `cell`
   snippet beside `value` the text "name" shows the snippet).
 
+  Stated limits, not detected: a plain function given as `cell` is taken as a snippet (a snippet is a function, and
+  the two cannot be told apart); a `value` function that throws is not caught, unlike `getRowId`.
+
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
   their own props in their own statements (SORT-15 for sort).
@@ -318,7 +321,7 @@ cells MUST be rendered by the same element as before.
   | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
-  | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`) | that entry's English default | the statement that shows the entry |
+  | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups state their own words in their own
@@ -1710,6 +1713,8 @@ list.
 
   `sort` left out, given as `undefined` or `null`, or given as an empty list means no order and is no fault; a press
   then emits as from `[]`.
+
+  A column's `sortable` given as `null` means the column is not sortable, as when it is left out, and is no fault.
 - Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3, PRD-B4.
