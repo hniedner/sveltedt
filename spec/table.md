@@ -4093,8 +4093,7 @@ the skip link while not focused are visually hidden on purpose, hold no visible 
 asserts that each of them is hidden as A11Y-46 states for the skip link (outside the viewport or at most 1 by 1 CSS
 px). A second reading of (a), for a dialog that scrolls by design, is A11Y-49's. "The dialogs" are the filter
 dialog of the text filter's column, the filter dialog of the categorical filter's column and the column chooser. The
-views with density "compact" and the variants are the
-the compact view's (THEME-22).
+views with density "compact" and the variants are section 18's (THEME-22, THEME-42 to THEME-45).
 
 **A11Y-39** Every pointer target of the component MUST be at least 24 by 24 CSS px while it is shown.
 - Examples (the test runs every row; every button, link, checkbox, field, separator and grip the component renders
@@ -4164,7 +4163,7 @@ keyboard.
   | plain rows |
   | the first row selected (`isSelected` true for it only): its box and the controls in its cells |
 
-  Striped and hovered rows are the the compact view's (THEME-22).
+  Striped and hovered rows are THEME-43's.
 - Reason: WCAG 2.4.7 (PRD-A1).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
@@ -4359,7 +4358,8 @@ THEME-02, with one row per pair: the foreground token, the background token and 
 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours. "The compact view" is
 the view of PRD section 4.3 with `density 'compact'` and every variant on, in a desktop context without touch; "the
 light view", "the dark view" and "the no-token view" are the site's views with the light set, the dark set and no
-`--sdt-*` property defined (PRD-W7). In the examples the table has 30 rows r1 to r30, sorted by Name and then Code
+`--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are given by its own
+parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted by Name and then Code
 where a row says so, with the columns Name, Code and Date and selection on. A prop given as `undefined` counts as not
 given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and size budgets of the variants
 (PRD-T10 with P2, P3) are the performance group's.
@@ -4370,16 +4370,39 @@ given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
 
   | Foreground | On each of these backgrounds | Ratio |
   |---|---|---|
-  | body text | the surface, the stripe, the hover surface, the selected surface, the selected surface on a striped row, the sorted-column surface of rank 1, 2 and 3 or later | 4.5 |
+  | body text | the surface, the stripe, the hover surface, the sorted-column surface of rank 1, 2 and 3 or later | 4.5 |
+  | the selected text | the selected surface | 4.5 |
   | header text | the header surface | 4.5 |
-  | the focus ring, a row box's border and its checked mark | the surface, the stripe, the hover surface, the selected surface, the selected surface on a striped row, the sorted-column surface of rank 1, 2 and 3 or later | 3 |
-  | a sort mark, a column separator, the focus ring | the header surface | 3 |
+  | the focus ring, a row box's border and its checked mark | the surface, the stripe, the hover surface, the selected surface, the sorted-column surface of rank 1, 2 and 3 or later | 3 |
+  | a sort mark, a column separator, the focus ring, the header hover outline | the header surface | 3 |
   | the progress indicator, the boundary of "Cancel" and of "Try again" | the surface | 3 |
 
 - Reason: the PRD names these pairs for 1.4.3 and 1.4.11 (section 4.3); a table that drops one leaves a pair no check
-  reads (PRD-T4, PRD-A12).
+  reads (PRD-T4, PRD-A12). Each cell shows one opaque surface (THEME-41), so "selected over stripe" is the selected
+  surface's pair.
 - Layer: static check.
 - Traces: PRD-T4, PRD-A12.
+
+**THEME-41** Each body cell of a data row MUST show exactly one opaque surface: the first that applies of the selected
+surface, the hover surface, the sorted-column surface of its rank, the stripe and the surface.
+- Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name;
+  r2 is on a striped place; each cell's computed background has alpha 1 and equals the named token's value):
+
+  | Cell | Selected | Pointer over its row | Surface shown |
+  |---|---|---|---|
+  | r1, Code | no | no | the surface |
+  | r2, Code | no | no | the stripe |
+  | r2, Name | no | no | the sorted-column surface of rank 1 |
+  | r2, Name | no | yes | the hover surface |
+  | r2, Name | yes | yes | the selected surface |
+  | r1, Code | yes | no | the selected surface |
+
+  A selected row's cells also take the selected text colour.
+- Reason: DataTables paints the selected surface over hover, the sorted column and stripes (FETCHED 2026-11-19, the
+  DataTables 2.3.2 stylesheet), but as translucent tints that add up; one opaque token per cell lets the token pairs
+  decide contrast (PRD-A12, DEP-48).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T6, PRD-T13, PRD-A12.
 
 **THEME-17** For each row of the token-pair table, the example token set's colours MUST have at least the row's
 contrast, in the light and in the dark set.
@@ -4414,8 +4437,10 @@ colour and the computed background next to it.
 
   | Element | Its colour | Against |
   |---|---|---|
-  | the focus ring of a sort button, a row box and a pager button, on a plain, a striped, a hovered and a selected row where it sits in a row | outline or box-shadow colour | the cell's background |
-  | a row box, unchecked and checked | border colour, and the mark's colour when checked | the cell's background |
+  | the focus ring of a sort button | outline or box-shadow colour | the header cell's background |
+  | the focus ring of a row box, in a plain, a striped, a hovered and a selected row and in a sorted cell of rank 1, 2 and 3 | outline or box-shadow colour | the cell's background |
+  | the focus ring of a pager button | outline or box-shadow colour | the component's background |
+  | a row box, unchecked and checked, in the same rows and cells | border colour, and when checked the colour of its mark (the box is drawn by the stylesheet with `appearance: none`; the mark is its `::after`) | the cell's background |
   | the sort mark of rank 1 and rank 2 | its colour | the header cell's background |
   | a column separator | its colour | the header cell's background |
   | the progress indicator | its colour | the component's background |
@@ -4438,14 +4463,15 @@ variant on.
 
 **THEME-19** `density 'compact'` MUST lower the body and header cells' padding and MUST change no other property of
 THEME-10's named set.
-- Examples (the test runs every row; the light view, `density` as given, every other prop the same):
+- Examples (the test runs every row; the light view with `density` as given and no variant on):
 
-  | `density` | Body cell's padding (block and inline) | Every other property of THEME-10's set, on every element |
+  | `density` | Body and header cells' padding (block and inline) | Every other property of THEME-10's set, on every element |
   |---|---|---|
   | `'normal'` | the normal padding | as THEME-10 states |
   | `'compact'` | less than the normal padding on each side, read from its own padding tokens | equal to the `'normal'` row |
 
-  No cell or row gets a computed `height` other than `auto`. Its targets keep 24 by 24 CSS px (THEME-22).
+  No height is fixed: in both densities, a body cell holding five lines of text makes its row taller than a row of
+  one line. Its targets keep 24 by 24 CSS px (THEME-22).
 - Reason: compact tables show more rows without shrinking targets or fixing heights (PRD-T5).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T5.
@@ -4460,10 +4486,11 @@ over data rows only.
   | r1, r1's child row, r2, r3 | the cells of r2; the child row's cells keep the surface |
   | the empty message (`rows []`) | none |
   | r1 to r4, `striped` not given | none |
+  | page 2 of `pageSize` 3: r4, r5, r6 | the cells of r5 (the count starts on each page) |
 
-  A sticky cell of a striped row shows the stripe (its surface is opaque, STK statements).
+  A sticky cell of a striped row shows the stripe: stripe and hover are painted on each body cell (PRD-T6).
 - Reason: DataTables' `stripe`; a message row or a child row is not a data row, so it must not shift the pattern
-  (PRD-T6, STATE-03).
+  (PRD-T6, STATE-03). Which surface wins on a striped cell is THEME-41's.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
 
@@ -4477,16 +4504,16 @@ the device can hover.
   | desktop, no touch | over r2's Code cell | the hover surface, on every cell of r2, a sticky cell included |
   | desktop, no touch | outside the table | no hover surface |
   | desktop, no touch, `hover` not given | over r2's Code cell | no hover surface |
-  | a mobile context with touch (`isMobile`, `hasTouch`; Chromium only: Firefox has no mobile emulation) | a tap on r2's Code cell | no hover surface |
+  | a context with touch (`hasTouch`), where `(hover: hover)` is false | a tap on r2's Code cell | no hover surface |
 
 - Reason: DataTables' `hover`; a surface left behind by a tap would read as a state (PRD-T6).
-- Layer: real browser (Chromium, Firefox, WebKit, but the last row Chromium only, for the reason given).
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
 
 **THEME-36** With `cellBorders`, every body and header cell MUST have a border of at least 1 CSS px on each side it
 shares with another cell.
 - Example: the light view, 3 by 3 cells: each inner edge between two cells has a computed border width of at least
-  1 px whose colour reads a token; without `cellBorders`, the inner edges between columns have none (the column
+  1 px; without `cellBorders`, the inner edges between columns have none (the column
   separators of the header are not borders).
 - Reason: DataTables' `cell-border` (PRD-T6).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -4502,7 +4529,7 @@ shares with another cell.
   | `[]` | the surface | the surface | the surface |
   | Name ascending, `orderColumn` not given | the surface | the surface | the surface |
 
-  Header cells are not painted. With `striped` too, the sorted-column surface wins on a striped row's sorted cells.
+  Header cells are not painted. Which surface wins on a sorted cell is THEME-41's.
 - Reason: DataTables' `order-column`, by rank because ranks are known (PRD-T13, PRD-B5).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T13.
@@ -4527,7 +4554,8 @@ MUST fall back to `inherit`.
 
 **THEME-37** Each size token MUST set its property when the application defines it.
 - Examples (the test runs every row; the no-token view, then the row's one token defined on the component's
-  container):
+  container; the test first asserts that the value read without the token differs from the row's value, so a row
+  cannot pass on the fallback):
 
   | Token defined | Read on | Computed value |
   |---|---|---|
@@ -4537,7 +4565,7 @@ MUST fall back to `inherit`.
   | the cell padding (inline), `1rem` | a body cell | `padding-inline-start` 16px |
   | the cell padding (block), `1rem` | a body cell | `padding-block-start` 16px |
   | the compact cell padding (block), `0.125rem`, with `density 'compact'` | a body cell | `padding-block-start` 2px |
-  | the minimum row height, `3rem` | a data row | height at least 48px |
+  | the minimum row height, `3rem` | a body cell of one line | height 48px (the minimum is the cells' `height`: browsers ignore `min-height` on table rows and cells; taller content still grows the row) |
   | the corner radius, `0.5rem` | the region, a button, a filter field | `border-top-left-radius` 8px |
   | the sort-mark size, `1rem` | a sort mark | `width` 16px |
   | the header vertical alignment, `top` | a header cell | `vertical-align` top |
@@ -4548,23 +4576,43 @@ MUST fall back to `inherit`.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T9.
 
-**THEME-22** In the compact view, with the example tokens and with none, the checks of the views and of focus MUST
-pass.
-- Examples (the test runs every row on the light, the dark and the no-token sets, as the views of section 16 run):
+**THEME-22** In the compact view, every pointer target of the component MUST be at least 24 by 24 CSS px.
+- Example: as A11Y-39, in the compact view with the light, the dark and the no-token sets: every target at least 24
+  by 24.
+- Reason: compact lowers padding, never a target below WCAG 2.5.8 (PRD-T5, PRD-A6, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A6, PRD-T5.
 
-  | Check | In the compact view |
-  |---|---|
-  | target size (A11Y-39) | every target at least 24 by 24 |
-  | the clipping check in the zoom, 320 and spacing views (A11Y-40, A11Y-41, A11Y-42, A11Y-49) | passes |
-  | focus visible (A11Y-45), with the pointer over a striped row, a plain row, a selected row and a sticky cell, and one row both focused and hovered | passes |
-  | axe in each state of A11Y-06 | no serious or critical violation |
-  | forced colours (A11Y-11, Chromium only) | passes |
-  | THEME-18 | passes |
+**THEME-42** In the compact view, the clipping check MUST pass in the zoom, 320 and spacing views, with and without
+a dialog open.
+- Example: as A11Y-40, A11Y-41, A11Y-42 and A11Y-49, in the compact view with the light, the dark and the no-token
+  sets: the clipping check passes, and an open dialog's box lies within the viewport.
+- Reason: every shipped variant meets A1's claims (PRD-T10, PRD-A11; PRD section 4.3's variant views).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A11.
 
-- Reason: every shipped variant meets A1's claims with the example tokens and with none (PRD-T10, PRD section 4.3's
-  variant views); checking every pair in one view replaces every combination of variants.
-- Layer: real browser (Chromium, Firefox, WebKit; forced colours Chromium only, as A11Y-11).
-- Traces: PRD-T10, PRD-A1, PRD-T5, PRD-T6.
+**THEME-43** In the compact view, every control but the region MUST show a visible focus indicator, also under the
+pointer.
+- Example: as A11Y-45, in the compact view with the light, the dark and the no-token sets, with the pointer over a
+  striped row, a plain row, a selected row and a sticky cell in turn, and with one row both focused and hovered: each
+  control's indicator is visible as A11Y-45 measures it.
+- Reason: WCAG 2.4.7 on plain, striped, selected and hovered rows (PRD section 4.3, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A1.
+
+**THEME-44** In the compact view, axe MUST find no serious or critical violation in any state of the table.
+- Example: as A11Y-06's states, in the compact view with the light, the dark and the no-token sets: 0 serious or
+  critical violations.
+- Reason: 1.4.3 with the variants' surfaces, which axe decides on the rendered page (PRD section 4.3, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A1.
+
+**THEME-45** In the compact view, the forced-colours checks of A11Y-11 MUST pass.
+- Example: A11Y-11's rows, in the compact view with the light set: each passes.
+- Reason: stripes, hover and the sorted-column surface may vanish under forced colours; states keep their own marks
+  (PRD-A8, PRD-T6).
+- Layer: real browser (Chromium only, as A11Y-11).
+- Traces: PRD-A8, PRD-T10.
 
 **THEME-38** For invalid variant input the table MUST render the alert of RND-05 with the fixed message below.
 - Examples (as RND-05; the test runs every row and every value in it):
@@ -4893,6 +4941,7 @@ pass.
 | THEME-34 | PRD-T4 |
 | THEME-18 | PRD-A12, PRD-A1 |
 | THEME-40 | PRD-T2, PRD-T6, PRD-T13 |
+| THEME-41 | PRD-T6, PRD-T13, PRD-A12 |
 | THEME-19 | PRD-T5 |
 | THEME-20 | PRD-T6 |
 | THEME-35 | PRD-T6 |
@@ -4900,7 +4949,11 @@ pass.
 | THEME-25 | PRD-T13 |
 | THEME-21 | PRD-T9 |
 | THEME-37 | PRD-T9 |
-| THEME-22 | PRD-T10, PRD-A1, PRD-T5, PRD-T6 |
+| THEME-22 | PRD-T10, PRD-A6, PRD-T5 |
+| THEME-42 | PRD-T10, PRD-A11 |
+| THEME-43 | PRD-T10, PRD-A1 |
+| THEME-44 | PRD-T10, PRD-A1 |
+| THEME-45 | PRD-A8, PRD-T10 |
 | THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
 | THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -4951,13 +5004,13 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-18, THEME-22 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-18, THEME-43, THEME-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17, THEME-18 and THEME-33; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
-| PRD-A11 | A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-22 | in full |
-| PRD-A8 | A11Y-11, THEME-22 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
+| PRD-A11 | A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full |
+| PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, THEME-39 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
@@ -4968,9 +5021,9 @@ state in their own statements.
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T4 | THEME-33, THEME-17, THEME-34 | in full |
-| PRD-A12 | THEME-33, THEME-17, THEME-18 | in full |
-| PRD-T10 | THEME-22 | in part: the P2 and P3 budgets of the variants are the performance group's |
-| PRD-T13 | THEME-25, THEME-40, THEME-38 | in full |
+| PRD-A12 | THEME-33, THEME-17, THEME-18, THEME-41 | in full |
+| PRD-T10 | THEME-22, THEME-42, THEME-43, THEME-44, THEME-45 | in part: the P2 and P3 budgets of the variants are the performance group's |
+| PRD-T13 | THEME-25, THEME-40, THEME-38, THEME-41 | in full |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15, THEME-40 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
