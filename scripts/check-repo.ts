@@ -2127,19 +2127,26 @@ function commitMsg(file: string | undefined): Result {
   }
   const lines = text.split("\n");
   const cut = lines.indexOf(SCISSORS);
-  const kept = (cut < 0 ? lines : lines.slice(0, cut)).filter(
-    (l) => !l.startsWith("#"),
-  );
+  const above = cut < 0 ? lines : lines.slice(0, cut);
+  const kept = above.filter((l) => !l.startsWith("#"));
+  // The scan reads the comment lines too: `commit -m` keeps them in the message.
+  const before = above.join("\n");
   const header = headerOf(kept.join("\n"));
   if (!header)
     return result(
       FINDING,
       "the message is empty (lines starting with # are comments)",
     );
-  if (MERGE.test(header) || AUTOSQUASH.test(header))
-    return result(PASS, `${shownHeader(header)}: a merge or autosquash header`);
+  if (MERGE.test(header) || AUTOSQUASH.test(header)) {
+    const leaked = messageSecrets(before);
+    return leaked.code === PASS
+      ? result(PASS, `${shownHeader(header)}: a merge or autosquash header`)
+      : leaked;
+  }
   const problem = headerProblem(header);
-  return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
+  if (problem) return result(FINDING, problem);
+  const leaked = messageSecrets(before);
+  return leaked.code === PASS ? result(PASS, shownHeader(header)) : leaked;
 }
 
 type Stage = [string, () => Result];
@@ -2239,16 +2246,39 @@ function stagedSecrets(root: string, files: string[]): Result {
       return false;
     });
     if (!kept.length) return result(NA, "no staged file holds content to scan");
-    const r = spawnSync(
-      process.execPath,
-      [join(root, "scripts", "scan-secrets.ts"), "dir", dir],
-      { encoding: "utf8", env: childEnv() },
-    );
-    return scanResult(
-      r,
+    return scanFolder(
+      root,
+      dir,
       "the staged files",
       `${kept.length} staged file(s) scanned`,
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The repository's own scan wrapper on a folder of regular files. */
+function scanFolder(
+  root: string,
+  dir: string,
+  what: string,
+  passed: string,
+): Result {
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "scan-secrets.ts"), "dir", dir],
+    { encoding: "utf8", env: childEnv() },
+  );
+  return scanResult(r, what, passed);
+}
+
+// The secret scan of the commit message, in a folder of its own: the range scans of a push read the message through
+// gitleaks' git mode, which was measured to miss a token in a body.
+function messageSecrets(text: string): Result {
+  const dir = mkdtempSync(join(tmpdir(), "message-"));
+  try {
+    writeFileSync(join(dir, "MESSAGE"), text);
+    return scanFolder(process.cwd(), dir, "the message", "the message scanned");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

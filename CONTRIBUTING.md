@@ -180,6 +180,8 @@ and run your own checks, such as a secret scan, by hand.
     (`commit -v`). A message with nothing else is refused as empty.
   - A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
     the `commits` step refuses the autosquash ones at the pull request.
+  - The message, comment lines included, is also scanned for secrets with gitleaks (the range scan of a push reads
+    messages through gitleaks' git mode, which was measured to miss a token in a body); a finding blocks the commit.
   - Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one
     on an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook
     (measured); git keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"`

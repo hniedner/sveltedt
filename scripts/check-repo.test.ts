@@ -1,6 +1,7 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the word its last line starts with; a usage case asserts exit 2.
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -3155,10 +3156,22 @@ test("commits: a very long header is shown shortened, with its length", () => {
 function commitMsg(text: string, code: number): string {
   const file = join(tempDir(), "COMMIT_EDITMSG");
   writeFileSync(file, text);
-  const r = run(["commit-msg", file]);
+  // The scanner on the PATH is the pinned one: a passing message is scanned by the real gitleaks.
+  const r = run(["commit-msg", file], { gitleaks: "" });
   assert.equal(r.code, code, r.out);
   return r.out;
 }
+/** A token of GitHub's personal-access-token shape, built at run time so this file holds none. */
+const fakeToken = (): string =>
+  `ghp_${randomBytes(27).toString("base64url").replace(/[-_]/g, "x").slice(0, 36)}`;
+// Pins: a secret in the body of a message is a finding, so it never reaches the history (the range scan of a push
+// cannot see it: it was measured to pass gitleaks' git scan).
+test("commit-msg: a secret in the message body is a finding that names no value", () => {
+  const out = commitMsg(`feat: add a thing\n\nThe key is ${fakeToken()}\n`, 1);
+  assert.match(out, /^ +FINDING scan-secrets: /m);
+  assert.match(out, /^FINDING commit-msg: secrets in the message$/m);
+  assert.doesNotMatch(out, /ghp_/);
+});
 // Pins: the hook passes a conventional header and refuses one that is not, by the step's rule.
 test("commit-msg: a conventional header passes, one without a type is a finding", () => {
   commitMsg("feat: add a thing\n\nThe body.\n", 0);
@@ -3171,6 +3184,19 @@ test("commit-msg: git's merge header and fixup, squash and amend headers pass, w
   for (const h of ["fixup!", "squash!", "amend!"])
     commitMsg(`${h} feat: ${"x".repeat(95)}\n`, 0);
   commitMsg("fixup! Add a thing\n", 0);
+});
+// Pins: the scan reads the message whatever its header, a merge or autosquash one included, and the comment lines
+// that `commit -m` keeps.
+test("commit-msg: a secret under a merge header or in a comment line is a finding too", () => {
+  for (const text of [
+    `Merge branch 'main'\n\n${fakeToken()}\n`,
+    `fixup! feat: x\n\n${fakeToken()}\n`,
+    `feat: x\n# ${fakeToken()}\n`,
+  ])
+    assert.match(
+      commitMsg(text, 1),
+      /^FINDING commit-msg: secrets in the message$/m,
+    );
 });
 // Pins: git hands the hook its editor template (lines starting with #) and, with -v, a scissors line and the diff
 // below it (measured): comment lines are not the header, and nothing below the scissors line is read.
@@ -3409,6 +3435,21 @@ test("pre-commit: a secret in a staged file blocks the commit", () => {
   const r = gitCommit(root, "-m", "docs: add a note");
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("commit-msg: git refuses a commit whose message holds a secret, and makes no commit", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(
+    root,
+    "-m",
+    "docs: add a note",
+    "-m",
+    "a leak in the body",
+  );
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING commit-msg: secrets in the message$/m);
   assert.equal(head(root), "chore: add the runner");
 });
 test("pre-commit: a suppression comment in a staged script blocks the commit, though no staged file is of a plain class", () => {
