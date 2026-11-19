@@ -40,7 +40,8 @@ to the consumer as one callback (stated with the statements that add user action
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
-  `cancel`, `stopped` and `retry`.
+  `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
+  `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
@@ -2307,6 +2308,160 @@ receives that number.
 - Layer: component.
 - Traces: PRD-I2, PRD-I1.
 
+## 11. Filters: the fields and what they emit (FILT, milestone 4)
+
+These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
+`options` a list of `{ value, label }`; `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
+`{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
+with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
+`maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
+button of FILT-29. The dialog is a popover in the top layer (the dialog statements state how it opens and closes);
+the simulated DOM has no popover (jsdom 31.0.1 implements neither `showPopover` nor `popovertarget`, MEASURED), so
+every statement here that opens the dialog is tested in a real browser, in Chromium, Firefox and WebKit, with time
+moved by fake timers as in the slow-load statements. In the examples, column Name (id `name`) has a text filter
+and column Status (id `status`) a categorical filter with the options `active` "Active" and `inactive` "Inactive",
+in that order; "type" means key presses into the open dialog's field, and times are counted from the last key.
+"Filter Name text" is the text field of Name's dialog; "Find Status options" is the find field of Status's dialog.
+
+**FILT-29** A column with a `filter` MUST show the button "Filter <label>" in its header cell.
+- Examples (the test runs every row; columns Name with a text filter and Note without one):
+
+  | Column | Button in its header cell |
+  |---|---|
+  | Name | one button named "Filter Name" |
+  | Note | none whose name starts with "Filter" (RND-11) |
+
+- Reason: the filter is reached from the column it narrows (RND-11 is the negative half).
+- Layer: component.
+- Traces: PRD-B6, PRD-B7, PRD-B3.
+
+**FILT-01** A text filter MUST emit `onfilter` once typing pauses for `searchDelay` milliseconds, with the field's
+text, and not while typing goes on.
+- Examples (the test runs every row; `filters` holds no filter for Name):
+
+  | Steps | `onfilter` calls |
+  |---|---|
+  | type "beta"; at 399 ms | none |
+  | type "beta"; at 400 ms | one: `('name', { kind: 'text', text: 'beta' })` |
+  | type "be"; at 300 ms type "ta"; at 699 ms after the first key | none |
+  | type "be"; at 300 ms type "ta"; 400 ms after "ta" | one, with "beta" |
+  | `searchDelay={1000}`; type "beta"; at 999 ms, then at 1000 ms | none, then one with "beta" |
+  | `searchDelay={0}`; type "beta" | four, with "b", "be", "bet", "beta" in that order |
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`; type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+
+- Reason: the owner's default, as DataTables' `searchDelay` under server-side processing: one query per pause, not
+  one per key, and no query for a text already applied (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-27** Enter in a text filter's field MUST emit `onfilter` at once, and the pause then emits nothing more.
+- Example: type "beta"; at 100 ms press Enter: one call with "beta" at 100 ms, and still one call at 600 ms.
+- Reason: a user who knows the text is complete need not wait (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-28** With `searchOnEnter`, a text filter MUST emit `onfilter` only on Enter.
+- Example: `searchOnEnter`; type "beta"; at 1000 ms no call; press Enter: one call with "beta".
+- Reason: some servers are too slow for a query per pause; DataTables' `search.return` is the same setting (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-13** A text filter's field MUST be described by "Press Enter to apply." exactly while `searchOnEnter` is set.
+- Examples (the test runs every row):
+
+  | `searchOnEnter` | The accessible description of "Filter Name text" |
+  |---|---|
+  | `true` | contains "Press Enter to apply." |
+  | `false` | does not contain it |
+
+- Reason: under `searchOnEnter` nothing happens until Enter, and the user must learn that before typing; without
+  it the text applies by itself and the hint would be false.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-14** A text filter's field MUST have `autocomplete="off"`.
+- Example: "Filter Name text" has `autocomplete="off"`.
+- Reason: browser suggestions would cover the dialog and could show earlier queries to the next user of a shared
+  machine.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-03** A text filter MUST NOT emit `onfilter` for text it refuses, neither after the pause nor on Enter.
+- Examples (the test runs every row: type, wait 400 ms, press Enter; no call):
+
+  | Typed | Refused because |
+  |---|---|
+  | "a", U+0001, "b" | a control character |
+  | "a", U+007F | a control character |
+  | 256 times "x" | longer than `maxLength` |
+  | 11 times "x", with `maxLength={10}` | longer than `maxLength` |
+
+  The field accepts the 256th character: it has no `maxlength` attribute, so the user sees the refusal of FILT-15
+  instead of keys that do nothing.
+- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-15** While a text filter's field holds refused text, the field MUST be `aria-invalid="true"` and described by
+an alert that says why.
+- Examples (the test runs every row; the checks hold right after the key that made the text refused, before any
+  pause):
+
+  | Typed | Alert text (default) |
+  |---|---|
+  | "a", U+0001 | "Use at most 255 characters without control characters." |
+  | 11 times "x", with `maxLength={10}` | "Use at most 10 characters without control characters." |
+
+- Reason: the user hears why the filter was not applied, at the field (PRD-B6, WCAG 3.3.1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alert.
+- Example: type "a", U+0001, then Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
+  dialog; at 400 ms one call with "a".
+- Reason: a stale error misleads (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
+order, each checked exactly while its value is in `selected`.
+- Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
+  checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
+- Reason: the server accepts only its own vocabulary, so the user picks from it (PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
+
+**FILT-04** Each toggle of a categorical option MUST emit `onfilter` once, at once, with the next selection's values in
+the options' order.
+- Examples (the test runs every row; one press each):
+
+  | `selected` before | Press | `onfilter` call |
+  |---|---|---|
+  | `[]` | "Inactive" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
+  | `['inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['active', 'inactive'] })` |
+  | `['active', 'inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
+
+- Reason: the server matches on values, labels are for people, and a click has no half-typed state to wait for
+  (PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
+
+**FILT-18** A categorical filter's find field MUST narrow the shown options to those whose label contains its text,
+and MUST NOT emit anything or change the selection.
+- Example: `selected ['active']`; type "inact" in "Find Status options": the checkbox "Inactive" is shown and
+  "Active" is not; at 1000 ms no callback has been called; clearing the field shows "Active" again, still checked.
+- Reason: the find field helps the user reach an option in a long list; it is not a filter of its own.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
+
+**FILT-05** When `filters` changes while the open field holds newer typing, the field MUST keep the newer typing.
+- Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `filters` becomes
+  `name: { kind: 'text', text: 'mel' }`: the field reads "melanoma"; 400 ms after the last key a second call with
+  "melanoma".
+- Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
 ## Trace
 
 ### Statement -> PRD
@@ -2466,6 +2621,19 @@ receives that number.
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
 | I18N-01 | PRD-I2, PRD-I1 |
+| FILT-29 | PRD-B6, PRD-B7, PRD-B3 |
+| FILT-01 | PRD-B6 |
+| FILT-27 | PRD-B6 |
+| FILT-28 | PRD-B6 |
+| FILT-13 | PRD-B6, PRD-A1 |
+| FILT-14 | PRD-B6 |
+| FILT-03 | PRD-B6 |
+| FILT-15 | PRD-B6, PRD-A1 |
+| FILT-16 | PRD-B6 |
+| FILT-17 | PRD-B7 |
+| FILT-04 | PRD-B7 |
+| FILT-18 | PRD-B7 |
+| FILT-05 | PRD-B6 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -2482,9 +2650,11 @@ state in their own statements.
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29 | in part: the filter group states the positive half of RND-12 in its own statement |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29 | in part: the global search statements state the search's half |
+| PRD-B7 | FILT-17, FILT-04, FILT-18, FILT-29 | in part: the filter faults state an applied value that is no option |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
@@ -2495,7 +2665,7 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
@@ -2520,7 +2690,6 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Filter and criteria: PRD-B6, PRD-B7.
 - Columns (chooser, reorder, resize): PRD-B10, PRD-B11, PRD-B12.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
