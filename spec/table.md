@@ -38,7 +38,7 @@ to the consumer as one callback (stated with the statements that add user action
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
-  `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props: the slow-load statements of
+  `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
@@ -2108,6 +2108,7 @@ new `limit` and offset.
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
+  | `unfilteredTotal` is given and is -1, 1.5, `NaN`, `Infinity`, 2^53, or below `total` | `unfilteredTotalInvalid` | "The unfiltered row total is not valid." |
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer).
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
@@ -2130,6 +2131,8 @@ new `limit` and offset.
   | `pageNumber` (a function of the page number) | "6" for page 6 | PAGE-02, I18N-01 |
   | `sizeLabel` | "rows per page" | PAGE-07, PAGE-24 |
   | `sizeOption` (a function of the size) | "1,000" for 1000 | PAGE-07, I18N-01 |
+  | `info` (a function of `{ first, last, total }`) | "Showing 1 to 10 of 57 rows" | PAGE-37, I18N-01 |
+  | `infoFiltered` (a function of the unfiltered total) | "(filtered from 1,000 total rows)" for 1000 | PAGE-38, I18N-01 |
   | each alert message of PAGE-16 | its default in PAGE-16 | PAGE-16 |
 
   The gap mark "…" is a symbol hidden from assistive technology (PAGE-11), not a word.
@@ -2242,12 +2245,67 @@ the computed value that the literal table of its test states.
   |---|---|
   | the pager's `nav` | THEME-10's properties of the region |
   | each button of the pager and its page-size `select` | THEME-10's properties of the region, and `appearance` |
-  | every element above | `font-family`, `font-size` and `line-height` equal those of its parent element |
+  | every element above, and the element that holds the information line (PAGE-37) | `font-family`, `font-size` and `line-height` equal those of its parent element |
 
 - Reason: the pager must look the same whatever the application loaded first, as THEME-10 states for the table
   (PRD-T11 (a)).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T11.
+
+**PAGE-37** The pager MUST show the information line "Showing <first> to <last> of <total> rows", worked out from
+`offset`, `limit` and `total`.
+- Examples (the test runs every row; `limit 10`; the line is visible text within the pager):
+
+  | `offset` | `total` | Line |
+  |---|---|---|
+  | 0 | 57 | "Showing 1 to 10 of 57 rows" |
+  | 50 | 57 | "Showing 51 to 57 of 57 rows" |
+  | 0 | 1 | "Showing 1 to 1 of 1 row" |
+  | 0 | 0 | "Showing 0 to 0 of 0 rows" |
+  | 100 | 95 | "Showing 0 to 0 of 95 rows" |
+  | 1000 | 12345 | "Showing 1,001 to 1,010 of 12,345 rows" |
+
+  First is `offset` plus 1; last is the smaller of `offset` plus `limit` and `total`: the pager is given no rows,
+  and an answer that matches its query holds that many (PRD-B26's "number of rows given"). With no row on the page,
+  a total of 0 or an `offset` at or past `total` (PAGE-25), first and last are 0.
+- Reason: a user reads where they are and how many rows matched, as in DataTables' `info`; past the end the range
+  `offset` plus 1 to `total` would run backwards ("Showing 101 to 95"), while 0 to 0 says the page is empty and keeps
+  the total.
+- Layer: component.
+- Traces: PRD-B26.
+
+**PAGE-38** With `unfilteredTotal` given and different from `total`, the information line MUST end with "(filtered
+from <unfilteredTotal> total rows)", after one space.
+- Examples (the test runs every row; `offset 0, limit 10`):
+
+  | `total` | `unfilteredTotal` | Line |
+  |---|---|---|
+  | 57 | 1000 | "Showing 1 to 10 of 57 rows (filtered from 1,000 total rows)" |
+  | 57 | 57 | "Showing 1 to 10 of 57 rows" |
+  | 57 | not given | "Showing 1 to 10 of 57 rows" |
+  | 0 | 1 | "Showing 0 to 0 of 0 rows (filtered from 1 total row)" |
+
+- Reason: the user learns that filters narrowed the rows, and from how many, as in DataTables' `infoFiltered`; the
+  same number twice tells nothing.
+- Layer: component.
+- Traces: PRD-B26.
+
+**PAGE-39** The information line MUST NOT be announced: neither the element that holds it nor any of its ancestors
+within the pager has `aria-live` or the role `status`, `alert` or `log`.
+- Example: `offset 0, limit 10, total 57`, then `offset 10`: the line reads "Showing 11 to 20 of 57 rows", and the
+  element holding it and its ancestors up to the pager's `nav` have none of those attributes or roles.
+- Reason: the table's live count (A11Y-05) is the one announcement of a new page; the line would say it a second
+  time (PRD-B26, PRD-A4).
+- Layer: component.
+- Traces: PRD-B26, PRD-A4.
+
+**PAGE-40** The information line MUST come before the pager's controls (PAGE-10) in document order.
+- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: the element holding "Showing 101 to 110 of 200 rows"
+  comes before the page-size select and before "First page".
+- Reason: DataTables' default layout puts the information at the start and the paging controls at the end; reading
+  order and Tab order then match that visual order (WCAG 1.3.2).
+- Layer: component.
+- Traces: PRD-B26, PRD-A3.
 
 ## 9. Ids across instances and server rendering (ID)
 
@@ -2297,6 +2355,8 @@ receives that number.
   | `pageNumber` | 1234 | "1,234" | PAGE-02 |
   | `pageLabel` | 1234 | "Page 1,234" | PAGE-01 |
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
+  | `info` | `{ first: 1001, last: 1010, total: 12345 }` | "Showing 1,001 to 1,010 of 12,345 rows" | PAGE-37 |
+  | `infoFiltered` | 1000 | "(filtered from 1,000 total rows)" | PAGE-38 |
 
   The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
   German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
@@ -2461,6 +2521,10 @@ receives that number.
 | PAGE-34 | PRD-T2, PRD-A1 |
 | PAGE-35 | PRD-T2, PRD-A1 |
 | PAGE-36 | PRD-T11 |
+| PAGE-37 | PRD-B26 |
+| PAGE-38 | PRD-B26 |
+| PAGE-39 | PRD-B26, PRD-A4 |
+| PAGE-40 | PRD-B26, PRD-A3 |
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
@@ -2486,6 +2550,7 @@ state in their own statements.
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
+| PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
