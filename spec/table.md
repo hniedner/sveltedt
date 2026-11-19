@@ -3264,7 +3264,7 @@ all given columns, when the first `columnState` after the press shows that move,
   "1,000".
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1, PRD-I2.
+- Traces: PRD-I1, PRD-I2, PRD-B11.
 
 ### Column order: the drag grip (milestone 5)
 
@@ -3379,23 +3379,39 @@ COL-14 says.
 ### Column width: separators and the chooser's buttons (milestone 5)
 
 These statements add `widths` to `columnState`: an object from column id to a width in CSS px (PRD-B12). Each column's
-header cell ends with a focusable separator, found by role `separator` and its name. The minimum width is 50 CSS px;
-the maximum is the region's client width, so a column never grows wider than the user can see. A step is 10 CSS px.
-The values and their sources are in the practice check of 2026-11-19 (MUI X's minimum of 50 px,
-FETCHED; the step INFERRED, as no fetched grid states one). The examples are those of section 12 in a region 600 CSS
-px wide, with `widths` `{ name: 200, code: 120, date: 120 }` unless a row says otherwise.
+header cell ends with a focusable separator, found by role `separator` and its name; its pointer target is at least
+24 by 24 CSS px and is centred on the column's end edge. The width model, from the practice check of 2026-11-19:
 
-**COL-21** Each column's separator MUST have the name "<label> width", `aria-orientation="vertical"`, and its width,
-the minimum and the maximum as `aria-valuenow`, `aria-valuemin` and `aria-valuemax`.
-- Example: the separator "Name width" has `aria-orientation="vertical"`, `aria-valuenow="200"`, `aria-valuemin="50"`
-  and `aria-valuemax="600"`; it is in the Tab order, after Name's header controls.
+- While `widths` holds no entry for a shown column, the browser lays the table out from its content.
+- Once it holds one, the table has a fixed layout and is exactly as wide as the sum of its shown columns' widths
+  (TanStack Table's total, FETCHED), so no column takes spare space; the region scrolls when that sum is wider (A11Y-12).
+- A shown column's width is its entry, or 150 CSS px where it has none (TanStack Table's default, FETCHED); an entry
+  that is not a finite number counts as none; a width below 50 is drawn at 50 (MUI X's minimum, FETCHED), above 1000
+  at 1000 (INFERRED: no fetched grid gives a usable maximum, and End needs one). Such a width is no fault.
+- A step is 10 CSS px (INFERRED: no fetched grid states one).
+
+The examples are those of section 12 with `widths` `{ name: 200, code: 120, date: 120 }` unless a row says otherwise.
+
+**COL-21** Each column's separator MUST have the name "<label> width", `aria-orientation="vertical"`, the drawn width as
+`aria-valuenow`, 50 as `aria-valuemin` and 1000 as `aria-valuemax`.
+- Examples (the test runs every row; the separator "Name width"):
+
+  | `widths` | `aria-valuenow` |
+  |---|---|
+  | `{ name: 200, code: 120, date: 120 }` | "200" |
+  | `{ code: 120 }` | "150" |
+  | `{ name: 30 }` | "50" |
+  | `{ name: 'wide', code: 120 }` | "150" |
+
+  In each row it has `aria-orientation="vertical"`, `aria-valuemin="50"` and `aria-valuemax="1000"`, and it is in the
+  Tab order after Name's header controls.
 - Reason: the APG window-splitter pattern; a screen-reader user hears which width they change and its bounds (PRD-B12,
   PRD-A1).
-- Layer: real browser (Chromium, Firefox, WebKit), since the maximum is a measured width.
+- Layer: component.
 - Traces: PRD-B12, PRD-A1.
 
-**COL-22** Each arrow, Home or End key on a separator MUST emit `oncolumnstate` once with the column's next width, and
-nothing at a bound it cannot pass.
+**COL-22** Left, Right, Home and End on a separator MUST emit `oncolumnstate` once with the column's next width, limited
+to 50 and 1000, and nothing when the width would not change.
 - Examples (the test runs every row; focus on "Name width"; one key each):
 
   | `widths.name` | Key | `oncolumnstate` receives `widths.name` |
@@ -3405,65 +3421,84 @@ nothing at a bound it cannot pass.
   | 55 | Left | 50 |
   | 50 | Left | no call |
   | 200 | Home | 50 |
-  | 200 | End | 600 |
-  | 600 | Right | no call |
-  | 200, the table `dir="rtl"` | Left | 210 |
+  | 200 | End | 1000 |
+  | 1000 | Right | no call |
+  | 200 | Up, then Down | no call |
+  | no entry (150) | Right | 160 |
+  | 200, the page's `html` element with `dir="rtl"` | Left | 210 |
 
   The rest of `columnState` is passed on as given. In a right-to-left table the column's end edge is on the left, so
   Left widens it.
-- Reason: one key step is one change, never a flood (PRD-B12); arrows move the separator the way they point (APG).
-- Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B12, PRD-B2.
+- Reason: one key step is one change, never a flood (PRD-B12); arrows move the separator the way they point, and the
+  APG pattern uses Left and Right for a vertical separator.
+- Layer: component (the right-to-left row: real browser, Chromium, Firefox, WebKit).
+- Traces: PRD-B12, PRD-B2, PRD-I3.
 
-**COL-31** A pointer drag of a separator MUST emit `oncolumnstate` once, on the release, with the width at the
-release, wherever the pointer is; Escape or a cancelled pointer during the drag MUST emit nothing.
-- Examples (the test runs every row; the mouse presses "Name width" and moves in steps of 10 px):
+**COL-31** A pointer drag of a separator MUST emit `oncolumnstate` once, on the release, with the width at the release,
+wherever the pointer is; a press with no move, Escape during the drag, or a cancelled pointer MUST emit nothing.
+- Examples (the test runs every row; the mouse presses "Name width" and moves in steps of 10 px; the application's
+  `document` listener as in COL-16):
 
-  | Steps | `oncolumnstate` |
-  |---|---|
-  | move 60 px towards the end, release over Code's header cell | once, `widths.name` 260 |
-  | move 60 px towards the end, release below the table | once, `widths.name` 260 |
-  | move 400 px towards the start, release | once, `widths.name` 50 |
-  | move 60 px, press Escape, release | no call |
-  | move 60 px, `pointercancel` on the separator for that pointer, release | no call |
+  | Steps | `oncolumnstate` | Escapes the listener counts |
+  |---|---|---|
+  | move 60 px towards the end, release over Code's header cell | once, `widths.name` 260 | - |
+  | move 60 px towards the end, release below the table | once, `widths.name` 260 | - |
+  | move 400 px towards the start, release | once, `widths.name` 50 | - |
+  | release with no move; focus is on "Name width" | no call | - |
+  | move 60 px, press Escape, release | no call | 0 |
+  | move 60 px, `pointercancel` on the separator for that pointer, release | no call | - |
+  | no drag, focus on "Name width", press Escape | no call | 1 |
 
-  No call is made before the release. An Escape that ends a drag does not reach an application `keydown` listener on
-  `document`, and an Escape on a separator with no drag does, as COL-16 states for the grip.
-- Reason: per-pixel emits flood the application, and Escape is the way out (WCAG 2.5.2; PRD-B12, PRD-B19).
+  A press on the separator leaves focus on it, so a key during the drag goes to it, and the separator captures the
+  pointer. Its computed `touch-action` is "none" in all three engines, and a touch drag works as COL-19 states for the
+  grip, with the same route and limit.
+- Reason: per-pixel emits flood the application, a click that focuses the separator for the keys is no resize, and
+  Escape is the way out (WCAG 2.5.2; PRD-B12, PRD-B19).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12, PRD-B19.
 
+**COL-37** During a pointer drag of a separator, the column MUST be drawn at the dragged width, and after the release at
+the width `columnState` gives.
+- Example: an `oncolumnstate` that changes nothing; press "Name width", move 60 px towards the end: Name is drawn 260 px
+  wide; release: Name is drawn 200 px wide; with an `oncolumnstate` that applies the emitted state, release: 260 px.
+- Reason: the user sees where the edge goes while dragging; the application's state decides what stays (PRD-B2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B12, PRD-B2.
+
 **COL-32** Each column's entry in the chooser MUST hold the buttons "Narrower" and "Wider", each named by its words and
-the column's label, and a press MUST emit `oncolumnstate` once with the width one step narrower or wider.
+the column's label, and a press MUST emit `oncolumnstate` once with the width one step narrower or wider, and nothing,
+with the button `aria-disabled="true"` and keeping focus, at the bound it cannot pass.
 - Examples (the test runs every row; one press, as "emits once" defines it):
 
-  | `widths.name` | Press | `oncolumnstate` receives `widths.name` |
+  | `widths.name` | Press | Result |
   |---|---|---|
-  | 200 | "Wider Name" | 210 |
-  | 200 | "Narrower Name" | 190 |
+  | 200 | "Wider Name" | `widths.name` 210 |
+  | 200 | "Narrower Name" | `widths.name` 190 |
   | 50 | "Narrower Name" | no call; the button has `aria-disabled="true"` and keeps focus |
+  | 1000 | "Wider Name" | no call; the button has `aria-disabled="true"` and keeps focus |
 
 - Reason: a single-pointer way that needs no drag (WCAG 2.5.7: keyboard operation alone does not meet it, FETCHED
-  2026-11-19; PRD-B12).
+  2026-11-19; PRD-B12); a disabled control keeps the user's place (as COL-10).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12, PRD-A1.
 
-**COL-33** Once `widths` holds a width for a shown column, every shown column MUST be drawn at its given width, or at the
-width the browser gives it where none is given, with its text wrapping inside it and never cut off.
-- Examples (the test runs every row; widths measured on the header cells; the cell text of Name in row 1 is
-  "Supercalifragilistic expialidocious"):
+**COL-33** Once `widths` holds an entry for a shown column, each shown column MUST be drawn at its width of the model
+above, the table as wide as their sum, with every cell's text wrapping inside its cell.
+- Examples (the test runs every row; widths measured on the header cells' border boxes, within 1 px; the cell text of
+  Name in row 1 is "Supercalifragilisticexpialidocious", one word):
 
   | `widths` | Drawn |
   |---|---|
-  | `{ name: 50 }` | Name 50 px wide; its cell text wraps onto more lines, and the cell's `scrollWidth` equals its `clientWidth` |
-  | `{ name: 30 }` | Name 50 px wide (the minimum) |
-  | `{ name: 'wide' }` | Name as the browser lays it out: a width that is not a number is ignored |
+  | `{ name: 200, code: 120, date: 120 }` | 200, 120, 120; the table 440 wide in a 600 px wide region |
+  | `{ name: 50 }` | Name 50, Code and Date 150 each; Name's long word wraps onto more lines inside the cell (the text range's box lies within the cell's border box) |
+  | `{ name: 30, code: 2000 }` | Name 50, Code 1000, Date 150 |
   | not given | every column as the browser lays it out from its content |
 
-  No cell shows an ellipsis: the computed `text-overflow` of every cell is "clip" and its `overflow` is "visible".
-- Reason: a fixed layout keeps the widths the user chose; cut text would be lost data for every user (PRD-B12).
+  No cell shows an ellipsis, and at 50 px every control of a header cell keeps a target of at least 24 by 24 CSS px,
+  none overlapping another (they wrap onto more lines).
+- Reason: a fixed layout keeps the widths the user chose; cut text would be lost data for every user (PRD-B12, PRD-A6).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B12.
+- Traces: PRD-B12, PRD-A6.
 
 **COL-34** The widths of hidden columns MUST be kept: passed on in every emitted state, and used again when the column
 is shown.
@@ -3478,11 +3513,11 @@ is shown.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12.
 
-**COL-35** A width change MUST change nothing on screen until `columnState` changes.
+**COL-35** After a key or a press on the chooser's buttons, the width MUST change nothing on screen until `columnState`
+changes.
 - Example: an `oncolumnstate` that changes nothing; press Right on "Name width": the separator's `aria-valuenow` stays
-  "200" and Name is still 200 px wide; the same after a pointer drag released 60 px further.
-- Reason: the application's state is the only source of truth (PRD-B2); the drag shows its own preview while it lasts
-  and nothing after.
+  "200" and Name is still 200 px wide; the same after "Wider Name".
+- Reason: the application's state is the only source of truth (PRD-B2); the drag's preview is COL-37's.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B12, PRD-B2.
 
@@ -3497,7 +3532,7 @@ is shown.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1.
+- Traces: PRD-I1, PRD-B12.
 
 **THEME-16** On each host page of THEME-10, the elements of the column statements MUST have, for each property listed
 for them below, the computed value that the literal table of its test states.
@@ -3747,7 +3782,7 @@ for them below, the computed value that the literal table of its test states.
 | COL-10 | PRD-B11, PRD-A1 |
 | COL-11 | PRD-B11, PRD-A3 |
 | COL-12 | PRD-A4, PRD-B11 |
-| COL-30 | PRD-I1, PRD-I2 |
+| COL-30 | PRD-I1, PRD-I2, PRD-B11 |
 | COL-13 | PRD-B11, PRD-A1 |
 | COL-14 | PRD-B11, PRD-B2 |
 | COL-20 | PRD-B11 |
@@ -3757,13 +3792,14 @@ for them below, the computed value that the literal table of its test states.
 | COL-18 | PRD-A4, PRD-B11 |
 | COL-19 | PRD-B11 |
 | COL-21 | PRD-B12, PRD-A1 |
-| COL-22 | PRD-B12, PRD-B2 |
+| COL-22 | PRD-B12, PRD-B2, PRD-I3 |
 | COL-31 | PRD-B12, PRD-B19 |
+| COL-37 | PRD-B12, PRD-B2 |
 | COL-32 | PRD-B12, PRD-A1 |
-| COL-33 | PRD-B12 |
+| COL-33 | PRD-B12, PRD-A6 |
 | COL-34 | PRD-B12 |
 | COL-35 | PRD-B12, PRD-B2 |
-| COL-36 | PRD-I1 |
+| COL-36 | PRD-I1, PRD-B12 |
 | THEME-16 | PRD-T11 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
@@ -3781,7 +3817,7 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
@@ -3789,7 +3825,9 @@ state in their own statements.
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
-| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25 | in full |
+| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37 | in full |
+| PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
+| PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -3819,7 +3857,7 @@ state in their own statements.
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
-| PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36, THEME-16 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
+| PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36, THEME-16 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the dialogs (the chooser, the grips and the separators: THEME-16) and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
@@ -3829,9 +3867,8 @@ state in their own statements.
 
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
-- Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
-- Internationalisation: PRD-I3.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
