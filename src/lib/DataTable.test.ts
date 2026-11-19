@@ -1045,6 +1045,20 @@ describe("RND-11", () => {
   });
 });
 
+// @spec("RND-12", "f3696064")
+describe("RND-12", () => {
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ...fiveStates,
+    ["status 'ready', busy", { busy: true }],
+  ])(
+    "shows no Reset table button with two plain columns in %s",
+    (_state, props) => {
+      show({ columns: [nameColumn, noteColumn], ...props });
+      expect(screen.queryByRole("button", { name: "Reset table" })).toBeNull();
+    },
+  );
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
