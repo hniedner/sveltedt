@@ -1373,10 +1373,10 @@ moves to the page before the current one, or to offset 0 from page 1; past `tota
 - Layer: component.
 - Traces: PRD-B9, PRD-A1.
 
-**PAGE-10** The pager's controls MUST come in this order: "First page", "Previous page", the page numbers, "Next page",
-"Last page", then the page-size select when there is one.
-- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: in document order, every page number button lies after
-  "Previous page" and before "Next page", and the select comes after "Last page".
+**PAGE-10** The pager's controls MUST come in this order: the page-size select when there is one, then "First page",
+"Previous page", the page numbers, "Next page", "Last page".
+- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: in document order, the select comes before "First page",
+  and every page number button lies after "Previous page" and before "Next page".
 - Reason: reading order and Tab order match the visual order (WCAG 1.3.2, 2.4.3).
 - Layer: component.
 - Traces: PRD-B9, PRD-A3.
