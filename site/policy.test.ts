@@ -69,6 +69,8 @@ describe("POL-01", () => {
         status: 200,
         type: "text/javascript; charset=utf-8",
       });
+      // The site's script of PRD-S1 (spec conventions): the one that records each violation
+      expect(listener.body).toContain("securitypolicyviolation");
       const early = scripts
         .slice(0, first)
         .filter(

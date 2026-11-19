@@ -1867,6 +1867,9 @@ const SITE_CONFIG = "site/vite.config.ts";
 function site(root: string, list: Set<string>): Result {
   if (!list.has(SITE_CONFIG))
     return result(NA, `no tracked ${SITE_CONFIG}: no site to build`);
+  // A folder left from an earlier build must not pass for this one
+  const dist = join(root, "site", "dist");
+  rmSync(dist, { recursive: true, force: true });
   const r = spawnSync(viteBin(), ["build", "--config", SITE_CONFIG], {
     cwd: root,
     encoding: "utf8",
@@ -1881,7 +1884,6 @@ function site(root: string, list: Set<string>): Result {
       `vite build exited ${r.status}`,
       tail(`${r.stdout}${r.stderr}`),
     );
-  const dist = join(root, "site", "dist");
   const built = existsSync(dist)
     ? readdirSync(dist, { recursive: true, withFileTypes: true }).filter((e) =>
         e.isFile(),

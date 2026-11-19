@@ -898,6 +898,10 @@ test("format: an unformatted Markdown file is a finding that names it", () => {
   const bad = edit("CONTRIBUTING.md", "# Contributing\n", "#   Contributing\n");
   assert.match(expect("format", repo(bad), 1), /CONTRIBUTING\.md/);
 });
+test("format: an unformatted site public script is a finding that names it", () => {
+  const bad = (root: string) => put(root, "site/public/x.js", "window.a=1\n");
+  assert.match(expect("format", repo(bad), 1), /site\/public\/x\.js/);
+});
 test("format: an unformatted JSON file is a finding", () => {
   expect(
     "format",
@@ -3696,6 +3700,15 @@ test("site: without a tracked site/vite.config.ts the step is not applicable", (
     /^NOT APPLICABLE site: no tracked site\/vite\.config\.ts/m,
   );
 });
+test("site: an untracked site/vite.config.ts is not applicable either", () => {
+  const untracked = (root: string): void => {
+    siteFiles()(root);
+    put(root, ".git/info/exclude", "site/\n");
+  };
+  const r = run(["site", "--root", repo(untracked)]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE site:/m);
+});
 test("site: passes when vite builds the site into site/dist, and counts the files", () => {
   assert.match(
     expect("site", repo(siteFiles()), 0),
@@ -3721,6 +3734,12 @@ test("site: a build that leaves site/dist missing or empty cannot be checked", (
     mkdirSync(join(root, "site", "dist"));
   };
   assert.match(expect("site", repo(empty), 3), /site\/dist missing or empty/);
+  // A site/dist left from an earlier build does not pass for this one
+  const stale = (root: string): void => {
+    elsewhere(root);
+    put(root, "site/dist/index.html", "<!doctype html><title>old</title>\n");
+  };
+  assert.match(expect("site", repo(stale), 3), /site\/dist missing or empty/);
 });
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(
