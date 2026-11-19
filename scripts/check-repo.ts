@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -2183,7 +2184,7 @@ function preCommit(): Result | Stage[] {
     "--cached",
     "--name-only",
     "-z",
-    "--diff-filter=ACMR",
+    "--diff-filter=ACMRT",
   );
   const changed = git("diff", "--name-only", "-z");
   if (staged.status !== 0 || changed.status !== 0)
@@ -2253,6 +2254,14 @@ function stagedSecrets(root: string, files: string[]): Result {
         CANNOT,
         `git cannot export the staged files: ${e.stderr.trim()}`,
       );
+    // The scanner takes a tree of regular files with content: a symlink or an empty file holds nothing to scan.
+    const kept = files.filter((f) => {
+      const s = lstatSync(join(dir, f));
+      if (s.isFile() && s.size) return true;
+      rmSync(join(dir, f));
+      return false;
+    });
+    if (!kept.length) return result(NA, "no staged file holds content to scan");
     const r = spawnSync(
       process.execPath,
       [join(root, "scripts", "scan-secrets.ts"), "dir", dir],
@@ -2261,7 +2270,7 @@ function stagedSecrets(root: string, files: string[]): Result {
     return scanResult(
       r,
       "the staged files",
-      `${files.length} staged file(s) scanned`,
+      `${kept.length} staged file(s) scanned`,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

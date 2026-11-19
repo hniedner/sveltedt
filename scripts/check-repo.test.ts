@@ -3452,6 +3452,31 @@ test("pre-commit: a whole-repository listing that fails cannot be checked, and i
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stdout, /^COULD NOT CHECK lockfile: /m);
 });
+test("pre-commit: a commit of only empty files has no secret scan to run, and is not blocked", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/empty.md", "");
+  git(root, "add", "notes/empty.md");
+  const r = gitCommit(root, "-m", "docs: add an empty note");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE secrets: /m);
+  assert.doesNotMatch(r.out, /scan-secrets dir/);
+  assert.equal(head(root), "docs: add an empty note");
+});
+test("pre-commit: a file that replaces a symlink is scanned", () => {
+  const root = hooked((r) => {
+    listingScan(r);
+    symlinkSync("a.md", join(r, "notes-link.md"));
+    put(r, "a.md", "# A note\n");
+  });
+  rmSync(join(root, "notes-link.md"));
+  put(root, "notes-link.md", "# A leak\n");
+  git(root, "add", "notes-link.md");
+  const r = gitCommit(root, "-m", "docs: make the link a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir notes-link\.md$/m);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
 test("pre-commit: a commit that only deletes files has nothing to check", () => {
   const root = hooked();
   git(root, "rm", "-q", "AGENTS.md");
