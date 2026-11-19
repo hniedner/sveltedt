@@ -4073,10 +4073,10 @@ page body.
 - Layer: component.
 - Traces: PRD-I1.
 
-### The views: target size, zoom, reflow, text spacing, forced colours, focus and right-to-left (milestone 7)
+### The views: target size, zoom, reflow, text spacing, focus and right-to-left (milestone 7)
 
 These statements run in the views of PRD section 4.3 on the test site's page with the table of section 16's set-up
-(every feature on), each dialog opened in turn where a row says so: the default view (1280 by 800 CSS px), the zoom
+(every feature on), with no dialog open: the default view (1280 by 800 CSS px), the zoom
 view (640 by 400 at device scale factor 2, 200 % zoom), the 320 view (320 by 256 at factor 4) and the spacing view (a
 same-origin stylesheet setting the WCAG text-spacing values with `!important`; the test first asserts that a body
 cell's computed `line-height` and `letter-spacing` equal them). "The clipping check" is the algorithm of PRD section
@@ -4084,12 +4084,12 @@ cell's computed `line-height` and `letter-spacing` equal them). "The clipping ch
 where computed overflow is not `visible`, `scrollWidth <= clientWidth + 1` and `scrollHeight <= clientHeight + 1`;
 (b) for every header and body cell, the bounding box of a text range over its contents lies within the cell's border
 box (+-1 px); (c) the bounding boxes of visible controls in the toolbar, header cells, badges and pager intersect by at
-most 1 px; (d) at horizontal scroll 0, every element outside the table lies within the viewport width. Two readings of
-(a) this spec fixes: an element visually hidden on purpose (its box at most 1 by 1 CSS px: the caption, the live
-regions, the skip link while not focused) holds no visible text and is left out; an open dialog that scrolls is a
-scroll region as the region is (a long chooser overflows a 320 by 256 view by design) and is left out, while its box
-lies within the viewport. The views with density "compact" and the variants are the theming milestone's (PRD-T5,
-T6).
+most 1 px; (d) at horizontal scroll 0, every element outside the table lies within the viewport width. One reading
+of (a) this spec fixes, of the PRD's own exception for what is clipped by design: the caption, the live regions and
+the skip link while not focused are visually hidden on purpose, hold no visible text and are left out, and the test
+asserts that each of them measures at most 1 by 1 CSS px. A later branch states the views with each dialog open,
+forced colours (A11Y-11) and focus on selected rows. The views with density "compact" and the variants are the
+theming milestone's (PRD-T5, T6).
 
 **A11Y-39** Every pointer target of the component MUST be at least 24 by 24 CSS px while it is shown.
 - Examples (the test runs every row; every button, link, checkbox, field, separator and grip the component renders
@@ -4107,17 +4107,16 @@ T6).
 - Traces: PRD-A6, PRD-A1.
 
 **A11Y-40** In the zoom view, the clipping check MUST pass.
-- Example: the zoom view, each dialog opened in turn, and the progress indicator with "Still loading" and "Cancel"
-  shown once (`oncancel` passed, `status 'loading'` for 6 seconds, fake timers): the clipping check passes after
-  each.
+- Example: the zoom view, then the progress indicator with "Still loading" and "Cancel" shown (`oncancel` passed,
+  `status 'loading'` for 6 seconds, fake timers): the clipping check passes in both.
 - Reason: WCAG 1.4.4 (PRD-A11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A11, PRD-A1.
 
 **A11Y-41** In the 320 view, the clipping check MUST pass.
-- Example: the 320 view, as A11Y-40: the clipping check passes after each; by its part (d) the toolbar, the badges,
-  each open dialog, the pager, "Still loading" and "Cancel" lie within the viewport's width at a horizontal scroll of
-  0, while the region scrolls the table sideways (A11Y-12).
+- Example: the 320 view, as A11Y-40: the clipping check passes in both; by its part (d) the toolbar, the badges,
+  the pager, "Still loading" and "Cancel" lie within the viewport's width at a horizontal scroll of 0, while the table
+  scrolls sideways inside the region.
 - Reason: WCAG 1.4.10 exempts the table but not what surrounds it (PRD-A11).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A11, PRD-A1.
@@ -4130,40 +4129,13 @@ T6).
 
 **A11Y-45** Every control of the component but the region MUST show a visible focus indicator when it is focused by
 keyboard.
-- Examples (the test runs every row; the default view; Tab through every control, each dialog opened in turn; each
-  control's computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour
-  whose alpha is above 0, and differs from its unfocused style, as A11Y-07 states for the region):
-
-  | Rows |
-  |---|
-  | plain rows |
-  | the first row selected (`selection.selected` `['r1']`): its box and cell controls |
-
-  Striped and hovered rows are the theming milestone's (PRD-T5, T6).
+- Example: the default view, plain rows: Tab through every control, each dialog opened in turn: each control's
+  computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour whose alpha
+  is above 0, and differs from its unfocused style, as A11Y-07 states for the region. Striped and hovered rows are the
+  theming milestone's (PRD-T5, T6).
 - Reason: WCAG 2.4.7 (PRD-A1).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
-
-**A11Y-11** In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and
-the "Cancel" and "Try again" buttons MUST stay visible.
-- Examples (the test runs every row; Playwright's `forcedColors: 'active'` emulation, the default view; "drawn"
-  means that a screenshot of the element's box holds at least two distinct colours, and "differs" that two
-  screenshots of the same box differ):
-
-  | Item | Check |
-  |---|---|
-  | a sort button | focused and unfocused differ |
-  | a row box | unchecked, checked and mixed (the header box) differ pairwise |
-  | the mark of an ascending sort with rank "2" | the header cell with it and with `sort` `[]` differ |
-  | a separator | drawn |
-  | the progress indicator, "Still loading" and "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) | each drawn |
-  | "Try again" (`onretry`, `status 'stopped'`) | drawn |
-
-- Reason: users of high-contrast modes lose any state shown only by background or a custom colour (PRD-A8). Stated
-  limit (PRD section 4.3): Firefox's emulation only flips the media query and WebKit has none, so the rendered proof
-  there is the release's contrast-theme step (PRD-A5), not this test.
-- Layer: real browser (Chromium only, for the reason above).
-- Traces: PRD-A8.
 
 **I18N-02** Under `dir="rtl"`, the component's reading order MUST be its document order and its layout MUST mirror.
 - Examples (the test runs every row; the default view, the page's `html` element with `dir="rtl"`):
@@ -4173,7 +4145,6 @@ the "Cancel" and "Try again" buttons MUST stay visible.
   | Tab through the controls but the region; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's |
   | the box column's header cell | its right edge within 1 px of the region's inner right edge (`clientLeft + clientWidth` from the region's left) |
   | the pager | "First page" lies right of "Last page" |
-  | press "Columns" | "Move earlier Name" lies right of "Move later Name" |
 
 - Reason: WCAG 1.3.2 in right-to-left, and logical properties mirror the layout (PRD-I3).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -4477,7 +4448,6 @@ the "Cancel" and "Try again" buttons MUST stay visible.
 | A11Y-41 | PRD-A11, PRD-A1 |
 | A11Y-42 | PRD-A11, PRD-A1 |
 | A11Y-45 | PRD-A1 |
-| A11Y-11 | PRD-A8 |
 | I18N-02 | PRD-I3, PRD-A1 |
 | I18N-03 | PRD-I3, PRD-A3 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -4512,7 +4482,7 @@ state in their own statements.
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, CHILD-08 | in part: the sticky columns staying in place come with the sticky statements |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
 | PRD-A6 | COL-33, A11Y-39 | in part: the compact density's row is the theming milestone's |
-| PRD-I3 | COL-22, I18N-02, I18N-03 | in part: sticky columns at the inline start are the sticky group's (STK-06) |
+| PRD-I3 | COL-22, I18N-02, I18N-03 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
@@ -4534,7 +4504,6 @@ state in their own statements.
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-A11 | A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's |
-| PRD-A8 | A11Y-11 | in part: the variant views are the theming milestone's; the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox and WebKit |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
@@ -4557,7 +4526,7 @@ state in their own statements.
 ### PRD musts not yet traced
 
 - Sticky layout: PRD-B14.
-- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A12.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
