@@ -71,6 +71,7 @@ function showWithSnippets(
   props: Partial<Omit<DataTableProps<Item>, "heading" | "actions">> & {
     withHeading?: boolean;
     withActions?: boolean;
+    withQuietActions?: boolean;
   },
 ): HTMLElement {
   return render(SnippetsTable, { ...base, ...props }).container;
@@ -977,6 +978,20 @@ describe("RND-14", () => {
         heading.compareDocumentPosition(next) &
           Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
+    },
+  );
+});
+
+// @spec("EXP-01", "d8229d47")
+describe("EXP-01", () => {
+  it.each(fiveStates)(
+    "offers no export or download control of its own in %s",
+    (_state, props) => {
+      showWithSnippets({ ...props, withQuietActions: true });
+      for (const role of ["button", "link", "menuitem"] as const)
+        expect(
+          screen.queryAllByRole(role, { name: /export|download/i }),
+        ).toHaveLength(0);
     },
   );
 });
