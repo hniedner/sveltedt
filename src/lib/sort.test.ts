@@ -80,3 +80,21 @@ describe("SORT-10", () => {
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
+// @spec("SORT-01", "792165c5")
+describe("SORT-01", () => {
+  it.each([
+    ["", "name asc"],
+    ["name asc", "name desc"],
+    ["name desc", ""],
+    ["code asc", "name asc"],
+    ["code asc, name desc", "name asc"],
+    ["name asc, code desc", "name desc"],
+  ])(
+    "a press on Name with the order [%s] emits [%s] once",
+    async (before, after) => {
+      const { onsort } = mount({ sort: order(before) });
+      await fireEvent.click(sortButton("Name"));
+      expect(onsort.mock.calls).toEqual([[order(after)]]);
+    },
+  );
+});

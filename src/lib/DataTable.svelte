@@ -1,5 +1,6 @@
 <script lang="ts" generics="Row">
   import { defaultMessages } from "./messages.ts";
+  import { nextOrder } from "./sort.ts";
   import type { DataTableMessages, DataTableProps } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
@@ -12,6 +13,8 @@
     status = "ready",
     busy = false,
     messages,
+    sort = [],
+    onsort,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -64,8 +67,19 @@
           {#each columns as column, index (column.id)}
             <th scope="col">
               {#if column.sortable}
-                <button type="button" aria-label={words.sortBy(column.label)}
-                  >{column.label}</button
+                <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
+                <button
+                  type="button"
+                  aria-label={words.sortBy(column.label)}
+                  onclick={(event) =>
+                    onsort?.(
+                      nextOrder(
+                        sort,
+                        column.id,
+                        column.sortable ?? [],
+                        event.shiftKey,
+                      ),
+                    )}>{column.label}</button
                 >
               {:else}
                 {column.label}
