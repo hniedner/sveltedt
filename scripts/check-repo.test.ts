@@ -4098,8 +4098,8 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
     /extra/,
   );
 });
-// The static job leaves the browser step to its own CI job through GATE_BROWSER; only a browser job gate needs may
-// take it over
+// The static job leaves the browser step to its own CI job through GATE_BROWSER: allowed only outside the job browser,
+// and only when a job browser that runs the step exists and gate needs it
 const ciWith = (ci: string) => (root: string) =>
   put(root, ".github/workflows/ci.yml", ci);
 const leavesBrowser = CI.replace(
@@ -4161,6 +4161,17 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
       ),
       /the job browser has continue-on-error or if/,
     );
+  const onStep = browserJob(leavesBrowser).replace(
+    "- run: node",
+    "- continue-on-error: true\n        run: node",
+  );
+  expect("gate-needs", repo(ciWith(onStep)), 1);
+  // A named step's run line, and a step-level if: on another step, are fine
+  const named = browserJob(leavesBrowser).replace(
+    "      - run: node",
+    "      - name: Upload\n        if: failure()\n        run: echo up\n      - name: Browser\n        run: node",
+  );
+  expect("gate-needs", repo(ciWith(named)), 0);
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
   expect("gate-needs", repo(ciWith(browserJob(CI))), 0);

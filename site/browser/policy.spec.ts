@@ -33,8 +33,9 @@ test("POL-02: the canary page's list holds a violation once the page has loaded"
   page,
 }) => {
   await open(page, "/canary.html");
-  // goto resolves once the page has loaded; the report may come in a later task, so the read is retried. The entry
-  // must be the canary's own (a style-src directive), not any other violation the page might raise
+  // goto resolves once the page has loaded; the event is queued as a task, so the read is retried (a listener that
+  // starts late never gets it, whatever the wait). The entry must be the canary's own: a style-src... directive (an
+  // inline style attribute raises style-src-attr), not any other violation the page might raise
   await expect
     .poll(async () =>
       ((await listOf(page)) as { directive?: string }[] | undefined)?.some(
@@ -46,7 +47,7 @@ test("POL-02: the canary page's list holds a violation once the page has loaded"
 
 test.describe("POL-04", () => {
   for (const file of pages.filter((p) => p !== "canary.html")) {
-    test(`${file} raises no violation once loaded and its table shown`, async ({
+    test(`${file} raises no violation once loaded and what it shows rendered`, async ({
       page,
     }) => {
       await open(page, file === "index.html" ? "/" : `/${file}`);
