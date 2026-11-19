@@ -120,3 +120,13 @@ test("setup: a git that cannot read its configuration stops it and changes nothi
   assert.match(r.stderr, /setup: git cannot read core\.hooksPath/);
   assert.equal(hooksPath(c), "");
 });
+test("setup: an empty core.hooksPath stops it, shows the empty value, and changes nothing", () => {
+  const c = clone();
+  execFileSync("git", ["-C", c.root, "config", "core.hooksPath", ""], {
+    env: c.env,
+  });
+  const r = setup(c);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.err, /core\.hooksPath is ""/);
+  assert.equal(hooksPath(c), "");
+});

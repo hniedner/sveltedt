@@ -2772,8 +2772,6 @@ test("secrets: a wrapper that could not check cannot be checked", () => {
 test("secrets: a branch with no commit after origin/main is not applicable", () => {
   notApplicable(["secrets", "--root", repo()]);
 });
-// Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
-// have had its secret scan.
 /** The step names of the result lines `all` printed, in order. */
 const stepsOf = (out: string): string[] =>
   [
@@ -2781,6 +2779,8 @@ const stepsOf = (out: string): string[] =>
       /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
     ),
   ].map((m) => m[1]);
+// Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
+// have had its secret scan.
 test("all: scans the branch's commits for secrets before it reaches a later step that fails", () => {
   const root = scanBranch(1);
   put(root, "notes/unformatted.md", "#  Not formatted\n");
