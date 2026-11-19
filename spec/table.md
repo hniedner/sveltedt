@@ -412,20 +412,20 @@ alert, when `rows` is not an array.
 ### Slow loads: the progress indicator, Cancel, the stopped state and "Try again" (milestone 3)
 
 These statements add the `status` value `'stopped'`, `oncancel()`, `onretry()` and four `messages` keys (PRD-B22,
-PRD-B23, PRD-B24). Times in their examples are counted from the moment `status` became `loading` or `busy` became true,
-and are moved by fake timers: the indicator appears at 1000 ms and the still-loading text at 6000 ms. "Still loading"
+PRD-B23, PRD-B24). Times in their examples are counted from mount and are moved by fake timers: mounted loading or
+busy, the indicator appears at 1000 ms and the still-loading text at 6000 ms. "Still loading"
 is the still-loading text; "Cancel" and "Try again" are buttons found by those names.
 
 Covered by earlier statements, rows added by this group's build (their words reach every state or the whole mounted
 life): STATE-04 (`status 'stopped'`: "false"); A11Y-05 (`status 'stopped'`: the live count is empty); A11Y-22 (a step
-from `failed` to `stopped`); RND-13 (`status 'stopped'`: "Loading stopped" is not shown); RND-14 and EXP-02 (`status
-'stopped'`, with and without `onretry`); EXP-01 (the same states); FOOT-01, FOOT-02 and FOOT-03 (a run through the
-indicator, the still-loading text with "Cancel", `stopped` with "Try again", a press on each button, and `failed` with
-"Try again"); THEME-03 (the indicator with the still-loading text and "Cancel", and `status 'stopped'` with
-"Try again").
+from `failed` to `stopped`); RND-13 (`status 'stopped'`: "Loading stopped" is not shown; `status 'loading'` with
+`oncancel` passed, at 6000 ms: no progress indicator, no "Still loading", no "Cancel"); RND-14 and EXP-02 (`status
+'stopped'`, with and without `onretry`); EXP-01 and EXP-03 (the same states); FOOT-01 and FOOT-03 (a rerender run
+through the indicator, the still-loading text with "Cancel", `stopped` with "Try again" and `failed` with "Try
+again"); FOOT-02 (the same run, with a press on each button).
 
-**STATE-09** The progress indicator MUST appear once `status` has been `loading`, or `busy` has been true, for 1 second
-without a gap, and not before.
+**STATE-09** While the input is valid, the progress indicator MUST appear once `status` has been `loading`, or `busy`
+has been true, for 1 second without a gap, and not before.
 - Examples (the test runs every row; "present" means the progress indicator is in the component):
 
   | Steps | Present at |
@@ -463,8 +463,8 @@ neither `status 'loading'` nor `busy` true holds.
 - Layer: component.
 - Traces: PRD-B22, PRD-B23.
 
-**STATE-12** The still-loading text MUST be shown exactly while the progress indicator has been present for 5 seconds
-or more.
+**STATE-12** While the input is valid, the still-loading text MUST be shown exactly while `status 'loading'` or `busy`
+true holds and the progress indicator has been present for 5 seconds or more.
 - Examples (the test runs every row; "Still loading" is looked for in the component's text):
 
   | Steps | "Still loading" |
@@ -473,33 +473,35 @@ or more.
   | `status 'loading'`, at 6000 ms | shown |
   | `status 'ready'` with two rows, `busy true`, at 6000 ms | shown |
   | `status 'loading'`; at 7000 ms `status 'ready'` with two rows, `busy false` | not shown at 7000 ms |
+  | `status 'loading'`; at 6100 ms `status 'failed'` | not shown at 6100 ms, while the indicator stays to 6500 ms (STATE-10) |
+  | `status 'loading'`; at 1100 ms `status 'ready'`, `busy false`; at 1200 ms `status 'loading'` | shown at 6000 ms: the indicator never went, so its 5 seconds run from 1000 ms |
 
 - Reason: a load that takes long must say so in words, not only by an indicator that has stopped moving (PRD-B22).
 - Layer: component.
 - Traces: PRD-B22.
 
 **STATE-13** The progress indicator MUST move for the first 5 seconds after it appears and MUST NOT move after.
-- Example: `status 'loading'`. At 1000 ms the indicator, or an element in it, has a running animation
-  (`getAnimations({ subtree: true })` holds one whose `playState` is "running"); at 6000 ms none is running. The test
-  moves time by fake timers if the build stops the motion by a timer, or sets `currentTime` on the
-  `getAnimations()` entries if the motion ends by the animation's own end.
+- Example: `matchMedia('(prefers-reduced-motion: reduce)').matches` is false; `status 'loading'`. The test moves time
+  by fake timers and sets each animation's `currentTime` to the time since it appeared. At 1000 ms and at 5999 ms the
+  indicator, or an element in it, has a running animation (`getAnimations({ subtree: true })` holds one whose
+  `playState` is "running"); at 6000 ms none is running.
 - Reason: a moving part beside content a user is reading must stop within 5 seconds (WCAG 2.2.2), and the strict
   policy lets it move through a class only (PRD-B22, PRD-S1).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22.
 
 **STATE-14** Under `prefers-reduced-motion: reduce`, the progress indicator MUST NOT move at any time.
-- Example: `status 'loading'`: at 1000 ms and at 6000 ms neither the indicator nor any element in it has a running
-  animation.
+- Example: `matchMedia('(prefers-reduced-motion: reduce)').matches` is true; `status 'loading'`: at 1000 ms and at
+  6000 ms neither the indicator nor any element in it has a running animation.
 - Reason: a user who asked the system for less motion gets a still indicator from the start (PRD-B22).
 - Layer: real browser (Chromium, Firefox, WebKit), in the browser instance the test runner configures with reduced
   motion.
 - Traces: PRD-B22.
 
-**STATE-15** The region's position and size MUST be the same with and without the progress indicator, the
-still-loading text and "Cancel".
-- Examples (the test runs every row; `oncancel` passed; the region's `getBoundingClientRect()` x, y, width and height
-  are equal at 500 ms, 1000 ms and 6000 ms):
+**STATE-15** The position and size of the region, and of an element placed after the component, MUST be the same with
+and without the progress indicator, the still-loading text and "Cancel".
+- Examples (the test runs every row; `oncancel` passed; the `getBoundingClientRect()` x, y, width and height of the
+  region and of a paragraph placed after the component are each equal at 500 ms, 1000 ms and 6000 ms):
 
   | State |
   |---|
@@ -511,18 +513,20 @@ still-loading text and "Cancel".
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B23.
 
-**STATE-16** The progress indicator, the still-loading text and "Cancel" MUST overlap neither the region nor a control
-of the `heading` or `actions` snippet.
+**STATE-16** The progress indicator, the still-loading text and "Cancel", each with its descendants, MUST overlap
+neither the region nor a control of the `heading` or `actions` snippet, and MUST lie within the viewport's width.
 - Example: 30 columns at least 120 px wide in a 600 px wide viewport, `status 'ready'` with 25 rows, `busy true`,
-  `oncancel` passed, an `actions` snippet holding "Export", the region scrolled to its right end; at 6000 ms the
-  bounding boxes of the indicator, of the still-loading text and of "Cancel" intersect neither the region's box nor
-  the box of "Export", and each lies within the viewport's width.
+  `oncancel` passed, a `heading` snippet holding a link "All orders", an `actions` snippet holding "Export", the region
+  scrolled to its right end; at 6000 ms the boxes of the indicator, of the still-loading text and of "Cancel", each with
+  the boxes of all its descendants, intersect neither the region's box nor the boxes of "All orders" and "Export", and
+  each lies within the viewport's width.
 - Reason: outside the region they are never scrolled sideways out of view with a wide table, and they cover no control
   (PRD-B22).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B23.
 
-**STATE-17** "Cancel" MUST be shown exactly while the still-loading text is shown and `oncancel` is passed.
+**STATE-17** While the input is valid, "Cancel" MUST be shown exactly while the still-loading text is shown and
+`oncancel` is passed.
 - Examples (the test runs every row):
 
   | Steps | `oncancel` | "Cancel" |
@@ -821,6 +825,20 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
 - Layer: component.
 - Traces: PRD-A3.
+
+**A11Y-25** axe MUST find no serious or critical violation in the slow-load states (as A11Y-06, for this group).
+- Examples (the test runs every row, at scroll 0; axe *incomplete* items as in A11Y-06):
+
+  | State |
+  |---|
+  | `status 'loading'`, `oncancel` passed, at 6000 ms (the indicator, "Still loading" and "Cancel") |
+  | `status 'ready'`, 25 rows, `busy true`, `oncancel` passed, at 6000 ms |
+  | `status 'stopped'`, `onretry` passed |
+  | `status 'failed'`, `onretry` passed |
+
+- Reason: an automated check catches regressions in names, roles and contrast that the statements above do not name.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1, PRD-B22, PRD-B23, PRD-B24.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
@@ -1322,6 +1340,14 @@ tests of the statement its marker names red by a failed assertion.
   (searched 2026-11-18), so this is the stylesheet's analogue of mutation at step boundaries.
 - Layer: gate wrapper at step boundaries.
 - Traces: PRD-G4.
+
+**THEME-15** With no `--sdt-*` property defined, axe MUST find no serious or critical violation in the slow-load states
+(as THEME-03, for this group).
+- Example: a site page with the package's stylesheet and no token definitions, in each state of A11Y-25: axe reports
+  0 serious or critical violations (its colour-contrast rule included).
+- Reason: the system-colour fallbacks must hold for the indicator, its text and the two buttons as for the rest.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T2, PRD-A1.
 
 ## 7. Server-driven sort (SORT)
 
@@ -2227,6 +2253,7 @@ receives that number.
 | A11Y-21 | PRD-B24, PRD-B15 |
 | A11Y-23 | PRD-B24, PRD-A3 |
 | A11Y-24 | PRD-A3 |
+| A11Y-25 | PRD-A1, PRD-B22, PRD-B23, PRD-B24 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -2250,6 +2277,7 @@ receives that number.
 | THEME-12 | PRD-T16 |
 | THEME-13 | PRD-G4 |
 | THEME-14 | PRD-G4 |
+| THEME-15 | PRD-T2, PRD-A1 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -2338,10 +2366,10 @@ state in their own statements.
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05 | in part: the still-loading text said once in the polite status arrives with the slow-load announcements; not under the sticky header arrives with the sticky group |
-| PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26 | in part: focus when Cancel appears or goes arrives with the slow-load focus statements |
-| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23 | in part: the stopped text said once in the polite status and focus after a retry arrive with the slow-load announcement and focus statements |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25 | in part: the still-loading text said once in the polite status arrives with the slow-load announcements; not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25 | in part: focus when Cancel appears or goes arrives with the slow-load focus statements |
+| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25 | in part: the stopped text said once in the polite status and focus after a retry arrive with the slow-load announcement and focus statements |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22 | in part: the column group states the column-move announcement, the slow-load group the still-loading and stopped texts |
@@ -2355,7 +2383,7 @@ state in their own statements.
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
-| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35 | in part: the sticky group states "the header is opaque over rows" |
+| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
 | PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the chooser, the dialogs and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
