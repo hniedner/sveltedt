@@ -36,6 +36,8 @@ section 6). CI runs the same command; its `gate` check is required on
 
 The checks today:
 
+- **hooks:** `core.hooksPath` is `.githooks` and each hook there is the executable two-line shim (not applicable in
+  CI, where git runs no hook).
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
@@ -160,12 +162,17 @@ git config core.hooksPath .githooks
 ```
 
 git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
-commit. The hook needs the Node version of
+commit, and `.githooks/pre-commit` before it. The hooks need the Node version of
 `.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
 setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
 place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
-secret scan, by hand until the setup step exists (Not built yet). The hook applies the rules above to the message git
-hands it, before git's own clean-up:
+secret scan, by hand until the setup step exists (Not built yet).
+
+- **pre-commit**, on the staged files: `text`, `format` and `lint` on the files of their class; `lockfile` when
+  `package.json`, the lockfile, `pnpm-workspace.yaml` or `dependabot.yml` is staged; `workflows` when a file under
+  `.github/` is; then gitleaks on the staged files. A staged file changed again before the commit stops it: stage or
+  restore that change. The hook never stashes or re-stages anything.
+- **commit-msg** applies the rules above to the message git hands it, before git's own clean-up:
 
 - Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
   (`commit -v`). A message with nothing else is refused as empty.
@@ -196,9 +203,8 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the hooks that run
-  checks before a commit or a push (issue #6); only the commit-msg hook exists (Commit headers). Until the rest exist,
-  maintainers run the private word scan by hand before every push;
+- the setup step that sets `core.hooksPath` and the pre-push hook (issue #6); until they exist, maintainers run the
+  private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

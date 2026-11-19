@@ -12,6 +12,14 @@ pages named, or measured with the command named.
   - husky 9 (a `prepare` script sets `core.hooksPath`);
   - lefthook 2 and simple-git-hooks 2 (both install from a `postinstall` script).
 - **Decision:** `core.hooksPath`, no runner.
+  - The setup step is one command, `git config core.hooksPath .githooks`; the gate's `hooks` step fails until it
+    has run, and prints it.
+  - Each hook is a two-line shim into `scripts/check-repo.ts`, the layout husky 9 uses for `.husky/` (read
+    2026-11-18, typicode.github.io/husky/get-started.html).
+  - pre-commit refuses a staged file that was changed again, instead of hiding the unstaged change in a stash and
+    restoring it after, which is lint-staged's default (read 2026-11-18, github.com/lint-staged/lint-staged). The
+    checks read the work tree, so it must match what is committed, and a hook that changes no file cannot lose an
+    unstaged change.
   - The companion already prescribes it.
   - husky only wraps the same setting.
   - lefthook and simple-git-hooks need an install-script exception that PRD-S5 forbids. pnpm blocks dependency
@@ -28,6 +36,10 @@ pages named, or measured with the command named.
   - Prettier 3 with prettier-plugin-svelte, plus ESLint 10 with eslint-plugin-svelte.
 - **Decision:** Prettier formats and ESLint lints; ESLint carries no formatting rule.
   - Prettier reads `.editorconfig` (prettier.io, configuration), so editors and the formatter share one file.
+  - The gate fixes Prettier's config to the `prettier` key of the root `package.json`: a Prettier config file
+    anywhere else is not read, so it cannot change what "formatted" means in its folder or run code.
+  - A `.editorconfig` in a folder does change the format rules for that folder, as the standard intends; reviewers
+    look for one in every pull request.
   - ESLint's `complexity` stays at its documented default of 20 (eslint.org, rules/complexity) and is an error.
 - **Reopens when:** Biome's Svelte support is stable and has the rules the Svelte checks need.
 
