@@ -71,7 +71,8 @@ to the consumer as one callback (stated with the statements that add user action
   same id.
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
-  element of a named tag or selector; never a test id or a class, except THEME-09, which tests the public classes
+  element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
+  id or a class, except THEME-09, which tests the public classes
   of PRD-K3 themselves.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
@@ -3640,7 +3641,8 @@ for them below, the computed value that the literal table of its test states.
 These statements add `selection`, an object with `isSelected(row)` (true or false) and `name(row)` (the accessible
 name of that row's box), and the callbacks `onselectrow({ rowId, selected, range })`, with `range` present only on a
 range press, and `onselectpage(selected)` (PRD-B13). The application owns the selected set and the range anchor; the
-table shows what `isSelected` says. In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
+table shows what `isSelected` says. A box is "mixed" when its `indeterminate` property is true and its `checked`
+property false. In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
 `{ id: 'r2', name: 'alpha' }`, in that order, with `name: (r) => 'Select row ' + r.name` and both callbacks passed.
 
 **SEL-01** With `selection`, the table MUST show a first column of boxes whose header box is named "Select all rows on
@@ -3667,7 +3669,7 @@ this page" and whose header cell shows no visible text.
   | r1, r2 | r1 | mixed |
   | r1, r2 | r1, r2 | checked |
   | r1, r2 | only r9, which is not on the page | not checked, not mixed |
-  | none | none | not checked, not mixed |
+  | none | none | not checked, not mixed, `aria-disabled="true"` |
 
 - Reason: the header box speaks for this page, so rows selected elsewhere must not make it look full (PRD-B13).
 - Layer: component.
@@ -3694,6 +3696,7 @@ this page" and whose header cell shows no visible text.
   | none | true |
   | r1 | true |
   | r1, r2 | false |
+  | no rows on the page | no call: the header box is `aria-disabled` (SEL-02) |
 
 - Reason: a mixed page is filled first, which is what a "select all" box is expected to do (PRD-B13).
 - Layer: component.
@@ -3705,8 +3708,7 @@ this page" and whose header cell shows no visible text.
 - Layer: component.
 - Traces: PRD-B13.
 
-**SEL-04** A press with Shift on a row's box MUST add `range: true` to the event, and the table MUST NOT emit the rows in
-between.
+**SEL-04** A press with Shift on a row's box MUST add `range: true` to its one event.
 - Examples (the test runs every row; `isSelected` false for both):
 
   | Input on "Select row alpha" | Calls |
@@ -3715,23 +3717,26 @@ between.
   | Shift and Space, with focus on the box | one: `onselectrow({ rowId: 'r2', selected: true, range: true })` |
   | click | one: `onselectrow({ rowId: 'r2', selected: true })` |
 
-- Reason: the range runs from an anchor the application keeps across server answers, which the table does not see
-  (PRD-B13).
-- Layer: component.
+- Reason: the range runs from an anchor the application keeps across server answers, which the table does not see, so the
+  table emits the pressed row only (PRD-B13).
+- Layer: component; the Shift and Space row in a real browser (Chromium, Firefox, WebKit), since an engine makes that
+  key's click itself.
 - Traces: PRD-B13.
 
 **SEL-05** A box MUST show only what `isSelected` says: after a press it MUST NOT change until `isSelected` does.
-- Examples (the test runs every row; an `onselectrow` and an `onselectpage` that change nothing):
+- Examples (the test runs every row; one mouse press each):
 
-  | Press | Box after it |
-  |---|---|
-  | "Select row Beta" | not checked |
-  | "Select all rows on this page" | not checked, not mixed |
+  | Callbacks | Press | Box after it |
+  |---|---|---|
+  | change nothing | "Select row Beta" | not checked |
+  | change nothing | "Select all rows on this page" | not checked, not mixed |
+  | `onselectrow` selects r1 in the application's state | "Select row Beta" | checked |
+  | `onselectpage` selects r1 and r2 | "Select all rows on this page" | checked, and both row boxes checked |
 
 - Reason: the application prunes and stores the selection; a box that changed by itself could show a row as selected
-  that an export would leave out (PRD-B2). The earlier table's native box kept its own state after a press: a defect
-  this statement removes.
-- Layer: component.
+  that an export would leave out (PRD-B2), and a box that undid the application's change would hide a selection.
+- Layer: real browser (Chromium, Firefox, WebKit): how a native box's own toggle and the component's update meet
+  depends on the engine's event and task order, which the simulated DOM does not reproduce.
 - Traces: PRD-B13, PRD-B2.
 
 **SEL-09** The box column MUST stay first: it is not in the column chooser, has no grip, and no move or drop places a
@@ -3756,10 +3761,12 @@ column before it.
   | `selection` is given and is not an object | `selectionInvalid` | "The row selection is not valid." |
   | `selection.isSelected` or `selection.name` is not a function | `selectionInvalid` | "The row selection is not valid." |
   | `selection` is given and `onselectrow` or `onselectpage` is not | `selectionInvalid` | "The row selection is not valid." |
+  | `selection.name` returns an empty text, a value that is not a text, or throws, for r1 | `selectionInvalid` | "The row selection is not valid." |
+  | `selection.isSelected` throws for r1 | `selectionInvalid` | "The row selection is not valid." |
 
-  With several faults at once, the faults of RND-05, SORT-15, FILT-32 and COL-25 win, in that order. A
-  `selection.name` that returns an empty text or throws for a row, or an `isSelected` that throws, is that row's
-  fault: the alert of RND-05 with this message, as for `getRowId` (RND-05).
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32 and COL-25 win, in that order. The alert holds
+  no value taken from the rows or a thrown error (as RND-09): with a `selection.name` that throws an error saying
+  "token-9", "token-9" is not in the alert.
 - Reason: a box with no name or no state misleads, and a box that does nothing is a dead control (PRD-B16, PRD-B3).
 - Layer: component.
 - Traces: PRD-B16, PRD-B13.
@@ -4065,7 +4072,7 @@ state in their own statements.
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09 | in part: the sticky columns staying in place come with the sticky statements |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37 | in full |
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
