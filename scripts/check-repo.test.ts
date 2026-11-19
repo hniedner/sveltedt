@@ -1578,7 +1578,9 @@ test("test: a Playwright spec under site/browser/ is left to the browser step", 
 const browserSite =
   (webServer = "") =>
   (root: string): void => {
-    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+    const pkg = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as {
       devDependencies: Record<string, string>;
     };
     pkg.devDependencies["@playwright/test"] = PINS["@playwright/test"];
