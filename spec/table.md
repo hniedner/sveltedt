@@ -3281,21 +3281,32 @@ from assistive technology.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-A1.
 
-**COL-14** A drag of a column's grip, released over another column's header cell, MUST emit `oncolumnstate` once, on
-the release, with that column in the place of the column it was released over.
+**COL-14** A drag of a column's grip, released over another column (its header cell or any of its cells), MUST emit
+`oncolumnstate` once, on the release, with the dragged column in the place of the column it was released over.
 - Examples (the test runs every row; `order` not given; no callback is called before the release):
 
   | Drag | `oncolumnstate` on release |
   |---|---|
   | Name's grip to Date's header cell | `{ hidden: [], order: ['code', 'date', 'name'] }`, once |
   | Date's grip to Name's header cell | `{ hidden: [], order: ['date', 'name', 'code'] }`, once |
+  | Name's grip to a body cell of Date | `{ hidden: [], order: ['code', 'date', 'name'] }`, once |
+  | Code hidden; Name's grip to Date's header cell | `{ hidden: ['code'], order: ['code', 'date', 'name'] }`, once |
   | Name's grip, released over Name's own header cell | no call |
-  | Name's grip, released below the table | no call |
+  | Name's grip, released below the table; then the mouse moves over Date's header cell and clicks there | no call |
 
-  The pointer moves at least 40 CSS px between the press and the release, in steps of 10 px.
+  The pointer moves at least 40 CSS px between the press and the release, in steps of 10 px. The order of the other
+  columns, hidden ones included, stays as it was. A release outside the table ends the drag: the pointer is captured
+  by the grip, so the release is seen wherever it happens.
 - Reason: one drop is one change; per-move emits would flood the application (PRD-B11 (b), PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-B2.
+
+**COL-20** The component MUST offer no control that resets the column order, the hidden columns or the widths.
+- Example: with the chooser open, no button whose accessible name contains "Reset columns" or "Reset column" (any
+  case) is in the table or the chooser; "Reset table" (FILT-30) emits `onreset` only.
+- Reason: the column defaults are the application's; a reset is its intent, not the component's (PRD-B11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11.
 
 **COL-15** A press on a header cell anywhere but its grip MUST keep its meaning, and a drag that starts there MUST NOT
 reorder.
@@ -3318,6 +3329,11 @@ reorder.
   |---|---|---|
   | press Name's grip, move over Date's header cell, press Escape, release there | no call | 0 |
   | press Escape with focus on "Sort by Code", no drag | no call | 1 |
+  | drag Name's grip to Date's header cell and release; the state follows; press Escape | one call, on the release | 1 |
+
+  A press on a grip leaves focus on that grip, which takes focus by script and is no Tab stop (COL-13), so the key
+  goes to the grip during the drag; that WebKit focuses an element from a pointer press handler is INFERRED (no fetched
+  source) and is what this statement's WebKit run proves.
 
 - Reason: Escape is the way out of a drag (WCAG 2.5.2, PRD-B11 (b)), and an application that closes its own modal on
   Escape must not close it when the user only cancelled a drag (PRD-B19).
@@ -3349,8 +3365,10 @@ COL-14 says.
   | Chromium | a trusted touch drag of Name's grip to Date's header cell, through the Chrome DevTools Protocol, emits `{ hidden: [], order: ['code', 'date', 'name'] }` once |
 
   Stated limit: a trusted touch drag is not tested in Firefox and WebKit, because no test runner drives one there
-  (Playwright's touchscreen is "limited to emulating tap gestures", FETCHED 2026-11-19); the pointer
-  path they share with the mouse is tested with the mouse (COL-14).
+  (Playwright's touchscreen is "limited to emulating tap gestures", FETCHED 2026-11-19); the pointer path they share
+  with the mouse is tested with the mouse (COL-14). The Chromium route through the Chrome DevTools Protocol is
+  INFERRED (its documentation page did not load, 2026-11-19); the build verifies it first, and if it cannot drive a
+  touch drag, the Chromium row joins the stated limit and the reviewer tells the owner.
 - Reason: PRD-B11 (b) asks that a drag works with pointer and touch; without `touch-action: none` the browser would
   scroll the page instead.
 - Layer: real browser (Chromium, Firefox, WebKit; the drag row Chromium only, for the reason above).
@@ -3591,6 +3609,7 @@ COL-14 says.
 | COL-30 | PRD-I1, PRD-I2 |
 | COL-13 | PRD-B11, PRD-A1 |
 | COL-14 | PRD-B11, PRD-B2 |
+| COL-20 | PRD-B11 |
 | COL-15 | PRD-B11 |
 | COL-16 | PRD-B11, PRD-B19 |
 | COL-17 | PRD-B11 |
@@ -3619,7 +3638,7 @@ state in their own statements.
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
