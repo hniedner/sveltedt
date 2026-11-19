@@ -126,3 +126,23 @@ describe("SORT-03, click row", () => {
     expect(onsort).toHaveBeenCalledTimes(1);
   });
 });
+// @spec("SORT-04", "6386c5a1")
+describe("SORT-04", () => {
+  it.each<[SortDirection[], string, boolean, string]>([
+    [["desc"], "", false, "date desc"],
+    [["desc"], "date desc", false, ""],
+    [["desc"], "code asc", true, "code asc, date desc"],
+    [["asc"], "date asc", false, ""],
+    [["asc"], "code asc, date asc", true, "code asc"],
+  ])(
+    "Date allowing %j, order [%s], Shift %s: emits [%s]",
+    async (directions, before, shiftKey, after) => {
+      const { onsort } = mount({
+        columns: [code, sortable("date", "Date", directions)],
+        sort: order(before),
+      });
+      await fireEvent.click(sortButton("Date"), { shiftKey });
+      expect(onsort.mock.calls).toEqual([[order(after)]]);
+    },
+  );
+});
