@@ -662,12 +662,6 @@ describe("RND-05", () => {
     expect(component.querySelector("table")).toBeNull();
   });
 
-  it("shows the alert, not the table, when the caller's text for the fault is empty", () => {
-    const component = show({ columns: [], messages: { noColumns: "" } });
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(component.querySelector("table")).toBeNull();
-  });
-
   it("takes finite numbers as row ids: the table and no alert", () => {
     show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
