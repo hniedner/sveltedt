@@ -769,3 +769,64 @@ test("baseCommit: locally without origin/main there is no base", () => {
   const got = baseWith(root, {});
   assert.ok(isResult(got) && got.code === 3);
 });
+
+const WITHOUT_TST02 = SPEC_TEXT.replace(/\n\*\*TST-02\*\*[\s\S]*$/, "");
+test("trace: on a pull request an id tested at the base and unmarked now is a finding; one whose statement was deleted is not", () => {
+  const root = fixture({
+    "src/a.test.ts": ONE(),
+    "src/b.test.ts": ONE("TST-02"),
+  });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, {
+    "src/a.test.ts": null,
+    "src/b.test.ts": null,
+    "spec/a.md": WITHOUT_TST02,
+  });
+  const out = expectTrace(root, 1, ci("pull_request", base, head));
+  assert.match(out, /TST-01: tested at the base, no marker names it now/);
+  assert.doesNotMatch(out, /TST-02: tested/);
+});
+test("trace: on a pull request a statement untested at both commits exits 0 and is listed", () => {
+  const root = fixture();
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "README.md": "x\n" });
+  const out = expectTrace(root, 0, ci("pull_request", base, head));
+  assert.match(out, /not yet tested \(2\):\n {4}TST-01\n {4}TST-02/);
+});
+test("trace: a spec and test file new in the pull request count as untested at the base: no finding", () => {
+  const root = fixture();
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const added = SPEC_TEXT.replaceAll("TST-0", "NEW-0");
+  const hash = parseSpec("spec/b.md", added).statements[0].hash!;
+  const head = advance(root, {
+    "spec/b.md": added,
+    "src/a.test.ts": vitestFile(
+      `${mark("NEW-01", hash)}\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`,
+    ),
+  });
+  expectTrace(root, 0, ci("pull_request", base, head));
+});
+test("trace: a base commit whose object git cannot read cannot be checked", () => {
+  const { root, a, a2, b } = history();
+  // the pull request's base is the merge's first parent a2; its object is gone, but HEAD still names it
+  rmSync(join(root, ".git", "objects", a2.slice(0, 2), a2.slice(2)));
+  const out = expectTrace(root, 3, ci("pull_request", a, b));
+  assert.match(out, new RegExp(`the base commit ${a2} cannot be read`));
+});
+test("trace: a base commit that cannot be named, in CI, cannot be checked", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const out = expectTrace(root, 3, { GITHUB_ACTIONS: "true" });
+  assert.match(out, /no base to compare with: GATE_EVENT is not set in CI/);
+});
+test("trace: locally the set is compared with the merge base of origin/main, as on a pull request", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  advance(root, { "src/a.test.ts": null });
+  assert.match(expectTrace(root, 1), /TST-01: tested at the base/);
+});
+test("trace: on a push to main only the list is printed, whatever the base held", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "src/a.test.ts": null });
+  const out = expectTrace(root, 0, ci("push", base, head));
+  assert.match(out, /not yet tested \(2\)/);
+});

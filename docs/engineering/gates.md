@@ -72,8 +72,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   statement is never this state; with no test it fails.
 - Without a mode the check exits 0 on untested statements and prints their ids under the heading `not yet tested`,
   never under pass. On a pull request it also compares the set of untested ids with the base commit's: an id that
-  was tested there and is untested now fails, so a deleted test fails. On main and locally there is no base, and
-  only the list is printed.
+  was tested there and is untested now fails, so a deleted test fails. Locally it makes the same comparison with the
+  merge base of `origin/main` and `HEAD`; on a push to main there is no base, and only the list is printed.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
   recorded in the closing comment, which no check enforces) exits 1 while any of them is untested; an empty list or
   an id no spec holds is exit 2. `trace --release` runs in the release build: from 1.0 on (a 1.0 release candidate

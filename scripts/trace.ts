@@ -1,11 +1,14 @@
 // The trace step (G6): reads the spec statements, the @spec markers in the tests and the shared test run's results,
 // and says which statements have a passing test, which fail the check, and which no marker names (listed, exit 0).
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import {
+  baseCommit,
   canaries,
+  childEnv,
   HERE,
   isResult,
   NA,
@@ -245,7 +248,7 @@ export function readMarkers(
 
 /** A test source: `.test.` or `.spec.` JavaScript or TypeScript. */
 const TEST_SOURCE = /\.(?:test|spec)\.[cm]?[jt]s$/;
-/** The folders the gate expects Vitest to run; a test file there that the run misses is reported, not assumed. */
+/** The folders the gate expects Vitest to run; a marker in a test file there that the run misses cannot be checked. */
 const COVERED = /^(?:src|site|test)\//;
 
 /**
@@ -388,6 +391,67 @@ function canary(): Result | null {
   return flagged ? null : bad("no finding named it");
 }
 
+/** The ids a commit's specs hold and its test markers name, read from git: what that commit's trace would have listed. */
+export function baseSets(
+  root: string,
+  base: string,
+): Result | { held: Set<string>; named: Set<string> } {
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      env: childEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  if (git("cat-file", "-e", `${base}^{commit}`).status !== 0)
+    return result(CANNOT, `the base commit ${base} cannot be read`);
+  const files = new Set(
+    git("ls-tree", "-r", "--name-only", "-z", base)
+      .stdout.split("\0")
+      .filter(Boolean),
+  );
+  const show = (f: string) => git("show", `${base}:${f}`).stdout;
+  const src = traceSources(files);
+  return {
+    held: new Set(
+      [...files]
+        .filter((f) => SPEC_FILE.test(f))
+        .flatMap((f) => parseSpec(f, show(f)).statements.map((s) => s.id)),
+    ),
+    named: new Set(
+      [...src.read, ...src.scripts].flatMap((f) =>
+        readMarkers(f, show(f)).markers.map((m) => m.id),
+      ),
+    ),
+  };
+}
+
+/**
+ * A pull request, and locally: an id tested at the base (a marker named it) and now without a marker, while its
+ * statement still exists, is a deleted test. On a push to main there is no such comparison; the list is all.
+ */
+function deletedTests(
+  root: string,
+  hashes: Map<string, string | null>,
+  named: Set<string>,
+): { findings: string[]; cannot: string[] } {
+  const base = baseCommit(root);
+  if (isResult(base))
+    return {
+      findings: [],
+      cannot: [`no base to compare with: ${base.summary}`],
+    };
+  if (base.kind === "push" || !base.base) return { findings: [], cannot: [] };
+  const was = baseSets(root, base.base);
+  if (isResult(was)) return { findings: [], cannot: [was.summary] };
+  return {
+    cannot: [],
+    findings: [...was.named]
+      .sort()
+      .filter((id) => was.held.has(id) && hashes.has(id) && !named.has(id))
+      .map((id) => `${id}: tested at the base, no marker names it now`),
+  };
+}
+
 /** A statement id defined twice: both places are named. */
 function duplicateIds(statements: Statement[]): string[] {
   const first = new Map<string, Statement>();
@@ -490,6 +554,9 @@ function trace(root: string, list: Set<string>): Result {
   const tested = new Set(
     ok.filter((m) => hashes.get(m.id) === m.hash).map((m) => m.id),
   );
+  const was = deletedTests(root, hashes, named);
+  findings.push(...was.findings);
+  cannot.push(...was.cannot);
   const listed = untested.length
     ? [
         `not yet tested (${untested.length}):`,
