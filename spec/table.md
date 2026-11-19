@@ -2108,13 +2108,15 @@ new `limit` and offset.
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
-  | `unfilteredTotal` is given and is -1, 1.5, `NaN`, `Infinity`, 2^53, or below `total` | `unfilteredTotalInvalid` | "The unfiltered row total is not valid." |
+  | `unfilteredTotal` is given and is -1, 1.5, `NaN`, `Infinity` or 2^53 | `unfilteredTotalInvalid` | "The unfiltered row total is not a valid number." |
 
-  A valid number here is a safe non-negative integer (`limit`: a safe positive integer).
+  A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
+  request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.
-- Traces: PRD-B9, PRD-S4.
+- Traces: PRD-B9, PRD-S4, PRD-B26.
 
 **PAGE-19** Every fixed word the pager shows or announces MUST come from its `messages` prop with an English default.
 - Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
@@ -2138,7 +2140,7 @@ new `limit` and offset.
   The gap mark "…" is a symbol hidden from assistive technology (PAGE-11), not a word.
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
-- Traces: PRD-I1.
+- Traces: PRD-I1, PRD-B26.
 
 **PAGE-20** Every text the pager is given MUST render as text, never as markup.
 - Examples (the test runs every row, once with the value `<img src=x onerror=alert(1)>` and once with `<none>`):
@@ -2267,12 +2269,14 @@ the computed value that the literal table of its test states.
 
   First is `offset` plus 1; last is the smaller of `offset` plus `limit` and `total`: the pager is given no rows,
   and an answer that matches its query holds that many (PRD-B26's "number of rows given"). With no row on the page,
-  a total of 0 or an `offset` at or past `total` (PAGE-25), first and last are 0.
-- Reason: a user reads where they are and how many rows matched, as in DataTables' `info`; past the end the range
-  `offset` plus 1 to `total` would run backwards ("Showing 101 to 95"), while 0 to 0 says the page is empty and keeps
-  the total.
+  a total of 0 or an `offset` at or past `total` (PAGE-25), first and last are 0. The default words say "row" when
+  the total is 1, "rows" otherwise.
+- Reason: a user reads where they are and how many rows matched, as in DataTables' `info`, whose server-side end is
+  the same smaller value (FETCHED 2026-11-19, DataTables 3.1.5 source); past the end DataTables shows a range that
+  runs backwards ("Showing 101 to 95 of 95 entries", INFERRED from that source), while 0 to 0 says the page is empty
+  and keeps the total (`docs/departures.md`).
 - Layer: component.
-- Traces: PRD-B26.
+- Traces: PRD-B26, PRD-I1, PRD-I2.
 
 **PAGE-38** With `unfilteredTotal` given and different from `total`, the information line MUST end with "(filtered
 from <unfilteredTotal> total rows)", after one space.
@@ -2284,11 +2288,13 @@ from <unfilteredTotal> total rows)", after one space.
   | 57 | 57 | "Showing 1 to 10 of 57 rows" |
   | 57 | not given | "Showing 1 to 10 of 57 rows" |
   | 0 | 1 | "Showing 0 to 0 of 0 rows (filtered from 1 total row)" |
+  | 57 | 50 | "Showing 1 to 10 of 57 rows (filtered from 50 total rows)" |
 
+  The default words say "row" when the unfiltered total is 1, "rows" otherwise.
 - Reason: the user learns that filters narrowed the rows, and from how many, as in DataTables' `infoFiltered`; the
   same number twice tells nothing.
 - Layer: component.
-- Traces: PRD-B26.
+- Traces: PRD-B26, PRD-I1, PRD-I2.
 
 **PAGE-39** The information line MUST NOT be announced: neither the element that holds it nor any of its ancestors
 within the pager has `aria-live` or the role `status`, `alert` or `log`.
@@ -2299,11 +2305,19 @@ within the pager has `aria-live` or the role `status`, `alert` or `log`.
 - Layer: component.
 - Traces: PRD-B26, PRD-A4.
 
-**PAGE-40** The information line MUST come before the pager's controls (PAGE-10) in document order.
-- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: the element holding "Showing 101 to 110 of 200 rows"
-  comes before the page-size select and before "First page".
-- Reason: DataTables' default layout puts the information at the start and the paging controls at the end; reading
-  order and Tab order then match that visual order (WCAG 1.3.2).
+**PAGE-40** The information line MUST come after the page-size select, when there is one, and before "First page" in
+document order.
+- Examples (the test runs every row; `offset 100, limit 10, total 200`; the element holding "Showing 101 to 110 of
+  200 rows"):
+
+  | `sizes` | Comes after | Comes before |
+  |---|---|---|
+  | `[10, 25]` | the page-size select | "First page" |
+  | `[]` | nothing in the pager | "First page" |
+
+- Reason: DataTables' default layout reads page length (`topStart`), then the information (`bottomStart`), then the
+  paging controls (`bottomEnd`) (FETCHED 2026-11-19, datatables.net/reference/option/layout); the pager keeps that
+  reading order (WCAG 1.3.2).
 - Layer: component.
 - Traces: PRD-B26, PRD-A3.
 
@@ -2356,7 +2370,9 @@ receives that number.
   | `pageLabel` | 1234 | "Page 1,234" | PAGE-01 |
   | `sizeOption` | 1000 | "1,000" | PAGE-07 |
   | `info` | `{ first: 1001, last: 1010, total: 12345 }` | "Showing 1,001 to 1,010 of 12,345 rows" | PAGE-37 |
+  | `info` | `{ first: 1, last: 1, total: 1 }` | "Showing 1 to 1 of 1 row" | PAGE-37 |
   | `infoFiltered` | 1000 | "(filtered from 1,000 total rows)" | PAGE-38 |
+  | `infoFiltered` | 1 | "(filtered from 1 total row)" | PAGE-38 |
 
   The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
   German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
@@ -2364,7 +2380,7 @@ receives that number.
   that did not take effect fails instead of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
-- Traces: PRD-I2, PRD-I1.
+- Traces: PRD-I2, PRD-I1, PRD-B26.
 
 ## Trace
 
@@ -2509,8 +2525,8 @@ receives that number.
 | PAGE-23 | PRD-A3, PRD-B9 |
 | PAGE-24 | PRD-A1, PRD-B9 |
 | PAGE-15 | PRD-B9 |
-| PAGE-16 | PRD-B9, PRD-S4 |
-| PAGE-19 | PRD-I1 |
+| PAGE-16 | PRD-B9, PRD-S4, PRD-B26 |
+| PAGE-19 | PRD-I1, PRD-B26 |
 | PAGE-20 | PRD-S2 |
 | PAGE-28 | PRD-A10, PRD-A1 |
 | PAGE-29 | PRD-A1 |
@@ -2521,14 +2537,14 @@ receives that number.
 | PAGE-34 | PRD-T2, PRD-A1 |
 | PAGE-35 | PRD-T2, PRD-A1 |
 | PAGE-36 | PRD-T11 |
-| PAGE-37 | PRD-B26 |
-| PAGE-38 | PRD-B26 |
+| PAGE-37 | PRD-B26, PRD-I1, PRD-I2 |
+| PAGE-38 | PRD-B26, PRD-I1, PRD-I2 |
 | PAGE-39 | PRD-B26, PRD-A4 |
 | PAGE-40 | PRD-B26, PRD-A3 |
 | ID-01 | PRD-B18 |
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
-| I18N-01 | PRD-I2, PRD-I1 |
+| I18N-01 | PRD-I2, PRD-I1, PRD-B26 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -2561,11 +2577,11 @@ state in their own statements.
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, PAGE-39 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26 | in part: later groups state their own words in their own statements |
-| PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, PAGE-37, PAGE-38 | in part: later groups state their own words in their own statements |
+| PRD-I2 | RND-06, SORT-17, I18N-01, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
