@@ -3878,7 +3878,7 @@ without `stickyHeader`, it MUST NOT warn.
   | on | `html, body { overflow-x: hidden }` | one, naming body |
   | off | `#wrap { overflow: hidden }` | none |
   | off, then on | `#wrap { overflow: hidden }` | one, after the change |
-  | on, then off, then on | `#wrap { overflow: hidden }` | two: one at mount, one after the second change |
+  | on, then off, then on | `#wrap { overflow: hidden }` | two: one at mount, one after it turns on again |
   | on, then a sort, the next page and new rows | `#wrap { overflow: hidden }` | one in all |
   | on, then `#wrap` given `overflow: hidden` after the mount | `#wrap { overflow: hidden }` from then on | none |
 
@@ -3890,9 +3890,11 @@ without `stickyHeader`, it MUST NOT warn.
   naming the element finds the cause of a header that does not stick. `html`'s overflow always goes to the viewport,
   and `body`'s does while `html`'s is `visible`; otherwise `body` is a scroll container that holds the header (the
   common `html, body { overflow-x: hidden }`).
-- Layer: real browser (Chromium, Firefox, WebKit), on the site built with `NODE_ENV=development` (the site's usual
-  build sets `production`, where `esm-env`'s `DEV` is false) and served by the site server as usual; the first row
-  going green on that build shows that `DEV` is true there.
+- Layer: real browser (Chromium, Firefox, WebKit), on a second build of the site made with the `development` export
+  condition added to the bundler's resolve conditions (as CON-14's second row; the site's usual build resolves
+  `production`, where `esm-env`'s `DEV` is false), written to its own build folder and served by its own start of the
+  site server; every other real-browser statement runs on the usual build. The first row going green on the second
+  build shows that `DEV` is true there.
 - Traces: PRD-B14, PRD-D3.
 
 **STK-03** Each column with `sticky` MUST stay at its inline-start offset while the document scrolls sideways, the
