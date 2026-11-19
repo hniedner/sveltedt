@@ -1,4 +1,4 @@
-// What scan-secrets.ts and check-repo.ts share: the exit codes of every check (G1) and the read of a pinned tool.
+// What scan-secrets.ts, check-repo.ts and gate-step.ts share: the exit codes of every check (G1) and the read of a pinned tool.
 import { readFileSync } from "node:fs";
 
 export const PASS = 0,
