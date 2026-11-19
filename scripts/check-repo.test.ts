@@ -3366,6 +3366,21 @@ test("pre-commit: a lockfile edited and not staged beside a staged package.json 
   assert.match(r.out, /^\s*pnpm-lock\.yaml$/m);
   assert.equal(head(root), "chore: add the runner");
 });
+test("pre-commit: a workspace package's manifest edited and not staged beside a staged package.json cannot be checked, and is named", () => {
+  const root = hooked(sitePackage({ devDependencies: { vite: "8.3.8" } }));
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "package.json");
+  put(root, "site/package.json", '{ "devDependencies": { "vite": "8.3.9" } }');
+  const r = gitCommit(root, "-m", "build: describe the package");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK lockfile: /m);
+  assert.match(r.out, /^\s*site\/package\.json$/m);
+  assert.equal(head(root), "chore: add the runner");
+});
 test("pre-commit: a workflow edited and not staged beside a staged one cannot be checked, and is named", () => {
   const root = hooked((r) => {
     put(r, ".github/workflows/a.yml", "on: [push]\n");

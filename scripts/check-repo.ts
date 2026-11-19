@@ -804,8 +804,9 @@ const SUPPRESSION = new RegExp(
     .join("|"),
 );
 
-// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every tracked file:
-// no conflict marker (Prettier keeps one in Markdown as text). In code: no suppression comment.
+// For files no formatter rewrites: LF line endings, a final newline, no trailing whitespace. For every file in `list`
+// (tracked in the gate, staged in the pre-commit hook, which passes `mayBeNone`): no conflict marker (Prettier keeps
+// one in Markdown as text). In code: no suppression comment.
 function text(root: string, list: Set<string>, mayBeNone = false): Result {
   const mine = ofClass(list, "text", mayBeNone);
   if (isResult(mine)) return mine;
@@ -2199,8 +2200,10 @@ function preCommit(): Result | Stage[] {
           )
       : whole(check);
   };
+  const inGithub = (f: string) => f.startsWith(".github/");
+  // A package.json at any depth: the step also reads each workspace package's manifest.
   const lockReads = (f: string) =>
-    /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
+    /^((.+\/)?package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.github\/dependabot\.yml)$/.test(
       f,
     );
   return [
@@ -2209,11 +2212,7 @@ function preCommit(): Result | Stage[] {
     when("format", ofStep("format"), () => format(root, files)),
     when("lint", ofStep("lint"), () => lint(root, files)),
     when("lockfile", some(lockReads), unstagedRead(lockfile, lockReads)),
-    when(
-      "workflows",
-      some((f) => f.startsWith(".github/")),
-      unstagedRead(workflows, (f) => f.startsWith(".github/")),
-    ),
+    when("workflows", some(inGithub), unstagedRead(workflows, inGithub)),
     ["secrets", () => stagedSecrets(root, [...files])],
   ];
 }
