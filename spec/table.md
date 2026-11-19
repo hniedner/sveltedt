@@ -3379,7 +3379,8 @@ COL-14 says.
 ### Column width: separators and the chooser's buttons (milestone 5)
 
 These statements add `widths` to `columnState`: an object from column id to a width in CSS px (PRD-B12). Columns are
-resizable exactly while `columnState.widths` is given (an empty object included) and `oncolumnstate` is given: the
+resizable exactly while `columnState.widths` is given (an empty object included; `null` counts as not given) and
+`oncolumnstate` is given: the
 widths are the application's state, so a table whose application holds none keeps the browser's layout from its
 content and shows no separator and no width buttons. While resizable, each column's header cell ends with a focusable
 separator, found by role `separator` and its name, whose pointer target is at least 24 by 24 CSS px and lies inside
@@ -3405,7 +3406,7 @@ The examples are those of section 12 with `widths` `{ name: 200, code: 120, date
   | `{ code: 120 }` | "150" |
   | `{ name: 30 }` | "50" |
   | `{ name: 'wide', code: 120 }` | "150" |
-  | not given | no element with role `separator` in the table, and no "Narrower" or "Wider" in the chooser |
+  | not given, or `null` | no element with role `separator` in the table, and no "Narrower" or "Wider" in the chooser |
 
   Where it exists it has `aria-orientation="vertical"`, `aria-valuemin="50"` and `aria-valuemax="1000"`; Tab from
   Name's last header control reaches it next; its box is at least 24 by 24 CSS px and lies inside Name's header cell,
@@ -3499,8 +3500,7 @@ wide as their sum, with every cell's text wrapping inside its cell.
   | `{ name: 200, code: 120, date: 120 }` | 200, 120, 120; the table 440 wide in a 600 px wide region |
   | `{ name: 50 }` | Name 50, Code and Date 150 each; Name's long word wraps onto more lines inside the cell (the text range's box lies within the cell's border box) |
   | `{ name: 30, code: 2000 }` | Name 50, Code 1000, Date 150 |
-  | `{ name: 200, code: 200, date: 200 }` in a region 600 px wide | the table 600 wide; the region does not overflow, so it is no Tab stop (A11Y-12) |
-  | not given | every column as the browser lays it out from its content |
+  | `{ name: 200, code: 200, date: 200 }` in a region whose client width is 600 px | the table 600 wide; the region does not overflow, so it is no Tab stop (A11Y-12) |
 
   No cell shows an ellipsis, and at 50 px every control of a header cell, its grip and its separator included, keeps a
   target of at least 24 by 24 CSS px inside that cell, none overlapping another (they wrap onto more lines).
