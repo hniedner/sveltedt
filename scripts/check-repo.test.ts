@@ -4041,12 +4041,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no test file, no spec and no commit after origin/main: svelte, test, trace, commits
-  // and secrets have nothing to check.
+  // The fixture has no component, no site, no test file, no spec and no commit after origin/main: svelte, site,
+  // inline, test, trace, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 6 not applicable: secrets, svelte, site, test, trace, commits$/m,
+    /^PASS all: 16 checks passed, 7 not applicable: secrets, svelte, site, inline, test, trace, commits$/m,
   );
 });
 test("all: test and trace share one vitest run", () => {
@@ -4271,6 +4271,61 @@ test("site: a build that writes no HTML page cannot be checked", () => {
     expect("site", repo(scriptOnly), 3),
     /no HTML page in site\/dist/,
   );
+});
+
+// The inline step's own contract; POL-03's rows run in site/policy.test.ts against the real build
+const builtPage = (html: string) => (root: string) => {
+  put(root, "site/vite.config.ts", "export default {};\n");
+  put(root, "site/dist/index.html", html);
+};
+test("inline: without a tracked site/vite.config.ts the step is not applicable", () => {
+  const r = run(["inline", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE inline:/m);
+});
+test("inline: a site/dist with no HTML file cannot be checked", () => {
+  const none = (root: string) =>
+    put(root, "site/vite.config.ts", "export default {};\n");
+  assert.match(expect("inline", repo(none), 3), /no HTML file in site\/dist/);
+});
+test("inline: a planted canary the scan misses, or none planted, cannot be checked", () => {
+  const dir = tempDir();
+  const clean = "<!doctype html><title>c</title><script src=/a.js></script>\n";
+  const site = repo(builtPage(clean));
+  const none = expect("inline", site, 3, { canaries: dir });
+  assert.match(none, /missed a planted canary/);
+  assert.match(none, /^ {2}handler\.html: the event handler onload$/m);
+  // A canary that raises another kind than its own is missed too
+  put(dir, "inline/style.html", "<!doctype html><p onclick=x()>\n");
+  const other = expect("inline", site, 3, { canaries: dir });
+  assert.match(other, /^ {2}style\.html: a style element$/m);
+});
+test("inline: names each file and kind it finds", () => {
+  const two =
+    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a><script src=/a.js>\n</script>\n";
+  const out = expect("inline", repo(builtPage(two)), 1);
+  assert.match(out, /^ {2}index\.html: a style element$/m);
+  assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);
+  assert.match(out, /^ {2}index\.html: a script element with text$/m);
+  assert.match(out, /in 3 place\(s\)/);
+});
+test("inline: looks for javascript: and vbscript: in each URL attribute it lists, in nested pages too", () => {
+  for (const [scheme, tag, attr] of [
+    ["javascript", "img", "src"],
+    ["vbscript", "form", "action"],
+    ["javascript", "button", "formaction"],
+    ["vbscript", "object", "data"],
+  ]) {
+    const page = (root: string) => {
+      put(root, "site/vite.config.ts", "export default {};\n");
+      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="${scheme}:x()">`);
+    };
+    const out = expect("inline", repo(page), 1);
+    assert.match(
+      out,
+      new RegExp(`^ {2}sub/page\\.html: a ${scheme}: URL in ${attr}$`, "m"),
+    );
+  }
 });
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(

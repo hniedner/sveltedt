@@ -40,10 +40,13 @@ to the consumer as one callback (stated with the statements that add user action
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
-  `cancel`, `stopped` and `retry`.
+  `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
+  `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
+  `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
-  directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
+  directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
+  `onclearfilter` and `onclearfilters`; an example pager
   passes an `onpage`, and an `onsize` when it has `sizes`.
 - **Pager places.** The pager shows page numbers and gaps; each counts as one place. "Page n" is a page number
   button. A row such as `1 … 4 5 6 … 20` lists the places in order.
@@ -2383,6 +2386,645 @@ receives that number.
 - Layer: component.
 - Traces: PRD-I2, PRD-I1, PRD-B26.
 
+## 11. Filters: the fields and what they emit (FILT, milestone 4)
+
+These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
+`options` a list of `{ value, label }`; `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
+`{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
+with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
+`maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
+button of FILT-29. The dialog is a popover in the top layer (the dialog statements state how it opens and closes);
+the simulated DOM has no popover (jsdom 31.0.1 implements neither `showPopover` nor `popovertarget`, MEASURED), so
+every statement here that opens the dialog is tested in a real browser, in Chromium, Firefox and WebKit, with time
+moved by fake timers as in the slow-load statements. In the examples, column Name (id `name`) has a text filter
+and column Status (id `status`) a categorical filter with the options `active` "Active" and `inactive` "Inactive",
+in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
+control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
+of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
+(an emoji such as U+1F600 counts 1).
+
+**FILT-29** A column with a `filter` MUST show the button "Filter <label>" in its header cell.
+- Examples (the test runs every row; columns Name with a text filter and Note without one):
+
+  | Column | Button in its header cell |
+  |---|---|
+  | Name | one button named "Filter Name" |
+  | Note | none whose name starts with "Filter" (RND-11) |
+
+- Reason: the filter is reached from the column it narrows (RND-11 is the negative half).
+- Layer: component.
+- Traces: PRD-B6, PRD-B7, PRD-B3.
+
+**FILT-01** A text filter MUST emit `onfilter` once typing pauses for `searchDelay` milliseconds, with the field's
+text, and not while typing goes on.
+- Examples (the test runs every row; `filters` holds no filter for Name):
+
+  | Steps | `onfilter` calls |
+  |---|---|
+  | type "beta"; at 399 ms | none |
+  | type "beta"; at 400 ms | one: `('name', { kind: 'text', text: 'beta' })` |
+  | type "be"; at 300 ms type "ta"; at 699 ms | none |
+  | type "be"; at 300 ms type "ta"; at 700 ms | one, with "beta" |
+  | `searchDelay={1000}`; type "beta"; at 999 ms, then at 1000 ms | none, then one with "beta" |
+  | `searchDelay={0}`; type "beta", with no time moved | four, each at its key, with "b", "be", "bet", "beta" in that order |
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`, so the field holds "beta" (FILT-37); type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+
+- Reason: the owner's default, as DataTables' `searchDelay` under server-side processing: one query per pause, not
+  one per key, and no query for a text already applied (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-27** Enter in a text filter's field MUST emit `onfilter` at once, and the pause then emits nothing more.
+- Examples (the test runs every row):
+
+  | Steps | `onfilter` calls |
+  |---|---|
+  | type "beta"; at 100 ms press Enter | one with "beta" at 100 ms, and still one at 600 ms |
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`; press Enter in the field | none: the text equals the applied one |
+
+- Reason: a user who knows the text is complete need not wait (PRD-B6); an unchanged text is no new query, as in
+  DataTables, which searches only when the text differs from the applied one (READ, DataTables 3.1.5 source). On
+  Enter DataTables waits for the pause unless `search.return` is set (`docs/departures.md`).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-28** With `searchOnEnter`, a text filter MUST emit `onfilter` only on Enter.
+- Example: `searchOnEnter`; type "beta"; at 1000 ms no call; press Enter: one call with "beta".
+- Reason: some servers are too slow for a query per pause; DataTables' `search.return` is the same setting (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-13** A text filter's field MUST be described by "Press Enter to apply." exactly while `searchOnEnter` is set.
+- Examples (the test runs every row):
+
+  | `searchOnEnter` | The accessible description of "Filter Name text" |
+  |---|---|
+  | `true` | contains "Press Enter to apply." |
+  | `false` | does not contain it |
+
+- Reason: under `searchOnEnter` nothing happens until Enter, and the user must learn that before typing; without
+  it the text applies by itself and the hint would be false.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-14** A text filter's field MUST have `autocomplete="off"`.
+- Example: "Filter Name text" has `autocomplete="off"`.
+- Reason: browser suggestions would cover the dialog and could show earlier queries to the next user of a shared
+  machine.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-03** A text filter MUST NOT emit `onfilter` for text it refuses, neither after the pause nor on Enter.
+- Examples (the test runs every row: type, wait 400 ms, press Enter; no call):
+
+  | Typed | Refused because |
+  |---|---|
+  | "a", U+0001, "b" (pasted) | a control character |
+  | "a", U+007F (pasted) | a control character |
+  | 256 times "x" | longer than `maxLength` |
+  | 256 times U+1F600 (pasted) | longer than `maxLength` |
+  | 11 times "x", with `maxLength={10}` | longer than `maxLength` |
+
+  255 times U+1F600 (pasted) is not refused: at 400 ms one call with that text.
+
+  The field accepts the 256th character: it has no `maxlength` attribute, so the user sees the refusal of FILT-15
+  instead of keys that do nothing.
+- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-15** While a text filter's field holds refused text, the field MUST be `aria-invalid="true"` and described by
+an alert that says why.
+- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused,
+  before any pause):
+
+  | Typed | Alert text (default) |
+  |---|---|
+  | "a", U+0001 (pasted) | "Use at most 255 characters without control characters." |
+  | 11 times "x", with `maxLength={10}` | "Use at most 10 characters without control characters." |
+
+- Reason: the user hears why the filter was not applied, at the field (PRD-B6, WCAG 3.3.1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alert.
+- Example: paste "a", U+0001, then press Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
+  dialog; at 400 ms one call with "a".
+- Reason: a stale error misleads (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
+order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
+- Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
+  checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
+- Reason: the server accepts only its own vocabulary, so the user picks from it (PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
+
+**FILT-04** Each toggle of a categorical option MUST emit `onfilter` once, at once, with the next selection's values in
+the options' order.
+- Examples (the test runs every row; one press each):
+
+  | `selected` before | Press | `onfilter` call |
+  |---|---|---|
+  | `[]` | "Inactive" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
+  | `['inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['active', 'inactive'] })` |
+  | `['active', 'inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
+
+- Reason: the server matches on values, labels are for people, and a click has no half-typed state to wait for
+  (PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
+
+**FILT-37** A text filter's field MUST take the applied text of `filters` when its dialog opens, and when `filters`
+changes while nothing has been typed in it since it last emitted or last took the applied text; otherwise it keeps
+its text.
+- Examples (the test runs every row; "Filter Name text" after the steps):
+
+  | Steps | Field reads |
+  |---|---|
+  | `filters` holds `name: { kind: 'text', text: 'beta' }`; open the dialog | "beta" |
+  | `filters` holds no filter for Name; open the dialog | "" |
+  | open the dialog with "beta" applied; with nothing typed, `filters` becomes `name: { kind: 'text', text: 'gamma' }` | "gamma" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 450 ms, `filters` unchanged | "betax" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'betax' }` | "betax" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'gamma' }` | "gamma" |
+
+- Reason: the field shows what narrows the rows, and the props are the one source of truth (PRD-B2); text the
+  user typed after the last emit is theirs until it is sent (FILT-05), and sent text stays while its answer is on
+  the way.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B2.
+
+**FILT-05** When `filters` changes while the open field holds newer typing, the field MUST keep the newer typing.
+- Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `filters` becomes
+  `name: { kind: 'text', text: 'mel' }`: the field reads "melanoma"; 400 ms after the last key a second call with
+  "melanoma".
+- Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+### The filter dialog: opening, closing and focus (milestone 4)
+
+The filter dialog is a popover in the top layer: it is drawn above the page and is not clipped by the region, so a
+statement that places something "inside the region" means the filter button, never the dialog. It closes on a
+press outside it and on Escape by the browser's own light dismiss, and when focus leaves it by Tab through a
+`focusout` handler on the dialog itself; no listener on `document` or `window` is added (FOOT-02; the practice
+check of 2026-11-19 chose this route). The examples use the columns of section 11 plus column Code (id `code`,
+sortable, no filter) after Status; Name and Status are not sortable. The header cell of a column holds its sort
+button, then its filter button, and a filter dialog's markup follows its own filter button in document order.
+
+**FILT-02** A press on "Filter <label>" MUST open one dialog named "<label> filter".
+- Examples (the test runs every row):
+
+  | Press | Dialog open after it |
+  |---|---|
+  | "Filter Name" | one element with role `dialog` and name "Name filter" |
+  | "Filter Status" | one element with role `dialog` and name "Status filter" |
+
+- Reason: a screen reader says where the user is (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-34** The open filter dialog MUST be shown whole, also where the region clips its content.
+- Example: a 1280 by 800 CSS px viewport; the table at the top of the page, its region 60 CSS px tall (lower than
+  the dialog) and scrolling, with 20 rows; press "Filter Name": the dialog's box lies inside the viewport, and at the
+  midpoint of each of its four edges, moved 2 px inwards, `document.elementFromPoint` returns the dialog or an
+  element inside it. Break that turns it red: the dialog without `popover`, as an absolutely positioned child of
+  Name's header cell, which the region clips.
+- Reason: a dialog cut off by the region hides its own field (PRD-A1, WCAG 2.4.11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-A1.
+
+**FILT-11** A filter button's `aria-expanded` MUST be "true" exactly while its dialog is open.
+- Examples (the test runs every row; "Filter Name" after each step):
+
+  | Steps | `aria-expanded` |
+  |---|---|
+  | none | "false" |
+  | press "Filter Name" | "true" |
+  | press "Filter Name"; Escape | "false" |
+  | press "Filter Name"; press "Filter Name" | "false" |
+  | press "Filter Name"; press "Filter Status" | "false" |
+
+- Reason: assistive technology tells the user whether the dialog is open (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-12** Opening a filter dialog MUST move focus to its first field.
+- Examples (the test runs every row):
+
+  | Press | Focused after it |
+  |---|---|
+  | "Filter Name" | "Filter Name text" |
+  | "Filter Status" | the checkbox "Active", the first option |
+  | "Filter Kind" (FILT-52) | "Find Kind options" |
+
+- Reason: keyboard users land where they type (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1, PRD-B29.
+
+**FILT-52** A categorical filter's dialog MUST show the find field "Find <label> options" above its options exactly
+while the filter has more than 10 options.
+- Examples (the test runs every row; press the column's filter button):
+
+  | Options | Find field |
+  |---|---|
+  | Status's 2 options | none |
+  | Kind's 11 options | "Find Kind options", before the first checkbox in document order |
+
+  Column Kind (id `kind`) has a categorical filter with the options `k1` "Alpha" to `k10` "Kappa" (the Greek letter
+  names in order) and `k11` "Inactive".
+- Reason: a long vocabulary needs a way to reach an option, and a short list needs none (PRD-B29).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B29, PRD-B7.
+
+**FILT-18** Typing in a find field MUST narrow the shown options to those whose label contains the text, ignoring
+case, and MUST NOT emit anything or change the selection.
+- Examples (the test runs every row; Kind of FILT-52 with `selected ['k1']`; "Find Kind options" after the steps):
+
+  | Steps | Options shown | Also |
+  |---|---|---|
+  | type "inact"; at 1000 ms | "Inactive" only | no callback called |
+  | type "ALP" | "Alpha" only | no callback called |
+  | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
+  | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
+  | type "xyz" | none; the text "No options match." in their place | no callback called |
+
+- Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
+  dialog (PRD-B29, PRD-B2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B29, PRD-B2.
+
+**FILT-06** Opening a filter dialog MUST close any other open filter dialog.
+- Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
+  "Status filter".
+- Reason: two open dialogs overlap and split focus.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7.
+
+**FILT-19** A press outside an open filter dialog MUST close it and act as a press on what it hits.
+- Examples (the test runs every row; "Name filter" open, focus in "Filter Name text"; after the press no element
+  with role `dialog` is open, and focus is neither in the dialog nor on "Filter Name"):
+
+  | Press on | Also after it |
+  |---|---|
+  | the text of a body cell | no callback called |
+  | "Sort by Code" | `onsort` called once |
+
+  Where focus goes after the press is the engine's: Chromium and Firefox focus a pressed button, WebKit does not
+  (MDN, the `button` element, "Clicking and focus", FETCHED 2026-11-19).
+- Reason: the press means the user has moved on, and the press must still do what it does (PRD-B6, PRD-B7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-B19.
+
+**FILT-07** Escape in an open filter dialog MUST close it and return focus to its filter button.
+- Example: press "Filter Name", press Escape: no element with role `dialog` is open, and focus is on "Filter Name".
+- Reason: the user returns to where they started (APG dialog pattern; PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-36** An Escape that closes a filter dialog MUST NOT reach a `keydown` listener the application has on
+`document`, and every other Escape MUST reach it.
+- Examples (the test runs every row; the application's listener is added on `document` before mount and counts
+  Escape key events):
+
+  | Escape pressed | Dialog | Escapes the listener counts |
+  |---|---|---|
+  | in "Filter Name text", "Name filter" open | closes | 0 |
+  | on "Filter Name" after Shift+Tab from "Filter Name text" (FILT-21), "Name filter" open | closes | 0 |
+  | after a mouse press on the checkbox "Inactive" in "Status filter", which stays open | closes | 0 |
+  | on "Sort by Code", no dialog open | - | 1 |
+  | on "Filter Name", no dialog open | - | 1 |
+
+- Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
+  filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape only after the `keydown` event has
+  been dispatched through the document, unless it was cancelled (HTML, close requests, FETCHED 2026-11-19), so the
+  dialog and its filter button stop that event themselves, and a press inside the open dialog must leave focus inside
+  it: WebKit does not focus a pressed button (MDN, FETCHED) and, INFERRED, a pressed checkbox, so focus would
+  otherwise fall to the body, where neither sees the key.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B19, PRD-B6, PRD-B7.
+
+**FILT-20** Tab out of an open filter dialog MUST close it and leave focus where Tab put it.
+- Example: press "Filter Name", press Tab: no element with role `dialog` is open, and focus is on "Filter Status",
+  the next control after "Filter Name".
+- Reason: a dialog left open after Tab can cover the newly focused control (WCAG 2.4.11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-21** Shift+Tab from a dialog's first field to its own filter button MUST keep the dialog open.
+- Example: press "Filter Name", press Shift+Tab: focus is on "Filter Name" and "Name filter" is still open.
+- Reason: the button belongs to the dialog, so going back to it is not leaving.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B7, PRD-A1.
+
+**FILT-35** Closing a filter dialog MUST emit nothing for text typed and not yet emitted.
+- Examples (the test runs every row; type "be" in "Filter Name text" with `filters` holding no filter for Name,
+  then close at 100 ms; at 1000 ms no `onfilter` call; pressing "Filter Name" again shows an empty field):
+
+  | Closed by |
+  |---|
+  | Escape |
+  | a press on the text of a body cell |
+  | Tab |
+
+- Reason: closing is the user's way to leave without a query; a query sent after the dialog has gone would change
+  the rows with no field left to show why (PRD-B2: the unsent text is internal state and goes with the dialog).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6, PRD-B2.
+
+### Badges, clearing, "Reset table" and the application's criteria (milestone 4)
+
+These statements add `onclearfilter(columnId)`, `onclearfilters()`, `onreset()` and the snippet `criteria` (PRD-B8,
+section 5.2 of the PRD). A filter applies when its entry in `filters` holds a non-empty text or a non-empty
+selection. The examples use the columns of section 11 and Code (sortable), with every handler passed. Hidden columns
+come with the column statements (milestone 5), which state the badges and focus for them.
+
+**FILT-08** Each applied filter MUST show one badge, a button whose accessible name holds its visible words.
+- Examples (the test runs every row):
+
+  | `filters` | Badges |
+  |---|---|
+  | `name: { kind: 'text', text: 'Beta' }` | one button, text "Name: contains “Beta”", name "Clear filter Name: contains “Beta”" |
+  | `name: { kind: 'text', text: '' }` | none |
+  | `status: { kind: 'categorical', selected: [] }` | none |
+
+- Reason: the user sees what narrows the rows, and the visible words stay in the accessible name (PRD-B8, WCAG
+  2.5.3).
+- Layer: component.
+- Traces: PRD-B8, PRD-A1.
+
+**FILT-22** A badge of a categorical filter MUST name the selected options by their labels, in the options' order.
+- Example: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
+  Inactive".
+- Reason: values are codes that mean nothing to the user (PRD-B7, PRD-B8).
+- Layer: component.
+- Traces: PRD-B7, PRD-B8.
+
+**FILT-09** A press on a badge MUST emit `onclearfilter` once, with its column id.
+- Example: press "Clear filter Name: contains “Beta”": `onclearfilter('name')`, as "emits once" defines it.
+- Reason: one press is one query (PRD-B2, PRD-B8).
+- Layer: component.
+- Traces: PRD-B8, PRD-B2.
+
+**FILT-24** After a badge is pressed, focus MUST move to its column's filter button.
+- Example: `filters` holds Name's text "Beta"; focus the badge and press Enter; then `filters` holds no filter: the
+  badge is gone and focus is on "Filter Name".
+- Reason: the pressed badge disappears, and focus must not fall to the page body (WCAG 2.4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B8, PRD-A3.
+
+**FILT-10** "Clear column filters" MUST be shown exactly while at least one filter applies.
+- Examples (the test runs every row):
+
+  | `filters` | "Clear column filters" |
+  |---|---|
+  | `{}` | not shown |
+  | `name: { kind: 'text', text: '' }` | not shown |
+  | `name: { kind: 'text', text: 'Beta' }` | shown |
+
+- Reason: a control with nothing to clear misleads (PRD-B8).
+- Layer: component.
+- Traces: PRD-B8.
+
+**FILT-25** A press on "Clear column filters" MUST emit `onclearfilters` once.
+- Example: Name's text "Beta" and Status's `['active']` apply; one press: `onclearfilters()`, as "emits once"
+  defines it, so `onclearfilter` is not called.
+- Reason: one press is one query, not one per filter (PRD-B2, PRD-B8).
+- Layer: component.
+- Traces: PRD-B8, PRD-B2.
+
+**FILT-30** "Reset table" MUST be shown exactly while `onreset` is given and a column is sortable or has a filter.
+- Examples (the test runs every row):
+
+  | Columns | `onreset` | "Reset table" |
+  |---|---|---|
+  | Code sortable, no filter | given | shown |
+  | Name with a filter, none sortable | given | shown |
+  | Code sortable | not given | not shown |
+  | neither sortable nor with a filter | given | not shown (RND-12) |
+
+- Reason: the reset is the application's intent and does nothing without its handler; a table built before this
+  group, with sort and no `onreset`, keeps its look (PRD-B8; RND-12 is the negative half).
+- Layer: component.
+- Traces: PRD-B8, PRD-B3.
+
+**FILT-26** A press on "Reset table" MUST emit `onreset` once.
+- Examples (the test runs every row; one press each: `onreset()`, as "emits once" defines it):
+
+  | Applied | Not called |
+  |---|---|
+  | the order `[code asc]` and Name's text "Beta" | `onsort`, `onclearfilters` |
+  | the order `[code asc]` and `search` "beta", `onsearch` given | `onsort`, `onsearch`; "Search" still reads "beta" until `search` changes (FILT-44) |
+
+- Reason: the application restores sort and filters in one query (PRD-B2, PRD-B8).
+- Layer: component.
+- Traces: PRD-B8, PRD-B2, PRD-B25.
+
+**FILT-31** The badges, the `criteria` snippet, "Clear column filters" and "Reset table" MUST come in that order, all
+before the region, in document order.
+- Examples (the test runs every row; the snippet holds the button "Clear my criteria"):
+
+  | `filters` | In document order |
+  |---|---|
+  | Name's text "Beta" and Status's `['active']` | the badge of Name, the badge of Status, "Clear my criteria", "Clear column filters", "Reset table", the region |
+  | `{}` | "Clear my criteria", "Reset table", the region |
+
+- Reason: the application's own criteria sit beside the column filters they join, and the clearing controls follow
+  what they clear (PRD section 5.2; WCAG 1.3.2).
+- Layer: component.
+- Traces: PRD-B8, PRD-A3.
+
+**FILT-32** For invalid filter input the table MUST render the alert of RND-05 with the fixed message the examples
+below list.
+- Examples (as RND-05, for the filter props; the test runs every row and every value or alternative in it: one
+  element with `role="alert"` holding the default text, and no `table` element):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
+  | an option's value or label is empty | `filterInvalid` | "A column filter is not valid." |
+  | two options share a value, or labels equal after trimming | `filterInvalid` | "A column filter is not valid." |
+  | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
+  | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
+  | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
+  | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
+  | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
+  | `search` is not a string | `searchInvalid` | "The applied search is not valid." |
+  | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
+  | `maxLength` is 0, -1, 1.5, `NaN` or `Infinity` | `maxLengthInvalid` | "The text length limit is not a valid number." |
+
+  With several faults at once, a fault of RND-05's table wins, then one of SORT-15's, then the first row above that
+  applies. An applied text that the field would refuse (FILT-03) is no fault: the rows are already narrowed by it, its
+  badge shows it, and the field marks it as FILT-15 says when the dialog opens.
+- Reason: a filter the table cannot show is a wrong table: the user would believe a narrowing the rows do not have,
+  or press a control that does nothing (PRD-B16).
+- Layer: component.
+- Traces: PRD-B16, PRD-B7, PRD-B6, PRD-B25.
+
+**FILT-39** The alert MUST hold no value taken from the filter props.
+- Examples (as RND-09, for the filter props; the test runs every row, and in each it first finds the alert holding
+  the FILT-32 message for that input):
+
+  | Invalid input | Text that must not appear in the alert |
+  |---|---|
+  | two options of Status with the value `val-q8`, labelled "Secret-6" and "Other" | "val-q8", "Secret-6" |
+  | Status's `selected` holds `val-p3`, which is no option | "val-p3" |
+
+- Reason: alerts are often logged or screenshotted, and filter values can be confidential (PRD-S4).
+- Layer: component.
+- Traces: PRD-S4, PRD-B16.
+
+**FILT-33** Every fixed word of the filters MUST come from a prop with an English default.
+- Examples (as RND-06, for the filter words; the test runs every row in the set-up of its "Shown by" statement, the
+  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
+  checks that each replacement appears where the row says and that no English default is left on the page, in an
+  accessible name or in a description):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `filterButton` (a function of the label) | "Filter Name" for "Name" | FILT-29 |
+  | `badgeText` (a function of `{ label, text }`) | "Name: contains “Beta”" | FILT-08 |
+  | `badgeOptions` (a function of `{ label, options }`, the option labels) | "Status: Active, Inactive" | FILT-22 |
+  | `clearFilter` (a function of the badge's words) | "Clear filter Name: contains “Beta”" | FILT-08 |
+  | `clearFilters` | "Clear column filters" | FILT-10 |
+  | `reset` | "Reset table" | FILT-30 |
+  | `searchLabel` | "Search" | FILT-40 |
+  | each alert message of FILT-32 | its default in FILT-32 | FILT-32 |
+
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1, PRD-B25.
+
+**FILT-47** Every fixed word of the filter dialogs MUST come from a prop with an English default.
+- Examples (as FILT-33, for the words inside a filter dialog, which the simulated DOM cannot open):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `filterDialog` (a function of the label) | "Name filter" for "Name" | FILT-02 |
+  | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
+  | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
+  | `noOptions` | "No options match." | FILT-18 |
+  | `pressEnter` | "Press Enter to apply." | FILT-13 |
+  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
+
+  The 1000 case runs once more in a browser context with the locale `de-DE`: the test first asserts that
+  `(1000).toLocaleString()` gives "1.000" there, and still expects "1,000".
+
+- Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I1, PRD-I2, PRD-B29.
+
+### The global search (milestone 4)
+
+These statements add `search`, the applied search text (default `""`), and `onsearch(text)` (PRD-B25). The search
+field follows the same rules as a text filter's field (PRD-B6), with `onsearch(text)` in place of `onfilter`; it is
+not in a dialog, so its statements are tested in the simulated DOM, with time moved by fake timers, counted from the
+first key, keys taking no time and a control character pasted, as in section 11. "Search" is the field found by role
+`searchbox` and that name. What matches the text is the data source's (PRD-B25).
+
+**FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given.
+- Examples (the test runs every row):
+
+  | `onsearch` | Fields with role `searchbox` |
+  |---|---|
+  | given | one, named "Search", with `autocomplete="off"` |
+  | not given | none |
+
+- Reason: the search box of DataTables' default layout, shown only where the application can answer it (PRD-B25);
+  browser suggestions would show earlier searches to the next user of a shared machine (as FILT-14).
+- Layer: component.
+- Traces: PRD-B25.
+
+**FILT-41** The search field MUST emit `onsearch` by the rules of FILT-01, FILT-27 and FILT-28.
+- Examples (the test runs every row; `search` is `""`):
+
+  | Steps | `onsearch` calls |
+  |---|---|
+  | type "beta"; at 399 ms, then at 400 ms | none, then one: `('beta')` |
+  | type "be"; at 300 ms type "ta"; at 699 ms, then at 700 ms | none, then one with "beta" |
+  | type "beta"; at 100 ms press Enter | one at 100 ms, and still one at 600 ms |
+  | `searchOnEnter`; type "beta"; at 1000 ms, then press Enter | none, then one |
+  | `searchDelay={0}`; type "be", with no time moved | two, with "b" and "be" |
+  | `search` is "beta"; type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+  | `search` is "beta"; press Enter in the field | none: the text equals the applied one |
+
+- Reason: one setting governs both kinds of search box, as PRD-B6 asks; the user learns one behaviour.
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, as FILT-03 says for a text filter.
+- Examples (the test runs every row: the steps, then at 400 ms press Enter; no call): paste "a", U+0001; paste "a",
+  U+007F; type 256 times "x"; type 11 times "x", with `maxLength={10}`.
+- Reason: the server would refuse the query (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-48** The search field MUST be `aria-invalid="true"` and described by the alert of FILT-15 exactly while it holds
+text it refuses.
+- Examples (the test runs every row; the checks right after the last step):
+
+  | Steps | `aria-invalid` | Described by |
+  |---|---|---|
+  | paste "a", U+0001 | "true" | "Use at most 255 characters without control characters." |
+  | type 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters without control characters." |
+  | paste "a", U+0001, then press Backspace | not "true" | no alert |
+  | mount with `search` "a" followed by U+0001 | "true" | "Use at most 255 characters without control characters." |
+
+  An applied `search` the field would refuse is no fault (FILT-32): the field shows it and marks it.
+- Reason: the user learns at the field why nothing is applied, and a stale error misleads (PRD-B6, WCAG 3.3.1).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6, PRD-A1.
+
+**FILT-43** The search field MUST be described by "Press Enter to apply." exactly while `searchOnEnter` is set.
+- Examples (the test runs every row): `searchOnEnter` true: the description of "Search" contains "Press Enter to
+  apply."; false: it does not.
+- Reason: as FILT-13, for the search field (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-44** The search field MUST take the applied text of `search` as FILT-37 says for a text filter's field, the
+mount standing for the dialog's opening.
+- Examples (the test runs every row; "Search" after the steps):
+
+  | Steps | Field reads |
+  |---|---|
+  | mount with `search` "beta" | "beta" |
+  | mount with `search` ""; with nothing typed, `search` becomes "gamma" | "gamma" |
+  | type "x"; at 400 ms one call with "x"; at 450 ms, `search` unchanged | "x" |
+  | type "x"; at 400 ms one call with "x"; at 500 ms `search` becomes "gamma" | "gamma" |
+
+- Reason: the field shows what narrows the rows; the props are the one source of truth (PRD-B2).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6, PRD-B2.
+
+**FILT-49** When `search` changes while the field holds newer typing, the field MUST keep the newer typing, as FILT-05
+says for a text filter.
+- Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel": the
+  field reads "melanoma"; at 850 ms a second call with "melanoma".
+- Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-46** A press on "Clear column filters" MUST leave the search field's text as it is.
+- Example: `search` "beta" and Name's text "Gamma" apply; press "Clear column filters": `onclearfilters()` is called
+  once, as "emits once" defines it, so `onsearch` is not; "Search" still reads "beta".
+- Reason: "Clear column filters" leaves the search (PRD-B8); "Reset table", an `onreset` that emits nothing else
+  (FILT-26), is the application's reset of the search too.
+- Layer: component.
+- Traces: PRD-B8, PRD-B25.
+
+**FILT-45** The search field MUST come before the badges of FILT-31 and before the region, in document order.
+- Example: `onsearch` given, Name's text "Beta" applies: "Search" comes before the badge "Clear filter Name: contains
+  “Beta”", which comes before the region.
+- Reason: the search narrows every column, so it leads what narrows the rows (DataTables' default layout puts it at
+  the top; WCAG 1.3.2).
+- Layer: component.
+- Traces: PRD-B25, PRD-A3.
+
 ## Trace
 
 ### Statement -> PRD
@@ -2546,6 +3188,54 @@ receives that number.
 | ID-02 | PRD-B18 |
 | ID-03 | PRD-B18, PRD-K4 |
 | I18N-01 | PRD-I2, PRD-I1, PRD-B26 |
+| FILT-29 | PRD-B6, PRD-B7, PRD-B3 |
+| FILT-01 | PRD-B6 |
+| FILT-27 | PRD-B6 |
+| FILT-28 | PRD-B6 |
+| FILT-13 | PRD-B6, PRD-A1 |
+| FILT-14 | PRD-B6 |
+| FILT-03 | PRD-B6 |
+| FILT-15 | PRD-B6, PRD-A1 |
+| FILT-16 | PRD-B6 |
+| FILT-17 | PRD-B7 |
+| FILT-04 | PRD-B7 |
+| FILT-37 | PRD-B6, PRD-B2 |
+| FILT-05 | PRD-B6 |
+| FILT-02 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-34 | PRD-B6, PRD-A1 |
+| FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
+| FILT-52 | PRD-B29, PRD-B7 |
+| FILT-18 | PRD-B29, PRD-B2 |
+| FILT-06 | PRD-B6, PRD-B7 |
+| FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
+| FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-36 | PRD-B19, PRD-B6, PRD-B7 |
+| FILT-20 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-21 | PRD-B6, PRD-B7, PRD-A1 |
+| FILT-35 | PRD-B6, PRD-B2 |
+| FILT-08 | PRD-B8, PRD-A1 |
+| FILT-22 | PRD-B7, PRD-B8 |
+| FILT-09 | PRD-B8, PRD-B2 |
+| FILT-24 | PRD-B8, PRD-A3 |
+| FILT-10 | PRD-B8 |
+| FILT-25 | PRD-B8, PRD-B2 |
+| FILT-30 | PRD-B8, PRD-B3 |
+| FILT-26 | PRD-B8, PRD-B2, PRD-B25 |
+| FILT-31 | PRD-B8, PRD-A3 |
+| FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
+| FILT-39 | PRD-S4, PRD-B16 |
+| FILT-33 | PRD-I1, PRD-B25 |
+| FILT-47 | PRD-I1, PRD-I2, PRD-B29 |
+| FILT-40 | PRD-B25 |
+| FILT-41 | PRD-B25, PRD-B6 |
+| FILT-42 | PRD-B25, PRD-B6 |
+| FILT-48 | PRD-B25, PRD-B6, PRD-A1 |
+| FILT-43 | PRD-B25, PRD-B6 |
+| FILT-44 | PRD-B25, PRD-B6, PRD-B2 |
+| FILT-49 | PRD-B25, PRD-B6 |
+| FILT-46 | PRD-B8, PRD-B25 |
+| FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
 | A11Y-19 | PRD-A3 |
@@ -2561,32 +3251,36 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
+| PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
+| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, PAGE-39 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, PAGE-37, PAGE-38 | in part: later groups state their own words in their own statements |
-| PRD-I2 | RND-06, SORT-17, I18N-01, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, PAGE-37, PAGE-38 | in part: later groups state their own words in their own statements |
+| PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
-| PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
+| PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
@@ -2601,7 +3295,6 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Filter and criteria: PRD-B6, PRD-B7.
 - Columns (chooser, reorder, resize): PRD-B10, PRD-B11, PRD-B12.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
