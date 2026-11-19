@@ -155,18 +155,20 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-To run the header check before each commit, set once per clone, by choice (nothing checks the setting yet):
+To run the hooks before each commit, run once per clone, by choice (the gate's `hooks` step checks it is done):
 
 ```sh
-git config core.hooksPath .githooks
+./scripts/setup
 ```
+
+It sets `core.hooksPath` to `.githooks` for this clone, and stops without changing anything, naming the value and
+where it is set, when another `core.hooksPath` is already set, in this clone or globally.
 
 git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
 commit, and `.githooks/pre-commit` before it. The hooks need the Node version of
 `.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
-setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
-place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
-secret scan, by hand until the setup step exists (Not built yet).
+setting replaces the hooks in `.git/hooks` for this clone, and there is no supported place for a hook of your own
+yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a secret scan, by hand.
 
 - **pre-commit**, on the staged files: `text`, `format` and `lint` on the files of their class; `lockfile` when
   `package.json`, the lockfile, `pnpm-workspace.yaml` or `dependabot.yml` is staged; `workflows` when a file under
@@ -203,8 +205,7 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the setup step that sets `core.hooksPath` and the pre-push hook (issue #6); until they exist, maintainers run the
-  private word scan by hand before every push;
+- the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 

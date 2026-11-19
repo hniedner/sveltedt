@@ -828,6 +828,16 @@ test("text: a repository without a file of its class cannot be checked", () => {
   );
   assert.match(out, /no file to check/);
 });
+test("text: the setup script is a file of the text class", () => {
+  assert.match(
+    expect(
+      "text",
+      repo((root) => put(root, "scripts/setup", "#!/bin/sh \n")),
+      1,
+    ),
+    /scripts\/setup/,
+  );
+});
 test("text: a tracked file of no known class cannot be checked, and names the file", () => {
   assert.match(
     expect(
@@ -3211,7 +3221,7 @@ test("hooks: an unset core.hooksPath is a finding that gives the command", () =>
   git(root, "config", "--unset", "core.hooksPath");
   assert.match(
     expect("hooks", root, 1),
-    /core\.hooksPath is unset: run git config core\.hooksPath \.githooks/,
+    /core\.hooksPath is unset: run \.\/scripts\/setup/,
   );
 });
 test("hooks: a hook that is not executable is a finding", () => {

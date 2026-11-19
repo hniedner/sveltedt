@@ -6,14 +6,14 @@ pages named, or measured with the command named.
 ## Hook runner
 
 - **Need:** hooks installed by a setup step, verified by the gate (method section 10; companion G9).
-  Until that step exists, the setting is made by hand (CONTRIBUTING, "Commit headers").
 - **Candidates:**
   - git's own `core.hooksPath` with our hook files;
   - husky 9 (a `prepare` script sets `core.hooksPath`);
   - lefthook 2 and simple-git-hooks 2 (both install from a `postinstall` script).
 - **Decision:** `core.hooksPath`, no runner.
-  - The setup step is one command, `git config core.hooksPath .githooks`; the gate's `hooks` step fails until it
-    has run, and prints it.
+  - The setup step is `./scripts/setup`, a POSIX shell script that runs `git config core.hooksPath .githooks`; the
+    gate's `hooks` step fails until it has run, and prints it. It stops when another `core.hooksPath` is set, as
+    lefthook does (lefthook.dev, install command), instead of replacing it silently.
   - Each hook is a two-line shim into `scripts/check-repo.ts`, the layout husky 9 uses for `.husky/` (read
     2026-11-18, typicode.github.io/husky/get-started.html).
   - pre-commit refuses a staged file that was changed again, instead of hiding the unstaged change in a stash and

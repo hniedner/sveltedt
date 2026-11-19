@@ -752,7 +752,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/(setup|[\w-]+\.version))$/,
     steps: ["text"],
   },
   {
@@ -2151,7 +2151,7 @@ function hooks(root: string): Result {
     path === ".githooks"
       ? []
       : [
-          `core.hooksPath is ${path ? `"${path}"` : "unset"}: run git config core.hooksPath .githooks`,
+          `core.hooksPath is ${path ? `"${path}"` : "unset"}: run ./scripts/setup`,
         ];
   for (const h of HOOKS) {
     const f = join(root, ".githooks", h);
