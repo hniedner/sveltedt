@@ -57,7 +57,9 @@ The checks today:
   as an attribute, no `{@html}` (the plugin's `svelte/no-at-html-tags`), no `insertAdjacentHTML`, `setHTML`, `setHTMLUnsafe`, `parseHTMLUnsafe`, `Document.parseHTML`,
   `createContextualFragment`, `createRawSnippet`, `DOMParser`, `execCommand("insertHTML")` or `document.write`, no
   constructed or inserted style sheet, no sink name in brackets: PRD-G2, PRD-S1, PRD-S2, PRD-T3 and PRD-B19; and no
-  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). The bans read names as written
+  browser API above the PRD-E1 floor, as far as eslint-plugin-compat knows it). One exception: the site's test files
+  (`site/**/*.test.ts`) may use `DOMParser`, to read the site's own build; PRD-S2 keeps raw HTML out of the component
+  and the site's source, not out of a test of the build. The bans read names as written
   (with a dot, in brackets as a plain string, or bare) and plain string arguments. They do not catch a name built at
   run time or written as a template literal; a cast or non-null assertion on the object a ban reads
   (`(document as Document).write`, `iframe.contentDocument!.write`) or on an argument (`setAttribute("style" as

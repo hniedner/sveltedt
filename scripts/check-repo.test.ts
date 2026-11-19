@@ -3730,3 +3730,63 @@ test("site: a vite that cannot be started cannot be checked, and says why", () =
     /cannot run \/no\/such\/vite: ENOENT/,
   );
 });
+
+// The site's test files read the site's own build with DOMParser (the one named exception to its ban)
+const PARSES = `import { expect, test } from "vitest";
+test("parses", () => {
+  expect(new DOMParser().parseFromString("<p></p>", "text/html").body).toBeTruthy();
+});
+`;
+test("lint: DOMParser passes in a site test file and still fires in site/src and in a src/lib test file", () => {
+  expect(
+    "lint",
+    repo((r) => put(r, "site/a.test.ts", PARSES)),
+    0,
+  );
+  for (const file of ["site/src/x.ts", "src/lib/x.test.ts"]) {
+    const out = expect(
+      "lint",
+      repo((r) => put(r, file, PARSES)),
+      1,
+    );
+    assert.ok(out.includes("DOMParser (PRD-S2)"), `${file}: ${out}`);
+  }
+});
+test("lint: a DOMParser lift elsewhere, or a wider lift for site tests, cannot be checked", () => {
+  const real = join(here, "..", "eslint.config.mjs");
+  const lift = (files: string, drop: string) =>
+    `{ files: [${JSON.stringify(files)}], rules: { "no-restricted-syntax": ["error", ...base.flatMap((b) => b.files?.includes("**/*.ts") ? (b.rules?.["no-restricted-syntax"] ?? []).slice(1) : []).filter((e) => !${drop}.test(e.message))] } }`;
+  for (const [block, file, named] of [
+    [
+      lift("src/lib/**/*.test.ts", "/DOMParser/"),
+      "src/lib/x.test.ts",
+      "src/lib/x.test.ts: no-restricted-syntax",
+    ],
+    [
+      lift("site/**/*.test.ts", "/DOMParser|createElement /"),
+      "site/a.test.ts",
+      "site/a.test.ts: no-restricted-syntax",
+    ],
+  ]) {
+    const config = join(tempDir(), "eslint.config.mjs");
+    writeFileSync(
+      config,
+      `import base from ${JSON.stringify(real)};\nexport default [...base, ${block}];\n`,
+    );
+    const out = expect(
+      "lint",
+      repo((r) =>
+        put(
+          r,
+          file,
+          `import { expect, test } from "vitest";\n${PASSING_VITEST}`,
+        ),
+      ),
+      3,
+      {
+        extraEnv: { ESLINT_CONFIG: config },
+      },
+    );
+    assert.ok(out.includes(named), `${named}: ${out}`);
+  }
+});

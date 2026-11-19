@@ -1119,10 +1119,15 @@ const SCRIPT_BANS = ".ts";
 const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
   ["src/lib", "site/src"].map((dir) => `${dir}/probe${ext}`),
 );
+// The one named exception: the site's test files may use DOMParser to read the site's own build (reviewer's ruling,
+// 2026-11-18); for them the canaries' proof expects every other ban, and only that one may be missing.
+const SITE_TESTS = /^site\/.+\.test\.ts$/;
+const LIFTED = "DOMParser (PRD-S2)";
 function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
-  const bans = (c: { rules: Record<string, unknown> }) =>
+  const bans = (c: { rules: Record<string, unknown> }, lifted = false) =>
     ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
       .slice(1)
+      .filter((e) => !lifted || (e as { message?: string }).message !== LIFTED)
       .map((e) => JSON.stringify(e));
   // The SCRIPT_BANS canary raised each of its bans first (lintCanaryMisses), so it has a config.
   const proven = Object.entries(canary.configs).find(
@@ -1134,9 +1139,10 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
     const want = planted ? canary.configs[planted] : null;
     const got = rec.configs[probe];
     if (!want || !got) return [`${probe}: no config`];
+    const lifted = SITE_TESTS.test(probe);
     const rules = [
       ...new Set((LINT_CANARY_RULES[ext] ?? []).map((e) => e.split("|")[0])),
-    ];
+    ].filter((r) => !lifted || r !== "no-restricted-syntax");
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
     return [
@@ -1144,7 +1150,7 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
       ...(same(got.settings, want.settings) ? [] : ["settings"]),
       ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
       ...(["processor", "parser"] as const).filter((k) => got[k] !== want[k]),
-      ...(bans(proven).every((b) => bans(got).includes(b))
+      ...(bans(proven, lifted).every((b) => bans(got).includes(b))
         ? []
         : [
             `no-restricted-syntax without each ban of the ${SCRIPT_BANS} canary`,

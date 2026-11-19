@@ -202,6 +202,17 @@ export default [
       "no-restricted-syntax": ["error", ...scriptBans],
     },
   },
+  {
+    // The site's test files read the site's own build with DOMParser: PRD-S2 keeps raw HTML out of the component and
+    // the site's source, not out of a test of the build. Only that one ban is lifted (reviewer's ruling, 2026-11-18).
+    files: ["site/**/*.test.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...scriptBans.filter((ban) => ban.message !== "DOMParser (PRD-S2)"),
+      ],
+    },
+  },
   // After the TypeScript blocks: the Svelte parser reads components and .svelte.ts runes, TypeScript inside them.
   ...svelte.configs.recommended,
   {
