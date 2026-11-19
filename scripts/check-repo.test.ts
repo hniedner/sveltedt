@@ -152,6 +152,10 @@ updates:
       semver-patch-days: 3
 `;
 
+/** The hooks a clone runs. */
+const HOOKS = ["pre-commit", "commit-msg"];
+const hookFile = (hook: string): string => join(here, "..", ".githooks", hook);
+
 /** A repository that passes every check; `change` plants the break before the files are staged. */
 function repo(change: (root: string) => void = () => {}): string {
   const root = tempDir();
@@ -187,19 +191,18 @@ function repo(change: (root: string) => void = () => {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/CODEOWNERS": "* @someone\n",
     "svelte.config.js": "export default {};\n",
-    // The committed hook itself, so a change to it reaches the rows that run git.
-    ".githooks/commit-msg": readFileSync(
-      join(here, "..", ".githooks", "commit-msg"),
-      "utf8",
-    ),
+    // The committed hooks themselves, so a change to one reaches the rows that run git.
+    ".githooks/pre-commit": readFileSync(hookFile("pre-commit"), "utf8"),
+    ".githooks/commit-msg": readFileSync(hookFile("commit-msg"), "utf8"),
   };
   for (const [path, text] of Object.entries(files)) put(root, path, text);
-  // The committed hook's own mode: git skips a hook that is not executable.
-  const hook = join(here, "..", ".githooks", "commit-msg");
-  chmodSync(join(root, ".githooks/commit-msg"), statSync(hook).mode & 0o777);
+  // The committed hooks' own mode: git skips a hook that is not executable.
+  for (const h of HOOKS)
+    chmodSync(join(root, ".githooks", h), statSync(hookFile(h)).mode & 0o777);
   // Like a real checkout after `pnpm install`: the TypeScript scripts find Node's types (ignored, never tracked).
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   execFileSync("git", ["init", "-q", root], { env: GIT_ENV });
+  git(root, "config", "core.hooksPath", ".githooks"); // as `git config core.hooksPath .githooks` sets it up
   commit(root, "chore: the fixture's first commit");
   git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   change(root);
@@ -810,6 +813,7 @@ test("text: a repository without a file of its class cannot be checked", () => {
         "node_modules", // the link .gitignore kept untracked
         ".node-version",
         ".github/CODEOWNERS",
+        ".githooks/pre-commit",
         ".githooks/commit-msg",
         "docs/engineering/method.md",
         "docs/engineering/gates.md",
@@ -908,6 +912,17 @@ test("format: an unformatted JSON file is a finding", () => {
     repo((root) => put(root, "data.json", '{"a":1}\n')),
     1,
   );
+});
+// A nested Prettier config would change what "formatted" means in its folder (and a prettier.config.mjs would run).
+const nested = (data: string) => (root: string) => {
+  put(root, "sub/.prettierrc.json", '{ "tabWidth": 4 }\n');
+  put(root, "sub/data.json", data);
+};
+test("format: a nested Prettier config does not make an unformatted file pass", () => {
+  expect("format", repo(nested('{\n    "a": 1\n}\n')), 1);
+});
+test("format: a nested Prettier config does not make a formatted file fail", () => {
+  expect("format", repo(nested('{\n  "a": 1\n}\n')), 0);
 });
 test("format: a YAML file Prettier cannot parse is a finding", () => {
   const broken = "on: [pull_request\n";
@@ -3199,73 +3214,279 @@ test("commit-msg: no message file is a usage error that says so", () => {
   assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
 });
 
-// Pins: git really runs the hook from .githooks: it refuses a bad header and an editor message left empty, and takes
-// a conventional one, git's own revert wording and a fixup.
-test("commit-msg: git runs the hook from .githooks and commits only what it passes", () => {
+/** A fixture holding this runner, its configs and canaries, so git runs the real hooks and gate there. */
+function hooked(change: (root: string) => void = () => {}): string {
   const root = repo((r) => {
-    for (const f of ["check-repo.ts", "gate-step.ts", "pinned.ts"])
-      put(r, `scripts/${f}`, readFileSync(join(here, f)));
+    for (const f of [
+      "scripts/check-repo.ts",
+      "scripts/gate-step.ts",
+      "scripts/pinned.ts",
+      "eslint.config.mjs",
+      "tsconfig.json", // leaves the canaries to ESLint's default project
+    ])
+      put(r, f, readFileSync(join(here, "..", f)));
+    cpSync(join(here, "canaries"), join(r, "scripts", "canaries"), {
+      recursive: true,
+    });
+    change(r);
   });
   commit(root, "chore: add the runner");
-  git(root, "config", "core.hooksPath", ".githooks");
+  return root;
+}
+/** git with the hooks on, as a contributor runs it; the tools are the run() fakes. */
+function hookGit(
+  root: string,
+  args: string[],
+  extraEnv: NodeJS.ProcessEnv = {},
+): { code: number | null; out: string } {
+  const env: NodeJS.ProcessEnv = {
+    ...GIT_ENV,
+    // The hook runs `node` from PATH: this test's own Node goes first. No global or system git configuration
+    // (a core.commentChar or commit.template there changes what git hands the hook).
+    PATH: `${dirname(process.execPath)}${delimiter}${GIT_ENV.PATH ?? ""}`,
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    ACTIONLINT_BIN: fakeLint(),
+    PNPM_BIN: fakePnpm(),
+    ZIZMOR_BIN: fakeZizmor(),
+    GITLEAKS_BIN: fakeVersion("gitleaks", "9.9.9"),
+    ...extraEnv,
+  };
+  for (const k of GATE_VARS) delete env[k];
+  const r = spawnSync(
+    "git",
+    [
+      ...["-C", root, "-c", "user.name=Fixture"],
+      ...["-c", "user.email=fixture@example.org", "-c", "commit.gpgsign=false"],
+      ...args,
+    ],
+    // Bounded: an editor git opened by mistake would otherwise wait for input forever.
+    { encoding: "utf8", env, timeout: 30_000 },
+  );
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+const gitCommit = (root: string, ...args: string[]) =>
+  hookGit(root, ["commit", "-q", ...args]);
+const head = (root: string): string =>
+  git(root, "log", "-1", "--format=%s").trim();
+/** The secret scan replaced by one that names every file of the folder it is given and passes, or finds `leak`. */
+const listingScan = (root: string): void =>
+  put(
+    root,
+    "scripts/scan-secrets.ts",
+    `import { readdirSync, readFileSync } from "node:fs";
+const [mode, dir] = process.argv.slice(2);
+const files = readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile());
+console.log("scan-secrets " + mode + " " + files.map((e) => e.name).sort().join(","));
+if (files.some((e) => readFileSync(e.parentPath + "/" + e.name, "utf8").includes("leak"))) {
+  console.log("FINDING scan-secrets: 1 leak(s)");
+  process.exitCode = 1;
+}
+`,
+  );
+
+test("pre-commit: a formatted staged file commits; the scan sees only the staged files; stages without a file of their kind are not applicable", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/a.md", "# A note\n");
+  put(root, "notes/unstaged.md", "#  Not staged\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(head(root), "docs: add a note");
+  assert.match(r.out, /^PASS format: /m);
+  assert.match(r.out, /^NOT APPLICABLE lint: /m);
+  assert.match(r.out, /^NOT APPLICABLE lockfile: /m);
+  assert.match(r.out, /^NOT APPLICABLE workflows: /m);
+  assert.match(r.out, /^\s*scan-secrets dir a\.md$/m);
+  assert.match(r.out, /^PASS pre-commit: /m);
+});
+test("pre-commit: an unformatted staged file blocks the commit", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "#  A note\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING format: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: git commit -a checks the changes -a stages", () => {
+  const root = hooked();
+  put(root, "README.md", "#  Fixture\n");
+  const r = gitCommit(root, "-a", "-m", "docs: reword the readme");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*README\.md\b/m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: git commit -a scans the content of the files -a stages, and only those", () => {
+  const root = hooked(listingScan);
+  put(root, "README.md", "# Fixture\n\nA leak.\n");
+  put(root, "notes/untracked.md", "# Untracked\n");
+  const r = gitCommit(root, "-a", "-m", "docs: reword the readme");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir README\.md$/m);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: git commit <path> checks that path only, whatever else is changed or staged", () => {
+  const root = hooked();
+  put(root, "README.md", "#  Fixture\n");
   put(root, "notes/a.md", "# A note\n");
   git(root, "add", "notes/a.md");
-  const gitRun = (env: NodeJS.ProcessEnv, ...args: string[]) => {
-    const r = spawnSync(
-      "git",
-      [
-        ...["-C", root, "-c", "user.name=Fixture"],
-        ...[
-          "-c",
-          "user.email=fixture@example.org",
-          "-c",
-          "commit.gpgsign=false",
-        ],
-        ...args,
-      ],
-      {
-        encoding: "utf8",
-        // Bounded: an editor git opened by mistake would otherwise wait for input forever.
-        timeout: 30_000,
-        // The hook runs `node` from PATH: this test's own Node goes first. No global or system git configuration
-        // (a core.commentChar or commit.template there changes what git hands the hook).
-        env: {
-          ...GIT_ENV,
-          PATH: `${dirname(process.execPath)}${delimiter}${GIT_ENV.PATH ?? ""}`,
-          GIT_CONFIG_GLOBAL: "/dev/null",
-          GIT_CONFIG_NOSYSTEM: "1",
-          ...env,
-        },
-      },
-    );
-    return { code: r.status, out: r.stdout + r.stderr };
-  };
-  const head = () => git(root, "log", "-1", "--format=%s").trim();
-  const refused = gitRun({}, "commit", "-q", "-m", "Add a note");
+  const r = gitCommit(root, "-m", "docs: add a note", "--", "notes/a.md");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(head(root), "docs: add a note");
+  const bad = gitCommit(root, "-m", "docs: reword", "--", "README.md");
+  assert.notEqual(bad.code, 0, bad.out);
+  assert.match(bad.out, /^\s*README\.md\b/m);
+  assert.equal(head(root), "docs: add a note");
+});
+test("pre-commit: a staged file changed again before the commit cannot be checked, and is named", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  put(root, "notes/a.md", "#  A note\n");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^COULD NOT CHECK pre-commit: .*changed after staging/m);
+  assert.match(r.out, /^\s*notes\/a\.md$/m);
+});
+test("pre-commit: a secret in a staged file blocks the commit", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/a.md", "# A leak\n");
+  git(root, "add", "notes/a.md");
+  const r = gitCommit(root, "-m", "docs: add a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a suppression comment in a staged script blocks the commit, though no staged file is of a plain class", () => {
+  const root = hooked();
+  put(root, "scripts/x.ts", `// ${SUPPRESSIONS[1]}\nexport const x = 1;\n`);
+  git(root, "add", "scripts/x.ts");
+  const r = gitCommit(root, "-m", "chore: add x");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING text: /m);
+  assert.match(r.out, /scripts\/x\.ts:1: suppression comment/);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a staged workflow and a staged package.json run the workflow and lockfile checks", () => {
+  const root = hooked();
+  put(root, ".github/workflows/scorecard.yml", "on: [push, pull_request]\n");
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "-A");
+  const r = gitCommit(root, "-m", "ci: run on pull requests");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^PASS workflows: /m);
+  assert.match(r.out, /^PASS lockfile: /m);
+});
+test("pre-commit: a whole-repository listing that fails cannot be checked, and is not narrowed to the staged files", () => {
+  const root = hooked();
+  put(
+    root,
+    "package.json",
+    `${JSON.stringify({ ...PACKAGE, description: "x" }, null, 2)}\n`,
+  );
+  git(root, "add", "package.json");
+  // The hook run directly, with a git first on the PATH that fails `ls-files` and is git otherwise (git's own hook
+  // runs put git's executable folder ahead of the PATH, so a stand-in cannot be reached through `git commit`).
+  const bin = tempDir();
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  put(
+    bin,
+    "git",
+    `#!/bin/sh\ncase " $* " in *" ls-files "*) exit 1;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "check-repo.ts"), "pre-commit"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...GIT_ENV, PATH: `${bin}${delimiter}${GIT_ENV.PATH ?? ""}` },
+    },
+  );
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stdout, /^COULD NOT CHECK lockfile: /m);
+});
+test("pre-commit: a commit of only empty files has no secret scan to run, and is not blocked", () => {
+  const root = hooked(listingScan);
+  put(root, "notes/empty.md", "");
+  git(root, "add", "notes/empty.md");
+  const r = gitCommit(root, "-m", "docs: add an empty note");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE secrets: /m);
+  assert.doesNotMatch(r.out, /scan-secrets dir/);
+  assert.equal(head(root), "docs: add an empty note");
+});
+test("pre-commit: a commit of only a new symlink has no secret scan to run, and is not blocked", () => {
+  const root = hooked(listingScan);
+  symlinkSync("README.md", join(root, "link.md"));
+  git(root, "add", "link.md");
+  const r = gitCommit(root, "-m", "docs: link the readme");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE secrets: /m);
+  assert.doesNotMatch(r.out, /scan-secrets dir/);
+  assert.equal(head(root), "docs: link the readme");
+});
+test("pre-commit: a file that replaces a symlink is scanned", () => {
+  const root = hooked((r) => {
+    listingScan(r);
+    symlinkSync("a.md", join(r, "notes-link.md"));
+    put(r, "a.md", "# A note\n");
+  });
+  rmSync(join(root, "notes-link.md"));
+  put(root, "notes-link.md", "# A leak\n");
+  git(root, "add", "notes-link.md");
+  const r = gitCommit(root, "-m", "docs: make the link a note");
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^\s*scan-secrets dir notes-link\.md$/m);
+  assert.match(r.out, /^FINDING secrets: /m);
+  assert.equal(head(root), "chore: add the runner");
+});
+test("pre-commit: a commit that only deletes files has nothing to check", () => {
+  const root = hooked();
+  git(root, "rm", "-q", "AGENTS.md");
+  const r = gitCommit(root, "-m", "docs: drop the agents file");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE pre-commit: /m);
+});
+
+// Pins: git really runs the hook from .githooks, with pre-commit active too: it refuses a bad header and an editor
+// message left empty, and takes a conventional one, git's own revert wording and a fixup.
+test("commit-msg: git runs the hook from .githooks and commits only what it passes", () => {
+  const root = hooked();
+  put(root, "notes/a.md", "# A note\n");
+  git(root, "add", "notes/a.md");
+  const refused = gitCommit(root, "-m", "Add a note");
   assert.notEqual(refused.code, 0, refused.out);
   assert.match(refused.out, /^FINDING commit-msg: /m);
   // The editor leaves git's template as it is: only comment lines reach the hook.
-  const empty = gitRun({ GIT_EDITOR: "true" }, "commit", "-q");
+  const empty = hookGit(root, ["commit", "-q"], { GIT_EDITOR: "true" });
   assert.notEqual(empty.code, 0, empty.out);
   assert.match(empty.out, /^FINDING commit-msg: the message is empty/m);
-  assert.equal(head(), "chore: add the runner");
-  const taken = gitRun({}, "commit", "-q", "-m", "docs: add a note");
+  assert.equal(head(root), "chore: add the runner");
+  const taken = gitCommit(root, "-m", "docs: add a note");
   assert.equal(taken.code, 0, taken.out);
-  assert.equal(head(), "docs: add a note");
+  assert.equal(head(root), "docs: add a note");
   // `revert --no-edit` alone runs no commit-msg hook, so the revert is committed by `commit --no-edit`.
   for (const want of [
     /^Revert "docs: add a note"$/,
     /^(Reapply "docs: add a note"|Revert "Revert "docs: add a note"")$/,
   ]) {
-    assert.equal(gitRun({}, "revert", "--no-commit", "HEAD").code, 0);
-    const r = gitRun({}, "commit", "-q", "--no-edit");
+    assert.equal(hookGit(root, ["revert", "--no-commit", "HEAD"]).code, 0);
+    const r = gitCommit(root, "--no-edit");
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /^PASS commit-msg: /m);
-    assert.match(head(), want);
+    assert.match(head(root), want);
   }
-  const fixup = gitRun({}, "commit", "-q", "--allow-empty", "--fixup", "HEAD");
+  const fixup = gitCommit(root, "--allow-empty", "--fixup", "HEAD");
   assert.equal(fixup.code, 0, fixup.out);
-  assert.match(head(), /^fixup! /);
+  assert.match(head(root), /^fixup! /);
 });
 
 test("pins: passes when every action is pinned by a full SHA with its tag", () => {
