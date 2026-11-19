@@ -3806,7 +3806,7 @@ says. The pattern is a disclosure button in a leading column of its own, as the 
 the accessible examples (Adrian Roselli's expandable rows, FETCHED); DataTables' row-details example uses an unnamed
 cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
 `{ id: 'r2', name: 'alpha' }`, `detailName: (r) => 'Details for ' + r.name`, a `detail` snippet holding the paragraph
-"More about <name>" and a link "Open <name>", and `onexpand` passed.
+"More about <name>" and a link "Open <name>", and `onexpand` passed. The columns are those of section 12.
 
 **CHILD-01** With `detail`, the table MUST show a leading column whose header cell holds the word `detailsColumn`
 ("Details") hidden visually, and whose body cells each hold one button named by `detailName(row)`.
@@ -3982,6 +3982,93 @@ controls of its open detail row, before the next row.
 
 **CHILD-10** Every fixed word of the child rows MUST come from a prop with an English default.
 - Examples (as RND-06): `detailsColumn` "Details" (CHILD-01); the alert message of CHILD-09 (CHILD-09).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+## 16. Accessibility conformance: the skip link, focus, scroll, keys and names (A11Y, milestone 7)
+
+These statements close PRD-A3 and PRD-A9 for every intent of sections 7 to 15, and state 2.1.4 and 2.4.6 of PRD
+section 4.3. "Every intent" is the list of the intents' examples below, one row each; a table in these examples has
+every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
+chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
+
+**A11Y-36** The "Skip past table" link MUST be the component's first focusable element.
+- Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
+  element before the component lands first on "Skip past table", then on "All orders", then on "Export".
+- Reason: a keyboard user meets the way past the table before its other stops (PRD-A9). The Tab sequences of A11Y-10
+  and A11Y-12 gain it at their head with this milestone's build (an edit of their tests, travelling with that build).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9.
+
+**A11Y-48** Activating the skip link MUST move focus to a target at the end of the table that only script can focus.
+- Example: Enter on "Skip past table": focus is on an element after the region, inside the component, with
+  `tabindex="-1"` and no control in it; the next Tab reaches the first focusable element after the component (a
+  `Pagination` the application places after the table included).
+- Reason: with selection a 1000-row page has over a thousand Tab stops; the link lets a keyboard user pass the table in
+  one step (PRD-A9).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9, PRD-A3.
+
+**A11Y-46** The skip link MUST be visible exactly while it has focus.
+- Examples (the test runs every row): not focused: its box lies outside the viewport or measures at most 1 by 1 CSS px;
+  focused: its box lies inside the viewport, at least 24 by 24 CSS px, and its text is drawn (its computed `clip` is
+  "auto", its `clip-path` "none", and its `opacity` not 0).
+- Reason: a sighted keyboard user sees where focus is; others are not shown a control they do not need (PRD-A9, PRD-A10,
+  WCAG 2.4.7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9, PRD-A10.
+
+**A11Y-37** After every intent, focus MUST be on the control that acted or elsewhere inside the component, never on the
+page body.
+- Examples (the test runs every row, by keyboard; `document.activeElement` after the application's state follows):
+
+  | Intent |
+  |---|
+  | a sort press; a pager press; a page-size choice |
+  | Enter in a text filter; a categorical option's toggle; a badge press; "Clear column filters"; "Reset table" |
+  | Enter in the search field |
+  | a chooser checkbox; "Move later Name"; "Wider Name"; Right on a separator |
+  | a row box; the header box; a details button |
+  | "Cancel" while loading; "Try again" after a failure |
+
+- Reason: a focus that falls to the body throws the keyboard user back to the start of the page (PRD-A3, WCAG 2.4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A3.
+
+**A11Y-38** The intents in the rows of A11Y-37 after its first MUST NOT scroll the window.
+- Examples (the test runs every row of A11Y-37 but its first, which A11Y-17 states, as A11Y-17 does: the window starts
+  mid-page, the row count stays the same, the page sets `overflow-anchor: none`, and the scroll position is read
+  before the intent and after the new state is painted). Breaks that turn it red: the table calls `focus()` without
+  `preventScroll` on a control it moves focus to, or `scrollIntoView` on a row.
+- Reason: users keep their place; only the skip link may scroll (PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A3.
+
+**A11Y-43** A printable character key other than Space MUST act only in a focused text field.
+- Examples (the test runs every row; the keys "s", "1" and "?" pressed with focus on each):
+
+  | Focus on | Result |
+  |---|---|
+  | a sort button, a pager button, a row box, a details button, a badge, the region, a separator | no callback, no scroll, no change on screen |
+  | "Filter Name text", the search field | the character is typed into the field |
+  | (Space instead) a sort button | it acts once, as a press does (SORT-01) |
+
+- Reason: a single-key shortcut fires by accident under speech input (WCAG 2.1.4); the table defines none (PRD section
+  4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**A11Y-44** The accessible names the component gives its own controls MUST be unique within the component.
+- Example: the table of this section's set-up, every dialog opened in turn: the names of its buttons, fields,
+  checkboxes, separators and links, except those named by the application (`selection.name`, `detailName`, snippets),
+  hold no name twice.
+- Reason: two controls with one name cannot be told apart in a screen reader's list of controls (WCAG 2.4.6).
+- Layer: real browser (Chromium, Firefox, WebKit), since the dialogs are among them.
+- Traces: PRD-A1.
+
+**A11Y-47** Every fixed word of this section MUST come from a prop with an English default.
+- Examples (as RND-06): `skipTable` "Skip past table" (A11Y-36).
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
 - Traces: PRD-I1.
@@ -4269,6 +4356,14 @@ controls of its open detail row, before the next row.
 | CHILD-16 | PRD-B27, PRD-A3 |
 | CHILD-09 | PRD-B16, PRD-B27 |
 | CHILD-10 | PRD-I1 |
+| A11Y-36 | PRD-A9 |
+| A11Y-48 | PRD-A9, PRD-A3 |
+| A11Y-46 | PRD-A9, PRD-A10 |
+| A11Y-37 | PRD-A3 |
+| A11Y-38 | PRD-A3 |
+| A11Y-43 | PRD-A1 |
+| A11Y-44 | PRD-A1 |
+| A11Y-47 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -4311,12 +4406,13 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
-| PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10 | in part: later groups state their own words in their own statements |
+| PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
+| PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
@@ -4337,7 +4433,7 @@ state in their own statements.
 ### PRD musts not yet traced
 
 - Sticky layout: PRD-B14.
-- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A11, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
