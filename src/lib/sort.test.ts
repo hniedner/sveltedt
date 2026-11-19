@@ -200,3 +200,18 @@ describe("A11Y-03", () => {
     },
   );
 });
+// @spec("SORT-09", "5ad95b87")
+describe("SORT-09", () => {
+  it.each(["", "name asc", "code asc, name desc"])(
+    "names the Name button 'Sort by Name' with the order [%s]",
+    (before) => {
+      mount({ sort: order(before) });
+      expect(
+        within(screen.getAllByRole("columnheader")[1])
+          .getByRole("button")
+          .getAttribute("aria-label"),
+      ).toBe("Sort by Name");
+      expect(sortButton("Name").isConnected).toBe(true);
+    },
+  );
+});
