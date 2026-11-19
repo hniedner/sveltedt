@@ -2775,6 +2775,13 @@ test("all: scans the branch's commits for secrets before it reaches a later step
   assert.match(out, /^FINDING secrets: /m);
   assert.match(out, /^FINDING all: stopped at secrets$/m);
   assert.doesNotMatch(out, /format/);
+  // secrets runs right after toolchain: no other step reports before it
+  const steps = [
+    ...out.matchAll(
+      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
+    ),
+  ].map((m) => m[1]);
+  assert.deepEqual(steps, ["toolchain", "secrets", "all"]);
 });
 test("secrets: a repository without origin/main cannot be checked", () => {
   const root = scanBranch(0);
