@@ -3078,7 +3078,7 @@ and Date (id `date`), in that order, all three sortable, with no filter unless t
   |---|---|
   | press Escape | "Columns" |
   | press on the text of a body cell | not in the dialog and not on "Columns" |
-  | press Tab from the checkbox "Date", the last control in the dialog | "Sort by Name", the next control |
+  | press Tab from "Move later Date", the last control in the dialog (`aria-disabled`, still focusable: COL-10) | "Sort by Name", the next control |
   | press "Filter Name" (Name with a text filter) | "Filter Name text", in the open "Name filter" |
 
 - Reason: the chooser behaves like the table's other dialogs, so the user learns one way to leave them (PRD-B10,
@@ -3446,7 +3446,7 @@ COL-14 says.
   (Playwright's touchscreen is "limited to emulating tap gestures", FETCHED 2026-11-19); the pointer path they share
   with the mouse is tested with the mouse (COL-14). The Chromium route through the Chrome DevTools Protocol is
   INFERRED (its documentation page did not load, 2026-11-19); the build verifies it first, and if it cannot drive a
-  touch drag, the Chromium row joins the stated limit and the reviewer tells the owner.
+  touch drag, the Chromium row joins the stated limit, which is then reported to the owner.
 - Reason: PRD-B11 (b) asks that a drag works with pointer and touch; without `touch-action: none` the browser would
   scroll the page instead.
 - Layer: real browser (Chromium, Firefox, WebKit; the drag row Chromium only, for the reason above).
