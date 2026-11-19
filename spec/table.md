@@ -2740,7 +2740,7 @@ below list.
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
   | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
   | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
-  | `search` is not a string, holds a control character or is longer than `maxLength` | `searchInvalid` | "The applied search is not valid." |
+  | `search` is not a string | `searchInvalid` | "The applied search is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
   | `maxLength` is 0, -1, 1.5, `NaN` or `Infinity` | `maxLengthInvalid` | "The text length limit is not a valid number." |
 
@@ -2830,28 +2830,39 @@ first key, keys taking no time and a control character pasted, as in section 11.
   | Steps | `onsearch` calls |
   |---|---|
   | type "beta"; at 399 ms, then at 400 ms | none, then one: `('beta')` |
+  | type "be"; at 300 ms type "ta"; at 699 ms, then at 700 ms | none, then one with "beta" |
   | type "beta"; at 100 ms press Enter | one at 100 ms, and still one at 600 ms |
   | `searchOnEnter`; type "beta"; at 1000 ms, then press Enter | none, then one |
   | `searchDelay={0}`; type "be", with no time moved | two, with "b" and "be" |
   | `search` is "beta"; type "x", then Backspace; at 400 ms | none: the text equals the applied one |
+  | `search` is "beta"; press Enter in the field | none: the text equals the applied one |
 
 - Reason: one setting governs both kinds of search box, as PRD-B6 asks; the user learns one behaviour.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, by the rule of FILT-03, and while it holds
-such text MUST be `aria-invalid="true"` and described by the alert of FILT-15, both gone once the text is valid.
-- Examples (the test runs every row):
-
-  | Steps | Checks |
-  |---|---|
-  | paste "a", U+0001; at 400 ms press Enter | no call; `aria-invalid="true"`; described by "Use at most 255 characters without control characters." |
-  | type 11 times "x", with `maxLength={10}`; at 400 ms | no call; described by "Use at most 10 characters without control characters." |
-  | paste "a", U+0001, then press Backspace; at 400 ms | one call with "a"; `aria-invalid` is not "true"; no alert |
-
-- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, as FILT-03 says for a text filter.
+- Examples (the test runs every row: the steps, then at 400 ms press Enter; no call): paste "a", U+0001; paste "a",
+  U+007F; type 256 times "x"; type 11 times "x", with `maxLength={10}`.
+- Reason: the server would refuse the query (PRD-B6).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
+
+**FILT-48** The search field MUST be `aria-invalid="true"` and described by the alert of FILT-15 exactly while it holds
+text it refuses.
+- Examples (the test runs every row; the checks right after the last step):
+
+  | Steps | `aria-invalid` | Described by |
+  |---|---|---|
+  | paste "a", U+0001 | "true" | "Use at most 255 characters without control characters." |
+  | type 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters without control characters." |
+  | paste "a", U+0001, then press Backspace | not "true" | no alert |
+  | mount with `search` "a" followed by U+0001 | "true" | "Use at most 255 characters without control characters." |
+
+  An applied `search` the field would refuse is no fault (FILT-32): the field shows it and marks it.
+- Reason: the user learns at the field why nothing is applied, and a stale error misleads (PRD-B6, WCAG 3.3.1).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6, PRD-A1.
 
 **FILT-43** The search field MUST be described by "Press Enter to apply." exactly while `searchOnEnter` is set.
 - Examples (the test runs every row): `searchOnEnter` true: the description of "Search" contains "Press Enter to
@@ -2860,20 +2871,36 @@ such text MUST be `aria-invalid="true"` and described by the alert of FILT-15, b
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-44** The search field MUST take the applied text of `search` by the rule of FILT-37, and keep newer typing by
-the rule of FILT-05.
+**FILT-44** The search field MUST take the applied text of `search` as FILT-37 says for a text filter's field, the
+mount standing for the dialog's opening.
 - Examples (the test runs every row; "Search" after the steps):
 
   | Steps | Field reads |
   |---|---|
   | mount with `search` "beta" | "beta" |
   | mount with `search` ""; with nothing typed, `search` becomes "gamma" | "gamma" |
-  | type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel" | "melanoma" |
   | type "x"; at 400 ms one call with "x"; at 450 ms, `search` unchanged | "x" |
+  | type "x"; at 400 ms one call with "x"; at 500 ms `search` becomes "gamma" | "gamma" |
 
-- Reason: the field shows what narrows the rows, and a slow answer must not erase newer typing (PRD-B2, PRD-B6).
+- Reason: the field shows what narrows the rows; the props are the one source of truth (PRD-B2).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6, PRD-B2.
+
+**FILT-49** When `search` changes while the field holds newer typing, the field MUST keep the newer typing, as FILT-05
+says for a text filter.
+- Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel": the
+  field reads "melanoma"; at 850 ms a second call with "melanoma".
+- Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-46** A press on "Clear column filters" MUST leave the search field's text as it is.
+- Example: `search` "beta" and Name's text "Gamma" apply; press "Clear column filters": `onclearfilters()` is called
+  once, as "emits once" defines it, so `onsearch` is not; "Search" still reads "beta".
+- Reason: "Clear column filters" leaves the search (PRD-B8); "Reset table", an `onreset` that emits nothing else
+  (FILT-26), is the application's reset of the search too.
+- Layer: component.
+- Traces: PRD-B8, PRD-B25.
 
 **FILT-45** The search field MUST come before the badges of FILT-31 and before the region, in document order.
 - Example: `onsearch` given, Name's text "Beta" applies: "Search" comes before the badge "Clear filter Name: contains
@@ -3082,8 +3109,11 @@ the rule of FILT-05.
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
 | FILT-42 | PRD-B25, PRD-B6 |
+| FILT-48 | PRD-B25, PRD-B6, PRD-A1 |
 | FILT-43 | PRD-B25, PRD-B6 |
 | FILT-44 | PRD-B25, PRD-B6, PRD-B2 |
+| FILT-49 | PRD-B25, PRD-B6 |
+| FILT-46 | PRD-B8, PRD-B25 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -3104,10 +3134,10 @@ state in their own statements.
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44 | in full |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
-| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-43, FILT-44, FILT-45, FILT-32, FILT-33 | in full |
-| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33 | in full |
+| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39 | in full for the props so far; later groups state the faults of their own props in their own statements |
@@ -3117,7 +3147,7 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
