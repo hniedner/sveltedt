@@ -323,7 +323,8 @@ describe("STATE-03", () => {
   );
 });
 
-describe("RND-03 first examples; the statement's marker arrives with 1c", () => {
+// @spec("RND-03", "19d03ec8")
+describe("RND-03", () => {
   const places: [
     string,
     (text: string) => Partial<DataTableProps<Item>>,
@@ -344,6 +345,37 @@ describe("RND-03 first examples; the statement's marker arrives with 1c", () => 
       (text) => ({ rows: [{ id: "r1", name: text }] }),
       (text) => screen.getByRole("cell", { name: text }),
     ],
+    [
+      "the loading message",
+      (text) => ({ status: "loading", messages: { loading: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the failed message",
+      (text) => ({ status: "failed", messages: { failed: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the empty message",
+      (text) => ({ rows: [], messages: { empty: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the text rowCount returns",
+      (text) => ({ messages: { rowCount: () => text } }),
+      (text) => screen.getByText(text),
+    ],
+    ...faults.map(
+      ([key, props]): [
+        string,
+        (text: string) => Partial<DataTableProps<Item>>,
+        (text: string) => HTMLElement,
+      ] => [
+        `the alert message ${key}`,
+        (text) => ({ ...props, messages: { [key]: text } }),
+        (text) => screen.getByText(text),
+      ],
+    ),
   ];
   const texts = ["<img src=x onerror=alert(1)>", "<none>"];
 
