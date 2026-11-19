@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import ListPage from "./ListPage.svelte";
 import { orders } from "./orders.ts";
@@ -53,5 +53,22 @@ describe("LIST-02", () => {
         "08",
       ].map((number) => `Order ${number}`),
     );
+  });
+});
+
+// @spec("LIST-03", "1629cc69")
+describe("LIST-03", () => {
+  it("sorts the Order column ascending, descending, then back to the fixed order on three presses", async () => {
+    render(ListPage);
+    const fixed = orders.map((order) => order.name);
+    const ascending = fixed.toSorted();
+    const press = () =>
+      fireEvent.click(screen.getByRole("button", { name: "Sort by Order" }));
+    await press();
+    expect(firstCells()).toEqual(ascending);
+    await press();
+    expect(firstCells()).toEqual(ascending.toReversed());
+    await press();
+    expect(firstCells()).toEqual(fixed);
   });
 });

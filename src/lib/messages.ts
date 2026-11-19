@@ -1,7 +1,7 @@
 import type { DataTableMessages } from "./types.ts";
 
-// The English default of every fixed word the table shows or announces (RND-06). The alert texts hold no value taken
-// from the input (RND-09).
+// The English default of every fixed word the table shows or announces (RND-06, SORT-17). The alert texts hold no
+// value taken from the input (RND-09).
 export const defaultMessages: DataTableMessages = {
   loading: "Loading data…",
   failed: "The data could not be loaded.",
@@ -19,4 +19,19 @@ export const defaultMessages: DataTableMessages = {
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",
   rowIdUnreadable: "A row id could not be read.",
+  sortBy: (label) => `Sort by ${label}`,
+  sortRank: (rank) => String(rank),
+  sortDescription: ({ direction, rank }) => {
+    const hint =
+      "Shift+click, Shift+Enter or Shift+Space adds this column to the sort.";
+    if (direction === null) return hint;
+    const words = direction === "asc" ? "ascending" : "descending";
+    return `sorted ${words}${rank === null ? "" : `, priority ${rank}`}. ${hint}`;
+  },
+  sortableInvalid: "A column's sort directions are invalid.",
+  sortHandlerMissing: "A sortable column has no sort handler.",
+  sortColumnUnknown: "The sort names an unknown column.",
+  sortColumnNotSortable: "The sort names a column that cannot be sorted.",
+  sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
+  sortColumnDuplicate: "The sort names a column twice.",
 };
