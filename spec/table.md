@@ -29,6 +29,8 @@ to the consumer as one callback (stated with the statements that add user action
     focus (the simulated DOM differs from engines there), focus indicators, hover, axe, time bounds.
   - **static check**: a scan of the source or the built package, run in the gate, behind a wrapper that must find a
     planted canary.
+  - **gate wrapper at step boundaries**: a gate step that runs on a step's diff against its base and runs other
+    statements' tests on a changed copy, behind a wrapper that must refuse planted canaries.
 - **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
   (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
@@ -64,7 +66,9 @@ to the consumer as one callback (stated with the statements that add user action
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group; SORT-07, SORT-08 and A11Y-11 are reserved for the draft statements of
-  those numbers, which later groups write. A requirement id from `docs/PRD.md` is written `PRD-B1`.
+  those numbers, which later groups write, and A11Y-20, A11Y-21 and A11Y-23 to A11Y-34 for the slow-load group's
+  draft (progress, Cancel, the stopped state and "Try again"). A requirement id from `docs/PRD.md` is written
+  `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
@@ -228,8 +232,8 @@ its cells.
   | `status` | `busy` | Not shown |
   |---|---|---|
   | `loading` | false | "Loading data…" |
-  | `failed` | false | "The rows could not be loaded." |
-  | `ready` | false | "No records." and any count text |
+  | `failed` | false | "The data could not be loaded." |
+  | `ready` | false | "No data." and any count text |
   | `ready` | true | any count text |
 
 - Reason: a state message beside the alert would describe a table that is not there, and two alerts compete for the
@@ -285,8 +289,8 @@ cells MUST be rendered by the same element as before.
   | Message | English default | Shown by |
   |---|---|---|
   | `loading` | "Loading data…" | STATE-01 |
-  | `failed` | "The rows could not be loaded." | STATE-02 |
-  | `empty` | "No records." | STATE-03 |
+  | `failed` | "The data could not be loaded." | STATE-02 |
+  | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
 
@@ -321,20 +325,20 @@ cells MUST be rendered by the same element as before.
 ## 2. States (STATE)
 
 **STATE-01** With `status 'loading'`, the table MUST show the loading message and MUST NOT show the empty message.
-- Example: `status 'loading'`, `rows []`: "Loading data…" is shown and "No records." is not.
-- Reason: "no records" before the answer arrives is a false statement about the data.
+- Example: `status 'loading'`, `rows []`: "Loading data…" is shown and "No data." is not.
+- Reason: "no data" before the answer arrives is a false statement about the data.
 - Layer: component.
 - Traces: PRD-B15.
 
 **STATE-02** With `status 'failed'`, the table MUST show the failed message and MUST NOT show the empty message.
-- Example: `status 'failed'`, `rows []`: "The rows could not be loaded." is shown and "No records." is not.
+- Example: `status 'failed'`, `rows []`: "The data could not be loaded." is shown and "No data." is not.
 - Reason: a failure is not an empty result, and the user must know to try again.
 - Layer: component.
 - Traces: PRD-B15.
 
 **STATE-03** With `status 'ready'` and no rows, the body MUST show the empty message in one cell that spans every
 shown column.
-- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records."; the same with
+- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No data."; the same with
   `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements state
   that the selection column is counted too, in their own statement.)
 - Reason: a message squeezed into one column reads as a value in that column.
@@ -372,7 +376,7 @@ otherwise.
 - Traces: PRD-B15.
 
 **STATE-07** With `status 'failed'`, the table MUST show none of the rows it is given.
-- Example: `status 'failed'` with three rows Beta, Gamma, Delta: "The rows could not be loaded." is shown, and no
+- Example: `status 'failed'` with three rows Beta, Gamma, Delta: "The data could not be loaded." is shown, and no
   body cell holds "Beta", "Gamma" or "Delta".
 - Reason: `failed` means the answer did not arrive, and PRD-B15 gives the failed state no count; a consumer that wants
   to keep the last rows after a failed refetch keeps `status 'ready'` and reports the failure itself.
@@ -387,7 +391,7 @@ alert, when `rows` is not an array.
   |---|---|---|
   | `loading` | `undefined` | "Loading data…" |
   | `loading` | `null` | "Loading data…" |
-  | `failed` | `undefined` | "The rows could not be loaded." |
+  | `failed` | `undefined` | "The data could not be loaded." |
 
 - Reason: a plain JavaScript caller whose request is still pending, or has failed, often has no rows to pass yet; the
   state already says what the user sees, and the alert would call a normal wait a fault. With `status 'ready'` the
@@ -502,11 +506,30 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Traces: PRD-A4.
 
 **A11Y-15** The failed message MUST be inside an element with `role="alert"` (the failed notice).
-- Example: rerender from `status 'loading'` to `status 'failed'`: `getByRole('alert')` holds "The rows could not be
+- Example: rerender from `status 'loading'` to `status 'failed'`: `getByRole('alert')` holds "The data could not be
   loaded.".
 - Reason: a failure must be announced at once, not only when the user reaches the table.
 - Layer: component.
 - Traces: PRD-A4, PRD-B15.
+
+**A11Y-22** While the input is valid, the failed message MUST be in the component exactly while `status` is `failed`.
+- Examples (the test runs every row; columns Name and Code; mounted with `status 'failed'`, then rerendered step by
+  step; after each step it reads the component's text content, which includes hidden text, and the failed notice of
+  A11Y-15, found as the element with `role="alert"` that holds the failed message):
+
+  | Steps | "The data could not be loaded." after each step |
+  |---|---|
+  | `failed`, `loading`, `failed` | in the failed notice; nowhere in the component; in the failed notice |
+  | `failed`, `ready` with two rows, `loading`, `failed` | in the failed notice; nowhere; nowhere; in the failed notice |
+
+  Breaks that turn it red: the message rendered whatever `status` is; the message kept and only hidden (CSS or the
+  `hidden` attribute) while `status` is not `failed`.
+- Reason: each new failure is announced, a failure after a retry included (PRD-A4), and assistive technology "will
+  generally only announce dynamic changes in the content of a live region" (MDN, ARIA live regions, FETCHED
+  2026-11-18), so the text leaves when the failure is over and returns with the next one. With invalid input the
+  alert of RND-05 is the only state shown (RND-13).
+- Layer: component.
+- Traces: PRD-A4.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
@@ -935,6 +958,71 @@ without its pseudo-elements, and a declaration MUST NOT carry `!important`.
 - Layer: static check.
 - Traces: PRD-S1, PRD-G2.
 
+**THEME-13** Each rule of the package's stylesheet MUST be directly preceded by a marker comment naming a
+real-browser statement.
+- Examples (the check runs every row against a canary stylesheet holding it; the marker is `/* @spec("<id>") */`, the
+  id form of the test markers):
+
+  | Canary stylesheet | Result |
+  |---|---|
+  | `/* @spec("THEME-10") */ .sdt-x { color: inherit }` | passes |
+  | `.sdt-x { color: inherit }` | finding: no marker |
+  | `/* @spec("THEME-99") */ .sdt-x { color: inherit }` | finding: no spec holds the id |
+  | `/* @spec("THEME-12") */ .sdt-x { color: inherit }` | finding: THEME-12 is not a real-browser statement |
+  | `@media (min-width: 40rem) { /* @spec("THEME-10") */ .sdt-x { color: inherit } }` | passes |
+  | `/* @spec("THEME-10") */ @media (min-width: 40rem) { .sdt-x { color: inherit } }` | finding: the rule inside has no marker |
+  | `/* @spec("THEME-10") */ @keyframes sdt-spin { from { opacity: 0 } to { opacity: 1 } }` | passes: one rule |
+  | `/* @spec("THEME-10") */ .sdt-x { color: inherit } .sdt-y { color: inherit }` | finding: `.sdt-y` has no marker |
+  | `/* @spec("THEME-10") */ /* note */ .sdt-x { color: inherit }` | finding: no marker directly before the rule |
+  | `@font-face { font-family: sdt-x; src: local(sdt-x) }` | finding: no marker |
+  | `@charset "utf-8";` and nothing else | could not check: content and 0 rules |
+
+  A rule is a style rule (also inside `@media`, `@supports` or `@container`), a `@keyframes` block (its keyframe
+  selectors are not rules), a `@font-face` or a `@property` rule. The check reads the stylesheet of THEME-04 and
+  reports how many rules it read; while that stylesheet does not exist it reports "not applicable: no stylesheet".
+  It lands in the walking-skeleton milestone, once the stylesheet and the gate's trace check exist, and is not yet
+  tested until then.
+- Reason: the gate's other checks cannot see the stylesheet (PRD-G4); a rule that names the statement whose test
+  proves it is what THEME-14 deletes and checks, and only a real-browser test can turn red when a rule goes.
+- Layer: static check.
+- Traces: PRD-G4.
+
+**THEME-14** At each step boundary, deleting a rule of the package's stylesheet that the step changed MUST turn the
+tests of the statement its marker names red by a failed assertion.
+- Examples (the wrapper runs every row on a canary step that changes one rule marked `@spec("THEME-10")`; the
+  wrapper's own tests plant the outcome of THEME-10's tests in each engine):
+
+  | Tests of THEME-10 with the rule deleted | Run | Result |
+  |---|---|---|
+  | red by a failed assertion in Chromium, Firefox and WebKit | CI | passes |
+  | red by a failed assertion in Firefox, green in Chromium and WebKit | CI | passes |
+  | green in all three engines | CI | finding: the rule is not proven by THEME-10's tests |
+  | red in Chromium and Firefox, not run in WebKit | CI | could not check |
+  | red in Chromium, a time-out in WebKit | CI | could not check |
+  | a crash, a time-out or no test run | local | could not check |
+  | green in Chromium | local (Chromium only) | not applicable: "CI decides: not red in Chromium", naming the rule and THEME-10 |
+  | red by a failed assertion in Chromium | local | passes |
+
+  In CI any engine that crashed, timed out or ran no test makes the result "could not check", whatever the others
+  show. A rule is changed when its at-rule context, its prelude (the selector, or the at-rule's name and
+  parameters), its body and its marker, white space normalised, have no equal at the base. A stylesheet with content
+  in which 0 rules are read, at the base or at the head, is "could not check". Otherwise a step with no changed rule
+  is "not applicable", naming why:
+
+  | Stylesheet diff of the canary step | Result |
+  |---|---|
+  | only white space and a comment that is not a marker change | not applicable: "format only" |
+  | one marked rule deleted, nothing else | not applicable: "rules deleted or moved only", naming the rule |
+  | the head stylesheet holds `@charset "utf-8";` and nothing else, the base one marked rule | could not check |
+
+  It lands in the walking-skeleton milestone, once the gate's step-boundary harness and the three engines of the
+  real-browser tests exist, and is not yet tested until then. Limits: a rule its tests do not prove shows red only in
+  CI; a step that only moves rules is not probed.
+- Reason: a rule no test needs is dead or unproven (PRD-G4); no established practice for deleting CSS rules was found
+  (searched 2026-11-18), so this is the stylesheet's analogue of mutation at step boundaries.
+- Layer: gate wrapper at step boundaries.
+- Traces: PRD-G4.
+
 ## 7. Server-driven sort (SORT)
 
 **SORT-10** A sortable column MUST show exactly one sort button, in its header cell.
@@ -1285,10 +1373,10 @@ moves to the page before the current one, or to offset 0 from page 1; past `tota
 - Layer: component.
 - Traces: PRD-B9, PRD-A1.
 
-**PAGE-10** The pager's controls MUST come in this order: "First page", "Previous page", the page numbers, "Next page",
-"Last page", then the page-size select when there is one.
-- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: in document order, every page number button lies after
-  "Previous page" and before "Next page", and the select comes after "Last page".
+**PAGE-10** The pager's controls MUST come in this order: the page-size select when there is one, then "First page",
+"Previous page", the page numbers, "Next page", "Last page".
+- Example: `offset 100, limit 10, total 200, sizes [10, 25]`: in document order, the select comes before "First page",
+  and every page number button lies after "Previous page" and before "Next page".
 - Reason: reading order and Tab order match the visual order (WCAG 1.3.2, 2.4.3).
 - Layer: component.
 - Traces: PRD-B9, PRD-A3.
@@ -1524,15 +1612,15 @@ same page number.
 - Traces: PRD-B9.
 
 **PAGE-07** With a non-empty `sizes`, the pager MUST offer exactly those page sizes, in the given order, in a select
-named "entries per page", with `limit` selected.
-- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select whose accessible name is "entries per
+named "rows per page", with `limit` selected.
+- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select whose accessible name is "rows per
   page", with those seven options in that order and 25 selected.
 - Reason: the allowed sizes are a server limit that the consumer knows and the component does not.
 - Layer: component.
 - Traces: PRD-B9.
 
 **PAGE-24** The page-size select's name MUST be text that is visible on the page.
-- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and inside
+- Example: `limit 25, sizes [10, 25, 50]`: the element holding "rows per page" lies inside the viewport and inside
   the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text colour has an
   alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the visible text and the
   name are both "Zeilen". A visually hidden label (clipped to 1 by 1 CSS px) or one moved off-screen fails.
@@ -1597,7 +1685,7 @@ new `limit` and offset.
   | `lastPage` | "Last page" | PAGE-01 |
   | `pageLabel` (a function of the page number) | "Page 6" for page 6 | PAGE-01, I18N-01 |
   | `pageNumber` (a function of the page number) | "6" for page 6 | PAGE-02, I18N-01 |
-  | `sizeLabel` | "entries per page" | PAGE-07, PAGE-24 |
+  | `sizeLabel` | "rows per page" | PAGE-07, PAGE-24 |
   | `sizeOption` (a function of the size) | "1,000" for 1000 | PAGE-07, I18N-01 |
   | each alert message of PAGE-16 | its default in PAGE-16 | PAGE-16 |
 
@@ -1816,6 +1904,7 @@ receives that number.
 | A11Y-05 | PRD-A4, PRD-B15 |
 | A11Y-14 | PRD-A4 |
 | A11Y-15 | PRD-A4, PRD-B15 |
+| A11Y-22 | PRD-A4 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -1836,6 +1925,8 @@ receives that number.
 | THEME-10 | PRD-T11 |
 | THEME-11 | PRD-T11, PRD-D9 |
 | THEME-12 | PRD-T16 |
+| THEME-13 | PRD-G4 |
+| THEME-14 | PRD-G4 |
 | THEME-07 | PRD-S1, PRD-G2 |
 | SORT-10 | PRD-B3, PRD-B4 |
 | SORT-01 | PRD-B4, PRD-B2 |
@@ -1927,7 +2018,7 @@ state in their own statements.
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group states the column-move announcement |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22 | in part: the column group states the column-move announcement, the slow-load group the still-loading and stopped texts |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
@@ -1945,6 +2036,7 @@ state in their own statements.
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
+| PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 
 ### PRD musts not yet traced
 
@@ -1958,9 +2050,7 @@ state in their own statements.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
-- Gate: PRD-G1, PRD-G3, PRD-G4 (PRD-G2 in part, see above). PRD-G4's statements are written with the gate's
-  step-boundary wrappers; until then a comment naming the proving statement before each stylesheet rule is the build's
-  own convention, and the stylesheet does not wait for them.
+- Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
 - Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
