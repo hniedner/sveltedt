@@ -2961,7 +2961,7 @@ follows the button "Columns" in document order. In the examples the columns are 
 and Date (id `date`), in that order, all three sortable, with no filter unless the example gives one, `onsort` and
 `oncolumnstate` passed, and the table short enough that the region is not a Tab stop (A11Y-12).
 
-**COL-01** The table MUST show exactly the given columns that are not in `columnState.hidden`, in their given order.
+**COL-01** The table MUST show exactly the given columns that are not in `columnState.hidden`, in the order of COL-09.
 - Examples (the test runs every row; the header cells and the cells of each row):
 
   | `columnState.hidden` | Columns shown |
@@ -3169,6 +3169,93 @@ below list.
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: real browser (Chromium, Firefox, WebKit), since the dialog's name is among the words.
 - Traces: PRD-I1.
+
+### Column order: the chooser's move buttons and their announcement (milestone 5)
+
+These statements add `order` to `columnState`: a list of column ids, the display order (PRD-B11 (a)). The drag grip
+of PRD-B11 (b) states its own statements below. The examples are those of section 12.
+
+**COL-09** The columns MUST appear in the order of `columnState.order`, given columns it does not name following in
+their given order, and the chooser MUST list them in the same order.
+- Examples (the test runs every row; the header cells, the cells of each row and the chooser's checkboxes):
+
+  | `columnState.order` | Order shown |
+  |---|---|
+  | not given | Name, Code, Date |
+  | `['date', 'name', 'code']` | Date, Name, Code |
+  | `['code']` | Code, Name, Date |
+  | `['gone', 'date']` | Date, Name, Code |
+
+  An id that names no given column, or a column named twice after its first place, is no fault and changes nothing
+  (as for `hidden`, COL-25).
+- Reason: the order is the application's state (PRD-B11); a stored order outlives a release that adds or removes a
+  column.
+- Layer: real browser (Chromium, Firefox, WebKit), since the chooser is among the checks.
+- Traces: PRD-B11, PRD-B2.
+
+**COL-08** Each column's entry in the chooser MUST hold the buttons "Move earlier" and "Move later", each named by its
+words and the column's label, and a press MUST emit `oncolumnstate` once with the whole next state.
+- Examples (the test runs every row; `order` not given; one press, as "emits once" defines it):
+
+  | Press | `oncolumnstate` receives |
+  |---|---|
+  | "Move later Name" | `{ hidden: [], order: ['code', 'name', 'date'] }` |
+  | "Move earlier Date" | `{ hidden: [], order: ['name', 'date', 'code'] }` |
+
+  `order` in the emitted state lists every given column. The name of each button is its visible words followed by
+  the label, so the visible words stay in the name (WCAG 2.5.3).
+- Reason: the keyboard and single-pointer way to reorder (PRD-B11 (a), WCAG 2.5.7); one press is one change.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-B2, PRD-A1.
+
+**COL-10** "Move earlier" of the first column and "Move later" of the last MUST be `aria-disabled="true"`, and a press
+on either MUST emit nothing and leave focus on it.
+- Example: `order` not given: "Move earlier Name" and "Move later Date" have `aria-disabled="true"`; a press on each
+  calls no callback, and focus stays on the pressed button.
+- Reason: a move that cannot happen does nothing, and a disabled control that dropped focus would lose the user's
+  place (as PAGE-05 for the pager).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-A1.
+
+**COL-11** After a move, focus MUST stay on the pressed button of the moved column.
+- Example: focus "Move later Name" and press Enter; `columnState` becomes `{ hidden: [], order: ['code', 'name',
+  'date'] }`: focus is on "Move later Name", now in the second entry; press Enter again and the next state: Name is
+  last, and focus stays on "Move later Name", now `aria-disabled`.
+- Reason: the keyboard user moves a column step by step without hunting for the button again (PRD-B2's pending focus
+  target).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-A3.
+
+**COL-12** A move MUST be announced once in the status region, with the column's label and its new position among all
+given columns, once `columnState` shows it.
+- Examples (the test runs every row; the status region of A11Y-14; "added" counts as in the slow-load announcements
+  of section 3):
+
+  | Steps | Status region | Added |
+  |---|---|---|
+  | press "Move later Name"; `columnState` becomes the emitted state | "Name moved to position 2 of 3" | 1 |
+  | press "Move later Name"; `columnState` stays as it was | no move announcement | 0 |
+  | press "Move later Name", the state follows; press "Move later Name", the state follows | "Name moved to position 3 of 3" | 2 |
+
+- Reason: a screen-reader user hears the result of each move (PRD-A4: "each column move announced"); announcing
+  before the state follows would describe a move that the application may not make.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A4, PRD-B11.
+
+**COL-30** Every fixed word of the column order MUST come from a prop with an English default.
+- Examples (as COL-23, for the order words):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `moveEarlier` | "Move earlier" | COL-08 |
+  | `moveLater` | "Move later" | COL-08 |
+  | `columnMoved` (a function of `{ label, position, count }`) | "Name moved to position 2 of 3" | COL-12, I18N-01 |
+
+  The numbers go through `columnMoved`, which receives them (I18N-01's rule); the test runs once more with a German
+  default locale, as I18N-01 does, with `count` 1000: "Name moved to position 2 of 1,000".
+- Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I1, PRD-I2.
 
 ## Trace
 
@@ -3397,6 +3484,12 @@ below list.
 | FILT-51 | PRD-B8, PRD-B10 |
 | COL-25 | PRD-B16, PRD-B10 |
 | COL-23 | PRD-I1 |
+| COL-09 | PRD-B11, PRD-B2 |
+| COL-08 | PRD-B11, PRD-B2, PRD-A1 |
+| COL-10 | PRD-B11, PRD-A1 |
+| COL-11 | PRD-B11, PRD-A3 |
+| COL-12 | PRD-A4, PRD-B11 |
+| COL-30 | PRD-I1, PRD-I2 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -3413,13 +3506,14 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30 | in part: (a), the buttons; the grip statements state (b) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -3432,13 +3526,13 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23 | in part: later groups state their own words in their own statements |
-| PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47 | in part: later groups state the numbers they show in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30 | in part: later groups state their own words in their own statements |
+| PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
@@ -3457,7 +3551,7 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Columns (reorder, resize): PRD-B11, PRD-B12.
+- Columns (resize): PRD-B12.
 - Selection: PRD-B13.
 - Sticky layout: PRD-B14.
 - Accessibility beyond the read-only table: PRD-A5, PRD-A6, PRD-A7, PRD-A8, PRD-A9, PRD-A11, PRD-A12.
