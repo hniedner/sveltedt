@@ -136,8 +136,8 @@ Development dependencies on the same terms as the test toolchain.
   alternative is none (Svelte's own compiler has no Vite integration of its own).
 - **@tailwindcss/vite 4.3.5:** Tailwind's own Vite integration for version 4 (the PostCSS route would add a PostCSS
   config, which the Svelte lint's settings keep out).
-- **parse5 8.1.1:** POL-03's scan reads the site's built HTML with the WHATWG parser that jsdom (already here) and
-  Vite use; it was in the lockfile through jsdom, so the pin adds no package. jsdom from `scripts/` would need a
+- **parse5 8.1.1:** POL-03's scan reads the site's built HTML with the WHATWG parser that jsdom (already here)
+  uses; it was in the lockfile through jsdom, so the pin adds no package. jsdom from `scripts/` would need a
   second type package and a whole DOM; a regular expression does not parse HTML as a browser does. A jsdom bump
   that needs another parse5 moves this pin with it.
 - **`import.meta.main` in `site/server.ts`:** the documented way for an ES module to know it is the program's entry

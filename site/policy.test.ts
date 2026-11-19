@@ -103,7 +103,8 @@ function inlineStep(page: string): { code: number | null; out: string } {
     mkdirSync(join(root, "site", "dist"), { recursive: true });
     writeFileSync(join(root, "site", "vite.config.ts"), "export default {};\n");
     writeFileSync(join(root, "site", "dist", "index.html"), page);
-    // childEnv: a git hook's GIT_* variables must not reach the real repository, nor the gate's own ones the step
+    // childEnv drops git's GIT_* variables (a hook's must not reach the real repository) and the gate's own ones (the
+    // step's verdict must not depend on them)
     execFileSync("git", ["init", "-q", root], { env: childEnv() });
     execFileSync("git", ["-C", root, "add", "site/vite.config.ts"], {
       env: childEnv(),
