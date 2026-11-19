@@ -97,6 +97,12 @@ describe("SORT-01", () => {
       expect(onsort.mock.calls).toEqual([[order(after)]]);
     },
   );
+
+  it("a press on Name with the order null (counts as []) emits [name asc] once", async () => {
+    const { onsort } = mount({ sort: null });
+    await fireEvent.click(sortButton("Name"));
+    expect(onsort.mock.calls).toEqual([[order("name asc")]]);
+  });
 });
 // SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are owed to the real-browser sort step, so the
 // statement carries no marker until then.

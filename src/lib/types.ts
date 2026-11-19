@@ -78,8 +78,8 @@ export interface DataTableProps<Row> {
   busy?: boolean;
   // Replaces any of the English defaults
   messages?: Partial<DataTableMessages>;
-  // The order the server applied, the lead first; the table shows it and never reorders the rows
-  sort?: readonly DataTableSortEntry[];
+  // The order the server applied, the lead first; the table shows it and never reorders the rows; null is no order
+  sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
   heading?: Snippet;
