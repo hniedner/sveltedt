@@ -368,7 +368,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
-// @spec("SORT-15", "d647ba5a")
+// @spec("SORT-15", "8ac55f94")
 describe("SORT-15", () => {
   it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
     const { container } = mount(props);
@@ -447,6 +447,18 @@ describe("SORT-15", () => {
       expect(screen.getByRole("table").isConnected).toBe(true);
     },
   );
+
+  it("takes a column's sortable given as null as not sortable, and no fault", () => {
+    mount({
+      columns: [
+        code,
+        { ...name, sortable: null } as unknown as DataTableColumn<Item>,
+      ],
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sort by Name" })).toBeNull();
+    expect(sortButton("Code").isConnected).toBe(true);
+  });
 
   it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {
     mount({ caption: "", sort: order("zzz asc") });
