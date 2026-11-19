@@ -99,6 +99,11 @@ function manyRows(count: number): Item[] {
   }));
 }
 
+// The live count: the element with an explicit polite aria-live (the status element's is implicit)
+function liveCount(component: HTMLElement): Element | null {
+  return component.querySelector('[aria-live="polite"]');
+}
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -679,6 +684,26 @@ describe("STATE-05", () => {
     show({ status: "ready", busy: true, rows: manyRows(25) });
     expect(firstCells()).toHaveLength(25);
   });
+});
+
+// @spec("A11Y-05", "28e1349a")
+describe("A11Y-05", () => {
+  it.each<[DataTableStatus, boolean, number, string]>([
+    ["ready", false, 2, "2 rows displayed"],
+    ["ready", false, 0, "0 rows displayed"],
+    ["ready", true, 2, ""],
+    ["ready", true, 0, ""],
+    ["loading", false, 2, ""],
+    ["failed", false, 0, ""],
+  ])(
+    "with status %s, busy %s and %i rows, the live count says %j",
+    (status, busy, count, text) => {
+      const component = show({ status, busy, rows: manyRows(count) });
+      const live = liveCount(component);
+      expect(live).not.toBeNull();
+      expect(live?.textContent.trim()).toBe(text);
+    },
+  );
 });
 
 // True when A and B are the same type, read-only modifiers included

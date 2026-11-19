@@ -16,6 +16,12 @@
   const fault = $derived(
     validateTable({ rows, columns, getRowId, caption, regionLabel }),
   );
+  // Counted only while the rows shown are the answer (A11Y-05)
+  const count = $derived(
+    status === "ready" && !busy
+      ? `${rows.length} ${rows.length === 1 ? "row" : "rows"} displayed`
+      : "",
+  );
 </script>
 
 {@render heading?.()}
@@ -23,7 +29,9 @@
 {#if fault}
   <div role="alert">{fault}</div>
 {:else}
+  <!-- Both live elements stay in the document in every state, so a change of their text is announced -->
   <div role="status">{status === "loading" ? "Loading data…" : ""}</div>
+  <div class="sr-only" aria-live="polite">{count}</div>
   {#if status === "failed"}
     <div role="alert">The data could not be loaded.</div>
   {/if}
