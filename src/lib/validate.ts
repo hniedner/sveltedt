@@ -1,9 +1,15 @@
 import type { DataTableMessages, DataTableProps } from "./types.ts";
 
-// The message keys of RND-05's alert
+// The message keys of the alert (RND-05, SORT-15)
 type Fault = Exclude<
   keyof DataTableMessages,
-  "loading" | "failed" | "empty" | "rowCount"
+  | "loading"
+  | "failed"
+  | "empty"
+  | "rowCount"
+  | "sortBy"
+  | "sortRank"
+  | "sortDescription"
 >;
 
 function firstDuplicate(values: readonly string[]): string | undefined {
@@ -27,7 +33,14 @@ const isList = (value: unknown): boolean => Array.isArray(value);
 export function validateTable<Row>(
   input: Pick<
     DataTableProps<Row>,
-    "rows" | "columns" | "getRowId" | "caption" | "regionLabel" | "status"
+    | "rows"
+    | "columns"
+    | "getRowId"
+    | "caption"
+    | "regionLabel"
+    | "status"
+    | "sort"
+    | "onsort"
   >,
 ): Fault | null {
   const { rows, columns, getRowId, caption, regionLabel, status } = input;
@@ -46,10 +59,22 @@ export function validateTable<Row>(
   if (duplicateLabel !== undefined) return "columnLabelDuplicate";
   if (columns.some((column) => !column.value && !column.cell))
     return "columnContentMissing";
-  // With status loading or failed, rows that are not a list are no fault (STATE-08)
-  if (!isList(rows))
-    return status === "loading" || status === "failed" ? null : "rowsNotList";
-  // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
+  // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
+  if (!isList(rows)) {
+    if (status !== "loading" && status !== "failed") return "rowsNotList";
+  } else {
+    const fault = rowFault(rows, getRowId);
+    if (fault) return fault;
+  }
+  // The sort faults come after every fault of RND-05's table (SORT-15)
+  return sortFault(input.columns, input.sort, input.onsort);
+}
+
+// An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
+function rowFault<Row>(
+  rows: readonly Row[],
+  getRowId: (row: Row) => unknown,
+): Fault | null {
   const rowIds: string[] = [];
   let unreadable = false;
   for (const row of rows) {
@@ -67,4 +92,36 @@ export function validateTable<Row>(
   const duplicateRowId = firstDuplicate(rowIds);
   if (duplicateRowId !== undefined) return "rowIdDuplicate";
   return unreadable ? "rowIdUnreadable" : null;
+}
+
+// The first row of SORT-15's table that applies; each row is checked across all columns or entries before the next
+function sortFault<Row>(
+  columns: DataTableProps<Row>["columns"],
+  sort: DataTableProps<Row>["sort"],
+  onsort: DataTableProps<Row>["onsort"],
+): Fault | null {
+  const invalid = (sortable: unknown): boolean =>
+    !isList(sortable) ||
+    (sortable as unknown[]).length === 0 ||
+    (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc");
+  const sortables = columns.filter((column) => column.sortable !== undefined);
+  if (sortables.some((column) => invalid(column.sortable)))
+    return "sortableInvalid";
+  if (sortables.length > 0 && typeof onsort !== "function")
+    return "sortHandlerMissing";
+  const order = sort ?? [];
+  const columnOf = (id: string) => columns.find((column) => column.id === id);
+  if (order.some((entry) => !columnOf(entry.id))) return "sortColumnUnknown";
+  if (order.some((entry) => !columnOf(entry.id)?.sortable))
+    return "sortColumnNotSortable";
+  if (
+    order.some(
+      (entry) =>
+        !columnOf(entry.id)?.sortable?.includes(entry.desc ? "desc" : "asc"),
+    )
+  )
+    return "sortDirectionNotAllowed";
+  return firstDuplicate(order.map((entry) => entry.id)) === undefined
+    ? null
+    : "sortColumnDuplicate";
 }
