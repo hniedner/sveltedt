@@ -3810,8 +3810,7 @@ sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements h
 Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
 zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name (sortable), Code
 and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page `stickyTop` px tall at the
-viewport top. A later branch states the development warning for an ancestor that stops the header from sticking
-(PRD-D3), the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
+viewport top. A later branch states the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
 (PRD-B22), the offsets after a viewport resize (STK-05), the order emitted while sticky columns are given, the zoom
 view's 2.4.11 row, and that no listener on `window`, `document` or a media query outlives the table.
 
@@ -3857,6 +3856,37 @@ table is wider than the viewport.
   (PRD section 5.1, PRD-A2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14, PRD-A2.
+
+**STK-10** With `stickyHeader`, in a development build, the component MUST write one console warning naming the nearest
+ancestor of the table, below `body`, whose computed `overflow-x` or `overflow-y` is neither `visible` nor `clip`; with
+no such ancestor, or without `stickyHeader`, it MUST NOT warn.
+- Examples (the test runs every row; the table inside `<div id="wrap" class="card">` inside `<main>`; a warning is a
+  `console.warn` call; the name is the tag name, then `#` and the `id` if there is one, then `.` and each class):
+
+  | `stickyHeader` | Styles | Warnings, and the text of the one |
+  |---|---|---|
+  | on | `#wrap { overflow: hidden }` | one: "SvelteDT: the sticky header cannot stick inside div#wrap.card, whose overflow is not visible or clip." |
+  | on | `#wrap { overflow: auto }` | one, naming div#wrap.card |
+  | on | `#wrap { overflow-x: hidden }` (its `overflow-y` then computes to `auto`) | one, naming div#wrap.card |
+  | on | `main { overflow: hidden }` | one, naming main |
+  | on | `#wrap` and `main` each `overflow: hidden` | one, naming div#wrap.card (the nearest) |
+  | on | `#wrap { overflow: clip }` | none |
+  | on | `#wrap { overflow-x: clip }` | none |
+  | on | none | none |
+  | on | `body { overflow: hidden }`, `html` left `visible` | none: `body`'s overflow applies to the viewport |
+  | off | `#wrap { overflow: hidden }` | none |
+  | off, then on | `#wrap { overflow: hidden }` | one, after the change |
+
+  The check runs when the table mounts with `stickyHeader` and when `stickyHeader` turns on; new rows, a sort or a
+  page change write no further warning. An ancestor whose style changes after that is not seen: the component adds
+  no observer or listener for it (PRD-B19). In a production build the warning is absent (CON-14 of
+  `spec/package.md`). The warning is for the developer, not a word the table shows: English only, no prop.
+- Reason: the application must keep every ancestor's `overflow` at `visible` or `clip` (PRD-D3, design D); a warning
+  naming the element finds the cause of a header that does not stick. `body` and `html` are not checked: their
+  overflow goes to the viewport.
+- Layer: real browser (Chromium, Firefox, WebKit), on the test site's development build, where `esm-env`'s `DEV` is
+  true (the first row, red before the warning exists, shows it).
+- Traces: PRD-B14, PRD-D3.
 
 **STK-03** Each column with `sticky` MUST stay at its inline-start offset while the document scrolls sideways, the
 offset being the sum of the widths of the sticky columns before it.
@@ -3953,8 +3983,8 @@ the region scrolls sideways.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14.
 
-**STK-15** Every fixed word of this section MUST come from a prop with an English default.
-- Examples (as RND-06): the alert message of STK-11 (STK-11).
+**STK-15** Every fixed word this section's table shows MUST come from a prop with an English default.
+- Examples (as RND-06): the alert message of STK-11 (STK-11). STK-10's console warning is not shown by the table.
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
 - Traces: PRD-I1.
@@ -4229,6 +4259,7 @@ the region scrolls sideways.
 | STK-01 | PRD-B14 |
 | STK-04 | PRD-B14, PRD-A11 |
 | STK-09 | PRD-B14, PRD-A2 |
+| STK-10 | PRD-B14, PRD-D3 |
 | STK-03 | PRD-B14 |
 | STK-05 | PRD-B14 |
 | STK-06 | PRD-B14, PRD-I3 |
@@ -4265,7 +4296,8 @@ state in their own statements.
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22, STK-06 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
-| PRD-B14 | STK-01, STK-04, STK-09, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
+| PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
+| PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
 | PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4311,7 +4343,7 @@ state in their own statements.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
+- Documentation: PRD-D1, PRD-D2, PRD-D3 (in part, see above), PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
