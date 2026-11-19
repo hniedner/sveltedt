@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse, type DefaultTreeAdapterTypes } from "parse5";
 import {
   binaryOf,
   CANNOT,
@@ -1800,6 +1801,56 @@ function site(root: string, list: Set<string>): Result {
     : result(CANNOT, "the build left no HTML page in site/dist");
 }
 
+// POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom and Vite use
+// (docs/decisions/001), never by a regular expression, and as a browser with scripting on reads it.
+// Stated limits: a `javascript:` URL is looked for only in these attributes (WHATWG URL parsing, as a browser reads
+// it); every attribute whose name starts with `on` counts as an event handler; a `style` attribute is POL-04's.
+const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
+function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
+  if ("tagName" in node) {
+    if (node.tagName === "style") found.push("a style element");
+    if (node.tagName === "script" && node.childNodes.length)
+      found.push("a script element with text");
+    for (const { name, value } of node.attrs) {
+      if (name.startsWith("on")) found.push(`the event handler ${name}`);
+      if (URL_ATTRS.has(name) && URL.parse(value)?.protocol === "javascript:")
+        found.push(`a javascript: URL in ${name}`);
+    }
+  }
+  if ("childNodes" in node) for (const c of node.childNodes) inlineIn(c, found);
+}
+
+/** Every `.html` file under `folder` with what inline script or style it holds. */
+function inlineScan(folder: string): { file: string; found: string[] }[] {
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".html"))
+    .map((e) => {
+      const path = join(e.parentPath, e.name);
+      const found: string[] = [];
+      const html = readFileSync(path, "utf8");
+      inlineIn(parse(html), found);
+      return { file: relative(folder, path), found };
+    });
+}
+
+// After the site step, which builds site/dist afresh. Each planted canary (one file per kind POL-03 lists) must be
+// found first.
+function inline(root: string, list: Set<string>): Result {
+  if (!list.has(SITE_CONFIG))
+    return result(NA, `no tracked ${SITE_CONFIG}: no site build to scan`);
+  const planted = inlineScan(canaries("inline"));
+  const missed = planted.filter((p) => !p.found.length).map((p) => p.file);
+  if (!planted.length || missed.length)
+    return result(CANNOT, "the scan missed a planted canary", missed);
+  const pages = inlineScan(join(root, "site", "dist"));
+  if (!pages.length) return result(CANNOT, "no HTML file in site/dist to scan");
+  const bad = pages.flatMap((p) => p.found.map((f) => `${p.file}: ${f}`));
+  return bad.length
+    ? result(FINDING, `inline script or style in ${bad.length} place(s)`, bad)
+    : result(PASS, `read ${pages.length} HTML file(s) in site/dist`);
+}
+
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
 // test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
@@ -2135,6 +2186,7 @@ const CHECKS: Record<string, Check> = {
   types,
   svelte,
   site,
+  inline,
   test,
   dupes,
   commits,

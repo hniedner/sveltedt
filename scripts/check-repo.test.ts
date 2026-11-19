@@ -3776,6 +3776,42 @@ test("site: a build that writes no HTML page cannot be checked", () => {
     /no HTML page in site\/dist/,
   );
 });
+
+// The inline step's own contract; POL-03's rows run in site/policy.test.ts against the real build
+const builtPage = (html: string) => (root: string) => {
+  put(root, "site/vite.config.ts", "export default {};\n");
+  put(root, "site/dist/index.html", html);
+};
+test("inline: without a tracked site/vite.config.ts the step is not applicable", () => {
+  const r = run(["inline", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE inline:/m);
+});
+test("inline: a site/dist with no HTML file cannot be checked", () => {
+  const none = (root: string) =>
+    put(root, "site/vite.config.ts", "export default {};\n");
+  assert.match(expect("inline", repo(none), 3), /no HTML file in site\/dist/);
+});
+test("inline: a planted canary the scan misses, or none planted, cannot be checked", () => {
+  const dir = tempDir();
+  const clean = "<!doctype html><title>c</title><script src=/a.js></script>\n";
+  const site = repo(builtPage(clean));
+  assert.match(
+    expect("inline", site, 3, { canaries: dir }),
+    /missed a planted canary/,
+  );
+  put(dir, "inline/clean.html", clean);
+  const out = expect("inline", site, 3, { canaries: dir });
+  assert.match(out, /^ {2}clean\.html$/m);
+});
+test("inline: names each file and kind it finds", () => {
+  const two =
+    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a>\n";
+  const out = expect("inline", repo(builtPage(two)), 1);
+  assert.match(out, /^ {2}index\.html: a style element$/m);
+  assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);
+  assert.match(out, /in 2 place\(s\)/);
+});
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(
     expect("site", repo(siteFiles()), 3, {
