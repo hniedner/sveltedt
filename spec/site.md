@@ -263,6 +263,14 @@ output when it listens, and MUST write nothing there when it refuses.
 - Layer: component.
 - Traces: PRD-W5.
 
+**LIST-03** The list page's Order column MUST be sortable both ways, the page sorting its own fixed list.
+- Example: the list page component mounted; press "Sort by Order" three times: the first cells read "Order 01" to
+  "Order 20", then "Order 20" to "Order 01", then the fixed order of LIST-02.
+- Reason: the page shows the sort at work where a consumer uses it; the site's server answers files only (SRV-01),
+  so the page's handler sorts, as an application asks its server to.
+- Layer: component.
+- Traces: PRD-W5.
+
 ## 4. The strict policy on the site (POL)
 
 **POL-01** Each HTML page the build folder holds MUST load the listener from the site's own origin so that it runs
@@ -356,6 +364,7 @@ time it has loaded and its table has rendered.
 | IMP-01 | PRD-W1 |
 | LIST-01 | PRD-W5 |
 | LIST-02 | PRD-W5 |
+| LIST-03 | PRD-W5 |
 | POL-01 | PRD-W4, PRD-S1 |
 | POL-02 | PRD-W4, PRD-S1 |
 | POL-03 | PRD-W4 |
@@ -367,7 +376,7 @@ time it has loaded and its table has rendered.
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
 | PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
-| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02 | in part: sort, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
+| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03 | in part: sort by more than one column, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 

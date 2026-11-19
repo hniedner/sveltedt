@@ -27,10 +27,13 @@ There is nothing to install yet. What is on `main` today:
 - row ids that are strings or finite numbers, as server JSON gives them;
 - the loading, failed and busy states: the loading text in a status element, the failure in an alert, `aria-busy`
   on the table, the rows kept while busy, and the row count in a polite live region;
-- every fixed word as a `messages` prop with an English default.
+- every fixed word as a `messages` prop with an English default;
+- sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
+  table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a described
+  button), and invalid sort input gets the alert; the test site's list page sorts its Order column.
 
-Not yet: sort, the pager, search, filters, column features, selection, the
-connection helper and the published package. The order is in the
+Not yet: sort by keyboard (proved with the real-browser tests), the pager, search, filters, column features,
+selection, the connection helper and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
