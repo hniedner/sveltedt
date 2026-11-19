@@ -938,6 +938,27 @@ describe("RND-06", () => {
   );
 });
 
+// @spec("RND-13", "fcf0e08a")
+describe("RND-13", () => {
+  it.each<[DataTableStatus, boolean, string[]]>([
+    ["loading", false, [LOADING]],
+    ["failed", false, [FAILED]],
+    ["ready", false, [EMPTY]],
+    ["ready", true, []],
+  ])(
+    "with columns [], status %s and busy %s, shows only the alert",
+    (status, busy, hidden) => {
+      const component = show({ columns: [], rows: [], status, busy });
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual(["Table has no columns."]);
+      for (const text of hidden)
+        expect(component.textContent).not.toContain(text);
+      expect(liveCount(component)?.textContent.trim() ?? "").toBe("");
+    },
+  );
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
