@@ -31,6 +31,7 @@ import {
 import {
   canaries,
   childEnv,
+  COLOUR,
   commitRange,
   errorCode,
   HERE,
@@ -207,6 +208,12 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
+  // GATE_BROWSER in a job's env leaves the browser step to the job `browser`, which gate must then need (above)
+  const leaves = [...jobs.values()].some((lines) =>
+    lines.some((l) => /^\s+GATE_BROWSER\s*:/.test(l)),
+  );
+  if (leaves && !jobs.has("browser"))
+    details.push("GATE_BROWSER is set but no job named browser runs the step");
   if (details.length)
     return result(
       FINDING,
@@ -1764,6 +1771,7 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+const BROWSER_DIR = "site/browser/";
 const viteBin = (): string =>
   process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
 const SITE_CONFIG = "site/vite.config.ts";
@@ -1891,7 +1899,13 @@ function test(root: string, list: Set<string>): Result {
       tail(canary.out),
     );
   const mine = [...list]
-    .filter((f) => /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/"))
+    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs
+    .filter(
+      (f) =>
+        /\.(?:test|spec)\.ts$/.test(f) &&
+        !f.startsWith("scripts/") &&
+        !f.startsWith(BROWSER_DIR),
+    )
     .sort();
   if (!mine.length)
     // code a test should cover: TypeScript and components under src/ and site/
@@ -2193,6 +2207,141 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }
 
+// The real-browser layer: Playwright with the one tracked playwright.config.ts, after the test step, so the site's
+// address 127.0.0.1:4173 is never shared with the site's start tests. A planted failing spec must be reported first.
+const PW_CONFIG = "playwright.config.ts";
+const playwrightBin = (): string =>
+  process.env.PLAYWRIGHT_BIN ||
+  join(HERE, "..", "node_modules", ".bin", "playwright");
+// The stable parts of Playwright 1.65.1's own messages (measured 2026-11-19); any other error cannot be checked
+const PORT_TAKEN = "is already used, make sure that nothing is running";
+const NO_BROWSER = "Executable doesn't exist at";
+interface PwTest {
+  projectName: string;
+  status: string;
+  results: { error?: { message?: string } }[];
+}
+interface PwSuite {
+  file: string;
+  specs?: { title: string; tests: PwTest[] }[];
+  suites?: PwSuite[];
+}
+interface PwReport {
+  stats: { unexpected?: number };
+  errors: { message?: string }[];
+  suites: PwSuite[];
+}
+
+/** One Playwright run in `cwd` with its JSON report (null when it wrote none) and its output. */
+function playwright(cwd: string): { report: PwReport | null; out: string } {
+  const dir = mkdtempSync(join(tmpdir(), "playwright-"));
+  try {
+    const file = join(dir, "report.json");
+    const r = spawnSync(
+      playwrightBin(),
+      ["test", "--config", PW_CONFIG, "--reporter=json"],
+      {
+        cwd,
+        encoding: "utf8",
+        env: { ...childEnv(), PLAYWRIGHT_JSON_OUTPUT_NAME: file },
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+    const report = existsSync(file)
+      ? (JSON.parse(readFileSync(file, "utf8")) as PwReport)
+      : null;
+    return { report, out: `${r.stdout}${r.stderr}` };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Every test of a report as [file, title, test], describe blocks flattened. */
+const pwTests = (suites: PwSuite[]): [string, string, PwTest][] =>
+  suites.flatMap((s) => [
+    ...(s.specs ?? []).flatMap((spec) =>
+      spec.tests.map((t): [string, string, PwTest] => [s.file, spec.title, t]),
+    ),
+    ...pwTests(s.suites ?? []),
+  ]);
+
+/** Why a run could not check anything: a taken port, a missing browser, any error outside the tests, no report. */
+function pwCannot(run: {
+  report: PwReport | null;
+  out: string;
+}): Result | null {
+  if (!run.report)
+    return result(CANNOT, "playwright wrote no report", tail(run.out));
+  const errors = run.report.errors.map((e) => e.message ?? "");
+  if (errors.some((m) => m.includes(PORT_TAKEN)))
+    return result(CANNOT, "127.0.0.1:4173 is held by another process");
+  if (errors.length)
+    return result(CANNOT, "playwright could not run", tail(errors.join("\n")));
+  const missing = pwTests(run.report.suites).filter(([, , t]) =>
+    t.results.some((r) => r.error?.message?.includes(NO_BROWSER)),
+  );
+  if (missing.length)
+    return result(
+      CANNOT,
+      "a browser is not installed: run pnpm exec playwright install",
+      [...new Set(missing.map(([, , t]) => t.projectName))],
+    );
+  return null;
+}
+
+function browser(root: string, list: Set<string>): Result {
+  if (!list.has(PW_CONFIG))
+    return result(NA, `no tracked ${PW_CONFIG}: no browser test to run`);
+  // Checked by gate-needs: GATE_BROWSER may stand only beside a job browser that gate needs
+  if (inCI() && process.env.GATE_BROWSER === "job")
+    return result(NA, "left to the CI job browser (GATE_BROWSER)");
+  const pin = readJson(root, "package.json")?.devDependencies?.[
+    "@playwright/test"
+  ];
+  const v = versionOf(playwrightBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.replace("Version ", "");
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `playwright ${got} is installed, package.json pins ${pin}`,
+    );
+  const canary = playwright(canaries("browser"));
+  const cannot = pwCannot(canary);
+  if (cannot) return cannot;
+  if (!canary.report?.stats.unexpected)
+    return result(
+      CANNOT,
+      "playwright did not report the planted failing test (canary.spec.ts)",
+    );
+  const run = playwright(root);
+  const stopped = pwCannot(run);
+  if (stopped || !run.report) return stopped ?? result(CANNOT, "no report");
+  const tests = pwTests(run.report.suites);
+  const ran = new Set(tests.map(([file]) => `${BROWSER_DIR}${file}`));
+  const missed = [...list]
+    .filter((f) => f.startsWith(BROWSER_DIR) && f.endsWith(".spec.ts"))
+    .filter((f) => !ran.has(f));
+  if (missed.length || !tests.length)
+    return result(CANNOT, "tracked browser specs did not run", missed);
+  const bad = tests
+    .filter(([, , t]) => t.status !== "expected")
+    .map(
+      ([file, title, t]) =>
+        `${file} > ${title} [${t.projectName}]: ${t.status === "skipped" ? "skipped" : (t.results.at(-1)?.error?.message ?? t.status).replace(COLOUR, "").split("\n")[0]}`,
+    );
+  if (bad.length)
+    return result(
+      FINDING,
+      `${bad.length} browser test(s) failed or skipped`,
+      bad,
+    );
+  return result(
+    PASS,
+    `playwright failed the canary; ${tests.length} test(s) in ${ran.size} file(s) passed`,
+  );
+}
+
 const CHECKS: Record<string, Check> = {
   toolchain,
   selftest,
@@ -2207,6 +2356,7 @@ const CHECKS: Record<string, Check> = {
   site,
   inline,
   test,
+  browser,
   dupes,
   commits,
   pins,

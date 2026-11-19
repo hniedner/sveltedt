@@ -1,7 +1,7 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the word its last line starts with; a usage case asserts exit 2.
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   cpSync,
@@ -1546,6 +1546,184 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
     assert.ok(out.split("\n").includes(`  ${path}`), out);
     assert.match(out, /did not run/);
   }
+});
+test("test: a Playwright spec under site/browser/ is left to the browser step", () => {
+  const browserSpec = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { test } from "@playwright/test";\n',
+    );
+  };
+  expect("test", repo(browserSpec), 0);
+});
+// A tracked Playwright config and spec, with @playwright/test pinned; the fixture reaches the real one through its
+// node_modules link
+const browserSite =
+  (webServer = "") =>
+  (root: string): void => {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    pkg.devDependencies["@playwright/test"] = PINS["@playwright/test"];
+    put(root, "package.json", `${JSON.stringify(pkg, null, 2)}\n`);
+    put(
+      root,
+      "playwright.config.ts",
+      `import { defineConfig } from "@playwright/test";\nexport default defineConfig({ testDir: "site/browser", projects: [{ name: "chromium", use: { browserName: "chromium" } }]${webServer} });\n`,
+    );
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { expect, test } from "@playwright/test";\ntest("opens", async ({ page }) => {\n  await page.setContent("<p>x</p>");\n  await expect(page.locator("p")).toHaveText("x");\n});\n',
+    );
+  };
+// A fake playwright that reports `report` for the real run and a failing test for the canary run
+function fakePlaywright(
+  report: object,
+  version = PINS["@playwright/test"],
+  canaryFails = 1,
+): string {
+  const bin = join(tempDir(), "playwright");
+  const canary = { stats: { unexpected: canaryFails }, errors: [], suites: [] };
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const out = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+if (process.argv[2] === "--version") console.log("Version ${version}");
+else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(canary))} : ${JSON.stringify(JSON.stringify(report))});
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+/** A report of one spec file `a.spec.ts` whose test "opens" ended with `status` in chromium. */
+const pwReport = (
+  status: string,
+  errors: object[] = [],
+  file = "a.spec.ts",
+) => ({
+  stats: {
+    expected: status === "expected" ? 1 : 0,
+    unexpected: status === "unexpected" ? 1 : 0,
+    skipped: status === "skipped" ? 1 : 0,
+  },
+  errors,
+  suites: [
+    {
+      file,
+      specs: [
+        {
+          title: "opens",
+          tests: [
+            {
+              projectName: "chromium",
+              status,
+              results: [{ error: { message: "Error: boom" } }],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+});
+const withPw = (report: object, version?: string, canaryFails?: number) => ({
+  extraEnv: { PLAYWRIGHT_BIN: fakePlaywright(report, version, canaryFails) },
+});
+test("browser: without a tracked playwright.config.ts the step is not applicable", () => {
+  const r = run(["browser", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE browser:/m);
+});
+test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
+  const site = repo(browserSite());
+  const ci = run(["browser", "--root", site], {
+    extraEnv: { GITHUB_ACTIONS: "true", GATE_BROWSER: "job" },
+  });
+  assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
+  // Locally the variable leaves nothing out
+  expect("browser", site, 1, {
+    ...withPw(pwReport("unexpected")),
+    extraEnv: {
+      ...withPw(pwReport("unexpected")).extraEnv,
+      GATE_BROWSER: "job",
+    },
+  });
+});
+test("browser: passes when every tracked spec ran and passed, and counts the tests", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    0,
+    withPw(pwReport("expected")),
+  );
+  assert.match(out, /1 test\(s\) in 1 file\(s\) passed/);
+});
+test("browser: a failed or skipped test is a finding that names it", () => {
+  for (const status of ["unexpected", "skipped"]) {
+    const out = expect(
+      "browser",
+      repo(browserSite()),
+      1,
+      withPw(pwReport(status)),
+    );
+    assert.match(
+      out,
+      /^ {2}a\.spec\.ts > opens \[chromium\]: (?:Error: boom|skipped)$/m,
+    );
+  }
+});
+test("browser: a tracked spec that did not run, a canary that passed or another version cannot be checked", () => {
+  const site = repo(browserSite());
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected", [], "b.spec.ts"))),
+    /^ {2}site\/browser\/a\.spec\.ts$/m,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected"), "0.0.1")),
+    /playwright 0\.0\.1 is installed/,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected"), undefined, 0)),
+    /did not report the planted failing test/,
+  );
+});
+test("browser: an error outside the tests that the step does not know cannot be checked, and is shown", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    3,
+    withPw(pwReport("expected", [{ message: "Error: odd" }])),
+  );
+  assert.match(out, /Error: odd/);
+});
+// The two could-not-check rows with the real Playwright: neither starts a browser
+test("browser: a taken 127.0.0.1:4173 cannot be checked (the web server refuses a running one)", async () => {
+  // Held by another process: this one blocks while the gate runs
+  const holder = spawn(process.execPath, [
+    "-e",
+    'require("node:http").createServer((q, s) => s.end("held")).listen(4173, "127.0.0.1", () => console.log("up"))',
+  ]);
+  try {
+    await new Promise((up) => holder.stdout.once("data", up));
+    const site = repo(
+      browserSite(
+        ', webServer: { command: "node -e 0", url: "http://127.0.0.1:4173/", reuseExistingServer: false }',
+      ),
+    );
+    assert.match(
+      expect("browser", site, 3),
+      /127\.0\.0\.1:4173 is held by another process/,
+    );
+  } finally {
+    holder.kill();
+  }
+});
+test("browser: a browser that is not installed cannot be checked, and says how to install it", () => {
+  const out = expect("browser", repo(browserSite()), 3, {
+    extraEnv: { PLAYWRIGHT_BROWSERS_PATH: tempDir() },
+  });
+  assert.match(out, /a browser is not installed: run pnpm exec playwright install/);
+  assert.match(out, /^ {2}chromium$/m);
 });
 test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
   for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
@@ -3341,6 +3519,28 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
     /extra/,
   );
 });
+// The static job leaves the browser step to its own CI job through GATE_BROWSER; only a browser job gate needs may
+// take it over
+const ciWith = (ci: string) => (root: string) =>
+  put(root, ".github/workflows/ci.yml", ci);
+const leavesBrowser = CI.replace(
+  "    runs-on: ubuntu-latest\n    steps:\n      - uses",
+  "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
+);
+const browserJob = (ci: string) =>
+  ci
+    .replace("  gate:", "  browser:\n    runs-on: ubuntu-latest\n  gate:")
+    .replace("needs: [static]", "needs: [static, browser]");
+test("gate-needs: GATE_BROWSER without a browser job is a finding", () => {
+  assert.match(
+    expect("gate-needs", repo(ciWith(leavesBrowser)), 1),
+    /GATE_BROWSER is set but no job named browser/,
+  );
+  expect("gate-needs", repo(ciWith(browserJob(leavesBrowser))), 0);
+});
+test("gate-needs: a browser job without GATE_BROWSER passes", () => {
+  expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
+});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -3574,12 +3774,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no site, no test file and no commit after origin/main: svelte, site, inline,
-  // test, commits and secrets have nothing to check.
+  // The fixture has no component, no site, no test file, no browser test and no commit after origin/main: svelte,
+  // site, inline, test, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 6 not applicable: svelte, site, inline, test, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 7 not applicable: svelte, site, inline, test, browser, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {

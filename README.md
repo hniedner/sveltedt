@@ -49,6 +49,15 @@ pnpm site:serve
 Then open <http://127.0.0.1:4173>. The site listens on that address only and sends the strict content-security
 policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
 
+The browser tests open the built site in Chromium, Firefox and WebKit (stop `pnpm site:serve` first: they start the
+server on that address themselves):
+
+```sh
+pnpm exec playwright install
+pnpm site:build
+node scripts/check-repo.ts browser
+```
+
 ## Documents
 
 - What it must do: [the product requirements](docs/PRD.md), and where it departs from DataTables and why:

@@ -130,6 +130,14 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
+- **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
+  `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
+  (never one already running), after the test step so that address is never shared. The planted failing spec in
+  `scripts/canaries/browser/` must be reported first. A failed or skipped test is a finding; a tracked spec that did
+  not run, a taken 127.0.0.1:4173, a browser that is not installed (`pnpm exec playwright install`) or any other error
+  Playwright reports outside the tests cannot be checked. Without a tracked `playwright.config.ts` the step is NOT
+  APPLICABLE; in CI the static job leaves it to the job `browser` (the variable `GATE_BROWSER`, which gate-needs
+  allows only beside that job).
 - **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
   (see Commit headers).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
