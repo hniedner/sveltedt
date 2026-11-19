@@ -3675,3 +3675,53 @@ test("lockfile: bundleDependencies, npm's own spelling, would ship", () => {
 test("an unknown check is a usage error", () => {
   assert.equal(run(["nothing"]).code, 2);
 });
+
+// A site the real vite builds: a config with no plugin and a page with no script
+const siteFiles =
+  (config = "export default { root: import.meta.dirname };\n") =>
+  (root: string): void => {
+    put(root, "site/vite.config.ts", config);
+    put(root, "site/index.html", "<!doctype html><title>site</title>\n");
+  };
+test("site: without a tracked site/vite.config.ts the step is not applicable", () => {
+  const r = run(["site", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE site: no tracked site\/vite\.config\.ts/m,
+  );
+});
+test("site: passes when vite builds the site into site/dist, and counts the files", () => {
+  assert.match(
+    expect("site", repo(siteFiles()), 0),
+    /vite build wrote 1 file\(s\) to site\/dist/,
+  );
+});
+test("site: a build that fails is a finding that says why", () => {
+  assert.match(
+    expect("site", repo(siteFiles('throw new Error("broken config");\n')), 1),
+    /broken config/,
+  );
+});
+test("site: a build that leaves site/dist missing or empty cannot be checked", () => {
+  const elsewhere = siteFiles(
+    'export default { root: import.meta.dirname, build: { outDir: "../out" } };\n',
+  );
+  assert.match(
+    expect("site", repo(elsewhere), 3),
+    /site\/dist missing or empty/,
+  );
+  const empty = (root: string): void => {
+    elsewhere(root);
+    mkdirSync(join(root, "site", "dist"));
+  };
+  assert.match(expect("site", repo(empty), 3), /site\/dist missing or empty/);
+});
+test("site: a vite that cannot be started cannot be checked, and says why", () => {
+  assert.match(
+    expect("site", repo(siteFiles()), 3, {
+      extraEnv: { VITE_BIN: "/no/such/vite" },
+    }),
+    /cannot run \/no\/such\/vite: ENOENT/,
+  );
+});

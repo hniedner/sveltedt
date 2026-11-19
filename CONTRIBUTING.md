@@ -93,6 +93,10 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   it (measured with svelte-check 4.7.8). A second Svelte config is not added; that file is edited. The two Vite
   configs (`vitest.config.ts`, `site/vite.config.ts`) load it through the Svelte plugin; svelte-check, given
   `--config`, imports neither.
+- **site:** Vite builds the test site (`vite build --config site/vite.config.ts`, the same build as `pnpm site:build`)
+  into `site/dist`, before the test step: the site's HTTP tests read that folder. A build that fails is a finding; a
+  build that leaves `site/dist` missing or empty cannot be checked. Without a tracked `site/vite.config.ts` the step
+  is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`

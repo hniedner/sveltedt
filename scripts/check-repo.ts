@@ -1846,6 +1846,40 @@ function vitest(
   }
 }
 
+const viteBin = (): string =>
+  process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
+const SITE_CONFIG = "site/vite.config.ts";
+
+// The site's build, before the test step: the HTTP and browser tests read the real build folder site/dist. A build
+// that fails is a finding; a build that leaves the folder missing or empty cannot be checked (nothing to test).
+function site(root: string, list: Set<string>): Result {
+  if (!list.has(SITE_CONFIG))
+    return result(NA, `no tracked ${SITE_CONFIG}: no site to build`);
+  const r = spawnSync(viteBin(), ["build", "--config", SITE_CONFIG], {
+    cwd: root,
+    encoding: "utf8",
+    env: childEnv(),
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (r.error)
+    return result(CANNOT, `cannot run ${viteBin()}: ${errorCode(r.error)}`);
+  if (r.status !== 0)
+    return result(
+      FINDING,
+      `vite build exited ${r.status}`,
+      tail(`${r.stdout}${r.stderr}`),
+    );
+  const dist = join(root, "site", "dist");
+  const built = existsSync(dist)
+    ? readdirSync(dist, { recursive: true, withFileTypes: true }).filter((e) =>
+        e.isFile(),
+      ).length
+    : 0;
+  return built
+    ? result(PASS, `vite build wrote ${built} file(s) to site/dist`)
+    : result(CANNOT, "the build left site/dist missing or empty");
+}
+
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
 // test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
@@ -2207,6 +2241,7 @@ const CHECKS: Record<string, Check> = {
   lint,
   types,
   svelte,
+  site,
   test,
   dupes,
   commits,

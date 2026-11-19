@@ -8,8 +8,10 @@ paths are first-class: a new project, and a project migrating from DataTables, w
 working through a connection helper and maps its options with a migration guide. SvelteDT is an independent project, not
 affiliated with or endorsed by DataTables.
 
-**Status: pre-release.** This repository holds no component code yet, and there is nothing to install or use. Its
-requirements are written first; code follows them, test first.
+**Status: pre-release.** Nothing is published to install yet. The repository holds the first read-only table and a
+test site that shows it: `pnpm install`, `pnpm site:build`, then `pnpm site:serve` serves the list page at
+http://127.0.0.1:4173/ under the strict content-security policy. Requirements are written first; code follows them,
+test first.
 
 The npm package will be `@hniedner/sveltedt`. npm refused the bare name `sveltedt` as too similar to an existing
 package, so the package is published under the owner's scope.
