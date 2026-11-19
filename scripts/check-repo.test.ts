@@ -3299,12 +3299,33 @@ test("hooks: a missing hook is a finding", () => {
   const out = expect("hooks", repo(remove(".githooks/pre-commit")), 1);
   assert.match(out, /\.githooks\/pre-commit: missing/);
 });
-test("hooks: in CI, where git runs no hook, the step is not applicable", () => {
+const inCI = { extraEnv: { GITHUB_ACTIONS: "true" } };
+test("hooks: in CI the core.hooksPath part is not applicable, and the shims are checked all the same", () => {
   const root = repo();
   git(root, "config", "--unset", "core.hooksPath");
-  notApplicable(["hooks", "--root", root], {
-    extraEnv: { GITHUB_ACTIONS: "true" },
-  });
+  const out = expect("hooks", root, 0, inCI);
+  assert.match(out, /core\.hooksPath not applicable in CI/);
+  assert.match(out, /pre-commit, commit-msg as shims/);
+});
+test("hooks: in CI a shim that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "pre-commit"), 0o644)),
+    1,
+    inCI,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not executable/);
+});
+test("hooks: a file in .githooks that is not a known shim is a finding, in CI and in a clone", () => {
+  for (const opts of [inCI, undefined]) {
+    const out = expect(
+      "hooks",
+      repo((root) => put(root, ".githooks/post-checkout", "#!/bin/sh\n")),
+      1,
+      opts,
+    );
+    assert.match(out, /\.githooks\/post-checkout: not a known hook/);
+  }
 });
 
 /** A fixture holding this runner, its configs and canaries, so git runs the real hooks and gate there. */

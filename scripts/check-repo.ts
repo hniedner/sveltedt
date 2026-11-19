@@ -2145,8 +2145,8 @@ const HOOKS = ["pre-commit", "commit-msg"];
 const shim = (hook: string): string =>
   `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
 
-function hooks(root: string): Result {
-  if (inCI()) return result(NA, "git runs no hook in CI");
+// The problems with core.hooksPath in this clone, or the Result when git cannot say.
+function hooksPath(root: string): Result | string[] {
   // git's status: 0 set, 1 unset, anything else is git failing (a broken configuration file), not an unset path.
   const g = spawnSync(
     "git",
@@ -2159,14 +2159,24 @@ function hooks(root: string): Result {
       `git cannot read core.hooksPath: ${g.stderr.trim() || "no reason given"}`,
     );
   const [origin, value] = g.stdout.trim().split("\t");
-  const details =
-    g.status === 1
-      ? ["core.hooksPath is unset: run ./scripts/setup"]
-      : value === ".githooks"
-        ? []
-        : [
-            `core.hooksPath is "${value}" (${origin}): ./scripts/setup will not replace it; set it to .githooks in this clone (git config core.hooksPath .githooks), which replaces the other value here, whose hooks then stop running in this clone`,
-          ];
+  if (g.status === 1) return ["core.hooksPath is unset: run ./scripts/setup"];
+  return value === ".githooks"
+    ? []
+    : [
+        `core.hooksPath is "${value}" (${origin}): ./scripts/setup will not replace it; set it to .githooks in this clone (git config core.hooksPath .githooks), which replaces the other value here, whose hooks then stop running in this clone`,
+      ];
+}
+
+// The shims are checked wherever the gate runs; core.hooksPath only in a clone (CI has no clone-local git config, and
+// an extra file in .githooks would run in any maintainer's clone that has set it up).
+function hooks(root: string): Result {
+  const ci = inCI();
+  const path = ci ? [] : hooksPath(root);
+  if (isResult(path)) return path;
+  const details = [...path];
+  const dir = join(root, ".githooks");
+  for (const f of existsSync(dir) ? readdirSync(dir).sort() : [])
+    if (!HOOKS.includes(f)) details.push(`.githooks/${f}: not a known hook`);
   for (const h of HOOKS) {
     const f = join(root, ".githooks", h);
     if (!existsSync(f)) details.push(`.githooks/${h}: missing`);
@@ -2177,7 +2187,10 @@ function hooks(root: string): Result {
   }
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
-  return result(PASS, `core.hooksPath .githooks; ${HOOKS.join(", ")} as shims`);
+  return result(
+    PASS,
+    `${ci ? "core.hooksPath not applicable in CI" : "core.hooksPath .githooks"}; ${HOOKS.join(", ")} as shims`,
+  );
 }
 
 type Stage = [string, () => Result];
