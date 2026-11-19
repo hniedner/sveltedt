@@ -1,0 +1,40 @@
+import type { DataTableSortEntry, SortDirection } from "./types.ts";
+
+// A column's directions in press order: ascending before descending, whatever order the column lists them in
+const pressOrder = (sortable: readonly SortDirection[]): SortDirection[] =>
+  (["asc", "desc"] as const).filter((direction) =>
+    sortable.includes(direction),
+  );
+
+// The column's entry one press on, or null after its last direction: it then leaves the order
+function step(
+  id: string,
+  sortable: readonly SortDirection[],
+  entry: DataTableSortEntry | undefined,
+): DataTableSortEntry | null {
+  const directions = pressOrder(sortable);
+  const next = entry
+    ? directions[directions.indexOf(entry.desc ? "desc" : "asc") + 1]
+    : directions[0];
+  return next ? { id, desc: next === "desc" } : null;
+}
+
+// The whole order after a press on a column's sort button: without Shift (SORT-01) a lead column steps on alone and
+// any other column becomes the only one; with Shift (SORT-02) only that column steps on, joining at the end
+export function nextOrder(
+  order: readonly DataTableSortEntry[],
+  id: string,
+  sortable: readonly SortDirection[],
+  add: boolean,
+): DataTableSortEntry[] {
+  const own = order.find((entry) => entry.id === id);
+  if (!add) {
+    const next = step(id, sortable, order[0]?.id === id ? own : undefined);
+    return next ? [next] : [];
+  }
+  const next = step(id, sortable, own);
+  if (!own) return next ? [...order, next] : [...order];
+  return order.flatMap((entry) =>
+    entry.id !== id ? [entry] : next ? [next] : [],
+  );
+}
