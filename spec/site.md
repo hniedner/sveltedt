@@ -354,13 +354,15 @@ time it has loaded and its table has rendered.
 These statements add the views of PRD-W7 that the theming statements of `spec/table.md` (section 18) name: the token
 set and the table's density and variants, each chosen by a URL parameter of the list page. The parameters are
 `tokens` (`light`, the default, `dark` or `none`), `density` (passed as given) and the booleans `striped`, `hover`,
-`cellBorders` and `orderColumn` (present, with no value or the value `1`, means `true`; absent means not given).
+`cellBorders` and `orderColumn` (present with no value or the value `1` means `true`; absent means not given; any
+other value is passed as the given text, so the table's own fault handling shows it).
 "The example token set" is that of `spec/table.md` section 18. The other views of PRD-W7 (`dir=rtl`, spacing, the
 planted slowdowns, two tables on one page) come with the parts that need them.
 
 **VIEW-01** The list page MUST define the `--sdt-*` properties of the token set its `tokens` parameter names.
 - Examples (the test runs every row; it reads, for every name of the token table of `spec/table.md` THEME-02,
-  `getComputedStyle(...).getPropertyValue(name)` on the table's outermost element, trimmed):
+  `getComputedStyle(...).getPropertyValue(name)`, trimmed, on the element of role `table`; the expected values are
+  read, per name, from the example token set's own stylesheet, THEME-34):
 
   | URL | Each name's value |
   |---|---|
@@ -370,9 +372,10 @@ planted slowdowns, two tables on one page) come with the parts that need them.
   | `/?tokens=none` | the empty string |
 
   The light and dark rows differ in at least one name, so the test can tell them apart.
-- Reason: section 4.3's checks run with the example tokens, light and dark, and with none (PRD-W7, PRD-T4).
+- Reason: section 4.3's checks run with the example tokens, light and dark, and with none (PRD-W7); the site ships
+  the example token set (PRD-T4).
 - Layer: real browser.
-- Traces: PRD-W7.
+- Traces: PRD-W7, PRD-T4.
 
 **VIEW-02** The list page MUST pass `density`, `striped`, `hover`, `cellBorders` and `orderColumn` from its URL to its
 table.
@@ -385,29 +388,43 @@ table.
   | `/?striped` | the stripe on every second data row (THEME-20) |
   | `/?striped=1` | the same |
   | `/?cellBorders` | the borders of THEME-36 |
-  | `/?density=compact&striped&hover&cellBorders&orderColumn` | each of the rows above at once |
+  | `/?density=compact&striped&cellBorders` | the compact padding, the stripe and the borders at once |
   | `/?density=dense` | the alert of THEME-38 for `density` (the value is passed as given) |
+  | `/?striped=true` | the alert of THEME-38 for the variants (the text "true" is passed as given) |
+  | `/?hover=yes` | the alert of THEME-38 for the variants |
+  | `/?orderColumn=yes` | the alert of THEME-38 for the variants |
   | `/` | none of the above |
 
 - Reason: one page serves every variant view, normal and compact (PRD-W7, PRD section 4.3's variant views); passing
-  a value unchanged lets the table's own fault handling show a typo instead of the page hiding it.
+  a value unchanged lets the table's own fault handling show a typo instead of the page hiding it. The surfaces of
+  `hover` and `orderColumn` are shown by their own statements (a later theming branch; THEME-25 needs a sort, which
+  the list page gains with its sort part); here their alert rows show that each reaches the table.
 - Layer: real browser.
 - Traces: PRD-W7.
 
 **VIEW-03** A `tokens` value other than `light`, `dark` or `none` MUST make the list page show "Unknown tokens value:
 " followed by the value, and no table.
-- Example: `/?tokens=sepia`: the page shows "Unknown tokens value: sepia" and holds no `table` element.
+- Examples (the test runs every row):
+
+  | URL | The page shows |
+  |---|---|
+  | `/?tokens=sepia` | "Unknown tokens value: sepia", and no `table` element |
+  | `/?tokens=Dark` | "Unknown tokens value: Dark", and no `table` element (values are case-sensitive) |
+  | `/?tokens=` | "Unknown tokens value: ", and no `table` element |
+  | `/?tokens=sepia&density=dense` | "Unknown tokens value: sepia", and no `table` element (no table, so no alert) |
+
 - Reason: a mistyped view that fell back to the light set would let a dark-view test pass without checking (PRD rule
   4.0).
 - Layer: real browser.
 - Traces: PRD-W7.
 
-**VIEW-04** Every view of this section MUST raise no policy violation.
-- Example: `/?tokens=dark&density=compact&striped&hover&cellBorders&orderColumn` and `/?tokens=none`, each loaded: the
-  listener's list is empty.
+**VIEW-04** Each URL in the examples of VIEW-01 to VIEW-03 MUST raise no policy violation.
+- Example: as POL-04, in its order of reads (the policy header, the listener present, the page loaded, the table
+  rendered, then the listener's list), for each such URL; for the pages of VIEW-03, "the table rendered" is "the
+  unknown-value text shown". The list is empty for each.
 - Reason: the views switch tokens and props without inline styles or scripts (PRD-W4, PRD-S1).
 - Layer: real browser.
-- Traces: PRD-W7, PRD-S1.
+- Traces: PRD-W7, PRD-S1, PRD-W4.
 
 ## Trace
 
@@ -430,20 +447,21 @@ table.
 | POL-02 | PRD-W4, PRD-S1 |
 | POL-03 | PRD-W4 |
 | POL-04 | PRD-S1, PRD-W4 |
-| VIEW-01 | PRD-W7 |
+| VIEW-01 | PRD-W7, PRD-T4 |
 | VIEW-02 | PRD-W7 |
 | VIEW-03 | PRD-W7 |
-| VIEW-04 | PRD-W7, PRD-S1 |
+| VIEW-04 | PRD-W7, PRD-S1, PRD-W4 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
-| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
+| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
 | PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03 | in part: sort by more than one column, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04, VIEW-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 | PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04 | in part: the token set, the density and the variants; `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
+| PRD-T4 | VIEW-01 | in part: the site ships the set; its values and pairs are `spec/table.md`'s THEME-17, THEME-33 and THEME-34 |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 
 PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W7 (in part, see above), PRD-W8, PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.

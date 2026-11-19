@@ -4570,6 +4570,19 @@ pointer.
 - Layer: real browser (Chromium only, as A11Y-11).
 - Traces: PRD-A8, PRD-T10.
 
+**THEME-46** The package's stylesheet MUST NOT define a `--sdt-*` custom property.
+- Examples (the scan reads the stylesheet as THEME-01 does; the test runs every row against a canary stylesheet):
+
+  | Declaration | Result |
+  |---|---|
+  | `.sdt { --sdt-cell-padding-block: 0.25rem }` | finding |
+  | `.sdt-compact td { padding-block: var(--sdt-compact-cell-padding-block, 0.25rem) }` | passes |
+
+- Reason: the tokens are the application's (PRD-T1); a value the package defined would hide a missing token and break
+  the no-token view, where no `--sdt-*` property is defined (PRD section 4.3).
+- Layer: static check.
+- Traces: PRD-T1.
+
 **THEME-38** For invalid variant input the table MUST render the alert of RND-05 with the fixed message below.
 - Examples (as RND-05; the test runs every row and every value in it):
 
@@ -4907,6 +4920,7 @@ pointer.
 | THEME-43 | PRD-T10, PRD-A1 |
 | THEME-44 | PRD-T10, PRD-A1 |
 | THEME-45 | PRD-A8, PRD-T10 |
+| THEME-46 | PRD-T1 |
 | THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
 | THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -4977,7 +4991,7 @@ state in their own statements.
 | PRD-A12 | THEME-33, THEME-17, THEME-41 | in part: the browser check of computed colours in each theme view comes with a later theming branch |
 | PRD-T10 | THEME-22, THEME-42, THEME-43, THEME-44, THEME-45 | in part: the P2 and P3 budgets of the variants are the performance group's |
 | PRD-T13 | THEME-25, THEME-38, THEME-41 | in part: the no-token view's sorted cells come with a later theming branch |
-| PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
+| PRD-T1 | THEME-01, THEME-02, THEME-46 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
 | PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the sticky group states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
