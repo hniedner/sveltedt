@@ -1,20 +1,4 @@
-import type { DataTableProps } from "./types.ts";
-
-// The fixed texts of the alert: none holds a value taken from the input (RND-09)
-const messages = {
-  captionEmpty: "Table caption must not be empty.",
-  regionLabelEmpty: "Table region label must not be empty.",
-  noColumns: "Table has no columns.",
-  columnIdEmpty: "A column id is empty.",
-  columnIdDuplicate: "Two columns share an id.",
-  columnLabelEmpty: "A column label is empty.",
-  columnLabelDuplicate: "Two columns share a label.",
-  columnContentMissing: "A column has no value and no cell.",
-  rowsNotList: "Table has no list of rows.",
-  rowIdEmpty: "A row id is empty.",
-  rowIdDuplicate: "Two rows share an id.",
-  rowIdUnreadable: "A row id could not be read.",
-};
+import type { DataTableMessages, DataTableProps } from "./types.ts";
 
 function firstDuplicate(values: readonly string[]): string | undefined {
   const seen = new Set<string>();
@@ -38,6 +22,7 @@ export function validateTable<Row>(
     DataTableProps<Row>,
     "rows" | "columns" | "getRowId" | "caption" | "regionLabel" | "status"
   >,
+  messages: DataTableMessages,
 ): string | null {
   const { rows, columns, getRowId, caption, regionLabel, status } = input;
   if (isEmpty(caption)) return messages.captionEmpty;

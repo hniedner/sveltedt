@@ -5,6 +5,7 @@ import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type {
   DataTableColumn,
+  DataTableMessages,
   DataTableProps,
   DataTableStatus,
 } from "./types.ts";
@@ -109,6 +110,25 @@ const codeColumn: DataTableColumn<Item> = {
   label: "Code",
   value: (row) => row.id,
 };
+
+// Props that raise each message of RND-05's alert, keyed by the message
+const faults: [keyof DataTableMessages, Partial<DataTableProps<Item>>][] = [
+  ["captionEmpty", { caption: "" }],
+  ["regionLabelEmpty", { regionLabel: "" }],
+  ["noColumns", { columns: [] }],
+  ["columnIdEmpty", { columns: [column("", "Name")] }],
+  ["columnIdDuplicate", { columns: [column("a", "A"), column("a", "B")] }],
+  ["columnLabelEmpty", { columns: [column("a", "")] }],
+  ["columnLabelDuplicate", { columns: [column("a", "N"), column("b", "N")] }],
+  [
+    "columnContentMissing",
+    { columns: [{ id: "a", label: "A" } as unknown as DataTableColumn<Item>] },
+  ],
+  ["rowsNotList", { rows: undefined }],
+  ["rowIdEmpty", { getRowId: () => "" }],
+  ["rowIdDuplicate", { rows: threeRows, getRowId: () => "same" }],
+  ["rowIdUnreadable", { getRowId: unreadable }],
+];
 
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
@@ -818,6 +838,70 @@ describe("STATE-08", () => {
       expect(screen.getByText(text).isConnected).toBe(true);
       for (const message of ALERT_TEXTS)
         expect(component.textContent).not.toContain(message);
+    },
+  );
+});
+
+// @spec("RND-06", "744fa35b")
+describe("RND-06", () => {
+  const foreign: DataTableMessages = {
+    loading: "Laden…",
+    failed: "Laden fehlgeschlagen.",
+    empty: "Keine Daten.",
+    rowCount: (count) => (count === 1 ? "1 Zeile" : `${count} Zeilen`),
+    captionEmpty: "F-captionEmpty",
+    regionLabelEmpty: "F-regionLabelEmpty",
+    noColumns: "F-noColumns",
+    columnIdEmpty: "F-columnIdEmpty",
+    columnIdDuplicate: "F-columnIdDuplicate",
+    columnLabelEmpty: "F-columnLabelEmpty",
+    columnLabelDuplicate: "F-columnLabelDuplicate",
+    columnContentMissing: "F-columnContentMissing",
+    rowsNotList: "F-rowsNotList",
+    rowIdEmpty: "F-rowIdEmpty",
+    rowIdDuplicate: "F-rowIdDuplicate",
+    rowIdUnreadable: "F-rowIdUnreadable",
+  };
+  const english = [
+    LOADING,
+    FAILED,
+    EMPTY,
+    "rows displayed",
+    "row displayed",
+    ...ALERT_TEXTS,
+  ];
+  const status = (): string => screen.getByRole("status").textContent;
+  const alert = (): string => screen.getByRole("alert").textContent;
+  const cell = (): string => screen.getByRole("cell").textContent;
+  const live = (): string => liveCount(document.body)?.textContent ?? "";
+
+  it.each<[string, Partial<DataTableProps<Item>>, () => string, string]>([
+    ["loading", { status: "loading" }, status, "Laden…"],
+    ["failed", { status: "failed" }, alert, "Laden fehlgeschlagen."],
+    ["empty", { rows: [] }, cell, "Keine Daten."],
+    ["rowCount, 2 rows", { rows: twoRows }, live, "2 Zeilen"],
+    ["rowCount, 1 row", {}, live, "1 Zeile"],
+    ...faults.map(
+      ([key, props]) =>
+        [key, props, alert, foreign[key]] as [
+          string,
+          Partial<DataTableProps<Item>>,
+          () => string,
+          string,
+        ],
+    ),
+  ])(
+    "shows the given %s word where its statement says, and no English default",
+    (_message, props, where, text) => {
+      show({ ...props, messages: foreign });
+      expect(where().trim()).toBe(text);
+      const page = [
+        document.body.textContent,
+        ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+          [...element.attributes].map((attribute) => attribute.value),
+        ),
+      ].join("\n");
+      for (const word of english) expect(page).not.toContain(word);
     },
   );
 });

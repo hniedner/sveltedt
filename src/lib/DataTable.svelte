@@ -1,4 +1,5 @@
 <script lang="ts" generics="Row">
+  import { defaultMessages } from "./messages.ts";
   import type { DataTableProps } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
@@ -10,17 +11,20 @@
     regionLabel,
     status = "ready",
     busy = false,
+    messages,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
+  const words = $derived({ ...defaultMessages, ...messages });
   const fault = $derived(
-    validateTable({ rows, columns, getRowId, caption, regionLabel, status }),
+    validateTable(
+      { rows, columns, getRowId, caption, regionLabel, status },
+      words,
+    ),
   );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
-    status === "ready" && !busy
-      ? `${rows.length} ${rows.length === 1 ? "row" : "rows"} displayed`
-      : "",
+    status === "ready" && !busy ? words.rowCount(rows.length) : "",
   );
 </script>
 
@@ -30,10 +34,10 @@
   <div role="alert">{fault}</div>
 {:else}
   <!-- Both live elements stay in the document in every state, so a change of their text is announced -->
-  <div role="status">{status === "loading" ? "Loading data…" : ""}</div>
+  <div role="status">{status === "loading" ? words.loading : ""}</div>
   <div class="sr-only" aria-live="polite">{count}</div>
   {#if status === "failed"}
-    <div role="alert">The data could not be loaded.</div>
+    <div role="alert">{words.failed}</div>
   {/if}
   <div role="region" aria-label={regionLabel}>
     <table aria-busy={busy || status === "loading"}>
@@ -61,7 +65,7 @@
               {/each}
             </tr>
           {:else}
-            <tr><td colspan={columns.length}>No data.</td></tr>
+            <tr><td colspan={columns.length}>{words.empty}</td></tr>
           {/each}
         {/if}
       </tbody>

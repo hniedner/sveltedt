@@ -16,6 +16,26 @@ export type DataTableColumn<Row> = {
     }
 );
 
+// Every fixed word of the table (RND-06): the state messages, the live count and the alert texts of RND-05
+export interface DataTableMessages {
+  readonly loading: string;
+  readonly failed: string;
+  readonly empty: string;
+  readonly rowCount: (count: number) => string;
+  readonly captionEmpty: string;
+  readonly regionLabelEmpty: string;
+  readonly noColumns: string;
+  readonly columnIdEmpty: string;
+  readonly columnIdDuplicate: string;
+  readonly columnLabelEmpty: string;
+  readonly columnLabelDuplicate: string;
+  readonly columnContentMissing: string;
+  readonly rowsNotList: string;
+  readonly rowIdEmpty: string;
+  readonly rowIdDuplicate: string;
+  readonly rowIdUnreadable: string;
+}
+
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)
 export type DataTableStatus = "loading" | "ready" | "failed";
 
@@ -30,6 +50,8 @@ export interface DataTableProps<Row> {
   status?: DataTableStatus;
   // A newer answer is on its way while the rows shown stay; default false
   busy?: boolean;
+  // Replaces any of the English defaults
+  messages?: Partial<DataTableMessages>;
   heading?: Snippet;
   actions?: Snippet;
 }
