@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
@@ -994,6 +994,33 @@ describe("EXP-01", () => {
         ).toHaveLength(0);
     },
   );
+});
+
+// @spec("EXP-03", "510011e7")
+describe("EXP-03", () => {
+  it("starts no download during mount, every state and a pass of the focus through the table", async () => {
+    // A spy in place of Node's URL.createObjectURL, the one the simulated DOM uses
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:spy");
+    try {
+      const { container, rerender } = render(SnippetsTable, {
+        ...state({}),
+        withActions: true,
+      });
+      for (const [, props] of fiveStates)
+        await rerender({ ...state(props), withActions: true });
+      // No Tab key here: each focusable element takes the focus in document order
+      for (const element of container.querySelectorAll<HTMLElement>(
+        "a[href], button, [tabindex]",
+      ))
+        element.focus();
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(document.querySelector("a[download]")).toBeNull();
+    } finally {
+      createObjectURL.mockRestore();
+    }
+  });
 });
 
 // True when A and B are the same type, read-only modifiers included
