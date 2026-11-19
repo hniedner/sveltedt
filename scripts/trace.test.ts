@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -682,4 +683,29 @@ test("trace: on a push to main only the list is printed, whatever the base held"
   const head = advance(root, { "src/a.test.ts": null });
   const out = expectTrace(root, 0, ci("push", base, head));
   assert.match(out, /not yet tested \(2\)/);
+});
+
+test("trace: a file left in reports/ by an earlier run is gone after the run, and the run writes its results there", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  put(root, "reports/test/old.json", "{}");
+  put(root, "reports/trace/old.json", "{}");
+  expectTrace(root, 0);
+  assert.equal(existsSync(join(root, "reports/test/old.json")), false);
+  assert.equal(existsSync(join(root, "reports/trace/old.json")), false);
+  // the file's path with / replaced by __
+  const written = join(root, "reports/trace/src__a.test.ts.json");
+  assert.match(readFileSync(written, "utf8"), /"name": "one"/);
+});
+test("trace: a root reached through a link is read as the real path Vitest names (macOS /var is /private/var)", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const link = join(tempDir(), "link");
+  symlinkSync(root, link);
+  expectTrace(link, 0);
+});
+test("trace: a test file under scripts/ that neither the node:test step nor Vitest runs is a finding", () => {
+  const out = expectTrace(
+    fixture({ "scripts/deep/x.test.ts": 'test("x", () => {});\n' }),
+    1,
+  );
+  assert.match(out, /scripts\/deep\/x\.test\.ts: run by no step/);
 });

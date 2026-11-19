@@ -1,19 +1,22 @@
 // The trace step (G6): which spec statements have a passing test.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import {
   baseCommit,
   canaries,
   childEnv,
+  freshReports,
   HERE,
   isResult,
   NA,
   NO_CACHE,
+  reportFile,
   result,
   tail,
+  TEST_FILES,
   testRun,
   vitest,
 } from "./gate-step.ts";
@@ -351,10 +354,14 @@ function judgeRun(
   if (run.error) return result(CANNOT, run.error);
   if (!run.report)
     return result(CANNOT, "vitest wrote no report", tail(run.out));
-  return {
-    ...judgeResults(read, testsByFile(run.report, root)),
-    total: run.report.numTotalTests,
-  };
+  const ran = testsByFile(run.report, root);
+  const dir = join(root, "reports", "trace");
+  for (const f of new Set(read.map((m) => m.file)))
+    writeFileSync(
+      reportFile(dir, `${f}.json`),
+      JSON.stringify(ran.get(f) ?? [], null, 2),
+    );
+  return { ...judgeResults(read, ran), total: run.report.numTotalTests };
 }
 
 /**
@@ -395,6 +402,14 @@ function trace(root: string, list: Set<string>): Result {
     findings.push(...r.problems);
   }
   const src = traceSources(list);
+  // The node:test step runs scripts/*.test.{mjs,ts} and Vitest runs no path under scripts/: any other test file
+  // there would never run. Fresh folder first: this run's reports only (a spec-less repository still resets it).
+  freshReports(root, "trace");
+  findings.push(
+    ...src.scripts
+      .filter((f) => !TEST_FILES.test(f))
+      .map((f) => `${f}: run by no step`),
+  );
   const markers: Marker[] = [];
   for (const f of [...src.read, ...src.scripts]) {
     const r = readMarkers(f, readFileSync(join(root, f), "utf8"));
@@ -406,7 +421,12 @@ function trace(root: string, list: Set<string>): Result {
       (f) => `${f}: a test file outside src/, site/, test/ and scripts/`,
     ),
   );
-  if (!specFiles.length && !markers.length && !cannot.length)
+  if (
+    !specFiles.length &&
+    !markers.length &&
+    !cannot.length &&
+    !findings.length
+  )
     return result(NA, "no spec file and no marker");
   findings.push(...judgeMarkers(markers, statements));
   const scripts = markers.filter((m) => src.scripts.includes(m.file));

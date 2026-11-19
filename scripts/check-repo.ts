@@ -39,6 +39,7 @@ import {
   NO_CACHE,
   result,
   tail,
+  TEST_FILES,
   testRun,
   vitest,
   vitestBin,
@@ -84,7 +85,6 @@ const REQUIRED = [
   "scripts/gitleaks.toml",
   "scripts/gitleaks.version",
 ];
-const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 const CI_FILE = ".github/workflows/ci.yml";
 const PINNED = /^["']?[\w.-]+\/[\w./-]+@[0-9a-f]{40}["']? # \S+/;
 
@@ -128,8 +128,10 @@ function files(root: string, list: Set<string>): Result {
     details.push("LICENSE: not the Apache-2.0 text");
   if (!read("NOTICE").includes(COPYRIGHT))
     details.push(`NOTICE: no line "${COPYRIGHT}"`);
-  if (!read(".gitignore").split("\n").includes("/tmp/"))
-    details.push(".gitignore: no line /tmp/");
+  // /reports/ and /coverage/ hold what the steps write; a tracked or unignored run output would reach a commit
+  for (const line of ["/tmp/", "/reports/", "/coverage/"])
+    if (!read(".gitignore").split("\n").includes(line))
+      details.push(`.gitignore: no line ${line}`);
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(

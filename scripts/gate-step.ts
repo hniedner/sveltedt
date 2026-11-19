@@ -1,10 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CANNOT } from "./pinned.ts";
 
+/** The node:test files the selftest step runs. */
+export const TEST_FILES = /^scripts\/[^/]+\.test\.(?:mjs|ts)$/;
 export const NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
 
 export interface Result {
@@ -108,11 +116,25 @@ export interface VitestRun {
   error?: string;
 }
 
-/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn error. */
-export function vitest(cwd: string, args: string[]): VitestRun {
-  const dir = mkdtempSync(join(tmpdir(), "vitest-"));
+/** `reports/<step>/`, removed and created again: a file an earlier run left there is never read as this run's. */
+export function freshReports(root: string, step: string): string {
+  const dir = join(root, "reports", step);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+/** A report's file in `dir`: the name with each `/` replaced by `__`, so a path is one file name. */
+export const reportFile = (dir: string, name: string): string =>
+  join(dir, name.replaceAll("/", "__"));
+
+/**
+ * One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn
+ * error. The report goes to `keep` (a reports folder) when given, else to a folder removed after the run.
+ */
+export function vitest(cwd: string, args: string[], keep?: string): VitestRun {
+  const dir = keep ?? mkdtempSync(join(tmpdir(), "vitest-"));
   try {
-    const file = join(dir, "report.json");
+    const file = reportFile(dir, "vitest.json");
     const r = spawnSync(
       vitestBin(),
       // dot prints what the JSON report leaves out: errors thrown outside a test
@@ -140,7 +162,7 @@ export function vitest(cwd: string, args: string[]): VitestRun {
       error: r.error && `cannot run ${vitestBin()}: ${errorCode(r.error)}`,
     };
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    if (!keep) rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -198,15 +220,19 @@ export function testRun(root: string): Result | VitestRun {
         `vitest.config.ts ${unchecked.map(([, why]) => why).join("; ")}`,
         unchecked.map(([name]) => name),
       )
-    : vitest(root, [
-        "--config",
-        config,
-        "--dangerouslyIgnoreUnhandledErrors=false",
-        "--expect.requireAssertions",
-        "--typecheck.enabled=false",
-        "--update=none",
-        "--includeTaskLocation",
-      ]);
+    : vitest(
+        root,
+        [
+          "--config",
+          config,
+          "--dangerouslyIgnoreUnhandledErrors=false",
+          "--expect.requireAssertions",
+          "--typecheck.enabled=false",
+          "--update=none",
+          "--includeTaskLocation",
+        ],
+        freshReports(root, "test"),
+      );
   shared = { root, run };
   return run;
 }
