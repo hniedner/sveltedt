@@ -349,3 +349,22 @@ describe("SORT-15", () => {
     );
   });
 });
+// @spec("SORT-16", "a4201716")
+describe("SORT-16", () => {
+  it.each<[Partial<DataTableProps<Item>>, string, string[]]>([
+    [{ sort: order("col-z3 asc") }, SORT_ALERTS.sortColumnUnknown, ["col-z3"]],
+    [
+      {
+        columns: [{ ...name, id: "col-w4", label: "Secret-5" }],
+        sort: order("col-w4 asc, col-w4 desc"),
+      },
+      SORT_ALERTS.sortColumnDuplicate,
+      ["col-w4", "Secret-5"],
+    ],
+  ])("keeps the sort's values out of the alert %#", (props, message, words) => {
+    mount(props);
+    const text = screen.getByRole("alert").textContent;
+    expect(text).toBe(message);
+    for (const word of words) expect(text).not.toContain(word);
+  });
+});
