@@ -18,7 +18,13 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { GATE_VARS } from "./gate-step.ts";
-import { judgeMarkers, parseSpec, readMarkers, traceSources } from "./trace.ts";
+import {
+  judgeMarkers,
+  judgeResults,
+  parseSpec,
+  readMarkers,
+  traceSources,
+} from "./trace.ts";
 import type { Marker, Statement } from "./trace.ts";
 
 const sha8 = (text: string): string =>
@@ -220,6 +226,12 @@ for (const [name, body, modifier] of [
     assert.deepEqual(m.modifiers, [modifier]);
   });
 }
+test("trace: a skip or only in test data, and { skip: false }, carry no modifier; a skip reason does", () => {
+  const data = `${MARK}\ndescribe("x", () => {\n  const row = { skip: 20, todo: "t" };\n  it("a", () => {\n    expect(row.only).toBe(1);\n  });\n});\n`;
+  assert.deepEqual(markers(data).markers[0].modifiers, []);
+  const reason = markers(`${MARK}\nit("a", { skip: "why" }, () => {});\n`);
+  assert.deepEqual(reason.markers[0].modifiers, ['{ skip: "why" }']);
+});
 test("trace: { skip: false } and an ordinary test carry no modifier", () => {
   const [m] = markers(`${MARK}\nit("a", { skip: false }, () => {});\n`).markers;
   assert.deepEqual(m.modifiers, []);
@@ -398,7 +410,7 @@ test("trace: a statement no marker names exits 0 under `not yet tested`, and not
   assert.match(out, /^ {2}not yet tested \(1\):\n {4}TST-02$/m);
   assert.doesNotMatch(out.trim().split("\n").at(-1)!, /TST-02/);
 });
-test("trace: a spec that no test names lists every statement and runs no vitest", () => {
+test("trace: a spec that no test names lists every statement", () => {
   const out = expectTrace(fixture(), 0);
   assert.match(out, /not yet tested \(2\):\n {4}TST-01\n {4}TST-02/);
 });
@@ -415,9 +427,9 @@ for (const [name, body, why] of [
   ["a skip option", 'test("a", { skip: true }, () => {});', /\{ skip: true \}/],
   ["a todo option", 'test("a", { todo: true }, () => {});', /\{ todo: true \}/],
   [
-    "a run-time skip",
+    "a run-time ctx.skip(), read from the results",
     'test("a", (ctx) => {\n  expect(1).toBe(1);\n  ctx.skip();\n});',
-    /\.skip/,
+    /skipped: a/,
   ],
   ["skipIf", 'test.skipIf(true)("a", () => {});', /skipped: a/],
 ] as const) {
@@ -621,4 +633,22 @@ test("trace: a vitest that cannot be started is COULD NOT CHECK and says why", (
     VITEST_BIN: join(tempDir(), "no-vitest"),
   });
   assert.match(out, /cannot run .*no-vitest: ENOENT/);
+});
+test("trace: a pending or disabled result is reported as skipped", () => {
+  const m = {
+    id: "TST-01",
+    hash: "aaaaaaaa",
+    file: "src/a.test.ts",
+    line: 7,
+    from: 8,
+    to: 9,
+    modifiers: [],
+  };
+  for (const status of ["pending", "disabled"]) {
+    const r = judgeResults(
+      [m],
+      new Map([["src/a.test.ts", [{ line: 8, name: "a", status }]]]),
+    );
+    assert.match(r.findings.join("\n"), /skipped: a/);
+  }
 });
