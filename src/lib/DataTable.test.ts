@@ -104,6 +104,12 @@ function liveCount(component: HTMLElement): Element | null {
   return component.querySelector('[aria-live="polite"]');
 }
 
+const codeColumn: DataTableColumn<Item> = {
+  id: "code",
+  label: "Code",
+  value: (row) => row.id,
+};
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -729,6 +735,43 @@ describe("A11Y-15", () => {
     await rerender(state({ status: "failed" }));
     expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
   });
+});
+
+// @spec("A11Y-22", "eb8dfc31")
+describe("A11Y-22", () => {
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
+    [
+      "failed, loading, failed",
+      [{ status: "failed" }, { status: "loading" }, { status: "failed" }],
+      [true, false, true],
+    ],
+    [
+      "failed, ready with two rows, loading, failed",
+      [
+        { status: "failed" },
+        { status: "ready", rows: twoRows },
+        { status: "loading" },
+        { status: "failed" },
+      ],
+      [true, false, false, true],
+    ],
+  ])(
+    "holds the failed message exactly while failed: %s",
+    async (_steps, steps, held) => {
+      const columns = [nameColumn, codeColumn];
+      const { container, rerender } = render(
+        DataTable<Item>,
+        state({ columns, ...steps[0] }),
+      );
+      for (const [index, step] of steps.entries()) {
+        if (index > 0) await rerender(state({ columns, ...step }));
+        // textContent includes hidden text, so a message only hidden still counts
+        if (held[index])
+          expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+        else expect(container.textContent).not.toContain(FAILED);
+      }
+    },
+  );
 });
 
 // True when A and B are the same type, read-only modifiers included
