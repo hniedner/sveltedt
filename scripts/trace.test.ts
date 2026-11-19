@@ -106,6 +106,15 @@ test("trace: a line shaped like a statement id that the reader does not take is 
     /spec\/a\.md:\d+: .*looks like a statement id/,
   );
 });
+test("trace: an id with punctuation inside the bold is a problem, and bold words with a hyphen are not", () => {
+  for (const line of ["**TST-04:** x", "**TST-01.** x"])
+    assert.match(
+      parseSpec("spec/a.md", `${spec()}\n${line}\n`).problems.join("\n"),
+      /looks like a statement id/,
+    );
+  const prose = `${spec()}\n**Non-goal** a note.\n**Read-only** a note.\n`;
+  assert.deepEqual(parseSpec("spec/a.md", prose).problems, []);
+});
 test("trace: a spec file with no statement is a problem", () => {
   const r = parseSpec("spec/a.md", "# Nothing here\n");
   assert.match(r.problems.join("\n"), /spec\/a\.md: no statement/);
@@ -188,6 +197,16 @@ for (const [name, source, why] of [
     "a marker with another case",
     '// @Spec("TST-01", "aaaaaaaa")\nit("a", () => {});\n',
     /malformed/,
+  ],
+  [
+    "a trailing marker after a string holding //",
+    `const u = "http://x"; ${MARK}\nit("a", () => {});\n`,
+    /outside the one recognised position/,
+  ],
+  [
+    "a misplaced marker after a glob string holding /**",
+    `const g = "src/**";\nit("a", () => {}); ${MARK}\nconst h = "**/*.ts";\n`,
+    /outside the one recognised position/,
   ],
   [
     "a marker in a block comment",

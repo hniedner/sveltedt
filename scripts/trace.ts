@@ -25,8 +25,13 @@ export interface Statement {
 }
 
 const STATEMENT = /^\*\*([A-Z][A-Z0-9]*-\d+)\*\*/;
-/** A line that looks like a statement's id but is not one the reader takes (a typo would hide the statement). */
-const LOOSE = /^\*\*\s*[A-Za-z][A-Za-z0-9]*\s*-\s*[A-Za-z0-9]+\s*\*\*/;
+/**
+ * A line that looks like a statement's id but is not one the reader takes (a typo would hide the statement): bold, a
+ * word, a hyphen and a digit, with at most stray punctuation inside the bold. Stated limits, not handled: an id in
+ * underscores (`__X-05__`), in a blockquote, a list item or indented, a three-part id, an orphan `- Reason:` line.
+ */
+const LOOSE =
+  /^\*\*\s*[A-Za-z][A-Za-z0-9]*\s*-\s*\d[A-Za-z0-9]*\s*[:.,;!]?\s*\*\*/;
 const FENCE = /^\s*(?:```|~~~)/;
 
 /** The first 8 hex of the sha256 of `text` with every run of white space collapsed to one space (G6). */
@@ -106,7 +111,12 @@ export interface Marker {
 
 const MARKER = /^\/\/ @spec\("([^"]+)", "([0-9a-f]{8})"\)\s*$/;
 const MODIFIERS = new Set(["only", "skip", "todo", "fails"]);
-/** The test runner's entry points: a modifier counts only on a call chain rooted at one of these, never in test data. */
+// Stated limit: markers are read only in the test sources traceSources picks (.test. and .spec. .js/.ts/.mjs/.cjs/.mts/.cts);
+// a marker in a helper, a .tsx or a .svelte file is not seen.
+/**
+ * The test runner's entry points: a modifier counts only on a call chain rooted at one of these, never in test data.
+ * Stated limit: a chain rooted elsewhere (the result of `it.extend`, an alias) is not seen; the results still show a skip.
+ */
 const ROOTS = new Set(["test", "it", "describe", "suite"]);
 /** Anything that looks like a marker, whatever its case or spacing: it must be one, in the one position, or it is a problem. */
 const SPEC_LIKE = /@\s*spec/i;
@@ -161,6 +171,7 @@ export function readMarkers(
     walk(stmt);
     return [...found];
   };
+  // A marker is a leading comment of its statement as TypeScript defines one; no adjacency is required.
   /** The marker comments in the trivia at `pos`, each with `stmt` (the statement they lead) or none. */
   const comments = (pos: number, stmt?: import("typescript").Statement) => {
     let named = false; // a statement has one marker
@@ -189,14 +200,7 @@ export function readMarkers(
     }
   };
   const read = new Set<number>(); // the comments a recognised position gave
-  const literals: [number, number][] = []; // text a `//` in which is no comment
   const visit = (node: import("typescript").Node): void => {
-    if (
-      ts.isStringLiteralLike(node) ||
-      ts.isTemplateLiteralToken(node) ||
-      node.kind === ts.SyntaxKind.RegularExpressionLiteral
-    )
-      literals.push([node.getStart(sf), node.end]);
     const list =
       ts.isSourceFile(node) ||
       ts.isBlock(node) ||
@@ -212,15 +216,23 @@ export function readMarkers(
     ts.forEachChild(node, visit);
   };
   visit(sf);
-  // Fail closed: one marker position (directly above a statement); a comment like a marker anywhere else is a finding
-  for (const c of text.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g))
-    if (
-      SPEC_LIKE.test(c[0]) &&
-      !read.has(c.index) &&
-      !literals.some(([a, b]) => c.index >= a && c.index < b)
-    )
+  // Fail closed: one marker position (directly above a statement); a comment like a marker anywhere else is a finding.
+  // Every comment comes from the scanner, as the leading or trailing trivia of some token: strings and regexes are
+  // never mistaken for comments, whatever they hold.
+  const all = new Map<number, number>();
+  const scan = (n: import("typescript").Node): void => {
+    for (const c of [
+      ...(ts.getLeadingCommentRanges(text, n.pos) ?? []),
+      ...(ts.getTrailingCommentRanges(text, n.end) ?? []),
+    ])
+      all.set(c.pos, c.end);
+    n.getChildren(sf).forEach(scan);
+  };
+  scan(sf);
+  for (const [pos, end] of all)
+    if (SPEC_LIKE.test(text.slice(pos, end)) && !read.has(pos))
       problems.push(
-        `${file}:${lineOf(c.index)}: a @spec comment outside the one recognised position (directly above a test statement)`,
+        `${file}:${lineOf(pos)}: a @spec comment outside the one recognised position (directly above a test statement)`,
       );
   return { markers, problems };
 }
