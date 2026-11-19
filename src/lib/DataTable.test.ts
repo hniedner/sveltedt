@@ -91,6 +91,14 @@ function state(props: Partial<DataTableProps<Item>>): DataTableProps<Item> {
   return { ...base, status: "ready", busy: false, ...props };
 }
 
+// Rows r0 to r(count - 1), named "Name 0" onward
+function manyRows(count: number): Item[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `r${index}`,
+    name: `Name ${index}`,
+  }));
+}
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -662,6 +670,14 @@ describe("STATE-04", () => {
     expect(table.getAttribute("aria-busy")).toBe("true");
     await rerender(state({}));
     expect(table.getAttribute("aria-busy")).toBe("false");
+  });
+});
+
+// @spec("STATE-05", "5fe71223")
+describe("STATE-05", () => {
+  it("with status ready and busy, keeps showing the 25 rows it was given", () => {
+    show({ status: "ready", busy: true, rows: manyRows(25) });
+    expect(firstCells()).toHaveLength(25);
   });
 });
 
