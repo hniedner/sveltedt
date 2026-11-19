@@ -828,6 +828,16 @@ test("text: a repository without a file of its class cannot be checked", () => {
   );
   assert.match(out, /no file to check/);
 });
+test("text: the setup script is a file of the text class", () => {
+  assert.match(
+    expect(
+      "text",
+      repo((root) => put(root, "scripts/setup", "#!/bin/sh \n")),
+      1,
+    ),
+    /scripts\/setup/,
+  );
+});
 test("text: a tracked file of no known class cannot be checked, and names the file", () => {
   assert.match(
     expect(
@@ -3024,6 +3034,13 @@ test("secrets: a wrapper that could not check cannot be checked", () => {
 test("secrets: a branch with no commit after origin/main is not applicable", () => {
   notApplicable(["secrets", "--root", repo()]);
 });
+/** The step names of the result lines `all` printed, in order. */
+const stepsOf = (out: string): string[] =>
+  [
+    ...out.matchAll(
+      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
+    ),
+  ].map((m) => m[1]);
 // Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
 // have had its secret scan.
 test("all: scans the branch's commits for secrets before it reaches a later step that fails", () => {
@@ -3034,13 +3051,8 @@ test("all: scans the branch's commits for secrets before it reaches a later step
   assert.match(out, /^FINDING secrets: /m);
   assert.match(out, /^FINDING all: stopped at secrets$/m);
   assert.doesNotMatch(out, /format/);
-  // secrets runs right after toolchain: no other step reports before it
-  const steps = [
-    ...out.matchAll(
-      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
-    ),
-  ].map((m) => m[1]);
-  assert.deepEqual(steps, ["toolchain", "secrets", "all"]);
+  // toolchain, then secrets: no other step reports before them
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "all"]);
 });
 test("secrets: a repository without origin/main cannot be checked", () => {
   const root = scanBranch(0);
@@ -3481,6 +3493,156 @@ test("commit-msg: no message file is a usage error that says so", () => {
   const r = run(["commit-msg"]);
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
+});
+
+/** A home folder of its own, so a contributor's global git configuration never reaches a row. */
+function isolatedHome(global = ""): Record<string, string> {
+  const home = tempDir();
+  put(home, ".gitconfig", global);
+  return {
+    HOME: home,
+    XDG_CONFIG_HOME: join(home, "xdg"),
+    GIT_CONFIG_GLOBAL: join(home, ".gitconfig"),
+  };
+}
+test("hooks: passes when core.hooksPath is .githooks and every hook is the executable shim", () => {
+  const out = expect("hooks", repo(), 0);
+  assert.match(
+    out,
+    /^PASS hooks: core\.hooksPath \.githooks; pre-commit, commit-msg as shims$/m,
+  );
+});
+test("hooks: a local .githooks over another global core.hooksPath passes", () => {
+  const root = repo();
+  expect("hooks", root, 0, {
+    extraEnv: isolatedHome("[core]\n\thooksPath = /opt/global\n"),
+  });
+});
+test("hooks: an empty core.hooksPath is a finding that shows the empty value", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "");
+  assert.match(expect("hooks", root, 1), /core\.hooksPath is "" \(file:/);
+});
+test("all: hooks runs right after secrets, and its finding stops all there", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("all", root, 1, { extraEnv: isolatedHome() });
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "hooks", "all"]);
+});
+test("hooks: an unset core.hooksPath is a finding that gives the command", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  assert.match(
+    expect("hooks", root, 1, { extraEnv: isolatedHome() }),
+    /core\.hooksPath is unset: run \.\/scripts\/setup/,
+  );
+});
+test("hooks: another local core.hooksPath is a finding that says setup will not replace it and how to proceed", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "/opt/mine");
+  const out = expect("hooks", root, 1);
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/mine" \(file:\S*\.git\/config\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+  assert.match(out, /git config core\.hooksPath \.githooks/);
+  assert.match(out, /whose hooks then stop running in this clone/);
+  assert.doesNotMatch(out, /unset/);
+});
+test("hooks: another global core.hooksPath is a finding that names the global file", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("hooks", root, 1, {
+    extraEnv: isolatedHome("[core]\n\thooksPath = /opt/global\n"),
+  });
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/global" \(file:\S*\.gitconfig\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+});
+test("hooks: a git that cannot read its configuration is COULD NOT CHECK, not an unset path", () => {
+  const root = repo();
+  // A git first on the PATH that fails `config` (as it does on a broken configuration file) and is git otherwise.
+  const bin = tempDir();
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  put(
+    bin,
+    "git",
+    `#!/bin/sh\ncase " $* " in *" config "*) echo "fatal: bad config line 1" >&2; exit 128;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const out = expect("hooks", root, 3, {
+    extraEnv: { PATH: `${bin}${delimiter}${GIT_ENV.PATH ?? ""}` },
+  });
+  assert.match(out, /git cannot read core\.hooksPath: fatal: bad config/);
+  assert.doesNotMatch(out, /unset/);
+});
+test("hooks: a hook that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "commit-msg"), 0o644)),
+    1,
+  );
+  assert.match(out, /\.githooks\/commit-msg: not executable/);
+});
+test("hooks: a hook that cannot be opened is COULD NOT CHECK, naming the reason", () => {
+  const root = repo();
+  // A link to itself fails to open for every user, root included
+  const f = join(root, ".githooks", "commit-msg");
+  rmSync(f);
+  symlinkSync("commit-msg", f);
+  const out = expect("hooks", root, 3);
+  assert.match(out, /\.githooks\/commit-msg cannot be opened: ELOOP/);
+});
+test("hooks: a hook that is not the shim is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo(edit(".githooks/pre-commit", "exec ", "true || exec ")),
+    1,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not the two-line shim/);
+});
+test("hooks: a missing hook is a finding", () => {
+  const out = expect("hooks", repo(remove(".githooks/pre-commit")), 1);
+  assert.match(out, /\.githooks\/pre-commit: missing/);
+});
+const inCI = { extraEnv: { GITHUB_ACTIONS: "true" } };
+test("hooks: in CI only the shims are checked, and the pass line names core.hooksPath as not checked", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("hooks", root, 0, inCI);
+  assert.match(
+    out,
+    /^PASS hooks: pre-commit, commit-msg as shims; core\.hooksPath not checked \(CI has no clone-local git configuration\)$/m,
+  );
+});
+test("hooks: in CI a shim that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "pre-commit"), 0o644)),
+    1,
+    inCI,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not executable/);
+});
+test("hooks: a file in .githooks that is not a known shim is a finding, in CI and in a clone", () => {
+  for (const opts of [inCI, undefined]) {
+    const out = expect(
+      "hooks",
+      repo((root) => put(root, ".githooks/post-checkout", "#!/bin/sh\n")),
+      1,
+      opts,
+    );
+    assert.match(out, /\.githooks\/post-checkout: not a known hook/);
+  }
+});
+test("hooks: an untracked file in .githooks (a Finder .DS_Store) is not a finding", () => {
+  const root = repo();
+  put(root, ".githooks/.DS_Store", "x"); // untracked: a listing by readdir would see it
+  const out = expect("hooks", root, 0);
+  assert.doesNotMatch(out, /DS_Store/);
 });
 
 /**
@@ -4155,7 +4317,7 @@ test("all: passes when every step passes, and counts a step that was not applica
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 8 not applicable: secrets, svelte, site, inline, test, trace, browser, commits$/m,
+    /^PASS all: 16 checks passed, 8 not applicable: secrets, svelte, site, inline, test, trace, browser, commits$/m,
   );
 });
 test("all: test and trace share one vitest run", () => {
