@@ -1,8 +1,21 @@
 // The trace step (G6): which spec statements have a passing test.
 import { createHash } from "node:crypto";
+import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
-import { HERE } from "./gate-step.ts";
+import { join, relative } from "node:path";
+import {
+  canaries,
+  HERE,
+  isResult,
+  NA,
+  NO_CACHE,
+  result,
+  tail,
+  testRun,
+  vitest,
+} from "./gate-step.ts";
+import type { Result } from "./gate-step.ts";
+import { CANNOT, FINDING, PASS } from "./pinned.ts";
 
 export interface Statement {
   id: string;
@@ -189,3 +202,181 @@ export function judgeMarkers(
       : [];
   });
 }
+
+/** One test as the Vitest JSON reports it: its own line, its name and how it ended. */
+export interface Ran {
+  line: number;
+  name: string;
+  status: string;
+}
+
+/**
+ * What the results say about each marker: a test counts for a marker when it ran in the marker's file on a line inside
+ * the statement the marker names (the JSON's `location` is the test's own line). A marked statement with a modifier,
+ * a failed or skipped test, or no test at all in a file that ran is a finding; a file that did not run at all cannot
+ * be checked. `ok` is the markers none of which went wrong.
+ */
+export function judgeResults(
+  markers: Marker[],
+  ran: Map<string, Ran[]>,
+): { findings: string[]; cannot: string[]; ok: Marker[] } {
+  const findings: string[] = [];
+  const cannot: string[] = [];
+  const ok: Marker[] = [];
+  for (const m of markers) {
+    const at = `${m.file}:${m.line}: ${m.id}`;
+    const tests = ran
+      .get(m.file)
+      ?.filter((t) => t.line >= m.from && t.line <= m.to);
+    const bad = tests?.filter((t) => t.status !== "passed");
+    if (!tests)
+      cannot.push(
+        `${at}: the test file is not in the results (it did not run)`,
+      );
+    else if (m.modifiers.length)
+      findings.push(`${at}: the test uses ${m.modifiers.join(", ")}`);
+    else if (!tests.length)
+      findings.push(
+        `${at}: no test ran under the marker (lines ${m.from}-${m.to})`,
+      );
+    else if (bad?.length)
+      findings.push(
+        `${at}: ${bad.map((t) => `${word(t.status)}: ${t.name}`).join("; ")}`,
+      );
+    else ok.push(m);
+  }
+  return { findings, cannot, ok };
+}
+
+/** Vitest's `pending`, `skipped` and `disabled` all mean the test did not run. */
+const word = (status: string): string =>
+  ["pending", "skipped", "disabled"].includes(status) ? "skipped" : status;
+
+/** The tests of a Vitest report by file (relative to the real root, which the JSON names). */
+function testsByFile(
+  report: NonNullable<ReturnType<typeof vitest>["report"]>,
+  root: string,
+): Map<string, Ran[]> {
+  const real = realpathSync(root);
+  return new Map(
+    report.testResults.map((r) => [
+      relative(real, r.name),
+      r.assertionResults.map((a) => ({
+        line: a.location?.line ?? 0,
+        name: a.fullName,
+        status: a.status,
+      })),
+    ]),
+  );
+}
+
+/**
+ * The planted skipped, marked test must come back as a finding, read from the results: the test skips itself at run
+ * time, which no marker text shows. Else the step could not see a skip, and nothing it passes counts.
+ */
+function canary(): Result | null {
+  const dir = canaries("trace");
+  const run = vitest(dir, [...NO_CACHE, "--includeTaskLocation"]);
+  const bad = (why: string) =>
+    result(
+      CANNOT,
+      `the planted skipped, marked test was not reported: ${why}`,
+      tail(run.out),
+    );
+  if (!run.report) return bad("vitest wrote no report");
+  const { statements } = parseSpec(
+    "canary.md",
+    readFileSync(join(dir, "canary.md"), "utf8"),
+  );
+  const { markers } = readMarkers(
+    "canary.test.ts",
+    readFileSync(join(dir, "canary.test.ts"), "utf8"),
+  );
+  const { findings } = judgeResults(markers, testsByFile(run.report, dir));
+  const flagged =
+    judgeMarkers(markers, statements).length === 0 &&
+    findings.some((f) => /skipped/.test(f));
+  return flagged ? null : bad("no finding named it");
+}
+
+function trace(root: string, list: Set<string>): Result {
+  const specFiles = [...list].filter((f) => /^spec\/[^/]+\.md$/.test(f)).sort();
+  const statements: Statement[] = [];
+  const findings: string[] = [];
+  const cannot: string[] = [];
+  for (const f of specFiles) {
+    const r = parseSpec(f, readFileSync(join(root, f), "utf8"));
+    statements.push(...r.statements);
+    findings.push(...r.problems);
+  }
+  const src = traceSources(list);
+  const markers: Marker[] = [];
+  for (const f of [...src.read, ...src.scripts]) {
+    const r = readMarkers(f, readFileSync(join(root, f), "utf8"));
+    markers.push(...r.markers);
+    findings.push(...r.problems);
+  }
+  cannot.push(
+    ...src.stray.map(
+      (f) => `${f}: a test file outside src/, site/, test/ and scripts/`,
+    ),
+  );
+  if (!specFiles.length && !markers.length && !cannot.length)
+    return result(NA, "no spec file and no marker");
+  findings.push(...judgeMarkers(markers, statements));
+  const scripts = markers.filter((m) => src.scripts.includes(m.file));
+  cannot.push(
+    ...scripts.map(
+      (m) => `${m.file}:${m.line}: ${m.id}: node:test results are not read yet`,
+    ),
+  );
+  const read = markers.filter((m) => src.read.includes(m.file));
+  let results = 0;
+  let ok: Marker[] = [];
+  if (read.length) {
+    const planted = canary();
+    if (planted) return planted;
+    if (!list.has("vitest.config.ts"))
+      return result(CANNOT, "vitest.config.ts is not tracked");
+    const run = testRun(root);
+    if (isResult(run)) return run;
+    if (run.error) return result(CANNOT, run.error);
+    if (!run.report)
+      return result(CANNOT, "vitest wrote no report", tail(run.out));
+    results = run.report.numTotalTests;
+    const judged = judgeResults(read, testsByFile(run.report, root));
+    findings.push(...judged.findings);
+    cannot.push(...judged.cannot);
+    ok = judged.ok;
+  }
+  const named = new Set(markers.map((m) => m.id));
+  const untested = statements.filter((s) => !named.has(s.id)).map((s) => s.id);
+  const hashes = new Map(statements.map((s) => [s.id, s.hash]));
+  const tested = new Set(
+    ok.filter((m) => hashes.get(m.id) === m.hash).map((m) => m.id),
+  );
+  const listed = untested.length
+    ? [
+        `not yet tested (${untested.length}):`,
+        ...untested.map((id) => `  ${id}`),
+      ]
+    : [];
+  if (findings.length)
+    return result(FINDING, `${findings.length} problem(s)`, [
+      ...findings,
+      ...cannot,
+      ...listed,
+    ]);
+  if (cannot.length)
+    return result(CANNOT, `${cannot.length} marker(s) or file(s) not checked`, [
+      ...cannot,
+      ...listed,
+    ]);
+  return result(
+    PASS,
+    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} result(s) read; ${tested.size} tested`,
+    listed,
+  );
+}
+
+export const check = trace;
