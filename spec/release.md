@@ -116,7 +116,7 @@ manifest declares for it, and `svelte` MUST be its only peer dependency.
 - Examples (the scan reads the package manifest among the files git tracks, so copies under `node_modules` or a
   build folder are never read; no manifest, or more than one, is "could not check"; Svelte's manifest is read from
   the copy the frozen install puts in place, and that manifest missing, or declaring no `esm-env`, is "could not
-  check"; the test runs every row as a canary; Svelte declares `^1.2.1` in each row):
+  check"; the test runs every row as a canary; Svelte declares `^1.2.1` in each row but the last):
 
   | `package.json` | Result |
   |---|---|
@@ -127,6 +127,7 @@ manifest declares for it, and `svelte` MUST be its only peer dependency.
   | `dependencies` `{ "esm-env": "^1.2.1" }`, `peerDependencies` `{ "svelte": "^5.20.0", "tailwindcss": "^4.0.0" }` | finding |
   | `dependencies` `{ "esm-env": "^1.2.1" }`, `optionalDependencies` `{ "x": "1.0.0" }`, the same peer | finding |
   | `dependencies` `{ "esm-env": "^1.2.1" }`, no `peerDependencies` | finding |
+  | the first row's manifest, with Svelte's manifest declaring no `esm-env` | could not check |
 
 - Reason: every runtime dependency is code every consumer runs; PRD-S5 allows the Svelte peer only, unless the owner
   decides an exception. The owner took `esm-env` (2026-11-19) for the development-only warning of STK-10 of

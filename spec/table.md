@@ -3858,8 +3858,9 @@ table is wider than the viewport.
 - Traces: PRD-B14, PRD-A2.
 
 **STK-10** With `stickyHeader`, in a development build, the component MUST write one console warning naming the nearest
-ancestor of the table, below `body`, whose computed `overflow-x` or `overflow-y` is neither `visible` nor `clip`; with
-no such ancestor, or without `stickyHeader`, it MUST NOT warn.
+ancestor of the table whose computed `overflow-x` or `overflow-y` is neither `visible` nor `clip`, `html` never and
+`body` only while `html`'s computed `overflow-x` and `overflow-y` are not both `visible`; with no such ancestor, or
+without `stickyHeader`, it MUST NOT warn.
 - Examples (the test runs every row; the table inside `<div id="wrap" class="card">` inside `<main>`; a warning is a
   `console.warn` call; the name is the tag name, then `#` and the `id` if there is one, then `.` and each class):
 
@@ -3874,18 +3875,24 @@ no such ancestor, or without `stickyHeader`, it MUST NOT warn.
   | on | `#wrap { overflow-x: clip }` | none |
   | on | none | none |
   | on | `body { overflow: hidden }`, `html` left `visible` | none: `body`'s overflow applies to the viewport |
+  | on | `html, body { overflow-x: hidden }` | one, naming body |
   | off | `#wrap { overflow: hidden }` | none |
   | off, then on | `#wrap { overflow: hidden }` | one, after the change |
+  | on, then off, then on | `#wrap { overflow: hidden }` | two: one at mount, one after the second change |
+  | on, then a sort, the next page and new rows | `#wrap { overflow: hidden }` | one in all |
+  | on, then `#wrap` given `overflow: hidden` after the mount | `#wrap { overflow: hidden }` from then on | none |
 
-  The check runs when the table mounts with `stickyHeader` and when `stickyHeader` turns on; new rows, a sort or a
-  page change write no further warning. An ancestor whose style changes after that is not seen: the component adds
-  no observer or listener for it (PRD-B19). In a production build the warning is absent (CON-14 of
+  The check runs when the table mounts with `stickyHeader` and when `stickyHeader` turns on, and at no other time: an
+  ancestor whose style changes later is not seen, because the component adds no observer or listener for it
+  (PRD-B19). It is one check with one output, the warning or none. In a production build the warning is absent (CON-14 of
   `spec/package.md`). The warning is for the developer, not a word the table shows: English only, no prop.
 - Reason: the application must keep every ancestor's `overflow` at `visible` or `clip` (PRD-D3, design D); a warning
-  naming the element finds the cause of a header that does not stick. `body` and `html` are not checked: their
-  overflow goes to the viewport.
-- Layer: real browser (Chromium, Firefox, WebKit), on the test site's development build, where `esm-env`'s `DEV` is
-  true (the first row, red before the warning exists, shows it).
+  naming the element finds the cause of a header that does not stick. `html`'s overflow always goes to the viewport,
+  and `body`'s does while `html`'s is `visible`; otherwise `body` is a scroll container that holds the header (the
+  common `html, body { overflow-x: hidden }`).
+- Layer: real browser (Chromium, Firefox, WebKit), on the site built with `NODE_ENV=development` (the site's usual
+  build sets `production`, where `esm-env`'s `DEV` is false) and served by the site server as usual; the first row
+  going green on that build shows that `DEV` is true there.
 - Traces: PRD-B14, PRD-D3.
 
 **STK-03** Each column with `sticky` MUST stay at its inline-start offset while the document scrolls sideways, the

@@ -12,7 +12,9 @@
   zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Part 1 also states the
   `./styles.css` export (PKG-05). Further `exports` subpaths,
   the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
-  dependency and that there is no runtime dependency is SUP-04 of `spec/release.md`, not restated here.
+  dependency and that `esm-env` is the only runtime dependency is SUP-04 of `spec/release.md`, not restated here.
+  CON-14 states that the component's development warning is absent from the consumer's production build (PRD-D3,
+  PRD-B14, in part).
 
 ## Conventions
 
@@ -423,6 +425,7 @@ of `spec/table.md`).
 | PRD-T11 | CON-12, CON-13 | in part: the Tailwind 4 host; the none and Bootstrap 5.3 hosts are THEME-10 and THEME-11 of `spec/table.md` |
 | PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` is `spec/table.md`'s FOOT-04, and its build holding no `eval`, `new Function` or string timers has no statement yet |
 
-PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8, PRD-S1, PRD-T3 and PRD-T11 (as above). PRD-W9's
+PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8, PRD-S1, PRD-T3, PRD-T11, PRD-D3 and PRD-B14
+(as above). PRD-W9's
 three engines for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the
 gates'.
