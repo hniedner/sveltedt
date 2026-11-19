@@ -3574,12 +3574,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no test file and no commit after origin/main: svelte, test, commits and secrets
-  // have nothing to check.
+  // The fixture has no component, no site, no test file and no commit after origin/main: svelte, site, inline,
+  // test, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 5 not applicable: svelte, site, test, commits, secrets$/m,
+    /^PASS all: 15 checks passed, 6 not applicable: svelte, site, inline, test, commits, secrets$/m,
   );
 });
 test("all: returns the failing step's finding and names the step", () => {
