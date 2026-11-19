@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import type { DataTableProps } from "../src/lib/types.ts";
 import ListenerControl from "./ListenerControl.svelte";
 
-// The footprint tests' table (FOOT-01, FOOT-02). Each of the two lives in a test file of its own: every test file
+// The footprint tests' table (FOOT-01, FOOT-02). Each of them lives in a test file of its own: every test file
 // gets a fresh document, so its first mount is the first in that document, and nothing an earlier mount left
 // behind can hide in what the test measures before it.
 

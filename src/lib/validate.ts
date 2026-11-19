@@ -59,7 +59,7 @@ export function validateTable<Row>(
   if (duplicateLabel !== undefined) return "columnLabelDuplicate";
   if (columns.some((column) => !column.value && !column.cell))
     return "columnContentMissing";
-  // With status loading or failed, rows that are not a list are no fault (STATE-08)
+  // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
   if (!isList(rows)) {
     if (status !== "loading" && status !== "failed") return "rowsNotList";
   } else {

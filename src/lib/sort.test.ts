@@ -72,9 +72,11 @@ describe("SORT-10", () => {
   it("shows one sort button in the header cell of the sortable column Name and none in Note's", () => {
     mount({ columns: [name, note] });
     const [nameHeader, noteHeader] = screen.getAllByRole("columnheader");
-    expect(within(nameHeader).getAllByRole("button")).toEqual([
+    const buttons = within(nameHeader).getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toBe(
       within(nameHeader).getByRole("button", { name: "Sort by Name" }),
-    ]);
+    );
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
