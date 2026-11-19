@@ -72,11 +72,9 @@ describe("SORT-10", () => {
   it("shows one sort button in the header cell of the sortable column Name and none in Note's", () => {
     mount({ columns: [name, note] });
     const [nameHeader, noteHeader] = screen.getAllByRole("columnheader");
-    expect(
-      within(nameHeader)
-        .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label")),
-    ).toEqual(["Sort by Name"]);
+    expect(within(nameHeader).getAllByRole("button")).toEqual([
+      within(nameHeader).getByRole("button", { name: "Sort by Name" }),
+    ]);
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
@@ -206,12 +204,10 @@ describe("SORT-09", () => {
     "names the Name button 'Sort by Name' with the order [%s]",
     (before) => {
       mount({ sort: order(before) });
-      expect(
-        within(screen.getAllByRole("columnheader")[1])
-          .getByRole("button")
-          .getAttribute("aria-label"),
-      ).toBe("Sort by Name");
-      expect(sortButton("Name").isConnected).toBe(true);
+      const header = screen.getAllByRole("columnheader")[1];
+      expect(within(header).getByRole("button", { name: "Sort by Name" })).toBe(
+        within(header).getByRole("button"),
+      );
     },
   );
 });
@@ -243,8 +239,9 @@ describe("SORT-13", () => {
       const before = hiddenContent(header(), rank);
       await rerender({ sort: order(second) });
       const after = hiddenContent(header(), rank);
-      expect(before).not.toEqual([]);
-      expect(after).not.toEqual([]);
+      // Present in both: some text or drawing, not only an empty element
+      expect(before.join("")).not.toBe("");
+      expect(after.join("")).not.toBe("");
       expect(after).not.toEqual(before);
     },
   );
@@ -340,6 +337,35 @@ describe("SORT-15", () => {
       screen.getAllByRole("alert").map((alert) => alert.textContent),
     ).toEqual([SORT_ALERTS[key]]);
     expect(container.querySelector("table")).toBeNull();
+  });
+
+  it.each<[string, Partial<DataTableProps<Item>>, keyof typeof SORT_ALERTS]>([
+    [
+      "a sortable column with no direction and no onsort",
+      { columns: [sortable("name", "Name", [])], onsort: undefined },
+      "sortableInvalid",
+    ],
+    [
+      "no onsort and a sort naming an unknown column",
+      { onsort: undefined, sort: order("zzz asc") },
+      "sortHandlerMissing",
+    ],
+    [
+      "a sort naming a column that cannot be sorted, then an unknown one",
+      { columns: [code, note], sort: order("note asc, zzz asc") },
+      "sortColumnUnknown",
+    ],
+    [
+      "a sort naming a column twice, the second time in a direction it does not allow",
+      {
+        columns: [sortable("date", "Date", ["desc"])],
+        sort: order("date desc, date asc"),
+      },
+      "sortDirectionNotAllowed",
+    ],
+  ])("lets the first row that applies win: %s", (_faults, props, key) => {
+    mount(props);
+    expect(screen.getByRole("alert").textContent).toBe(SORT_ALERTS[key]);
   });
 
   it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {

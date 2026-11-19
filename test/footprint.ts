@@ -44,7 +44,8 @@ export const footprintStates: Partial<DataTableProps<FootprintRow>>[] = [
 
 // Wraps addEventListener and removeEventListener on document and window, then mounts and unmounts the control to
 // measure what Svelte itself delegates to the document. Returns a reader of the listeners held beyond those, per
-// target and event type. The caller restores the wrapped methods (vi.restoreAllMocks).
+// target and event type. The caller restores the wrapped methods (vi.restoreAllMocks). Stated limit: a document
+// listener of a type the control handles (click) counts as Svelte's own, so one the table added would not show.
 export function watchListeners(): () => string[] {
   // Listeners added minus removed, per target and event type
   const held = new Map<string, number>();
