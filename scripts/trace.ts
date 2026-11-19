@@ -277,7 +277,8 @@ export interface Ran {
  * What the results say about each marker: a test counts for a marker when it ran in the marker's file on a line inside
  * the statement the marker names (the JSON's `location` is the test's own line). A marked statement with a modifier,
  * a failed or skipped test, or no test at all in a file that ran is a finding; a file that did not run at all cannot
- * be checked. `ok` is the markers none of which went wrong.
+ * be checked. `ok` is the markers none of which went wrong. Limit: a test that a helper defines (the call is not under
+ * the marked statement) has no line there, so such a marker reports "no test ran": loud, never a silent pass.
  */
 export function judgeResults(
   markers: Marker[],
