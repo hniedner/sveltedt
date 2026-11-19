@@ -530,6 +530,29 @@ function canaryThatPasses(): string {
   );
   return dir;
 }
+test("trace: a canary whose marker the reader cannot find is COULD NOT CHECK, though no test marker was read", () => {
+  // The reader finding nothing (a TypeScript change to the comment API, say) must not turn into a pass
+  const dir = tempDir();
+  cpSync(join(here, "canaries"), dir, { recursive: true });
+  const file = join(dir, "trace", "canary.test.ts");
+  writeFileSync(
+    file,
+    readFileSync(file, "utf8").replace(/^\/\/ @spec.*\n/m, ""),
+  );
+  const plain = vitestFile('test("one", () => {\n  expect(1).toBe(1);\n});\n');
+  const out = expectTrace(fixture({ "src/a.test.ts": plain }), 3, {
+    CANARY_DIR: dir,
+  });
+  assert.match(out, /the planted skipped, marked test was not reported/);
+});
+test("trace: a marker that is malformed, with no spec file at all, is a finding and not NA", () => {
+  const bad = vitestFile(
+    `// @spec('TST-01', 'aaaaaaaa')\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`,
+  );
+  const root = fixture({ "src/a.test.ts": bad });
+  git(root, "rm", "-q", "spec/a.md");
+  assert.match(expectTrace(root, 1), /malformed @spec marker/);
+});
 test("trace: a canary run that does not report the planted skipped test cannot be checked", () => {
   const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 3, {
     CANARY_DIR: canaryThatPasses(),

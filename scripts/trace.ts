@@ -376,6 +376,21 @@ function canary(): Result | null {
   return flagged ? null : bad("no finding named it");
 }
 
+/** A statement id defined twice: both places are named. */
+function duplicateIds(statements: Statement[]): string[] {
+  const first = new Map<string, Statement>();
+  const found: string[] = [];
+  for (const s of statements) {
+    const was = first.get(s.id);
+    if (was)
+      found.push(
+        `${s.file}:${s.line}: ${s.id}: also defined at ${was.file}:${was.line}`,
+      );
+    else first.set(s.id, s);
+  }
+  return found;
+}
+
 const SPEC_FILE = /^spec\/[^/]+\.md$/;
 
 function trace(root: string, list: Set<string>): Result {
@@ -388,15 +403,7 @@ function trace(root: string, list: Set<string>): Result {
     statements.push(...r.statements);
     findings.push(...r.problems);
   }
-  const first = new Map<string, Statement>();
-  for (const s of statements) {
-    const was = first.get(s.id);
-    if (was)
-      findings.push(
-        `${s.file}:${s.line}: ${s.id}: also defined at ${was.file}:${was.line}`,
-      );
-    else first.set(s.id, s);
-  }
+  findings.push(...duplicateIds(statements));
   // Anything else under spec/ may hold statements the step does not read: never skipped
   cannot.push(
     ...[...list]
@@ -415,7 +422,12 @@ function trace(root: string, list: Set<string>): Result {
       (f) => `${f}: a test file outside src/, site/, test/ and scripts/`,
     ),
   );
-  if (!specFiles.length && !markers.length && !cannot.length)
+  if (
+    !specFiles.length &&
+    !markers.length &&
+    !cannot.length &&
+    !findings.length
+  )
     return result(NA, "no spec file and no marker");
   findings.push(...judgeMarkers(markers, statements));
   const scripts = markers.filter((m) => src.scripts.includes(m.file));
@@ -427,9 +439,13 @@ function trace(root: string, list: Set<string>): Result {
   const read = markers.filter((m) => src.read.includes(m.file));
   let results = 0;
   let ok: Marker[] = [];
-  if (read.length) {
+  // The positive control runs whenever there is a test source to read, not only when a marker was found: a reader
+  // that finds nothing (say after a TypeScript change) must fail the canary, never pass with every statement untested.
+  if (src.read.length) {
     const planted = canary();
     if (planted) return planted;
+  }
+  if (read.length) {
     if (!list.has("vitest.config.ts"))
       return result(CANNOT, "vitest.config.ts is not tracked");
     const run = testRun(root);
