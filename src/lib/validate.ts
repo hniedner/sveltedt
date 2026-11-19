@@ -28,6 +28,14 @@ const isEmpty = (text: unknown): boolean =>
 // The component gives a left-out status its default, ready, before it validates
 const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
 
+// An entry of the order as its type says: an object, not a list, with a string id and a boolean desc (SORT-15)
+const isSortEntry = (entry: unknown): boolean =>
+  typeof entry === "object" &&
+  entry !== null &&
+  !Array.isArray(entry) &&
+  typeof (entry as { id?: unknown }).id === "string" &&
+  typeof (entry as { desc?: unknown }).desc === "boolean";
+
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
 
@@ -125,6 +133,12 @@ function sortFault<Row>(
     return "sortableInvalid";
   if (sortables.length > 0 && typeof onsort !== "function")
     return "sortHandlerMissing";
+  if (
+    sort !== undefined &&
+    sort !== null &&
+    (!isList(sort) || !(sort as unknown[]).every(isSortEntry))
+  )
+    return "sortInvalid";
   const order = sort ?? [];
   const columnOf = (id: string) => columns.find((column) => column.id === id);
   if (order.some((entry) => !columnOf(entry.id))) return "sortColumnUnknown";

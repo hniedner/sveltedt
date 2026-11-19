@@ -55,6 +55,7 @@ export interface DataTableMessages {
   }) => string;
   readonly sortableInvalid: string;
   readonly sortHandlerMissing: string;
+  readonly sortInvalid: string;
   readonly sortColumnUnknown: string;
   readonly sortColumnNotSortable: string;
   readonly sortDirectionNotAllowed: string;

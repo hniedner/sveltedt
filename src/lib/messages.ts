@@ -31,6 +31,7 @@ export const defaultMessages: DataTableMessages = {
   },
   sortableInvalid: "A column's sort directions are invalid.",
   sortHandlerMissing: "A sortable column has no sort handler.",
+  sortInvalid: "The sort is not valid.",
   sortColumnUnknown: "The sort names an unknown column.",
   sortColumnNotSortable: "The sort names a column that cannot be sorted.",
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",

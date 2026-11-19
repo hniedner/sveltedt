@@ -297,6 +297,7 @@ describe("SORT-06", () => {
 const SORT_ALERTS = {
   sortableInvalid: "A column's sort directions are invalid.",
   sortHandlerMissing: "A sortable column has no sort handler.",
+  sortInvalid: "The sort is not valid.",
   sortColumnUnknown: "The sort names an unknown column.",
   sortColumnNotSortable: "The sort names a column that cannot be sorted.",
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
@@ -316,6 +317,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
       },
     ],
     ["sortHandlerMissing", { onsort: undefined }],
+    ["sortInvalid", { sort: [null] as unknown as DataTableSortEntry[] }],
     ["sortColumnUnknown", { sort: order("zzz asc") }],
     [
       "sortColumnNotSortable",
@@ -365,10 +367,51 @@ describe("SORT-15", () => {
       },
       "sortDirectionNotAllowed",
     ],
+    [
+      "no onsort and a sort that is the text name",
+      { onsort: undefined, sort: "name" as unknown as DataTableSortEntry[] },
+      "sortHandlerMissing",
+    ],
+    [
+      "a sort entry whose id is the number 5",
+      { sort: [{ id: 5, desc: true }] as unknown as DataTableSortEntry[] },
+      "sortInvalid",
+    ],
   ])("lets the first row that applies win: %s", (_faults, props, key) => {
     mount(props);
     expect(screen.getByRole("alert").textContent).toBe(SORT_ALERTS[key]);
   });
+
+  // A caller the type does not reach (plain JavaScript, untyped state) passes these
+  it.each<[string, unknown]>([
+    ["not an array", "name"],
+    ["not an array", { id: "name", desc: false }],
+    ["an entry that is null", [null]],
+    ["an entry that is an array", [["name"]]],
+    ["an entry that is not an object", ["name"]],
+    ["an entry's id left out", [{ desc: false }]],
+    ["an entry's id not a string", [{ id: 5, desc: false }]],
+    ["an entry's id null", [{ id: null, desc: false }]],
+    ["an entry's desc left out", [{ id: "name" }]],
+    ["an entry's desc undefined", [{ id: "name", desc: undefined }]],
+    ["an entry's desc null", [{ id: "name", desc: null }]],
+    ["an entry's desc not a boolean", [{ id: "name", desc: "true" }]],
+  ])("shows only the alert sortInvalid, no table, for %s: %j", (_row, sort) => {
+    const { container } = mount({ sort: sort as DataTableSortEntry[] });
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([SORT_ALERTS.sortInvalid]);
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it.each([undefined, null])(
+    "takes sort given as %s as no order and no fault",
+    (sort) => {
+      mount({ sort: sort as unknown as DataTableSortEntry[] });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("table").isConnected).toBe(true);
+    },
+  );
 
   it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {
     mount({ caption: "", sort: order("zzz asc") });
