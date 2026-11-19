@@ -127,7 +127,9 @@ function sortFault<Row>(
   const invalid = (sortable: unknown): boolean =>
     !isList(sortable) ||
     (sortable as unknown[]).length === 0 ||
-    (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc");
+    (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc") ||
+    // A direction named twice leaves the press order ambiguous
+    new Set(sortable as unknown[]).size !== (sortable as unknown[]).length;
   const sortables = columns.filter((column) => column.sortable !== undefined);
   if (sortables.some((column) => invalid(column.sortable)))
     return "sortableInvalid";

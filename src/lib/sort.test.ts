@@ -80,7 +80,7 @@ describe("SORT-10", () => {
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
-// @spec("SORT-01", "792165c5")
+// @spec("SORT-01", "83f710c0")
 describe("SORT-01", () => {
   it.each([
     ["", "name asc"],
@@ -94,6 +94,22 @@ describe("SORT-01", () => {
     async (before, after) => {
       const { onsort } = mount({ sort: order(before) });
       await fireEvent.click(sortButton("Name"));
+      expect(onsort.mock.calls).toEqual([[order(after)]]);
+    },
+  );
+
+  it.each([
+    ["", "date desc"],
+    ["date desc", "date asc"],
+    ["date asc", ""],
+  ])(
+    "a press on Date, listing ['desc', 'asc'], with the order [%s] emits [%s] once",
+    async (before, after) => {
+      const { onsort } = mount({
+        columns: [code, name, sortable("date", "Date", ["desc", "asc"])],
+        sort: order(before),
+      });
+      await fireEvent.click(sortButton("Date"));
       expect(onsort.mock.calls).toEqual([[order(after)]]);
     },
   );
@@ -122,6 +138,15 @@ describe("SORT-02, Shift+click rows", () => {
       expect(onsort.mock.calls).toEqual([[order(after)]]);
     },
   );
+
+  it("a Shift+click on Date, listing ['desc', 'asc'], with the order [code asc] emits [code asc, date desc] once", async () => {
+    const { onsort } = mount({
+      columns: [code, name, sortable("date", "Date", ["desc", "asc"])],
+      sort: order("code asc"),
+    });
+    await fireEvent.click(sortButton("Date"), { shiftKey: true });
+    expect(onsort.mock.calls).toEqual([[order("code asc, date desc")]]);
+  });
 });
 // SORT-03's click row. Its Enter and Space rows are owed to the real-browser sort step, so the statement carries no
 // marker until then.
@@ -316,6 +341,10 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortableInvalid", { columns: [sortable("name", "Name", [])] }],
     [
       "sortableInvalid",
+      { columns: [sortable("name", "Name", ["asc", "asc"])] },
+    ],
+    [
+      "sortableInvalid",
       {
         columns: [
           sortable("name", "Name", ["up"] as unknown as SortDirection[]),
@@ -339,7 +368,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
-// @spec("SORT-15", "fea0df3f")
+// @spec("SORT-15", "d647ba5a")
 describe("SORT-15", () => {
   it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
     const { container } = mount(props);
