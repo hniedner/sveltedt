@@ -951,13 +951,16 @@ real-browser statement.
   | `@media (min-width: 40rem) { /* @spec("THEME-10") */ .sdt-x { color: inherit } }` | passes |
   | `/* @spec("THEME-10") */ @media (min-width: 40rem) { .sdt-x { color: inherit } }` | finding: the rule inside has no marker |
   | `/* @spec("THEME-10") */ @keyframes sdt-spin { from { opacity: 0 } to { opacity: 1 } }` | passes: one rule |
+  | `/* @spec("THEME-10") */ .sdt-x { color: inherit } .sdt-y { color: inherit }` | finding: `.sdt-y` has no marker |
+  | `/* @spec("THEME-10") */ /* note */ .sdt-x { color: inherit }` | finding: no marker directly before the rule |
+  | `@font-face { font-family: sdt-x; src: local(sdt-x) }` | finding: no marker |
   | `@charset "utf-8";` and nothing else | could not check: content and 0 rules |
 
   A rule is a style rule (also inside `@media`, `@supports` or `@container`), a `@keyframes` block (its keyframe
   selectors are not rules), a `@font-face` or a `@property` rule. The check reads the stylesheet of THEME-04 and
   reports how many rules it read; while that stylesheet does not exist it reports "not applicable: no stylesheet".
-  It lands in the walking-skeleton milestone, with the gate's trace check and the stylesheet, and is not yet tested
-  until then.
+  It lands in the walking-skeleton milestone, once the stylesheet and the gate's trace check exist, and is not yet
+  tested until then.
 - Reason: the gate's other checks cannot see the stylesheet (PRD-G4); a rule that names the statement whose test
   proves it is what THEME-14 deletes and checks, and only a real-browser test can turn red when a rule goes.
 - Layer: static check.
@@ -965,22 +968,28 @@ real-browser statement.
 
 **THEME-14** At each step boundary, deleting a rule of the package's stylesheet that the step changed MUST turn the
 tests of the statement its marker names red by a failed assertion.
-- Examples (the wrapper runs every row on a canary step that changes one rule marked `@spec("THEME-10")`):
+- Examples (the wrapper runs every row on a canary step that changes one rule marked `@spec("THEME-10")`; the
+  wrapper's own tests plant the outcome of THEME-10's tests in each engine):
 
   | Tests of THEME-10 with the rule deleted | Run | Result |
   |---|---|---|
-  | red by a failed assertion in at least one engine | CI, Chromium, Firefox and WebKit | passes |
+  | red by a failed assertion in Chromium, Firefox and WebKit | CI | passes |
+  | red by a failed assertion in Firefox, green in Chromium and WebKit | CI | passes |
   | green in all three engines | CI | finding: the rule is not proven by THEME-10's tests |
-  | not run in WebKit | CI | could not check |
-  | a crash, a time-out or no test run | CI or local | could not check |
+  | red in Chromium and Firefox, not run in WebKit | CI | could not check |
+  | red in Chromium, a time-out in WebKit | CI | could not check |
+  | a crash, a time-out or no test run | local | could not check |
   | green in Chromium | local (Chromium only) | not applicable: "CI decides: not red in Chromium", naming the rule and THEME-10 |
   | red by a failed assertion in Chromium | local | passes |
 
-  A rule is changed when its at-rule context, selector, declarations and marker, white space normalised, have no
-  equal at the base. A stylesheet diff with no changed rule is "not applicable: format only" when the two normalised
-  stylesheets are equal, and "could not check" otherwise. It lands in the walking-skeleton milestone, once the gate's
-  step-boundary harness and the three engines of the real-browser tests exist, and is not yet tested until then.
-  Limit: a rule its tests do not prove shows red only in CI.
+  In CI any engine that crashed, timed out or ran no test makes the result "could not check", whatever the others
+  show. A rule is changed when its at-rule context, its prelude (the selector, or the at-rule's name and
+  parameters), its body and its marker, white space normalised, have no equal at the base. A step whose stylesheet
+  diff leaves no changed rule is "not applicable", naming why: "format only" when the stylesheets are equal without
+  white space and comments other than markers, "rules deleted or moved only", naming them, when every rule at the
+  head has an equal at the base; otherwise "could not check". It lands in the walking-skeleton milestone, once the
+  gate's step-boundary harness and the three engines of the real-browser tests exist, and is not yet tested until
+  then. Limits: a rule its tests do not prove shows red only in CI; a step that only moves rules is not probed.
 - Reason: a rule no test needs is dead or unproven (PRD-G4); no established practice for deleting CSS rules was found
   (searched 2026-11-18), so this is the stylesheet's analogue of mutation at step boundaries.
 - Layer: gate wrapper at step boundaries.
@@ -1998,7 +2007,7 @@ state in their own statements.
 | PRD-T16 | THEME-12 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
-| PRD-G4 | THEME-13, THEME-14 | in full |
+| PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 
 ### PRD musts not yet traced
 
