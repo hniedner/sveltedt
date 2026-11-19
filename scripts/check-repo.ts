@@ -1904,7 +1904,7 @@ function inline(root: string, list: Set<string>): Result {
 }
 
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
-// test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
+// test file outside scripts/ (which holds the node:test files and canaries) and site/browser/ must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
 function test(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.vitest;
@@ -1924,7 +1924,7 @@ function test(root: string, list: Set<string>): Result {
       tail(canary.out),
     );
   const mine = [...list]
-    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs
+    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs (*.spec.ts only)
     .filter(
       (f) =>
         /\.(?:test|spec)\.ts$/.test(f) &&
@@ -2217,7 +2217,8 @@ const PW_CONFIG = "playwright.config.ts";
 const playwrightBin = (): string =>
   process.env.PLAYWRIGHT_BIN ||
   join(HERE, "..", "node_modules", ".bin", "playwright");
-// The stable parts of Playwright 1.65.1's own messages (measured 2026-11-19); any other error cannot be checked
+// Substrings of Playwright's own messages at the pinned version (measured on 1.65.1, 2026-11-19; re-measure when the
+// pin moves: the two real-Playwright rows fail if they drift); any other error cannot be checked
 const PORT_TAKEN = "is already used, make sure that nothing is running";
 const NO_BROWSER = "Executable doesn't exist at";
 // Every tracked spec must run in each of the three engines the method names
@@ -2309,7 +2310,10 @@ function pwCannot(run: PwRun): Result | null {
   return null;
 }
 
-/** A test that did not pass, or passed only as an expected failure (test.fail), as one line with its reason. */
+/**
+ * A test that did not pass, or passed only as an expected failure (test.fail): one line, the first three lines of
+ * its reason joined by " / ".
+ */
 const pwBad = ([file, title, t]: [string, string, PwTest]): string[] => {
   const head = `${file} > ${title} [${t.projectName}]`;
   if (t.annotations?.some((a) => a.type === "fail"))

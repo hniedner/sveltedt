@@ -1597,7 +1597,8 @@ const browserSite =
     );
   };
 // A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
-// its one test with the status `canary`
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
+// the real run's exit code
 function fakePlaywright(
   report: object | string,
   version = PINS["@playwright/test"],
@@ -1786,7 +1787,8 @@ test("browser: an error outside the tests that the step does not know cannot be 
 });
 // The two could-not-check rows with the real Playwright: neither starts a browser
 test("browser: a taken 127.0.0.1:4173 cannot be checked (the web server refuses a running one)", async () => {
-  // Held by another process: this one blocks while the gate runs; a port already taken fails the row, never hangs it
+  // A child process holds 127.0.0.1:4173 while the gate runs. The row needs that port free (stop pnpm site:serve, no
+  // second gate run at once): a port already taken fails the row, never hangs it
   const holder = spawn(process.execPath, [
     "-e",
     'require("node:http").createServer((q, s) => s.end("held")).listen(4173, "127.0.0.1", () => console.log("up"))',
