@@ -706,6 +706,22 @@ describe("A11Y-05", () => {
   );
 });
 
+// @spec("A11Y-14", "5a9bec79")
+describe("A11Y-14", () => {
+  it("rerendered from ready to loading, shows the loading message in the status element that was there before", async () => {
+    const { rerender } = render(DataTable<Item>, state({}));
+    const status = screen.getByRole("status");
+    await rerender(state({ status: "loading" }));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent.trim()).toBe(LOADING);
+  });
+
+  it("mounted with status loading, the status element holds the loading message", () => {
+    show({ status: "loading" });
+    expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
