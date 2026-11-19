@@ -3806,11 +3806,12 @@ test("inline: a planted canary the scan misses, or none planted, cannot be check
 });
 test("inline: names each file and kind it finds", () => {
   const two =
-    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a>\n";
+    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a><script>\n</script>\n";
   const out = expect("inline", repo(builtPage(two)), 1);
   assert.match(out, /^ {2}index\.html: a style element$/m);
   assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);
-  assert.match(out, /in 2 place\(s\)/);
+  assert.match(out, /^ {2}index\.html: a script element with text$/m);
+  assert.match(out, /in 3 place\(s\)/);
 });
 test("inline: looks for javascript: in each URL attribute it lists, in nested pages too", () => {
   for (const [tag, attr] of [
