@@ -64,7 +64,9 @@ to the consumer as one callback (stated with the statements that add user action
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group; SORT-07, SORT-08 and A11Y-11 are reserved for the draft statements of
-  those numbers, which later groups write. A requirement id from `docs/PRD.md` is written `PRD-B1`.
+  those numbers, which later groups write, and A11Y-20, A11Y-21 and A11Y-23 to A11Y-34 for the slow-load group's
+  draft (progress, Cancel, the stopped state and "Try again"). A requirement id from `docs/PRD.md` is written
+  `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
@@ -507,6 +509,25 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Reason: a failure must be announced at once, not only when the user reaches the table.
 - Layer: component.
 - Traces: PRD-A4, PRD-B15.
+
+**A11Y-22** While the input is valid, the failed message MUST be in the component exactly while `status` is `failed`.
+- Examples (the test runs every row; columns Name and Code; mounted with `status 'failed'`, then rerendered step by
+  step; after each step it reads the component's text content, which includes hidden text, and the failed notice of
+  A11Y-15, found as the element with `role="alert"` that holds the failed message):
+
+  | Steps | "The rows could not be loaded." after each step |
+  |---|---|
+  | `failed`, `loading`, `failed` | in the failed notice; nowhere in the component; in the failed notice |
+  | `failed`, `ready` with two rows, `loading`, `failed` | in the failed notice; nowhere; nowhere; in the failed notice |
+
+  Breaks that turn it red: the message rendered whatever `status` is; the message kept and only hidden (CSS or the
+  `hidden` attribute) while `status` is not `failed`.
+- Reason: each new failure is announced, a failure after a retry included (PRD-A4), and assistive technology "will
+  generally only announce dynamic changes in the content of a live region" (MDN, ARIA live regions, FETCHED
+  2026-11-18), so the text leaves when the failure is over and returns with the next one. With invalid input the
+  alert of RND-05 is the only state shown (RND-13).
+- Layer: component.
+- Traces: PRD-A4.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
@@ -1816,6 +1837,7 @@ receives that number.
 | A11Y-05 | PRD-A4, PRD-B15 |
 | A11Y-14 | PRD-A4 |
 | A11Y-15 | PRD-A4, PRD-B15 |
+| A11Y-22 | PRD-A4 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -1927,7 +1949,7 @@ state in their own statements.
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15 | in part: the column group states the column-move announcement |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22 | in part: the column group states the column-move announcement, the slow-load group the still-loading and stopped texts |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
