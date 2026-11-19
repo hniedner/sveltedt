@@ -722,6 +722,15 @@ describe("A11Y-14", () => {
   });
 });
 
+// @spec("A11Y-15", "2588c0ed")
+describe("A11Y-15", () => {
+  it("rerendered from loading to failed, holds the failed message in the alert", async () => {
+    const { rerender } = render(DataTable<Item>, state({ status: "loading" }));
+    await rerender(state({ status: "failed" }));
+    expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
