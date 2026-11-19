@@ -30,9 +30,9 @@ Not yet: the loading, failed and busy states, sort, the pager, search, filters, 
 connection helper and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
-The install steps arrive with the package files (the consumer project's step of the walking skeleton); until then the
-badges above show the Svelte and TypeScript versions the tests run with, and they switch to the supported peer range
-when it exists. The npm package will be `@hniedner/sveltedt` (npm refused the bare name `sveltedt` as too similar to
+The install steps arrive with the package files and the consumer project that installs them
+([spec/package.md](spec/package.md)). Until then the badges above show the Svelte and TypeScript versions the tests run
+with; once the package states its supported peer range, the badges will show that range instead. The npm package will be `@hniedner/sveltedt` (npm refused the bare name `sveltedt` as too similar to
 an existing package).
 
 ## See it running
