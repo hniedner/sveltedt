@@ -25,7 +25,7 @@ function firstDuplicate(values: readonly string[]): string | undefined {
 const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
-// The component gives a left-out status its default, ready, before it validates
+// undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
 const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
 
 // An entry of the order as its type says: an object, not a list, with a string id and a boolean desc (SORT-15)
@@ -128,7 +128,7 @@ function sortFault<Row>(
     !isList(sortable) ||
     (sortable as unknown[]).length === 0 ||
     (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc") ||
-    // A direction named twice leaves the press order ambiguous
+    // A direction named twice would make a press repeat it, and the column would never leave the order
     new Set(sortable as unknown[]).size !== (sortable as unknown[]).length;
   const sortables = columns.filter((column) => column.sortable !== undefined);
   if (sortables.some((column) => invalid(column.sortable)))

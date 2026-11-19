@@ -37,7 +37,8 @@ to the consumer as one callback (stated with the statements that add user action
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`, in the order a press steps through them) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `'desc'`; a press steps through them in the order listed) and `onsort(next)`; and the props of `Pagination`:
+  `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`.
@@ -1553,7 +1554,7 @@ moved on one step and every other column keeps its relative order and direction.
   | `['asc']` | `[date asc]` | Date | `[]` |
   | `['asc']` | `[code asc, date asc]` | Shift+Date | `[code asc]` |
 
-  Break that turns it red: a press always steps through ascending and descending.
+  Break that turns it red: a press steps through both directions whatever the column lists.
 - Reason: the other direction is one the server would refuse.
 - Layer: component.
 - Traces: PRD-B4.

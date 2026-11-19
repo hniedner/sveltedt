@@ -76,7 +76,7 @@ export interface DataTableProps<Row> {
   status?: DataTableStatus;
   // A newer answer is on its way while the rows shown stay; default false
   busy?: boolean;
-  // Replaces any of the English defaults
+  // Replaces any of the English defaults; an entry that is not of its default's type is ignored (RND-06)
   messages?: Partial<DataTableMessages>;
   // The order the server applied, the lead first; the table shows it and never reorders the rows; null is no order
   sort?: readonly DataTableSortEntry[] | null;

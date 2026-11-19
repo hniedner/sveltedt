@@ -157,7 +157,7 @@ describe("SORT-03, click row", () => {
     expect(onsort).toHaveBeenCalledTimes(1);
   });
 });
-// @spec("SORT-04", "6386c5a1")
+// @spec("SORT-04", "a2edd1fa")
 describe("SORT-04", () => {
   it.each<[SortDirection[], string, boolean, string]>([
     [["desc"], "", false, "date desc"],

@@ -24,8 +24,7 @@
   }: DataTableProps<Row> = $props();
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
-  // An entry that is undefined, null or not of its type keeps its default, as a translation lookup that misses gives
-  // it (RND-06)
+  // An entry that is undefined, null or not of its default's type keeps the default (RND-06)
   const words = $derived({
     ...defaultMessages,
     ...(Object.fromEntries(
