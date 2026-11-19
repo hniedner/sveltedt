@@ -20,4 +20,5 @@ export const defaultMessages: DataTableMessages = {
   rowIdDuplicate: "Two rows share an id.",
   rowIdUnreadable: "A row id could not be read.",
   sortBy: (label) => `Sort by ${label}`,
+  sortRank: (rank) => String(rank),
 };

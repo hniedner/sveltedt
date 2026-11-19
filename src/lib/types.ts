@@ -46,6 +46,7 @@ export interface DataTableMessages {
   readonly rowIdDuplicate: string;
   readonly rowIdUnreadable: string;
   readonly sortBy: (label: string) => string;
+  readonly sortRank: (rank: number) => string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)

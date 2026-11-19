@@ -108,6 +108,8 @@
                     )}>{column.label}</button
                 >{#if state.direction}<span aria-hidden="true"
                     >{state.direction === "asc" ? "▲" : "▼"}</span
+                  >{/if}{#if state.rank !== null}<span aria-hidden="true"
+                    >{words.sortRank(state.rank)}</span
                   >{/if}
               {:else}
                 {column.label}

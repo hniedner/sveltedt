@@ -249,3 +249,27 @@ describe("SORT-13", () => {
     },
   );
 });
+// The rank marks of each header: digits inside its aria-hidden elements, top to bottom
+const ranks = (): string[][] =>
+  screen
+    .getAllByRole("columnheader")
+    .map((header) =>
+      [...header.querySelectorAll('[aria-hidden="true"]')]
+        .map((element) => element.textContent)
+        .filter((text) => /^\d+$/.test(text)),
+    );
+
+// @spec("SORT-05", "a6a7074f")
+describe("SORT-05", () => {
+  it.each([
+    ["code asc, name desc", [["1"], ["2"], []]],
+    ["name desc", [[], [], []]],
+    ["date asc, code asc, name asc", [["2"], ["3"], ["1"]]],
+  ])("with the order [%s] shows the ranks %j, hidden", (before, expected) => {
+    mount({
+      columns: [code, name, sortable("date", "Date")],
+      sort: order(before),
+    });
+    expect(ranks()).toEqual(expected);
+  });
+});
