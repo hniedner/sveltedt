@@ -1023,6 +1023,18 @@ describe("EXP-03", () => {
   });
 });
 
+// @spec("RND-07", "881386e0")
+describe("RND-07", () => {
+  it("shows no sort button for the columns Name and Note, neither sortable", () => {
+    show({ columns: [nameColumn, noteColumn] });
+    expect(screen.queryAllByRole("button", { name: /^Sort by/ })).toHaveLength(
+      0,
+    );
+    for (const header of screen.getAllByRole("columnheader"))
+      expect(within(header).queryAllByRole("button")).toHaveLength(0);
+  });
+});
+
 // True when A and B are the same type, read-only modifiers included
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
