@@ -2704,11 +2704,15 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Traces: PRD-B8, PRD-B3.
 
 **FILT-26** A press on "Reset table" MUST emit `onreset` once.
-- Example: the order `[code asc]` and Name's text "Beta" apply; one press: `onreset()`, as "emits once" defines it,
-  so neither `onsort` nor `onclearfilters` is called.
+- Examples (the test runs every row; one press each: `onreset()`, as "emits once" defines it):
+
+  | Applied | Not called |
+  |---|---|
+  | the order `[code asc]` and Name's text "Beta" | `onsort`, `onclearfilters` |
+  | the order `[code asc]` and `search` "beta", `onsearch` given | `onsort`, `onsearch`; "Search" still reads "beta" until `search` changes (FILT-44) |
 - Reason: the application restores sort and filters in one query (PRD-B2, PRD-B8).
 - Layer: component.
-- Traces: PRD-B8, PRD-B2.
+- Traces: PRD-B8, PRD-B2, PRD-B25.
 
 **FILT-31** The badges, the `criteria` snippet, "Clear column filters" and "Reset table" MUST come in that order, all
 before the region, in document order.
@@ -2750,7 +2754,7 @@ below list.
 - Reason: a filter the table cannot show is a wrong table: the user would believe a narrowing the rows do not have,
   or press a control that does nothing (PRD-B16).
 - Layer: component.
-- Traces: PRD-B16, PRD-B7, PRD-B6.
+- Traces: PRD-B16, PRD-B7, PRD-B6, PRD-B25.
 
 **FILT-39** The alert MUST hold no value taken from the filter props.
 - Examples (as RND-09, for the filter props; the test runs every row, and in each it first finds the alert holding
@@ -2784,7 +2788,7 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
-- Traces: PRD-I1.
+- Traces: PRD-I1, PRD-B25.
 
 **FILT-47** Every fixed word of the filter dialogs MUST come from a prop with an English default.
 - Examples (as FILT-33, for the words inside a filter dialog, which the simulated DOM cannot open):
@@ -3100,11 +3104,11 @@ says for a text filter.
 | FILT-10 | PRD-B8 |
 | FILT-25 | PRD-B8, PRD-B2 |
 | FILT-30 | PRD-B8, PRD-B3 |
-| FILT-26 | PRD-B8, PRD-B2 |
+| FILT-26 | PRD-B8, PRD-B2, PRD-B25 |
 | FILT-31 | PRD-B8, PRD-A3 |
-| FILT-32 | PRD-B16, PRD-B7, PRD-B6 |
+| FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
-| FILT-33 | PRD-I1 |
+| FILT-33 | PRD-I1, PRD-B25 |
 | FILT-47 | PRD-I1, PRD-I2 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
@@ -3136,7 +3140,7 @@ state in their own statements.
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32 | in full for the columns so far |
-| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33 | in full |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46 | in part: the column group states the badges of hidden columns and focus for them; "Reset table", where it is shown, is the application's reset of sort, filters and the search alike, and a table whose only narrowing is the search shows none (RND-12) |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
