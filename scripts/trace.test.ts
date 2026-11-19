@@ -690,7 +690,7 @@ const ci = (event: string, base?: string, head?: string) => ({
   ...(head ? { GATE_HEAD: head } : {}),
 });
 
-/** main at A2, a branch from A at B, and the merge of B into A2 that a pull request is checked out as (HEAD). */
+/** main at A2, a branch from A at B and B2, and the merge of B into A2 that a pull request is checked out as (HEAD). */
 function history() {
   const root = fixture();
   const a = git(root, "rev-parse", "HEAD").trim();
@@ -698,9 +698,10 @@ function history() {
   git(root, "update-ref", "refs/remotes/origin/main", a2);
   git(root, "checkout", "-q", "--detach", a);
   const b = advance(root, { y: "1\n" });
+  const b2 = advance(root, { z: "1\n" });
   git(root, "checkout", "-q", "--detach", a2);
   git(root, "merge", "-q", "--no-ff", "-m", "merge", b);
-  return { root, a, a2, b, m: git(root, "rev-parse", "HEAD").trim() };
+  return { root, a, a2, b, b2, m: git(root, "rev-parse", "HEAD").trim() };
 }
 /** The base `baseCommit` names with `env` set (and git's and the gate's own variables otherwise unset). */
 function baseWith(root: string, env: Record<string, string>) {
@@ -718,23 +719,31 @@ function baseWith(root: string, env: Record<string, string>) {
 // The pull-request rows run with HEAD at the merge m, whose first parent a2 is not the merge base a: a base taken from
 // the merge base instead of HEAD^1 (or the reverse) names the wrong commit.
 test("baseCommit: one case per row of the truth table", () => {
-  const { root, a, a2, b, m } = history();
-  const table: [string, Record<string, string>, unknown][] = [
+  const { root, a, a2, b, b2, m } = history();
+  // each row: its name, the environment, the base wanted (a pattern: could not check, with that message), and the commit HEAD is at (default m)
+  const NOT_ID = /is not a commit id on a pull request/;
+  const table: [string, Record<string, string>, unknown, string?][] = [
     [
       "a pull request checked out as the merge of its head",
       ci("pull_request", a, b),
       { kind: "pull_request", base: a2 },
     ],
     [
-      "a pull request that is not that merge: the merge base of GATE_BASE and GATE_HEAD",
-      ci("pull_request", a2, b),
+      "a pull request that is not that merge: the merge base of GATE_BASE and GATE_HEAD, not HEAD^1 (b)",
+      ci("pull_request", a2, b2),
+      { kind: "pull_request", base: a },
+      b2,
+    ],
+    [
+      "a merge whose second parent is not GATE_HEAD: the merge base, not the merge's first parent",
+      ci("pull_request", a2, b2),
       { kind: "pull_request", base: a },
     ],
-    ["a pull request without GATE_HEAD", ci("pull_request", a), null],
+    ["a pull request without GATE_HEAD", ci("pull_request", a), NOT_ID],
     [
       "a pull request without GATE_BASE",
       ci("pull_request", undefined, b),
-      null,
+      NOT_ID,
     ],
     ["a push with GATE_BASE", ci("push", a, b), { kind: "push", base: a }],
     ["a push without GATE_BASE", ci("push"), { kind: "push", base: null }],
@@ -743,26 +752,35 @@ test("baseCommit: one case per row of the truth table", () => {
       ci("push", "0".repeat(40)),
       { kind: "push", base: null },
     ],
-    ["CI with no event", { GITHUB_ACTIONS: "true", GATE_BASE: a }, null],
-    ["CI with another event", ci("schedule", a, b), null],
+    [
+      "CI with no event",
+      { GITHUB_ACTIONS: "true", GATE_BASE: a },
+      /GATE_EVENT is not set in CI/,
+    ],
+    [
+      "CI with another event",
+      ci("schedule", a, b),
+      /GATE_EVENT is "schedule" in CI/,
+    ],
     [
       "locally: the merge base with origin/main",
       { GATE_BASE: "ignored" },
       { kind: "local", base: a2 },
     ],
+    [
+      "locally, on a branch behind main: the merge base, not origin/main's tip",
+      {},
+      { kind: "local", base: a },
+      b,
+    ],
   ];
-  for (const [row, env, want] of table) {
-    // the pull-request rows are checked out as the merge m; the "not that merge" row as b itself
-    git(
-      root,
-      "checkout",
-      "-q",
-      "--detach",
-      row.includes("not that merge") ? b : m,
-    );
+  for (const [row, env, want, at] of table) {
+    git(root, "checkout", "-q", "--detach", at ?? m);
     const got = baseWith(root, env);
-    if (want === null) assert.ok(isResult(got) && got.code === 3, row);
-    else assert.deepEqual(got, want, row);
+    if (want instanceof RegExp) {
+      assert.ok(isResult(got) && got.code === 3, row);
+      assert.match(got.summary, want, row);
+    } else assert.deepEqual(got, want, row);
   }
 });
 test("baseCommit: locally without origin/main there is no base", () => {
@@ -896,4 +914,31 @@ test("trace: a vitest.config.ts the step cannot check still empties reports/test
   put(root, "reports/test/old.json", "{}");
   expectTrace(root, 3);
   assert.equal(existsSync(join(root, "reports/test/old.json")), false);
+});
+
+test("baseCommit: a malformed GATE_BASE or GATE_HEAD on a pull request cannot be checked, with the message saying so", () => {
+  const { root, a, b } = history();
+  for (const bad of ["main", a.slice(0, 7), "--all"])
+    for (const env of [
+      ci("pull_request", bad, b),
+      ci("pull_request", a, bad),
+    ]) {
+      const got = baseWith(root, env);
+      assert.ok(isResult(got) && got.code === 3, JSON.stringify(env));
+      assert.match(got.summary, /is not a commit id on a pull request/);
+    }
+});
+test("trace: locally a marked test file deleted but not committed is a finding", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  rmSync(join(root, "src/a.test.ts"));
+  assert.match(expectTrace(root, 1), /TST-01: marked at the base/);
+});
+test("trace: an id marked at the base whose statement did not exist there is no finding when the statement is added and the marker removed", () => {
+  const root = fixture({ "src/a.test.ts": ONE("TST-09") });
+  advance(root, {
+    "src/a.test.ts": null,
+    "spec/b.md":
+      "# More\n\n**TST-09** A table MUST page.\n\n- Reason: r.\n- Layer: unit.\n",
+  });
+  assert.doesNotMatch(expectTrace(root, 0), /TST-09: marked at the base/);
 });
