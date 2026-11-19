@@ -3804,16 +3804,16 @@ the table's width MUST count it.
 These statements add `stickyHeader` (default `false`), `stickyTop` (CSS px, default 0: the height of the application's
 fixed bar) and a column's `sticky` (default `false`) (PRD-B14, design D of PRD section 5.1: the document scrolls, the
 header sticks to the viewport). Sticky columns come first, in their given order, before every other column whatever
-`columnState.order` says, after the box column when selection is on; the box column is sticky whenever a column is.
-The component computes their inline-start offsets from the rendered widths. Without `stickyHeader` the region scrolls
-sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here
-are tested in a real browser, in Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a
-row names the zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name
-(sortable), Code and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page
-`stickyTop` px tall at the viewport top. A later branch states the development warning for an ancestor that stops
-the header from sticking (PRD-D3), the paint order and opacity of the stuck parts (PRD-T2), the progress indicator
-beside the stuck header (PRD-B22), the order emitted while sticky columns are given, the zoom view's 2.4.11 row, and
-that no listener on `window`, `document` or a media query outlives the table.
+`columnState.order` says, after the box column when selection is on; the box column is sticky whenever a column is. The
+component computes their inline-start offsets from the rendered widths. Without `stickyHeader` the region scrolls
+sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here are tested in a real browser, in
+Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
+zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name (sortable), Code
+and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page `stickyTop` px tall at the
+viewport top. A later branch states the development warning for an ancestor that stops the header from sticking
+(PRD-D3), the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
+(PRD-B22), the offsets after a viewport resize (STK-05), the order emitted while sticky columns are given, the zoom
+view's 2.4.11 row, and that no listener on `window`, `document` or a media query outlives the table.
 
 **STK-01** With `stickyHeader`, the header row MUST stay at `stickyTop` below the viewport top while the document
 scrolls its body rows under it.
