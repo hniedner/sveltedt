@@ -2608,7 +2608,7 @@ test("types: a scripts/tsconfig.json that turns checking off cannot be checked: 
   });
   assert.match(out, /tsc did not report the planted type errors/);
 });
-test("types: a declaration file, or any .js file but the root svelte.config.js, has no class until one is decided", () => {
+test("types: a declaration file, or a .js file other than svelte.config.js and site/public/*.js, has no class", () => {
   // TypeScript reads any name with ".d." as a declaration file (ts.isDeclarationFileName), and skipLibCheck skips it.
   for (const file of [
     "src/app.d.ts",
@@ -2620,6 +2620,7 @@ test("types: a declaration file, or any .js file but the root svelte.config.js, 
     "src/x.js",
     "vite.config.js",
     "docs/svelte.config.js",
+    // Only a script directly in site/public has a class
     "site/public/deep/x.js",
   ]) {
     const out = expect(
@@ -3712,7 +3713,7 @@ test("site: an untracked site/vite.config.ts is not applicable either", () => {
 test("site: passes when vite builds the site into site/dist, and counts the files", () => {
   assert.match(
     expect("site", repo(siteFiles()), 0),
-    /vite build wrote 1 file\(s\) to site\/dist/,
+    /vite build wrote 1 page\(s\) to site\/dist/,
   );
 });
 test("site: a build that fails is a finding that says why", () => {
@@ -3727,19 +3728,31 @@ test("site: a build that leaves site/dist missing or empty cannot be checked", (
   );
   assert.match(
     expect("site", repo(elsewhere), 3),
-    /site\/dist missing or empty/,
+    /no HTML page in site\/dist/,
   );
   const empty = (root: string): void => {
     elsewhere(root);
     mkdirSync(join(root, "site", "dist"));
   };
-  assert.match(expect("site", repo(empty), 3), /site\/dist missing or empty/);
+  assert.match(expect("site", repo(empty), 3), /no HTML page in site\/dist/);
   // A site/dist left from an earlier build does not pass for this one
   const stale = (root: string): void => {
     elsewhere(root);
     put(root, "site/dist/index.html", "<!doctype html><title>old</title>\n");
   };
-  assert.match(expect("site", repo(stale), 3), /site\/dist missing or empty/);
+  assert.match(expect("site", repo(stale), 3), /no HTML page in site\/dist/);
+});
+test("site: a build that writes no HTML page cannot be checked", () => {
+  const scriptOnly = (root: string): void => {
+    siteFiles(
+      'export default { root: import.meta.dirname, build: { rollupOptions: { input: import.meta.dirname + "/main.js" } } };\n',
+    )(root);
+    put(root, "site/main.js", "export const a = 1;\n");
+  };
+  assert.match(
+    expect("site", repo(scriptOnly), 3),
+    /no HTML page in site\/dist/,
+  );
 });
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(
@@ -3783,6 +3796,11 @@ test("lint: a DOMParser lift elsewhere, or a wider lift for site tests, cannot b
     ],
     [
       lift("site/**/*.test.ts", "/DOMParser|createElement /"),
+      "site/a.test.ts",
+      "site/a.test.ts: no-restricted-syntax",
+    ],
+    [
+      lift("site/**/*.test.ts", "/DOMParser/").replace('["error"', '["off"'),
       "site/a.test.ts",
       "site/a.test.ts: no-restricted-syntax",
     ],

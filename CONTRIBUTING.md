@@ -97,8 +97,10 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `--config`, imports neither.
 - **site:** Vite builds the test site (`vite build --config site/vite.config.ts`, the same build as `pnpm site:build`)
   into `site/dist`, before the test step: the site's HTTP tests read that folder (run `pnpm site:build` before
-  running them on their own). A build that fails is a finding; a
-  build that leaves `site/dist` missing or empty cannot be checked. Without a tracked `site/vite.config.ts` the step
+  running them on their own). It removes `site/dist` first, so an earlier build never passes for this one. The plain
+  scripts directly in `site/public/` (served as they are) are formatted, linted with browser globals and checked for
+  copies; a deeper file there has no class. A build that fails is a finding; a
+  build that leaves no HTML page in `site/dist` cannot be checked. Without a tracked `site/vite.config.ts` the step
   is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may

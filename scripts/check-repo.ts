@@ -1124,6 +1124,8 @@ const CONFIG_PROBES = Object.keys(LINT_CANARY_RULES).flatMap((ext) =>
 const SITE_TESTS = /^site\/.+\.test\.ts$/;
 const LIFTED = "DOMParser (PRD-S2)";
 function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
+  const severity = (c: { rules: Record<string, unknown> }) =>
+    (c.rules["no-restricted-syntax"] as unknown[] | undefined)?.[0];
   const bans = (c: { rules: Record<string, unknown> }, lifted = false) =>
     ((c.rules["no-restricted-syntax"] as unknown[] | undefined) ?? [])
       .slice(1)
@@ -1150,6 +1152,9 @@ function configDrift(canary: EslintRecord, rec: EslintRecord): string[] {
       ...(same(got.settings, want.settings) ? [] : ["settings"]),
       ...(same(got.linterOptions, want.linterOptions) ? [] : ["linterOptions"]),
       ...(["processor", "parser"] as const).filter((k) => got[k] !== want[k]),
+      ...(lifted && severity(got) !== severity(want)
+        ? ["no-restricted-syntax severity"]
+        : []),
       ...(bans(proven, lifted).every((b) => bans(got).includes(b))
         ? []
         : [
@@ -1884,14 +1889,15 @@ function site(root: string, list: Set<string>): Result {
       `vite build exited ${r.status}`,
       tail(`${r.stdout}${r.stderr}`),
     );
-  const built = existsSync(dist)
-    ? readdirSync(dist, { recursive: true, withFileTypes: true }).filter((e) =>
-        e.isFile(),
+  // Pages, not files: Vite copies site/public into the folder even when it builds no page
+  const pages = existsSync(dist)
+    ? readdirSync(dist, { recursive: true, withFileTypes: true }).filter(
+        (e) => e.isFile() && e.name.endsWith(".html"),
       ).length
     : 0;
-  return built
-    ? result(PASS, `vite build wrote ${built} file(s) to site/dist`)
-    : result(CANNOT, "the build left site/dist missing or empty");
+  return pages
+    ? result(PASS, `vite build wrote ${pages} page(s) to site/dist`)
+    : result(CANNOT, "the build left no HTML page in site/dist");
 }
 
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
