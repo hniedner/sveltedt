@@ -171,7 +171,7 @@ describe("RND-01", () => {
   });
 });
 
-// The body row that shows the given id in its first cell
+// The body row that has a cell named by the given id
 function bodyRow(id: string): HTMLElement {
   const row = screen.getByRole("cell", { name: id }).closest("tr");
   if (!row) throw new Error(`no row for ${id}`);
@@ -202,14 +202,20 @@ describe("RND-16", () => {
     label: "City",
     value: (row) => `City ${row.id}`,
   };
-  // The header cell, then the cell in each body row, of the column with the given label
-  function columnElements(label: string): (HTMLElement | undefined)[] {
+  // The header cell, then the cell in each body row (every row after the header row), of the column with the given label
+  function columnElements(label: string): HTMLElement[] {
     const header = screen.getByRole("columnheader", { name: label });
-    const place = [...(header.parentElement?.children ?? [])].indexOf(header);
+    const columnIndex = [...(header.parentElement?.children ?? [])].indexOf(
+      header,
+    );
     const cells = screen
       .getAllByRole("row")
       .slice(1)
-      .map((row) => within(row).getAllByRole("cell")[place]);
+      .map((row) => {
+        const cell = within(row).getAllByRole("cell")[columnIndex];
+        if (!cell) throw new Error(`no ${label} cell in a body row`);
+        return cell;
+      });
     return [header, ...cells];
   }
 
@@ -232,8 +238,8 @@ describe("RND-16", () => {
       ["City r2", "Beta"],
     ]);
     ["Name", "City"].forEach((label, column) => {
-      columnElements(label).forEach((element, place) => {
-        expect(element).toBe(before[column]?.[place]);
+      columnElements(label).forEach((element, position) => {
+        expect(element).toBe(before[column]?.[position]);
       });
     });
   });
