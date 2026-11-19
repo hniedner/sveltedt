@@ -3257,8 +3257,9 @@ below list.
 These statements add `order` to `columnState`: a list of column ids, the display order (PRD-B11 (a)). The drag grip
 of PRD-B11 (b) states its own statements below. The examples are those of section 12.
 
-**COL-09** The columns MUST appear in the order of `columnState.order`, given columns it does not name following in
-their given order, and the chooser MUST list them in the same order.
+**COL-09** The columns that are not `sticky` MUST appear in the order of `columnState.order`, after the sticky ones
+(section 14), given columns it does not name following in their given order, and the chooser MUST list them in the
+same order.
 - Examples (the test runs every row; the header cells, the cells of each row and the chooser's checkboxes):
 
   | `columnState.order` | Order shown |
@@ -3275,7 +3276,7 @@ their given order, and the chooser MUST list them in the same order.
 - Layer: real browser (Chromium, Firefox, WebKit), since the chooser is among the checks.
 - Traces: PRD-B11, PRD-B2.
 
-**COL-08** Each column's entry in the chooser MUST hold the buttons "Move earlier" and "Move later", each named by its
+**COL-08** The chooser entry of each column that is not `sticky` (section 14) MUST hold the buttons "Move earlier" and "Move later", each named by its
 words and the column's label, and a press MUST emit `oncolumnstate` once with the whole next state.
 - Examples (the test runs every row; `order` not given; one press, as "emits once" defines it):
 
@@ -3291,7 +3292,7 @@ words and the column's label, and a press MUST emit `oncolumnstate` once with th
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-B2, PRD-A1.
 
-**COL-10** "Move earlier" of the first column and "Move later" of the last MUST be `aria-disabled="true"`, and a press
+**COL-10** "Move earlier" of the first column that is not `sticky` and "Move later" of the last MUST be `aria-disabled="true"`, and a press
 on either MUST emit nothing and leave focus on it.
 - Example: `order` not given: "Move earlier Name" and "Move later Date" have `aria-disabled="true"`; a press on each
   calls no callback, and focus stays on the pressed button.
@@ -3352,7 +3353,7 @@ the test runner's mouse in Chromium, Firefox and WebKit; a touch drag is stated 
 `document` listener of COL-16 is added with no options (the bubble phase), as in FILT-36. The examples are those of
 section 12, with each column's grip found as the Conventions say.
 
-**COL-13** Each column's header cell MUST hold a grip that is at least 24 by 24 CSS px, not in the Tab order, and hidden
+**COL-13** The header cell of each column that is not `sticky` MUST hold a grip that is at least 24 by 24 CSS px, not in the Tab order, and hidden
 from assistive technology.
 - Example: for each of Name, Code and Date: its header cell holds one grip; its box is at least 24 by 24 CSS px; Tab
   from the element before the table through the header row never lands on it; it has `aria-hidden="true"`.
@@ -3361,7 +3362,8 @@ from assistive technology.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-A1.
 
-**COL-14** A drag of a column's grip, released over another column (its header cell or any of its cells), MUST emit
+**COL-14** A drag of a column's grip, released over another column that is neither `sticky` nor the box column (its
+header cell or any of its cells), MUST emit
 `oncolumnstate` once, on the release, with the dragged column in the place of the column it was released over.
 - Examples (the test runs every row; `order` not given; no callback is called before the release):
 
@@ -3803,10 +3805,15 @@ These statements add `stickyHeader` (default `false`), `stickyTop` (CSS px, defa
 fixed bar) and a column's `sticky` (default `false`) (PRD-B14, design D of PRD section 5.1: the document scrolls, the
 header sticks to the viewport). Sticky columns come first, in their given order, before every other column whatever
 `columnState.order` says, after the box column when selection is on; the box column is sticky whenever a column is.
-The component computes their inline-start offsets from the rendered widths. All statements here are tested in a real
-browser, in Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a
-row names the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name, Code and Date;
-"the bar" is a fixed element of the page `stickyTop` px tall at the viewport top.
+The component computes their inline-start offsets from the rendered widths, measured with a `ResizeObserver` on its
+own sticky header cells, and decides the 30 % rule of STK-04 with a `matchMedia` query on the viewport's height,
+remade when the header's measured height changes; it adds no listener to `window` or `document` (FOOT-02). Without
+`stickyHeader` the region scrolls sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here
+are tested in a real browser, in Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a
+row names the zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name
+(sortable), Code and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page
+`stickyTop` px tall at the viewport top. The development warning for an ancestor that stops the header from sticking
+(PRD-D3) is a later branch's.
 
 **STK-01** With `stickyHeader`, the header row MUST stay at `stickyTop` below the viewport top while the document
 scrolls its body rows under it.
@@ -3825,12 +3832,16 @@ scrolls its body rows under it.
 
 **STK-04** The header MUST be sticky only while `stickyTop` plus the header row's height is at most 30 % of the
 viewport's height; otherwise it scrolls with the table.
-- Examples (the test runs every row; `stickyHeader`, `stickyTop` 48 with the bar; the window scrolled down 3000 px):
+- Examples (the test runs every row; `stickyHeader` and the bar; the test first asserts that the header row is between
+  21 and 191 CSS px high; the window scrolled down 3000 px after the view is set):
 
-  | View | Header row |
-  |---|---|
-  | 1280 by 800 | sticks at 48 |
-  | the 320 view (320 by 256) | scrolled out of view with the table |
+  | View | `stickyTop` | Header row |
+  |---|---|---|
+  | 1280 by 800 | 48 | sticks at 48 |
+  | the zoom view (640 by 400; 30 % is 120) | 100 | scrolled out of view with the table |
+  | the 320 view (320 by 256) | 48 | scrolled out of view with the table |
+  | 1280 by 800, then the viewport resized to 1280 by 256 | 48 | scrolled out of view, after the resize |
+  | 1280 by 256, then resized to 1280 by 800 | 48 | sticks at 48, after the resize |
 
 - Reason: on small or zoomed screens a sticky band would take the page (PRD-B14; Understanding Reflow advises static
   positioning there).
@@ -3840,8 +3851,8 @@ viewport's height; otherwise it scrolls with the table.
 **STK-09** With `stickyHeader`, the region MUST NOT be a scroll container, and so MUST NOT be a Tab stop, also when the
 table is wider than the viewport.
 - Example: `stickyHeader`, 30 columns of 150 px wide text: the region's computed `overflow-x` and `overflow-y` are
-  "visible", the document scrolls sideways, and Tab from the element before the table lands on the table's first
-  control, not on the region.
+  "visible", the document scrolls sideways, and Tab from the element before the table lands on the sort button of
+  Name, not on the region.
 - Reason: design D, in which the header sticks to the viewport; a region that scrolled would hold the header instead
   (PRD section 5.1, PRD-A2).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3862,14 +3873,18 @@ offset being the sum of the widths of the sticky columns before it.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14.
 
-**STK-05** The offsets of sticky columns MUST follow a change of their widths, their visibility or the order.
-- Examples (the test runs every row; as STK-03 without selection; after the change and a new sideways scroll):
+**STK-05** The offsets of sticky columns MUST follow a change of their widths, their visibility or their given order.
+- Examples (the test runs every row; as STK-03 without selection; after the change and a new sideways scroll; widths
+  measured):
 
   | Change | Left edge of Code |
   |---|---|
   | `columnState.widths.name` from 200 to 250 (resizable) | 250 |
   | Name hidden | 0 |
   | the `sticky` of Name becomes false | 0, and Name scrolls with the rest |
+  | `columns` given with Code before Name, both `sticky` | 0, and Name's left edge is Code's width |
+  | the rows change so that a Name cell holds a longer text and Name grows wider (not resizable) | Name's new width |
+  | the viewport resized from 1280 to 1000 wide, so that Name's width changes (not resizable) | Name's new width |
 
 - Reason: offsets from stale widths would cover or uncover columns (PRD-B14: correct after resize, reorder and hide).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3884,8 +3899,8 @@ sideways.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14, PRD-I3.
 
-**STK-07** Sticky columns and the box column MUST stay in place when columns move: they have no grip, their chooser
-entries have no move buttons, and no move or drop places a column before or between them.
+**STK-07** Sticky columns MUST stay first, in their given order, when columns move: no grip, no move buttons, and no
+move or drop places a column before or between them (COL-08 to COL-14 apply to the other columns).
 - Examples (the test runs every row; Name and Code `sticky`, `oncolumnstate` passed):
 
   | Steps | Result |
@@ -3900,11 +3915,12 @@ entries have no move buttons, and no move or drop places a column before or betw
 - Traces: PRD-B11, PRD-B14.
 
 **STK-08** While the document scrolls under the sticky header and sticky columns, a control that receives focus MUST
-NOT be fully hidden by the bar, the sticky header or a sticky column.
+NOT be fully hidden by the bar, the sticky header or a sticky column, unless it lies inside that header or column.
 - Examples (the test runs every row; `stickyHeader`, `stickyTop` 48 with the bar, Name and Code `sticky`, 30 columns,
   selection on; Tab forward from the element before the table through every control, then Shift+Tab back from the
   last one; after each key, the focused control's box is not fully inside the bar's, the header row's (while it is
-  sticky) or a sticky column's box):
+  sticky) or a sticky column's box, except a control inside that header row or column; the links "Go <row>" are the
+  body controls that pass under them):
 
   | View | Direction |
   |---|---|
@@ -3917,21 +3933,6 @@ NOT be fully hidden by the bar, the sticky header or a sticky column.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14, PRD-A1.
 
-**STK-10** In a development build, the component MUST warn once in the console, naming the ancestor, when an ancestor
-of the table stops the header from sticking; a production build MUST NOT warn.
-- Examples (the test runs every row; `stickyHeader`; the table inside `<div id="wrap">`):
-
-  | Build | `#wrap`'s `overflow` | Console warnings from the component |
-  |---|---|---|
-  | development | `hidden` | one, holding "#wrap" |
-  | development | `visible` | none |
-  | production | `hidden` | none |
-
-- Reason: the application must keep every ancestor's `overflow` at `visible` or `clip` (PRD-D3); a named warning
-  finds the cause, and production stays silent.
-- Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B14, PRD-D3.
-
 **STK-11** For invalid sticky input the table MUST render the alert of RND-05 with the fixed message below.
 - Examples (as RND-05; the test runs every value in the row):
 
@@ -3943,6 +3944,42 @@ of the table stops the header from sticking; a production build MUST NOT warn.
 - Reason: a header stuck at a wrong place hides rows (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-B14.
+
+**STK-12** The stuck header and sticky cells MUST be opaque and painted above the cells that scroll under them, with
+no `--sdt-*` token defined.
+- Examples (the test runs every row; as STK-08 in the default view, the stylesheet with no token defined):
+
+  | Scroll | Check |
+  |---|---|
+  | down 3000 px | `document.elementFromPoint` at the centre of each header cell returns that cell or an element inside it; each header cell's computed background colour has alpha 1 |
+  | right 2000 px | `document.elementFromPoint` at the centre of Code's cell in the first visible body row returns that cell or an element inside it; its background colour has alpha 1 |
+
+- Reason: rows read through a transparent header are noise (PRD-T2: "the header is opaque over rows"; PRD-B14).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14, PRD-T2.
+
+**STK-13** Without `stickyHeader`, each column with `sticky` MUST stay at its inline-start offset inside the region while
+the region scrolls sideways.
+- Example: no `stickyHeader`, 30 columns as in STK-09, Name and Code `sticky`; the region scrolled to `scrollLeft` 2000:
+  Name's left edge is within 1 px of the region's inner left edge, and Code's is Name's width to the right of it.
+- Reason: sticky leading columns serve wide tables in either layout (PRD-B14); without the sticky header the region is
+  the scroll container (A11Y-12).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14.
+
+**STK-14** While the header is stuck, the progress indicator, its text and the "Cancel" button MUST NOT lie under it.
+- Example: `stickyHeader`, `stickyTop` 48 with the bar, the window scrolled down 3000 px, `status` `'loading'` for 4
+  seconds (fake timers): the boxes of the progress indicator, of "Still loading" and of "Cancel" do not intersect the
+  header row's box.
+- Reason: PRD-B22: the indicator, its text and the button are never "under the sticky header".
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22, PRD-B14.
+
+**STK-15** Every fixed word of this section MUST come from a prop with an English default.
+- Examples (as RND-06): the alert message of STK-11 (STK-11).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
 
 ## Trace
 
@@ -4219,8 +4256,11 @@ of the table stops the header from sticking; a production build MUST NOT warn.
 | STK-06 | PRD-B14, PRD-I3 |
 | STK-07 | PRD-B11, PRD-B14 |
 | STK-08 | PRD-B14, PRD-A1 |
-| STK-10 | PRD-B14, PRD-D3 |
 | STK-11 | PRD-B16, PRD-B14 |
+| STK-12 | PRD-B14, PRD-T2 |
+| STK-13 | PRD-B14 |
+| STK-14 | PRD-B22, PRD-B14 |
+| STK-15 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -4249,9 +4289,8 @@ state in their own statements.
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22, STK-06 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
-| PRD-B14 | STK-01, STK-04, STK-09, STK-03, STK-05, STK-06, STK-07, STK-08, STK-10, STK-11 | in full |
+| PRD-B14 | STK-01, STK-04, STK-09, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-12, STK-13, STK-14 | in full |
 | PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
-| PRD-D3 | STK-10 | in part: the documentation group states the rest |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -4262,7 +4301,7 @@ state in their own statements.
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32, STK-14 | in part: colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
@@ -4270,7 +4309,7 @@ state in their own statements.
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
@@ -4279,7 +4318,7 @@ state in their own statements.
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
-| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the sticky group states "the header is opaque over rows" |
+| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15, STK-12 | in full |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
 | PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36, THEME-16 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the dialogs (the chooser, the grips and the separators: THEME-16) and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
@@ -4296,7 +4335,7 @@ state in their own statements.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
+- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
