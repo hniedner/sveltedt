@@ -3732,6 +3732,8 @@ this page" and whose header cell shows no visible text.
   | change nothing | "Select all rows on this page" | not checked, not mixed |
   | `onselectrow` selects r1 in the application's state | "Select row Beta" | checked |
   | `onselectpage` selects r1 and r2 | "Select all rows on this page" | checked, and both row boxes checked |
+  | r1 selected; change nothing | "Select all rows on this page" | mixed |
+  | no rows on the page; change nothing | "Select all rows on this page" | not checked, not mixed; still focusable |
 
 - Reason: the application prunes and stores the selection; a box that changed by itself could show a row as selected
   that an export would leave out (PRD-B2), and a box that undid the application's change would hide a selection.
@@ -3748,10 +3750,21 @@ column before it.
   | press "Columns" | the chooser holds no checkbox for the box column |
   | drag Date's grip to the box column's header cell | no `oncolumnstate` call |
   | `columnState.order` `['date', 'name', 'code']` | the box column first, then Date, Name, Code |
+  | press "Move earlier Date" twice, the state following each | `order` `['date', 'name', 'code']`; the box column still first |
 
 - Reason: the box column is the selection, not data; it stays where every row starts (PRD-B11, PRD-B13).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-B13.
+
+**SEL-12** While columns are resizable (section 12), the box column MUST be drawn 40 CSS px wide with no separator, and
+the table's width MUST count it.
+- Example: `selection` and `widths` `{ name: 200, code: 120, date: 120 }`: the box column's header cell is 40 px wide
+  (within 1 px), it holds no element with role `separator`, and the table is 480 px wide.
+- Reason: the box column holds one 24 px box and is no data, so it has a fixed width the user does not change
+  (INFERRED: 40 px, the earlier drafts' width, leaves room for the box and its focus indicator); the sum keeps COL-33's
+  rule that nothing takes spare space (PRD-B12, PRD-B13).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B13, PRD-B12.
 
 **SEL-10** For invalid selection input the table MUST render the alert of RND-05 with the fixed message below.
 - Examples (as RND-05, for the selection props; the test runs every row and every alternative in it):
@@ -4047,6 +4060,7 @@ column before it.
 | SEL-04 | PRD-B13 |
 | SEL-05 | PRD-B13, PRD-B2 |
 | SEL-09 | PRD-B11, PRD-B13 |
+| SEL-12 | PRD-B13, PRD-B12 |
 | SEL-10 | PRD-B16, PRD-B13 |
 | SEL-11 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
@@ -4073,10 +4087,10 @@ state in their own statements.
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09 | in part: the sticky columns staying in place come with the sticky statements |
-| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37 | in full |
+| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12 | in full |
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
-| PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10 | in full |
+| PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
