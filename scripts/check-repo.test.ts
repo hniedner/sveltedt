@@ -3214,13 +3214,21 @@ test("commit-msg: no message file is a usage error that says so", () => {
   assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
 });
 
-/** A fixture holding this runner, its configs and canaries, so git runs the real hooks and gate there. */
+/**
+ * A fixture holding its own hook shims, configs and canaries, so git runs the real hooks and gate there. The runner
+ * the shims call is this repository's own file (a symlink): the fixture runs the code under test, never a copy, and
+ * the coverage report counts its lines.
+ */
 function hooked(change: (root: string) => void = () => {}): string {
   const root = repo((r) => {
+    mkdirSync(join(r, "scripts"), { recursive: true });
     for (const f of [
       "scripts/check-repo.ts",
       "scripts/gate-step.ts",
       "scripts/pinned.ts",
+    ])
+      symlinkSync(join(here, "..", f), join(r, f));
+    for (const f of [
       "eslint.config.mjs",
       "tsconfig.json", // leaves the canaries to ESLint's default project
     ])
