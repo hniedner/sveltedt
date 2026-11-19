@@ -1,5 +1,4 @@
 import { render, screen, within } from "@testing-library/svelte";
-import { createRawSnippet } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
@@ -693,23 +692,12 @@ describe("RND-05", () => {
   });
 
   it("renders a cell snippet beside a value that is the text name by RND-02", () => {
-    const cell = createRawSnippet((row: () => Item) => ({
-      render: () => `<a href="#${row().id}">Open ${row().name}</a>`,
-    }));
-    show({
-      columns: [
-        {
-          id: "name",
-          label: "Name",
-          value: "name",
-          cell,
-        } as unknown as DataTableColumn<Item>,
-      ],
+    render(CellSnippetTable, {
+      rows: [{ id: "r1", name: "Beta" }],
+      nameValue: "name",
     });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByRole("link", { name: "Open Beta" }).isConnected).toBe(
-      true,
-    );
+    expect(cellTexts()).toEqual([["r1", "Open Beta in name"]]);
   });
 
   it("follows the props: the alert gives way to the table and comes back", async () => {
