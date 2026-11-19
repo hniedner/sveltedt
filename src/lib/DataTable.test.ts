@@ -1,9 +1,14 @@
 import { render, screen, within } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
-import type { DataTableColumn, DataTableProps } from "./types.ts";
+import type {
+  DataTableColumn,
+  DataTableMessages,
+  DataTableProps,
+  DataTableStatus,
+} from "./types.ts";
 
 interface Item {
   id: string;
@@ -66,10 +71,74 @@ function showWithSnippets(
   props: Partial<Omit<DataTableProps<Item>, "heading" | "actions">> & {
     withHeading?: boolean;
     withActions?: boolean;
+    withQuietActions?: boolean;
   },
 ): HTMLElement {
   return render(SnippetsTable, { ...base, ...props }).container;
 }
+
+const LOADING = "Loading data…";
+const EMPTY = "No data.";
+
+const FAILED = "The data could not be loaded.";
+
+const threeRows: Item[] = [
+  { id: "r1", name: "Beta" },
+  { id: "r2", name: "Gamma" },
+  { id: "r3", name: "Delta" },
+];
+
+// The props a rerender passes in full, so no prop of an earlier state stays behind
+function state(props: Partial<DataTableProps<Item>>): DataTableProps<Item> {
+  return { ...base, status: "ready", busy: false, ...props };
+}
+
+// Rows r0 to r(count - 1), named "Name 0" onward
+function manyRows(count: number): Item[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `r${index}`,
+    name: `Name ${index}`,
+  }));
+}
+
+// The live count, found as the spec's glossary says: the polite live region with no role
+function liveCount(component: HTMLElement): Element | null {
+  return component.querySelector('[aria-live="polite"]:not([role])');
+}
+
+const codeColumn: DataTableColumn<Item> = {
+  id: "code",
+  label: "Code",
+  value: (row) => row.id,
+};
+
+// Props that raise each message of RND-05's alert, keyed by the message
+const faults: [keyof DataTableMessages, Partial<DataTableProps<Item>>][] = [
+  ["captionEmpty", { caption: "" }],
+  ["regionLabelEmpty", { regionLabel: "" }],
+  ["noColumns", { columns: [] }],
+  ["columnIdEmpty", { columns: [column("", "Name")] }],
+  ["columnIdDuplicate", { columns: [column("a", "A"), column("a", "B")] }],
+  ["columnLabelEmpty", { columns: [column("a", "")] }],
+  ["columnLabelDuplicate", { columns: [column("a", "N"), column("b", "N")] }],
+  [
+    "columnContentMissing",
+    { columns: [{ id: "a", label: "A" } as unknown as DataTableColumn<Item>] },
+  ],
+  ["rowsNotList", { rows: undefined }],
+  ["rowIdEmpty", { getRowId: () => "" }],
+  ["rowIdDuplicate", { rows: threeRows, getRowId: () => "same" }],
+  ["rowIdUnreadable", { getRowId: unreadable }],
+];
+
+// The five states of RND-14 and of EXP-01 and EXP-02
+const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
+  ["status 'loading'", { status: "loading" }],
+  ["status 'failed'", { status: "failed" }],
+  ["status 'ready', no rows", { rows: [] }],
+  ["status 'ready', with rows", {}],
+  ["the alert of RND-05", { columns: [] }],
+];
 
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
@@ -245,17 +314,27 @@ describe("RND-16", () => {
   });
 });
 
-describe("STATE-03 first example; the statement's marker arrives with 1c", () => {
-  it("with the default status ready and no rows, shows the empty message in one cell spanning every column", () => {
-    show({ rows: [], columns: [idColumn, nameColumn, noteColumn] });
-    expect(screen.getAllByRole("cell")).toHaveLength(1);
-    expect(
-      screen.getByRole("cell", { name: "No records." }).getAttribute("colspan"),
-    ).toBe("3");
-  });
+// @spec("STATE-03", "bbe099c5")
+describe("STATE-03", () => {
+  it.each([false, true])(
+    "with status ready, busy %s and no rows, shows the empty message in one cell spanning every column",
+    (busy) => {
+      show({
+        rows: [],
+        columns: [idColumn, nameColumn, noteColumn],
+        status: "ready",
+        busy,
+      });
+      expect(screen.getAllByRole("cell")).toHaveLength(1);
+      expect(
+        screen.getByRole("cell", { name: "No data." }).getAttribute("colspan"),
+      ).toBe("3");
+    },
+  );
 });
 
-describe("RND-03 first examples; the statement's marker arrives with 1c", () => {
+// @spec("RND-03", "19d03ec8")
+describe("RND-03", () => {
   const places: [
     string,
     (text: string) => Partial<DataTableProps<Item>>,
@@ -276,6 +355,37 @@ describe("RND-03 first examples; the statement's marker arrives with 1c", () => 
       (text) => ({ rows: [{ id: "r1", name: text }] }),
       (text) => screen.getByRole("cell", { name: text }),
     ],
+    [
+      "the loading message",
+      (text) => ({ status: "loading", messages: { loading: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the failed message",
+      (text) => ({ status: "failed", messages: { failed: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the empty message",
+      (text) => ({ rows: [], messages: { empty: text } }),
+      (text) => screen.getByText(text),
+    ],
+    [
+      "the text rowCount returns",
+      (text) => ({ messages: { rowCount: () => text } }),
+      (text) => screen.getByText(text),
+    ],
+    ...faults.map(
+      ([key, props]): [
+        string,
+        (text: string) => Partial<DataTableProps<Item>>,
+        (text: string) => HTMLElement,
+      ] => [
+        `the alert message ${key}`,
+        (text) => ({ ...props, messages: { [key]: text } }),
+        (text) => screen.getByText(text),
+      ],
+    ),
   ];
   const texts = ["<img src=x onerror=alert(1)>", "<none>"];
 
@@ -303,7 +413,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "c6e0387c")
+// @spec("RND-05", "5e5d6aee")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -319,6 +429,11 @@ describe("RND-05", () => {
       "Table region label must not be empty.",
     ],
     ["columns is empty", { columns: [] }, "Table has no columns."],
+    [
+      "columns is not an array",
+      { columns: undefined },
+      "Table has no columns.",
+    ],
     [
       "a column id is empty",
       { columns: [column("ok", "Ok"), column("", "Name")] },
@@ -468,11 +583,22 @@ describe("RND-05", () => {
       },
       "Two rows share an id.",
     ],
+    [
+      "rows is not an array, with status ready",
+      { rows: undefined, status: "ready" },
+      "Table has no list of rows.",
+    ],
   ])("shows only one alert, no table, when %s", (_fault, props, message) => {
     const component = show(props);
     expect(
       screen.getAllByRole("alert").map((alert) => alert.textContent),
     ).toEqual([message]);
+    expect(component.querySelector("table")).toBeNull();
+  });
+
+  it("shows the alert, not the table, when the caller's text for the fault is empty", () => {
+    const component = show({ columns: [], messages: { noColumns: "" } });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(component.querySelector("table")).toBeNull();
   });
 
@@ -555,16 +681,443 @@ describe("RND-10", () => {
   });
 });
 
-describe("EXP-02 first examples; the statement's marker arrives with 1c", () => {
-  it.each<[string, Partial<DataTableProps<Item>>]>([
-    ["status 'ready' (the default), no rows", { rows: [] }],
-    ["status 'ready' (the default), with rows", {}],
-    ["the alert of RND-05", { columns: [] }],
-  ])("renders the actions snippet in %s", (_state, props) => {
+// @spec("EXP-02", "15dd3831")
+describe("EXP-02", () => {
+  it.each(fiveStates)("renders the actions snippet in %s", (_state, props) => {
     showWithSnippets({ ...props, withActions: true });
     expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
       true,
     );
+  });
+});
+
+// @spec("STATE-01", "e9669674")
+describe("STATE-01", () => {
+  it("with status loading and no rows, shows the loading message and not the empty message", () => {
+    show({ status: "loading", rows: [] });
+    expect(screen.getByText(LOADING).isConnected).toBe(true);
+    expect(screen.queryByText(EMPTY)).toBeNull();
+  });
+});
+
+// @spec("STATE-02", "f207ffc8")
+describe("STATE-02", () => {
+  it("with status failed and no rows, shows the failed message and not the empty message", () => {
+    show({ status: "failed", rows: [] });
+    expect(screen.getByText(FAILED).isConnected).toBe(true);
+    expect(screen.queryByText(EMPTY)).toBeNull();
+  });
+});
+
+// @spec("STATE-06", "a563c7c4")
+describe("STATE-06", () => {
+  it.each([false, true])(
+    "with status loading and busy %s, shows the loading message and none of the rows",
+    (busy) => {
+      show({ status: "loading", busy, rows: threeRows });
+      expect(screen.getByText(LOADING).isConnected).toBe(true);
+      for (const name of ["Beta", "Gamma", "Delta"])
+        expect(screen.queryByRole("cell", { name })).toBeNull();
+    },
+  );
+});
+
+// @spec("STATE-07", "2cfeee35")
+describe("STATE-07", () => {
+  it("with status failed, shows the failed message and none of the rows", () => {
+    show({ status: "failed", rows: threeRows });
+    expect(screen.getByText(FAILED).isConnected).toBe(true);
+    for (const name of ["Beta", "Gamma", "Delta"])
+      expect(screen.queryByRole("cell", { name })).toBeNull();
+  });
+});
+
+// @spec("STATE-04", "c14f993d")
+describe("STATE-04", () => {
+  it.each<[DataTableStatus, boolean, string]>([
+    ["ready", false, "false"],
+    ["ready", true, "true"],
+    ["loading", false, "true"],
+    ["failed", false, "false"],
+  ])(
+    "with status %s and busy %s, the table's aria-busy is %s and the region has none",
+    (status, busy, expected) => {
+      show({ status, busy });
+      expect(screen.getByRole("table").getAttribute("aria-busy")).toBe(
+        expected,
+      );
+      expect(screen.getByRole("region").hasAttribute("aria-busy")).toBe(false);
+    },
+  );
+
+  it("turns true into false when busy ends", async () => {
+    const { rerender } = render(DataTable<Item>, state({ busy: true }));
+    const table = screen.getByRole("table");
+    expect(table.getAttribute("aria-busy")).toBe("true");
+    await rerender(state({}));
+    expect(table.getAttribute("aria-busy")).toBe("false");
+  });
+});
+
+// @spec("STATE-05", "5fe71223")
+describe("STATE-05", () => {
+  it("with status ready and busy, keeps showing the 25 rows it was given", () => {
+    show({ status: "ready", busy: true, rows: manyRows(25) });
+    expect(firstCells()).toHaveLength(25);
+  });
+});
+
+// @spec("A11Y-05", "28e1349a")
+describe("A11Y-05", () => {
+  it.each<[DataTableStatus, boolean, number, string]>([
+    ["ready", false, 2, "2 rows displayed"],
+    ["ready", false, 0, "0 rows displayed"],
+    ["ready", true, 2, ""],
+    ["ready", true, 0, ""],
+    ["loading", false, 2, ""],
+    ["failed", false, 0, ""],
+  ])(
+    "with status %s, busy %s and %i rows, the live count says %j",
+    (status, busy, count, text) => {
+      const component = show({ status, busy, rows: manyRows(count) });
+      const live = liveCount(component);
+      expect(live).not.toBeNull();
+      expect(live?.textContent.trim()).toBe(text);
+    },
+  );
+});
+
+// @spec("A11Y-14", "5a9bec79")
+describe("A11Y-14", () => {
+  it("rerendered from ready to loading, shows the loading message in the status element that was there before", async () => {
+    const { rerender } = render(DataTable<Item>, state({}));
+    const status = screen.getByRole("status");
+    await rerender(state({ status: "loading" }));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent.trim()).toBe(LOADING);
+  });
+
+  it("rerendered from the alert to loading, shows the loading message in the status element that was there before", async () => {
+    const { rerender } = render(DataTable<Item>, state({ columns: [] }));
+    const status = screen.getByRole("status");
+    await rerender(state({ status: "loading" }));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent.trim()).toBe(LOADING);
+  });
+
+  it("mounted with status loading, the status element holds the loading message", () => {
+    show({ status: "loading" });
+    expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
+  });
+});
+
+// @spec("A11Y-15", "2588c0ed")
+describe("A11Y-15", () => {
+  it("rerendered from loading to failed, holds the failed message in the alert", async () => {
+    const { rerender } = render(DataTable<Item>, state({ status: "loading" }));
+    await rerender(state({ status: "failed" }));
+    expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+  });
+});
+
+// @spec("A11Y-22", "eb8dfc31")
+describe("A11Y-22", () => {
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
+    [
+      "failed, loading, failed",
+      [{ status: "failed" }, { status: "loading" }, { status: "failed" }],
+      [true, false, true],
+    ],
+    [
+      "failed, ready with two rows, loading, failed",
+      [
+        { status: "failed" },
+        { status: "ready", rows: twoRows },
+        { status: "loading" },
+        { status: "failed" },
+      ],
+      [true, false, false, true],
+    ],
+  ])(
+    "holds the failed message exactly while failed: %s",
+    async (_steps, steps, held) => {
+      const columns = [nameColumn, codeColumn];
+      const { container, rerender } = render(
+        DataTable<Item>,
+        state({ columns, ...steps[0] }),
+      );
+      for (const [index, step] of steps.entries()) {
+        if (index > 0) await rerender(state({ columns, ...step }));
+        // textContent includes hidden text, so a message only hidden still counts
+        if (held[index])
+          expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+        else expect(container.textContent).not.toContain(FAILED);
+      }
+    },
+  );
+});
+
+// The default texts of RND-05's alert, one per message key
+const ALERT_TEXTS = [
+  "Table caption must not be empty.",
+  "Table region label must not be empty.",
+  "Table has no columns.",
+  "A column id is empty.",
+  "Two columns share an id.",
+  "A column label is empty.",
+  "Two columns share a label.",
+  "A column has no value and no cell.",
+  "Table has no list of rows.",
+  "A row id is empty.",
+  "Two rows share an id.",
+  "A row id could not be read.",
+];
+
+// @spec("STATE-08", "afee0d46")
+describe("STATE-08", () => {
+  it.each<[DataTableStatus, unknown, string]>([
+    ["loading", undefined, LOADING],
+    ["loading", null, LOADING],
+    ["failed", undefined, FAILED],
+  ])(
+    "with status %s and rows %s, shows that state's message and not the alert",
+    (status, rows, text) => {
+      // A caller the type does not reach: a pending fetch passes no list yet
+      const component = show({
+        status,
+        rows: rows as Item[],
+        columns: [nameColumn, codeColumn],
+      });
+      expect(screen.getByText(text).isConnected).toBe(true);
+      for (const message of ALERT_TEXTS)
+        expect(component.textContent).not.toContain(message);
+    },
+  );
+});
+
+// @spec("RND-06", "5f1f48db")
+describe("RND-06", () => {
+  const foreign: DataTableMessages = {
+    loading: "Laden…",
+    failed: "Laden fehlgeschlagen.",
+    empty: "Keine Daten.",
+    rowCount: (count) => (count === 1 ? "1 Zeile" : `${count} Zeilen`),
+    captionEmpty: "F-captionEmpty",
+    regionLabelEmpty: "F-regionLabelEmpty",
+    noColumns: "F-noColumns",
+    columnIdEmpty: "F-columnIdEmpty",
+    columnIdDuplicate: "F-columnIdDuplicate",
+    columnLabelEmpty: "F-columnLabelEmpty",
+    columnLabelDuplicate: "F-columnLabelDuplicate",
+    columnContentMissing: "F-columnContentMissing",
+    rowsNotList: "F-rowsNotList",
+    rowIdEmpty: "F-rowIdEmpty",
+    rowIdDuplicate: "F-rowIdDuplicate",
+    rowIdUnreadable: "F-rowIdUnreadable",
+  };
+  const english = [
+    LOADING,
+    FAILED,
+    EMPTY,
+    "rows displayed",
+    "row displayed",
+    ...ALERT_TEXTS,
+  ];
+  const status = (): string => screen.getByRole("status").textContent;
+  const alert = (): string => screen.getByRole("alert").textContent;
+  const cell = (): string => screen.getByRole("cell").textContent;
+  const live = (): string => liveCount(document.body)?.textContent ?? "";
+
+  it.each<[string, Partial<DataTableProps<Item>>, () => string, string]>([
+    ["loading", { status: "loading" }, status, "Laden…"],
+    ["failed", { status: "failed" }, alert, "Laden fehlgeschlagen."],
+    ["empty", { rows: [] }, cell, "Keine Daten."],
+    ["rowCount, 2 rows", { rows: twoRows }, live, "2 Zeilen"],
+    ["rowCount, 1 row", {}, live, "1 Zeile"],
+    ...faults.map(
+      ([key, props]) =>
+        [key, props, alert, foreign[key]] as [
+          string,
+          Partial<DataTableProps<Item>>,
+          () => string,
+          string,
+        ],
+    ),
+  ])(
+    "shows the given %s word where its statement says, and no English default",
+    (_message, props, where, text) => {
+      show({ ...props, messages: foreign });
+      expect(where().trim()).toBe(text);
+      const page = [
+        document.body.textContent,
+        ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+          [...element.attributes].map((attribute) => attribute.value),
+        ),
+      ].join("\n");
+      for (const word of english) expect(page).not.toContain(word);
+    },
+  );
+
+  it.each<[string, Partial<DataTableProps<Item>>, () => string, string]>([
+    [
+      "noColumns",
+      { columns: [], messages: { noColumns: undefined } },
+      alert,
+      "Table has no columns.",
+    ],
+    [
+      "rowCount",
+      { messages: { rowCount: undefined } },
+      live,
+      "1 row displayed",
+    ],
+    [
+      "loading",
+      { status: "loading", messages: { loading: undefined } },
+      status,
+      LOADING,
+    ],
+  ])(
+    "keeps the English default of %s when its entry is given as undefined, as a lookup that misses gives it",
+    (_message, props, where, text) => {
+      show(props);
+      expect(where().trim()).toBe(text);
+    },
+  );
+});
+
+// @spec("RND-13", "fcf0e08a")
+describe("RND-13", () => {
+  it.each<[DataTableStatus, boolean, string[]]>([
+    ["loading", false, [LOADING]],
+    ["failed", false, [FAILED]],
+    ["ready", false, [EMPTY]],
+    ["ready", true, []],
+  ])(
+    "with columns [], status %s and busy %s, shows only the alert",
+    (status, busy, hidden) => {
+      const component = show({ columns: [], rows: [], status, busy });
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual(["Table has no columns."]);
+      for (const text of hidden)
+        expect(component.textContent).not.toContain(text);
+      // Both live elements stay in the document, empty, beside the alert
+      expect(liveCount(component)?.textContent.trim()).toBe("");
+      expect(screen.getByRole("status").textContent.trim()).toBe("");
+    },
+  );
+});
+
+// @spec("RND-14", "ca53efc4")
+describe("RND-14", () => {
+  it.each(fiveStates)(
+    "renders the heading before the region, or before the alert, in %s",
+    (_state, props) => {
+      showWithSnippets({ ...props, withHeading: true });
+      const heading = screen.getByRole("heading", { name: "Orders" });
+      const next = screen.queryByRole("region") ?? screen.getByRole("alert");
+      expect(
+        heading.compareDocumentPosition(next) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+});
+
+// @spec("EXP-01", "d8229d47")
+describe("EXP-01", () => {
+  it.each(fiveStates)(
+    "offers no export or download control of its own in %s",
+    (_state, props) => {
+      showWithSnippets({ ...props, withQuietActions: true });
+      for (const role of ["button", "link", "menuitem"] as const)
+        expect(
+          screen.queryAllByRole(role, { name: /export|download/i }),
+        ).toHaveLength(0);
+    },
+  );
+});
+
+// @spec("EXP-03", "510011e7")
+describe("EXP-03", () => {
+  it("starts no download during mount, every state and a pass of the focus through the table", async () => {
+    // A spy in place of Node's URL.createObjectURL, the one the simulated DOM uses
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:spy");
+    try {
+      const { container, rerender } = render(SnippetsTable, {
+        ...state({}),
+        withActions: true,
+      });
+      for (const [, props] of fiveStates) {
+        await rerender({ ...state(props), withActions: true });
+        expect(document.querySelector("a[download]")).toBeNull();
+      }
+      // No Tab key in the simulated DOM: each focusable element takes the focus in document order. A download
+      // started by a key press, or by an anchor added and removed within one step, is out of this test's sight.
+      for (const element of container.querySelectorAll<HTMLElement>(
+        "a[href], button, [tabindex]",
+      ))
+        element.focus();
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(document.querySelector("a[download]")).toBeNull();
+    } finally {
+      createObjectURL.mockRestore();
+    }
+  });
+});
+
+// @spec("RND-07", "881386e0")
+describe("RND-07", () => {
+  it("shows no sort button for the columns Name and Note, neither sortable", () => {
+    show({ columns: [nameColumn, noteColumn] });
+    expect(screen.queryAllByRole("button", { name: /^Sort by/ })).toHaveLength(
+      0,
+    );
+    for (const header of screen.getAllByRole("columnheader"))
+      expect(within(header).queryAllByRole("button")).toHaveLength(0);
+  });
+});
+
+// @spec("RND-11", "505ee36c")
+describe("RND-11", () => {
+  it("shows no filter button for the columns Name and Note, neither with a filter", () => {
+    show({ columns: [nameColumn, noteColumn] });
+    expect(screen.queryAllByRole("button", { name: /^Filter/ })).toHaveLength(
+      0,
+    );
+  });
+});
+
+// @spec("RND-12", "f3696064")
+describe("RND-12", () => {
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ...fiveStates,
+    ["status 'ready', busy", { busy: true }],
+  ])(
+    "shows no Reset table button with two plain columns in %s",
+    (_state, props) => {
+      show({ columns: [nameColumn, noteColumn], ...props });
+      expect(screen.queryByRole("button", { name: "Reset table" })).toBeNull();
+    },
+  );
+});
+
+// @spec("A11Y-04", "550c2ce1")
+describe("A11Y-04", () => {
+  it("has no grid role and no focusable row or cell, 25 rows with a link in a cell snippet", () => {
+    const { container } = render(CellSnippetTable, { rows: manyRows(25) });
+    expect(
+      container.querySelectorAll(
+        '[role="grid"], [role="treegrid"], [role="gridcell"]',
+      ),
+    ).toHaveLength(0);
+    expect(
+      container.querySelectorAll("tr[tabindex], th[tabindex], td[tabindex]"),
+    ).toHaveLength(0);
+    expect(screen.getAllByRole("link")).toHaveLength(25);
   });
 });
 

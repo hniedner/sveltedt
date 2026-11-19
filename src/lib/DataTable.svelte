@@ -1,5 +1,6 @@
 <script lang="ts" generics="Row">
-  import type { DataTableProps } from "./types.ts";
+  import { defaultMessages } from "./messages.ts";
+  import type { DataTableMessages, DataTableProps } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
   const {
@@ -8,21 +9,46 @@
     getRowId,
     caption,
     regionLabel,
+    status = "ready",
+    busy = false,
+    messages,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
+  // An entry given as undefined keeps its default, as a translation lookup that misses gives it
+  const words = $derived({
+    ...defaultMessages,
+    ...(Object.fromEntries(
+      Object.entries(messages ?? {}).filter(([, word]) => word !== undefined),
+    ) as Partial<DataTableMessages>),
+  });
   const fault = $derived(
-    validateTable({ rows, columns, getRowId, caption, regionLabel }),
+    validateTable({ rows, columns, getRowId, caption, regionLabel, status }),
+  );
+  // Counted only while the rows shown are the answer (A11Y-05)
+  const count = $derived(
+    fault === null && status === "ready" && !busy
+      ? words.rowCount(rows.length)
+      : "",
   );
 </script>
 
 {@render heading?.()}
 {@render actions?.()}
-{#if fault}
-  <div role="alert">{fault}</div>
+<!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
+     their text is announced -->
+<div role="status">
+  {fault === null && status === "loading" ? words.loading : ""}
+</div>
+<div class="sr-only" aria-live="polite">{count}</div>
+{#if fault !== null}
+  <div role="alert">{words[fault]}</div>
 {:else}
+  {#if status === "failed"}
+    <div role="alert">{words.failed}</div>
+  {/if}
   <div role="region" aria-label={regionLabel}>
-    <table>
+    <table aria-busy={busy || status === "loading"}>
       <caption>{caption}</caption>
       <thead
         class="bg-[var(--sdt-header-surface,ButtonFace)] text-[var(--sdt-header-text,ButtonText)]"
@@ -34,20 +60,22 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-[var(--sdt-border,GrayText)]">
-        {#each rows as row (getRowId(row))}
-          <tr>
-            {#each columns as column (column.id)}
-              <td
-                >{#if column.cell}{@render column.cell(
-                    row,
-                    column.id,
-                  )}{:else}{column.value?.(row)}{/if}</td
-              >
-            {/each}
-          </tr>
-        {:else}
-          <tr><td colspan={columns.length}>No records.</td></tr>
-        {/each}
+        {#if status === "ready"}
+          {#each rows as row (getRowId(row))}
+            <tr>
+              {#each columns as column (column.id)}
+                <td
+                  >{#if column.cell}{@render column.cell(
+                      row,
+                      column.id,
+                    )}{:else}{column.value?.(row)}{/if}</td
+                >
+              {/each}
+            </tr>
+          {:else}
+            <tr><td colspan={columns.length}>{words.empty}</td></tr>
+          {/each}
+        {/if}
       </tbody>
     </table>
   </div>

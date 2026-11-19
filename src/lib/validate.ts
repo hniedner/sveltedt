@@ -1,19 +1,10 @@
-import type { DataTableProps } from "./types.ts";
+import type { DataTableMessages, DataTableProps } from "./types.ts";
 
-// The fixed texts of the alert: none holds a value taken from the input (RND-09)
-const messages = {
-  captionEmpty: "Table caption must not be empty.",
-  regionLabelEmpty: "Table region label must not be empty.",
-  noColumns: "Table has no columns.",
-  columnIdEmpty: "A column id is empty.",
-  columnIdDuplicate: "Two columns share an id.",
-  columnLabelEmpty: "A column label is empty.",
-  columnLabelDuplicate: "Two columns share a label.",
-  columnContentMissing: "A column has no value and no cell.",
-  rowIdEmpty: "A row id is empty.",
-  rowIdDuplicate: "Two rows share an id.",
-  rowIdUnreadable: "A row id could not be read.",
-};
+// The message keys of RND-05's alert
+type Fault = Exclude<
+  keyof DataTableMessages,
+  "loading" | "failed" | "empty" | "rowCount"
+>;
 
 function firstDuplicate(values: readonly string[]): string | undefined {
   const seen = new Set<string>();
@@ -28,30 +19,36 @@ function firstDuplicate(values: readonly string[]): string | undefined {
 const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
-// The message of the first fault, in the order of RND-05's table, or null when the input is valid
+// No type guard on purpose: Array.isArray would widen a readonly array to any[]
+const isList = (value: unknown): boolean => Array.isArray(value);
+
+// The message key of the first fault, in the order of RND-05's table, or null when the input is valid. A key, not
+// the text: a caller's empty message must not make a fault look like none.
 export function validateTable<Row>(
   input: Pick<
     DataTableProps<Row>,
-    "rows" | "columns" | "getRowId" | "caption" | "regionLabel"
+    "rows" | "columns" | "getRowId" | "caption" | "regionLabel" | "status"
   >,
-): string | null {
-  const { rows, columns, getRowId, caption, regionLabel } = input;
-  if (isEmpty(caption)) return messages.captionEmpty;
-  if (isEmpty(regionLabel)) return messages.regionLabelEmpty;
-  if (columns.length === 0) return messages.noColumns;
-  if (columns.some((column) => isEmpty(column.id)))
-    return messages.columnIdEmpty;
+): Fault | null {
+  const { rows, columns, getRowId, caption, regionLabel, status } = input;
+  if (isEmpty(caption)) return "captionEmpty";
+  if (isEmpty(regionLabel)) return "regionLabelEmpty";
+  if (!isList(columns) || columns.length === 0) return "noColumns";
+  if (columns.some((column) => isEmpty(column.id))) return "columnIdEmpty";
   const duplicateId = firstDuplicate(columns.map((column) => column.id));
-  if (duplicateId !== undefined) return messages.columnIdDuplicate;
+  if (duplicateId !== undefined) return "columnIdDuplicate";
   if (columns.some((column) => isEmpty(column.label)))
-    return messages.columnLabelEmpty;
+    return "columnLabelEmpty";
   // Every label is a string here: isEmpty above refused the rest
   const duplicateLabel = firstDuplicate(
     columns.map((column) => column.label.trim()),
   );
-  if (duplicateLabel !== undefined) return messages.columnLabelDuplicate;
+  if (duplicateLabel !== undefined) return "columnLabelDuplicate";
   if (columns.some((column) => !column.value && !column.cell))
-    return messages.columnContentMissing;
+    return "columnContentMissing";
+  // With status loading or failed, rows that are not a list are no fault (STATE-08)
+  if (!isList(rows))
+    return status === "loading" || status === "failed" ? null : "rowsNotList";
   // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
   const rowIds: string[] = [];
   let unreadable = false;
@@ -66,8 +63,8 @@ export function validateTable<Row>(
       unreadable = true;
     }
   }
-  if (rowIds.some(isEmpty)) return messages.rowIdEmpty;
+  if (rowIds.some(isEmpty)) return "rowIdEmpty";
   const duplicateRowId = firstDuplicate(rowIds);
-  if (duplicateRowId !== undefined) return messages.rowIdDuplicate;
-  return unreadable ? messages.rowIdUnreadable : null;
+  if (duplicateRowId !== undefined) return "rowIdDuplicate";
+  return unreadable ? "rowIdUnreadable" : null;
 }
