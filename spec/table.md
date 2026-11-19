@@ -2591,7 +2591,9 @@ button, then its filter button, and a filter dialog's markup follows its own fil
 - Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
   filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape only after the `keydown` event has
   been dispatched through the document, unless it was cancelled (HTML, close requests, FETCHED 2026-11-19), so the
-  dialog and its filter button stop that event themselves.
+  dialog and its filter button stop that event themselves, and a press inside the open dialog must leave focus inside
+  it: WebKit does not focus a pressed button (MDN, FETCHED) and, INFERRED, a pressed checkbox, so focus would
+  otherwise fall to the body, where neither sees the key.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B19, PRD-B6, PRD-B7.
 
