@@ -333,6 +333,7 @@ function canary(): Result | null {
       `the planted skipped, marked test was not reported: ${why}`,
       tail(run.out),
     );
+  if (run.error) return bad(run.error);
   if (!run.report) return bad("vitest wrote no report");
   const { statements } = parseSpec(
     "canary.md",
@@ -362,14 +363,19 @@ export function baseSets(
     });
   if (git("cat-file", "-e", `${base}^{commit}`).status !== 0)
     return result(CANNOT, `the base commit ${base} cannot be read`);
-  const files = new Set(
-    git("ls-tree", "-r", "--name-only", "-z", base)
-      .stdout.split("\0")
-      .filter(Boolean),
-  );
-  const show = (f: string) => git("show", `${base}:${f}`).stdout;
+  const listing = git("ls-tree", "-r", "--name-only", "-z", base);
+  if (listing.status !== 0)
+    return result(CANNOT, `git cannot list the files of ${base}`);
+  const files = new Set(listing.stdout.split("\0").filter(Boolean));
+  // An unreadable file would read as an empty one, and a deleted test as no test: any failure is a could-not-check
+  let unreadable = "";
+  const show = (f: string) => {
+    const r = git("show", `${base}:${f}`);
+    if (r.status !== 0) unreadable = f;
+    return r.stdout;
+  };
   const src = traceSources(files);
-  return {
+  const sets = {
     held: new Set(
       [...files]
         .filter((f) => SPEC_FILE.test(f))
@@ -381,6 +387,9 @@ export function baseSets(
       ),
     ),
   };
+  return unreadable
+    ? result(CANNOT, `git cannot read ${unreadable} at ${base}`)
+    : sets;
 }
 
 /** The marked tests' results: the canary first, then the shared run judged against the markers. */
@@ -398,6 +407,13 @@ function judgeRun(
   if (run.error) return result(CANNOT, run.error);
   if (!run.report)
     return result(CANNOT, "vitest wrote no report", tail(run.out));
+  // As the test step: an error outside any test (unhandled) fails the run though the report counts no failed test
+  if (run.status !== 0 && run.report.numFailedTests === 0)
+    return result(
+      CANNOT,
+      `vitest exited ${run.status} though no test failed`,
+      tail(run.out),
+    );
   const ran = testsByFile(run.report, root);
   const dir = join(root, "reports", "trace");
   for (const f of new Set(read.map((m) => m.file)))
@@ -416,14 +432,19 @@ function deletedTests(
   root: string,
   hashes: Map<string, string | null>,
   named: Set<string>,
-): { findings: string[]; cannot: string[] } {
+): { findings: string[]; cannot: string[]; note?: string } {
   const base = baseCommit(root);
   if (isResult(base))
     return {
       findings: [],
       cannot: [`no base to compare with: ${base.summary}`],
     };
-  if (base.kind === "push" || !base.base) return { findings: [], cannot: [] };
+  if (base.kind === "push" || !base.base)
+    return {
+      findings: [],
+      cannot: [],
+      note: "base comparison skipped on a push to main: only the list is printed",
+    };
   const was = baseSets(root, base.base);
   if (isResult(was)) return { findings: [], cannot: [was.summary] };
   return {
@@ -522,6 +543,7 @@ function trace(root: string, list: Set<string>): Result {
         ...untested.map((id) => `  ${id}`),
       ]
     : [];
+  if (was.note) listed.push(was.note);
   if (findings.length)
     return result(FINDING, `${findings.length} problem(s)`, [
       ...findings,

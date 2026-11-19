@@ -759,6 +759,7 @@ test("trace: on a push to main only the list is printed, whatever the base held"
   const head = advance(root, { "src/a.test.ts": null });
   const out = expectTrace(root, 0, ci("push", base, head));
   assert.match(out, /not yet tested \(2\)/);
+  assert.match(out, /base comparison skipped on a push/);
 });
 
 test("trace: a file left in reports/ by an earlier run is gone after the run, and the run writes its results there", () => {
@@ -793,4 +794,31 @@ test("trace: a statement id defined twice is a finding naming both places", () =
 test("trace: a tracked file under spec/ that is not a top-level .md cannot be checked", () => {
   const out = expectTrace(fixture({ "spec/sub/b.md": "# x\n" }), 3);
   assert.match(out, /spec\/sub\/b\.md: under spec\/ but not a top-level \.md/);
+});
+
+test("trace: a base comparison that cannot be made is COULD NOT CHECK: no GATE_HEAD, no event, no origin/main", () => {
+  const base = "0123456789abcdef0123456789abcdef01234567";
+  expectTrace(fixture(), 3, ci("pull_request", base));
+  expectTrace(fixture(), 3, { GITHUB_ACTIONS: "true" });
+  const root = fixture();
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  expectTrace(root, 3);
+});
+test("trace: a base whose tree git cannot list is COULD NOT CHECK, not an empty base", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const tree = git(root, "rev-parse", "HEAD^{tree}").trim();
+  rmSync(join(root, ".git/objects", tree.slice(0, 2), tree.slice(2)));
+  const got = baseSets(root, git(root, "rev-parse", "HEAD").trim());
+  assert.ok(isResult(got) && got.code === 3);
+});
+test("trace: a run that exits non-zero with no failed test (an unhandled error) is COULD NOT CHECK", () => {
+  const late = `${mark("TST-01")}\ntest("p", () => {\n  void Promise.reject(new Error("late failure"));\n  expect(1).toBe(1);\n});\n`;
+  const out = expectTrace(fixture({ "src/a.test.ts": vitestFile(late) }), 3);
+  assert.match(out, /vitest exited 1 though no test failed/);
+});
+test("trace: a vitest that cannot be started is COULD NOT CHECK and says why", () => {
+  const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 3, {
+    VITEST_BIN: join(tempDir(), "no-vitest"),
+  });
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
 });
