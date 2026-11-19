@@ -1,6 +1,7 @@
 # Contributing to SvelteDT
 
-Thank you for your interest. The project is pre-release and holds no component code yet. Every change follows
+Thank you for your interest. The project is pre-release: the README's Status says what is built so far, and its
+section "See it running" starts the test site. Every change follows
 [the engineering method](docs/engineering/method.md); [the companion](docs/engineering/gates.md) says how each check
 works. This page is the short version.
 
