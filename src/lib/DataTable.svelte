@@ -1,6 +1,6 @@
 <script lang="ts" generics="Row">
   import { defaultMessages } from "./messages.ts";
-  import type { DataTableProps } from "./types.ts";
+  import type { DataTableMessages, DataTableProps } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
   const {
@@ -15,27 +15,35 @@
     heading,
     actions,
   }: DataTableProps<Row> = $props();
-  const words = $derived({ ...defaultMessages, ...messages });
+  // An entry given as undefined keeps its default, as a translation lookup that misses gives it
+  const words = $derived({
+    ...defaultMessages,
+    ...(Object.fromEntries(
+      Object.entries(messages ?? {}).filter(([, word]) => word !== undefined),
+    ) as Partial<DataTableMessages>),
+  });
   const fault = $derived(
-    validateTable(
-      { rows, columns, getRowId, caption, regionLabel, status },
-      words,
-    ),
+    validateTable({ rows, columns, getRowId, caption, regionLabel, status }),
   );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
-    status === "ready" && !busy ? words.rowCount(rows.length) : "",
+    fault === null && status === "ready" && !busy
+      ? words.rowCount(rows.length)
+      : "",
   );
 </script>
 
 {@render heading?.()}
 {@render actions?.()}
-{#if fault}
-  <div role="alert">{fault}</div>
+<!-- Both live elements stay in the document in every state, the alert's included, so a change of their text is
+     announced -->
+<div role="status">
+  {fault === null && status === "loading" ? words.loading : ""}
+</div>
+<div class="sr-only" aria-live="polite">{count}</div>
+{#if fault !== null}
+  <div role="alert">{words[fault]}</div>
 {:else}
-  <!-- Both live elements stay in the document in every state, so a change of their text is announced -->
-  <div role="status">{status === "loading" ? words.loading : ""}</div>
-  <div class="sr-only" aria-live="polite">{count}</div>
   {#if status === "failed"}
     <div role="alert">{words.failed}</div>
   {/if}

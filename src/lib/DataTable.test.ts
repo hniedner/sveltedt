@@ -101,9 +101,9 @@ function manyRows(count: number): Item[] {
   }));
 }
 
-// The live count: the element with an explicit polite aria-live (the status element's is implicit)
+// The live count, found as the spec's glossary says: the polite live region with no role
 function liveCount(component: HTMLElement): Element | null {
-  return component.querySelector('[aria-live="polite"]');
+  return component.querySelector('[aria-live="polite"]:not([role])');
 }
 
 const codeColumn: DataTableColumn<Item> = {
@@ -596,6 +596,12 @@ describe("RND-05", () => {
     expect(component.querySelector("table")).toBeNull();
   });
 
+  it("shows the alert, not the table, when the caller's text for the fault is empty", () => {
+    const component = show({ columns: [], messages: { noColumns: "" } });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(component.querySelector("table")).toBeNull();
+  });
+
   it("takes finite numbers as row ids: the table and no alert", () => {
     show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
@@ -791,6 +797,14 @@ describe("A11Y-14", () => {
     expect(status.textContent.trim()).toBe(LOADING);
   });
 
+  it("rerendered from the alert to loading, shows the loading message in the status element that was there before", async () => {
+    const { rerender } = render(DataTable<Item>, state({ columns: [] }));
+    const status = screen.getByRole("status");
+    await rerender(state({ status: "loading" }));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent.trim()).toBe(LOADING);
+  });
+
   it("mounted with status loading, the status element holds the loading message", () => {
     show({ status: "loading" });
     expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
@@ -943,6 +957,33 @@ describe("RND-06", () => {
       for (const word of english) expect(page).not.toContain(word);
     },
   );
+
+  it.each<[string, Partial<DataTableProps<Item>>, () => string, string]>([
+    [
+      "noColumns",
+      { columns: [], messages: { noColumns: undefined } },
+      alert,
+      "Table has no columns.",
+    ],
+    [
+      "rowCount",
+      { messages: { rowCount: undefined } },
+      live,
+      "1 row displayed",
+    ],
+    [
+      "loading",
+      { status: "loading", messages: { loading: undefined } },
+      status,
+      LOADING,
+    ],
+  ])(
+    "keeps the English default of %s when its entry is given as undefined, as a lookup that misses gives it",
+    (_message, props, where, text) => {
+      show(props);
+      expect(where().trim()).toBe(text);
+    },
+  );
 });
 
 // @spec("RND-13", "fcf0e08a")
@@ -961,7 +1002,9 @@ describe("RND-13", () => {
       ).toEqual(["Table has no columns."]);
       for (const text of hidden)
         expect(component.textContent).not.toContain(text);
-      expect(liveCount(component)?.textContent.trim() ?? "").toBe("");
+      // Both live elements stay in the document, empty, beside the alert
+      expect(liveCount(component)?.textContent.trim()).toBe("");
+      expect(screen.getByRole("status").textContent.trim()).toBe("");
     },
   );
 });
@@ -1008,9 +1051,12 @@ describe("EXP-03", () => {
         ...state({}),
         withActions: true,
       });
-      for (const [, props] of fiveStates)
+      for (const [, props] of fiveStates) {
         await rerender({ ...state(props), withActions: true });
-      // No Tab key here: each focusable element takes the focus in document order
+        expect(document.querySelector("a[download]")).toBeNull();
+      }
+      // No Tab key in the simulated DOM: each focusable element takes the focus in document order. A download
+      // started by a key press, or by an anchor added and removed within one step, is out of this test's sight.
       for (const element of container.querySelectorAll<HTMLElement>(
         "a[href], button, [tabindex]",
       ))
