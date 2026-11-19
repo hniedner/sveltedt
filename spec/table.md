@@ -1939,6 +1939,7 @@ current page.
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
   | 90 | 90 | `1 … 5 6 7 8 9` |
+  | 95 | 95 | `1 … 6 7 8 9 10` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -2005,6 +2006,7 @@ offsets on the page grid.
   |---|---|
   | `offset 0, total 95` (first of several pages) | First page, Previous page |
   | `offset 90, total 95` (last of several pages) | Next page, Last page |
+  | `offset 80, total 90` (last page, `total` a multiple of `limit`) | Next page, Last page |
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
