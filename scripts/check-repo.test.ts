@@ -3182,7 +3182,7 @@ test("commit-msg: no message file is a usage error that says so", () => {
 // a conventional one, git's own revert wording and a fixup.
 test("commit-msg: git runs the hook from .githooks and commits only what it passes", () => {
   const root = repo((r) => {
-    for (const f of ["check-repo.ts", "gate-step.ts", "pinned.ts"])
+    for (const f of ["check-repo.ts", "gate-step.ts", "pinned.ts", "trace.ts"])
       put(r, `scripts/${f}`, readFileSync(join(here, f)));
   });
   commit(root, "chore: add the runner");
