@@ -3325,6 +3325,12 @@ test("hooks: a hook that is not executable is a finding", () => {
   );
   assert.match(out, /\.githooks\/commit-msg: not executable/);
 });
+test("hooks: a hook that cannot be opened is COULD NOT CHECK, naming the reason", () => {
+  const root = repo();
+  chmodSync(join(root, ".githooks", "commit-msg"), 0o000);
+  const out = expect("hooks", root, 3);
+  assert.match(out, /\.githooks\/commit-msg cannot be opened: EACCES/);
+});
 test("hooks: a hook that is not the shim is a finding", () => {
   const out = expect(
     "hooks",

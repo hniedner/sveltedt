@@ -7,14 +7,16 @@
 import { createHash } from "node:crypto";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -2234,6 +2236,30 @@ function hooksPath(root: string): Result | string[] {
       ];
 }
 
+// What is wrong with one shim, or null; a Result when it cannot be opened for another reason. The file is opened
+// once and its mode and content are read from that one descriptor, so the two checks see the same file.
+function shimProblem(f: string, hook: string): string | Result | null {
+  let fd: number;
+  try {
+    fd = openSync(f, "r");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "missing";
+    return result(
+      CANNOT,
+      `.githooks/${hook} cannot be opened: ${code ?? String(e)}`,
+    );
+  }
+  try {
+    if (!(fstatSync(fd).mode & 0o100)) return "not executable";
+    return readFileSync(fd, "utf8") === shim(hook)
+      ? null
+      : "not the two-line shim";
+  } finally {
+    closeSync(fd);
+  }
+}
+
 // The shims are checked wherever the gate runs; core.hooksPath only in a clone (CI has no clone-local git config, and
 // an extra file in .githooks would run in any maintainer's clone that has set it up). The folder is read from the
 // tracked list: an untracked file in it (a Finder .DS_Store) is not part of the repository.
@@ -2246,12 +2272,9 @@ function hooks(root: string, list: Set<string>): Result {
     if (f.startsWith(".githooks/") && !HOOKS.includes(f.slice(10)))
       details.push(`${f}: not a known hook`);
   for (const h of HOOKS) {
-    const f = join(root, ".githooks", h);
-    if (!existsSync(f)) details.push(`.githooks/${h}: missing`);
-    else if (!(statSync(f).mode & 0o100))
-      details.push(`.githooks/${h}: not executable`);
-    else if (readFileSync(f, "utf8") !== shim(h))
-      details.push(`.githooks/${h}: not the two-line shim`);
+    const problem = shimProblem(join(root, ".githooks", h), h);
+    if (typeof problem === "string") details.push(`.githooks/${h}: ${problem}`);
+    else if (problem) return problem;
   }
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
