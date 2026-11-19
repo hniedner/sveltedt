@@ -1801,15 +1801,18 @@ function site(root: string, list: Set<string>): Result {
     : result(CANNOT, "the build left no HTML page in site/dist");
 }
 
-// POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom and Vite use
-// (docs/decisions/001), never by a regular expression, and as a browser with scripting on reads it.
-// Stated limits: a `javascript:` URL is looked for only in these attributes (WHATWG URL parsing, as a browser reads
-// it); every attribute whose name starts with `on` counts as an event handler; a `style` attribute is POL-04's.
+// POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom uses
+// (docs/decisions/001-quality-tooling.md), never by a regular expression, as a browser with scripting on reads it.
+// Stated limits: a `script` with any non-blank text counts, whatever its type; every attribute whose name starts with
+// `on` counts as an event handler; a `javascript:` URL is looked for only in URL_ATTRS (WHATWG URL parsing, as a
+// browser reads it); not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
+// `srcdoc` and a `meta` refresh. A `style` attribute is POL-04's, found in the browser.
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
 function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
   if ("tagName" in node) {
     if (node.tagName === "style") found.push("a style element");
-    if (node.tagName === "script" && node.childNodes.length)
+    const text = node.childNodes.some((c) => "value" in c && c.value.trim());
+    if (node.tagName === "script" && text)
       found.push("a script element with text");
     for (const { name, value } of node.attrs) {
       if (name.startsWith("on")) found.push(`the event handler ${name}`);
@@ -1820,7 +1823,10 @@ function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
   if ("childNodes" in node) for (const c of node.childNodes) inlineIn(c, found);
 }
 
-/** Every `.html` file under `folder` with what inline script or style it holds. */
+/**
+ * Every `.html` file under `folder`, clean ones included, with what inline script or style it holds; [] when the
+ * folder is missing. `inline` reads both: an empty list cannot be checked.
+ */
 function inlineScan(folder: string): { file: string; found: string[] }[] {
   if (!existsSync(folder)) return [];
   return readdirSync(folder, { recursive: true, withFileTypes: true })
@@ -1834,14 +1840,27 @@ function inlineScan(folder: string): { file: string; found: string[] }[] {
     });
 }
 
-// After the site step, which builds site/dist afresh. Each planted canary (one file per kind POL-03 lists) must be
-// found first.
+// The planted pages (scripts/canaries/inline/), one per kind POL-03 lists, each with the finding it must raise
+const INLINE_CANARIES: Record<string, string> = {
+  "script.html": "a script element with text",
+  "module.html": "a script element with text",
+  "importmap.html": "a script element with text",
+  "style.html": "a style element",
+  "handler.html": "the event handler onload",
+  "javascript-url.html": "a javascript: URL in href",
+};
+
+// After the site step, which builds site/dist afresh. Each planted canary must raise its own finding first.
 function inline(root: string, list: Set<string>): Result {
   if (!list.has(SITE_CONFIG))
     return result(NA, `no tracked ${SITE_CONFIG}: no site build to scan`);
-  const planted = inlineScan(canaries("inline"));
-  const missed = planted.filter((p) => !p.found.length).map((p) => p.file);
-  if (!planted.length || missed.length)
+  const planted = new Map(
+    inlineScan(canaries("inline")).map((p) => [p.file, p.found]),
+  );
+  const missed = Object.entries(INLINE_CANARIES)
+    .filter(([file, kind]) => !planted.get(file)?.includes(kind))
+    .map(([file, kind]) => `${file}: ${kind}`);
+  if (missed.length)
     return result(CANNOT, "the scan missed a planted canary", missed);
   const pages = inlineScan(join(root, "site", "dist"));
   if (!pages.length) return result(CANNOT, "no HTML file in site/dist to scan");

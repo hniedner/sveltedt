@@ -103,10 +103,12 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   copies; a deeper file there has no class. A build that fails is a finding; a
   build that leaves no HTML page in `site/dist` cannot be checked. Without a tracked `site/vite.config.ts` the step
   is NOT APPLICABLE.
-- **inline:** after the site step, parse5 reads every `.html` file in `site/dist`; an inline script (a `script`
-  element with text, an `on*` attribute, a `javascript:` URL in `href`, `src`, `action`, `formaction` or `data`) or a
-  `style` element is a finding (POL-03). Each planted page in `scripts/canaries/inline/` must be found first; no HTML
-  file in `site/dist` cannot be checked. A `style` attribute is left to the browser tests.
+- **inline:** after the site step, parse5 reads every `.html` file in `site/dist` and its folders; a `script`
+  element with non-blank text (any type), any attribute whose name starts with `on`, a `javascript:` URL in `href`,
+  `src`, `action`, `formaction` or `data`, or a `style` element is a finding (POL-03). Not read: a `template`'s
+  content, `noscript`, `iframe` `srcdoc`, a `meta` refresh; a `style` attribute is left to the browser tests. Each
+  planted page in `scripts/canaries/inline/` must first raise its own finding, or the step cannot be checked; so can
+  it not when `site/dist` holds no HTML file. Without a tracked `site/vite.config.ts` it is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`

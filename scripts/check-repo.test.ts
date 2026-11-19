@@ -3796,13 +3796,13 @@ test("inline: a planted canary the scan misses, or none planted, cannot be check
   const dir = tempDir();
   const clean = "<!doctype html><title>c</title><script src=/a.js></script>\n";
   const site = repo(builtPage(clean));
-  assert.match(
-    expect("inline", site, 3, { canaries: dir }),
-    /missed a planted canary/,
-  );
-  put(dir, "inline/clean.html", clean);
-  const out = expect("inline", site, 3, { canaries: dir });
-  assert.match(out, /^ {2}clean\.html$/m);
+  const none = expect("inline", site, 3, { canaries: dir });
+  assert.match(none, /missed a planted canary/);
+  assert.match(none, /^ {2}handler\.html: the event handler onload$/m);
+  // A canary that raises another kind than its own is missed too
+  put(dir, "inline/style.html", "<!doctype html><p onclick=x()>\n");
+  const other = expect("inline", site, 3, { canaries: dir });
+  assert.match(other, /^ {2}style\.html: a style element$/m);
 });
 test("inline: names each file and kind it finds", () => {
   const two =
@@ -3811,6 +3811,24 @@ test("inline: names each file and kind it finds", () => {
   assert.match(out, /^ {2}index\.html: a style element$/m);
   assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);
   assert.match(out, /in 2 place\(s\)/);
+});
+test("inline: looks for javascript: in each URL attribute it lists, in nested pages too", () => {
+  for (const [tag, attr] of [
+    ["img", "src"],
+    ["form", "action"],
+    ["button", "formaction"],
+    ["object", "data"],
+  ]) {
+    const page = (root: string) => {
+      put(root, "site/vite.config.ts", "export default {};\n");
+      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="javascript:x()">`);
+    };
+    const out = expect("inline", repo(page), 1);
+    assert.match(
+      out,
+      new RegExp(`^ {2}sub/page\\.html: a javascript: URL in ${attr}$`, "m"),
+    );
+  }
 });
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(
