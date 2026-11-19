@@ -2584,7 +2584,9 @@ button, then its filter button, and a filter dialog's markup follows its own fil
   |---|---|---|
   | in "Filter Name text", "Name filter" open | closes | 0 |
   | on "Filter Name" after Shift+Tab from "Filter Name text" (FILT-21), "Name filter" open | closes | 0 |
+  | after a mouse press on the checkbox "Inactive" in "Status filter", which stays open | closes | 0 |
   | on "Sort by Code", no dialog open | - | 1 |
+  | on "Filter Name", no dialog open | - | 1 |
 
 - Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
   filter dialog (PRD-B19's Escape rule). The browser closes a popover on Escape only after the `keydown` event has
