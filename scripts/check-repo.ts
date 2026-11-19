@@ -1768,7 +1768,7 @@ const viteBin = (): string =>
 const SITE_CONFIG = "site/vite.config.ts";
 
 // The site's build, before the test step: the HTTP and browser tests read the real build folder site/dist. A build
-// that fails is a finding; a build that leaves the folder missing or empty cannot be checked (nothing to test).
+// that fails is a finding; a build that leaves no HTML page in site/dist cannot be checked (nothing to test).
 function site(root: string, list: Set<string>): Result {
   if (!list.has(SITE_CONFIG))
     return result(NA, `no tracked ${SITE_CONFIG}: no site to build`);
