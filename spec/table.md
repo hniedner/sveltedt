@@ -233,7 +233,7 @@ its cells.
   |---|---|---|
   | `loading` | false | "Loading data…" |
   | `failed` | false | "The data could not be loaded." |
-  | `ready` | false | "No records." and any count text |
+  | `ready` | false | "No data." and any count text |
   | `ready` | true | any count text |
 
 - Reason: a state message beside the alert would describe a table that is not there, and two alerts compete for the
@@ -290,7 +290,7 @@ cells MUST be rendered by the same element as before.
   |---|---|---|
   | `loading` | "Loading data…" | STATE-01 |
   | `failed` | "The data could not be loaded." | STATE-02 |
-  | `empty` | "No records." | STATE-03 |
+  | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
 
@@ -325,20 +325,20 @@ cells MUST be rendered by the same element as before.
 ## 2. States (STATE)
 
 **STATE-01** With `status 'loading'`, the table MUST show the loading message and MUST NOT show the empty message.
-- Example: `status 'loading'`, `rows []`: "Loading data…" is shown and "No records." is not.
-- Reason: "no records" before the answer arrives is a false statement about the data.
+- Example: `status 'loading'`, `rows []`: "Loading data…" is shown and "No data." is not.
+- Reason: "no data" before the answer arrives is a false statement about the data.
 - Layer: component.
 - Traces: PRD-B15.
 
 **STATE-02** With `status 'failed'`, the table MUST show the failed message and MUST NOT show the empty message.
-- Example: `status 'failed'`, `rows []`: "The data could not be loaded." is shown and "No records." is not.
+- Example: `status 'failed'`, `rows []`: "The data could not be loaded." is shown and "No data." is not.
 - Reason: a failure is not an empty result, and the user must know to try again.
 - Layer: component.
 - Traces: PRD-B15.
 
 **STATE-03** With `status 'ready'` and no rows, the body MUST show the empty message in one cell that spans every
 shown column.
-- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No records."; the same with
+- Example: three columns, `rows []`: one body cell with `colspan="3"` holding "No data."; the same with
   `busy true` (a newer answer is on its way, and STATE-05 keeps what is shown). (The selection statements state
   that the selection column is counted too, in their own statement.)
 - Reason: a message squeezed into one column reads as a value in that column.
@@ -506,7 +506,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Traces: PRD-A4.
 
 **A11Y-15** The failed message MUST be inside an element with `role="alert"` (the failed notice).
-- Example: rerender from `status 'loading'` to `status 'failed'`: `getByRole('alert')` holds "The rows could not be
+- Example: rerender from `status 'loading'` to `status 'failed'`: `getByRole('alert')` holds "The data could not be
   loaded.".
 - Reason: a failure must be announced at once, not only when the user reaches the table.
 - Layer: component.
@@ -1612,15 +1612,15 @@ same page number.
 - Traces: PRD-B9.
 
 **PAGE-07** With a non-empty `sizes`, the pager MUST offer exactly those page sizes, in the given order, in a select
-named "entries per page", with `limit` selected.
-- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select whose accessible name is "entries per
+named "rows per page", with `limit` selected.
+- Example: `limit 25, sizes [10, 25, 50, 100, 250, 500, 1000]` gives one select whose accessible name is "rows per
   page", with those seven options in that order and 25 selected.
 - Reason: the allowed sizes are a server limit that the consumer knows and the component does not.
 - Layer: component.
 - Traces: PRD-B9.
 
 **PAGE-24** The page-size select's name MUST be text that is visible on the page.
-- Example: `limit 25, sizes [10, 25, 50]`: the element holding "entries per page" lies inside the viewport and inside
+- Example: `limit 25, sizes [10, 25, 50]`: the element holding "rows per page" lies inside the viewport and inside
   the pager's box, is at least as wide as its text, has neither `clip` nor `clip-path` set, and its text colour has an
   alpha above 0; that text is the select's accessible name. With `messages.sizeLabel` "Zeilen" the visible text and the
   name are both "Zeilen". A visually hidden label (clipped to 1 by 1 CSS px) or one moved off-screen fails.
@@ -1685,7 +1685,7 @@ new `limit` and offset.
   | `lastPage` | "Last page" | PAGE-01 |
   | `pageLabel` (a function of the page number) | "Page 6" for page 6 | PAGE-01, I18N-01 |
   | `pageNumber` (a function of the page number) | "6" for page 6 | PAGE-02, I18N-01 |
-  | `sizeLabel` | "entries per page" | PAGE-07, PAGE-24 |
+  | `sizeLabel` | "rows per page" | PAGE-07, PAGE-24 |
   | `sizeOption` (a function of the size) | "1,000" for 1000 | PAGE-07, I18N-01 |
   | each alert message of PAGE-16 | its default in PAGE-16 | PAGE-16 |
 
