@@ -33,8 +33,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   range and on a directory that is not a repo.
 - Bytes scanned must be greater than 0 when the commit list is not empty. The config file must exist.
 - Canary: a planted fake token in a temporary copy must be found.
-- Runs locally at pre-push and in CI. GitHub secret scanning, free on public repos *(fetched)*, is a second net, not
-  the gate.
+- Runs as the gate step right after the toolchain check, so that a change that fails a later check is still
+  scanned, locally and in CI; in pre-commit on the staged files; and at pre-push once that hook is built. GitHub
+  secret scanning, free on public repos *(fetched)*, is a second net, not the gate.
 
 ## G3. `scan-words` (local only)
 
