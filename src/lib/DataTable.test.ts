@@ -74,6 +74,8 @@ function showWithSnippets(
 const LOADING = "Loading data…";
 const EMPTY = "No data.";
 
+const FAILED = "The data could not be loaded.";
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -585,6 +587,15 @@ describe("STATE-01", () => {
   it("with status loading and no rows, shows the loading message and not the empty message", () => {
     show({ status: "loading", rows: [] });
     expect(screen.getByText(LOADING).isConnected).toBe(true);
+    expect(screen.queryByText(EMPTY)).toBeNull();
+  });
+});
+
+// @spec("STATE-02", "f207ffc8")
+describe("STATE-02", () => {
+  it("with status failed and no rows, shows the failed message and not the empty message", () => {
+    show({ status: "failed", rows: [] });
+    expect(screen.getByText(FAILED).isConnected).toBe(true);
     expect(screen.queryByText(EMPTY)).toBeNull();
   });
 });

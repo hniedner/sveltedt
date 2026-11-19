@@ -23,6 +23,9 @@
   <div role="alert">{fault}</div>
 {:else}
   <div role="status">{status === "loading" ? "Loading data…" : ""}</div>
+  {#if status === "failed"}
+    <div role="alert">The data could not be loaded.</div>
+  {/if}
   <div role="region" aria-label={regionLabel}>
     <table>
       <caption>{caption}</caption>
