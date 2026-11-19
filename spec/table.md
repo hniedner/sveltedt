@@ -3806,7 +3806,7 @@ says. The pattern is a disclosure button in a leading column of its own, as the 
 the accessible examples (Adrian Roselli's expandable rows, FETCHED); DataTables' row-details example uses an unnamed
 cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
 `{ id: 'r2', name: 'alpha' }`, `detailName: (r) => 'Details for ' + r.name`, a `detail` snippet holding the paragraph
-"More about <name>" and a link "Open <name>", and `onexpand` passed.
+"More about <name>" and a link "Open <name>", and `onexpand` passed. The columns are those of section 12.
 
 **CHILD-01** With `detail`, the table MUST show a leading column whose header cell holds the word `detailsColumn`
 ("Details") hidden visually, and whose body cells each hold one button named by `detailName(row)`.
