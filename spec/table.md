@@ -3148,13 +3148,14 @@ below list.
   | `columnState.hidden` is not a list | `columnStateInvalid` | "The column state is not valid." |
   | `hidden` names every given column | `columnStateInvalid` | "The column state is not valid." |
   | `columnState` is given and is not an object | `columnStateInvalid` | "The column state is not valid." |
+  | `columnState.order` is given and is not a list | `columnStateInvalid` | "The column state is not valid." |
 
   With several faults at once, the faults of RND-05, SORT-15 and FILT-32 win, in that order, then this table's. An id
   in `hidden` that names no given column, or a column named twice, is no fault: it hides nothing more, and a stored
   preference often outlives a release that removed a column.
 - Reason: a column state the table cannot show is a wrong table (PRD-B16).
 - Layer: component.
-- Traces: PRD-B16, PRD-B10.
+- Traces: PRD-B16, PRD-B10, PRD-B11.
 
 **COL-23** Every fixed word of the columns MUST come from a prop with an English default.
 - Examples (as RND-06, for the column words; the test runs every row in the set-up of its "Shown by" statement):
@@ -3202,7 +3203,8 @@ words and the column's label, and a press MUST emit `oncolumnstate` once with th
   | "Move later Name" | `{ hidden: [], order: ['code', 'name', 'date'] }` |
   | "Move earlier Date" | `{ hidden: [], order: ['name', 'date', 'code'] }` |
 
-  `order` in the emitted state lists every given column. The name of each button is its visible words followed by
+  `order` in the emitted state lists every given column once, in the order shown, and no other id: with `order`
+  `['gone', 'date']`, "Move later Date" emits `order: ['name', 'date', 'code']`. The name of each button is its visible words followed by
   the label, so the visible words stay in the name (WCAG 2.5.3).
 - Reason: the keyboard and single-pointer way to reorder (PRD-B11 (a), WCAG 2.5.7); one press is one change.
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3226,19 +3228,23 @@ on either MUST emit nothing and leave focus on it.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-A3.
 
-**COL-12** A move MUST be announced once in the status region, with the column's label and its new position among all
-given columns, once `columnState` shows it.
-- Examples (the test runs every row; the status region of A11Y-14; "added" counts as in the slow-load announcements
-  of section 3):
+**COL-12** A move MUST be announced once in the status region, with the column's label and its new position among
+all given columns, when the first `columnState` after the press shows that move, and at no other time.
+- Examples (the test runs every row; the status region of A11Y-14; "added" counts, as in the slow-load announcements
+  of section 3, the records that put in the words of the last column):
 
-  | Steps | Status region | Added |
+  | Steps | Status region holds | Added |
   |---|---|---|
   | press "Move later Name"; `columnState` becomes the emitted state | "Name moved to position 2 of 3" | 1 |
-  | press "Move later Name"; `columnState` stays as it was | no move announcement | 0 |
-  | press "Move later Name", the state follows; press "Move later Name", the state follows | "Name moved to position 3 of 3" | 2 |
+  | press "Move later Name"; `columnState` stays as it was | no move words | 0 |
+  | press "Move later Name", the state follows; press "Move later Name", the state follows | "Name moved to position 3 of 3", and not "position 2 of 3" | 1 |
+  | no press; the application sets `order` to `['code', 'name', 'date']` | no move words | 0 |
+  | `status 'loading'`, at 6000 ms press "Move later Name", the state follows | "Still loading" and "Name moved to position 2 of 3", each in its own element | 1 |
 
+  The move words sit in their own element of the status region, beside the words of A11Y-20 and A11Y-26, and replace
+  only the move words before them.
 - Reason: a screen-reader user hears the result of each move (PRD-A4: "each column move announced"); announcing
-  before the state follows would describe a move that the application may not make.
+  before the state follows, or on a change the user did not make, would describe a move that did not happen.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A4, PRD-B11.
 
@@ -3249,10 +3255,11 @@ given columns, once `columnState` shows it.
   |---|---|---|
   | `moveEarlier` | "Move earlier" | COL-08 |
   | `moveLater` | "Move later" | COL-08 |
-  | `columnMoved` (a function of `{ label, position, count }`) | "Name moved to position 2 of 3" | COL-12, I18N-01 |
+  | `columnMoved` (a function of `{ label, position, count }`) | "Name moved to position 2 of 3"; "Name moved to position 2 of 1,000" for a count of 1000 | COL-12 |
 
-  The numbers go through `columnMoved`, which receives them (I18N-01's rule); the test runs once more with a German
-  default locale, as I18N-01 does, with `count` 1000: "Name moved to position 2 of 1,000".
+  The numbers go through `columnMoved`, which receives them. The 1000 case runs once more in a browser context with
+  the locale `de-DE`: the test first asserts that `(1000).toLocaleString()` gives "1.000" there, and still expects
+  "1,000".
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I1, PRD-I2.
@@ -3482,7 +3489,7 @@ given columns, once `columnState` shows it.
 | FILT-23 | PRD-B8, PRD-B10 |
 | FILT-50 | PRD-B8, PRD-A3 |
 | FILT-51 | PRD-B8, PRD-B10 |
-| COL-25 | PRD-B16, PRD-B10 |
+| COL-25 | PRD-B16, PRD-B10, PRD-B11 |
 | COL-23 | PRD-I1 |
 | COL-09 | PRD-B11, PRD-B2 |
 | COL-08 | PRD-B11, PRD-B2, PRD-A1 |
@@ -3513,7 +3520,7 @@ state in their own statements.
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30 | in part: (a), the buttons; the grip statements state (b) |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25 | in part: (a), the buttons; the grip statements state (b) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -3529,7 +3536,7 @@ state in their own statements.
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12 | in full |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12 | in part: the grip statements state the drop's announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30 | in part: later groups state the numbers they show in their own statements |
