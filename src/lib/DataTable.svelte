@@ -106,7 +106,9 @@
                         event.shiftKey,
                       ),
                     )}>{column.label}</button
-                >
+                >{#if state.direction}<span aria-hidden="true"
+                    >{state.direction === "asc" ? "▲" : "▼"}</span
+                  >{/if}
               {:else}
                 {column.label}
               {/if}

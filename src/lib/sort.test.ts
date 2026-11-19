@@ -215,3 +215,37 @@ describe("SORT-09", () => {
     },
   );
 });
+// The hidden content of a header cell: the text, and every attribute except class and style of SVG elements, inside
+// its aria-hidden elements, without the rank of SORT-05
+function hiddenContent(header: Element, rank: string | null): string[] {
+  return [...header.querySelectorAll('[aria-hidden="true"]')].flatMap(
+    (element) => [
+      ...(element.textContent === rank ? [] : [element.textContent]),
+      ...[...element.querySelectorAll("svg, svg *")].flatMap((svg) =>
+        [...svg.attributes]
+          .filter(({ name }) => name !== "class" && name !== "style")
+          .map(({ name, value }) => `${name}=${value}`),
+      ),
+    ],
+  );
+}
+
+// @spec("SORT-13", "ee42c8ce")
+describe("SORT-13", () => {
+  it.each([
+    ["name asc", "name desc", null],
+    ["code asc, name desc", "code asc, name asc", "2"],
+  ])(
+    "Name's hidden content differs between [%s] and [%s]",
+    async (first, second, rank) => {
+      const { rerender } = mount({ sort: order(first) });
+      const header = (): Element => screen.getAllByRole("columnheader")[1];
+      const before = hiddenContent(header(), rank);
+      await rerender({ sort: order(second) });
+      const after = hiddenContent(header(), rank);
+      expect(before).not.toEqual([]);
+      expect(after).not.toEqual([]);
+      expect(after).not.toEqual(before);
+    },
+  );
+});
