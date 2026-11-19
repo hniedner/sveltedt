@@ -4576,6 +4576,7 @@ pointer.
   | Declaration | Result |
   |---|---|
   | `.sdt { --sdt-cell-padding-block: 0.25rem }` | finding |
+  | `@property --sdt-x { syntax: '*'; inherits: true; initial-value: 1px }` | finding |
   | `.sdt-compact td { padding-block: var(--sdt-compact-cell-padding-block, 0.25rem) }` | passes |
 
 - Reason: the tokens are the application's (PRD-T1); a value the package defined would hide a missing token and break

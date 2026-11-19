@@ -404,13 +404,13 @@ table.
 
 **VIEW-03** A `tokens` value other than `light`, `dark` or `none` MUST make the list page show "Unknown tokens value:
 " followed by the value, and no table.
-- Examples (the test runs every row):
+- Examples (the test runs every row; the text is compared after trimming):
 
   | URL | The page shows |
   |---|---|
   | `/?tokens=sepia` | "Unknown tokens value: sepia", and no `table` element |
   | `/?tokens=Dark` | "Unknown tokens value: Dark", and no `table` element (values are case-sensitive) |
-  | `/?tokens=` | "Unknown tokens value: ", and no `table` element |
+  | `/?tokens=` | "Unknown tokens value:", and no `table` element |
   | `/?tokens=sepia&density=dense` | "Unknown tokens value: sepia", and no `table` element (no table, so no alert) |
 
 - Reason: a mistyped view that fell back to the light set would let a dark-view test pass without checking (PRD rule
@@ -420,8 +420,8 @@ table.
 
 **VIEW-04** Each URL in the examples of VIEW-01 to VIEW-03 MUST raise no policy violation.
 - Example: as POL-04, in its order of reads (the policy header, the listener present, the page loaded, the table
-  rendered, then the listener's list), for each such URL; for the pages of VIEW-03, "the table rendered" is "the
-  unknown-value text shown". The list is empty for each.
+  rendered, then the listener's list), for each such URL; "the table rendered" is, as the URL's row says, a table,
+  the alert of THEME-38 (the alert rows of VIEW-02) or the unknown-value text (VIEW-03). The list is empty for each.
 - Reason: the views switch tokens and props without inline styles or scripts (PRD-W4, PRD-S1).
 - Layer: real browser.
 - Traces: PRD-W7, PRD-S1, PRD-W4.
