@@ -173,7 +173,8 @@ $0 budget, no self-hosted runners.
     with coverage; `diff-coverage` (G4) on pull requests.
   - `browser`: real-browser component tests and journey tests, one job running Playwright's three projects `chromium`,
     `firefox` and `webkit`. The gate's `browser` step requires every spec in each engine and names the engine of each
-    failure, so one engine's failure does not hide another's *(measured: the step's own test rows)*. The job installs
+    failure, so one engine's failure does not hide another's *(measured: the browser rows of scripts/check-repo.test.ts)*.
+    The `static` job leaves the step to this job through `GATE_BROWSER`, which the gate-needs step allows only there. The job installs
     the three engines with `playwright install --with-deps`; browsers are not cached, as Playwright advises
     *(fetched, playwright-ci)*.
   - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI

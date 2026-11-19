@@ -183,11 +183,13 @@ function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
   if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
   // The step's own command line, as `run:` or in a `run: |` block; nothing may let the job pass without it
   const runs = job?.some((l) =>
-    /^\s*(- run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
+    /^\s*(-\s+)?(run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
   );
   if ([...jobs.values()].some(sets) && !runs)
     found.push("GATE_BROWSER is set but no job named browser runs the step");
-  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+  // continue-on-error anywhere; `if:` at job level only (a step's own `if:`, an upload on failure, is normal; one on the
+  // step that runs the command is a stated limit)
+  if (job?.some((l) => /^ {4}if\s*:|^\s+(-\s+)?continue-on-error\s*:/.test(l)))
     found.push(
       "the job browser has continue-on-error or if: it may pass without the step",
     );
