@@ -5,6 +5,8 @@ import type { Snippet } from "svelte";
 export type DataTableColumn<Row> = {
   readonly id: string;
   readonly label: string;
+  // The directions a press steps through, ascending before descending; absent: the column is not sortable
+  readonly sortable?: readonly SortDirection[];
 } & (
   | {
       readonly value: (row: Row) => string;
@@ -16,7 +18,16 @@ export type DataTableColumn<Row> = {
     }
 );
 
-// Every fixed word of the table (RND-06): the state messages, the live count and the alert texts of RND-05
+export type SortDirection = "asc" | "desc";
+
+// One entry of the order, the lead first
+export interface DataTableSortEntry {
+  readonly id: string;
+  readonly desc: boolean;
+}
+
+// Every fixed word of the table (RND-06, SORT-17): the state messages, the live count, the sort words and the alert
+// texts of RND-05 and SORT-15
 export interface DataTableMessages {
   readonly loading: string;
   readonly failed: string;
@@ -34,6 +45,19 @@ export interface DataTableMessages {
   readonly rowIdEmpty: string;
   readonly rowIdDuplicate: string;
   readonly rowIdUnreadable: string;
+  readonly sortBy: (label: string) => string;
+  readonly sortRank: (rank: number) => string;
+  // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
+  readonly sortDescription: (state: {
+    direction: SortDirection | null;
+    rank: number | null;
+  }) => string;
+  readonly sortableInvalid: string;
+  readonly sortHandlerMissing: string;
+  readonly sortColumnUnknown: string;
+  readonly sortColumnNotSortable: string;
+  readonly sortDirectionNotAllowed: string;
+  readonly sortColumnDuplicate: string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)
@@ -52,6 +76,10 @@ export interface DataTableProps<Row> {
   busy?: boolean;
   // Replaces any of the English defaults
   messages?: Partial<DataTableMessages>;
+  // The order the server applied, the lead first; the table shows it and never reorders the rows
+  sort?: readonly DataTableSortEntry[];
+  // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
+  onsort?: (next: DataTableSortEntry[]) => void;
   heading?: Snippet;
   actions?: Snippet;
 }
