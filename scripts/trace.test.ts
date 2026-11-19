@@ -87,6 +87,30 @@ test("trace: a statement without a Reason line is a problem naming it, and does 
     sha8("**TST-02** Next MUST work. - Layer: unit."),
   );
 });
+test("trace: a heading-like line inside a code fence does not end the statement, and a changed fence changes the hash", () => {
+  const fenced = (code: string) =>
+    spec({ example: `\`\`\`\n# ${code}\n\`\`\`` });
+  assert.deepEqual(parseSpec("spec/a.md", fenced("one")).problems, []);
+  assert.notEqual(hashOf(fenced("one")), hashOf(fenced("two")));
+});
+test("trace: an unclosed code fence is a problem", () => {
+  const r = parseSpec("spec/a.md", spec({ example: "```\n# code" }));
+  assert.match(r.problems.join("\n"), /spec\/a\.md:\d+: unclosed code fence/);
+});
+test("trace: a line shaped like a statement id that the reader does not take is a problem", () => {
+  const r = parseSpec(
+    "spec/a.md",
+    `${spec()}\n**tst-02** Lower case MUST NOT pass.\n`,
+  );
+  assert.match(
+    r.problems.join("\n"),
+    /spec\/a\.md:\d+: .*looks like a statement id/,
+  );
+});
+test("trace: a spec file with no statement is a problem", () => {
+  const r = parseSpec("spec/a.md", "# Nothing here\n");
+  assert.match(r.problems.join("\n"), /spec\/a\.md: no statement/);
+});
 test("trace: a statement without a Layer line is a problem naming it", () => {
   const r = parseSpec("spec/a.md", spec({ layer: "" }));
   assert.match(
@@ -704,14 +728,21 @@ test("trace: on a pull request a statement untested at both commits exits 0 and 
   const out = expectTrace(root, 0, ci("pull_request", base, head));
   assert.match(out, /not yet tested \(2\):\n {4}TST-01\n {4}TST-02/);
 });
-test("trace: a spec and test file new in the pull request count as untested at the base: no finding", () => {
-  const root = fixture({ "spec/a.md": "# Empty\n" });
+test("trace: a spec and test file new in the pull request count as untested at the base; a test deleted beside them is still found", () => {
+  const added = SPEC_TEXT.replaceAll("TST-0", "TST-1");
+  const hash = parseSpec("spec/b.md", added).statements[0].hash!;
+  const root = fixture({ "src/b.test.ts": ONE("TST-02") });
   const base = git(root, "rev-parse", "HEAD").trim();
   const head = advance(root, {
-    "spec/b.md": SPEC_TEXT,
-    "src/a.test.ts": ONE(),
+    "src/b.test.ts": null,
+    "spec/b.md": added,
+    "src/a.test.ts": vitestFile(
+      `${mark("TST-11", hash)}\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`,
+    ),
   });
-  expectTrace(root, 0, ci("pull_request", base, head));
+  const out = expectTrace(root, 1, ci("pull_request", base, head));
+  assert.match(out, /TST-02: tested at the base/);
+  assert.doesNotMatch(out, /TST-11: /);
 });
 test("trace: a base commit that git cannot read cannot be checked", () => {
   const got = baseSets(fixture(), "0123456789abcdef0123456789abcdef01234567");
@@ -753,4 +784,13 @@ test("trace: a test file under scripts/ that neither the node:test step nor Vite
     1,
   );
   assert.match(out, /scripts\/deep\/x\.test\.ts: run by no step/);
+});
+
+test("trace: a statement id defined twice is a finding naming both places", () => {
+  const out = expectTrace(fixture({ "spec/b.md": SPEC_TEXT }), 1);
+  assert.match(out, /spec\/b\.md:3: TST-01: also defined at spec\/a\.md:3/);
+});
+test("trace: a tracked file under spec/ that is not a top-level .md cannot be checked", () => {
+  const out = expectTrace(fixture({ "spec/sub/b.md": "# x\n" }), 3);
+  assert.match(out, /spec\/sub\/b\.md: under spec\/ but not a top-level \.md/);
 });

@@ -31,6 +31,9 @@ export interface Statement {
 }
 
 const STATEMENT = /^\*\*([A-Z][A-Z0-9]*-\d+)\*\*/;
+/** A line that looks like a statement's id but is not one the reader takes (a typo would hide the statement). */
+const LOOSE = /^\*\*\s*[A-Za-z][A-Za-z0-9]*\s*-\s*[A-Za-z0-9]+\s*\*\*/;
+const FENCE = /^\s*(?:```|~~~)/;
 
 /** The first 8 hex of the sha256 of `text` with every run of white space collapsed to one space (G6). */
 const hashOf = (text: string): string =>
@@ -51,14 +54,28 @@ export function parseSpec(
   const lines = text.split("\n");
   const statements: Statement[] = [];
   const problems: string[] = [];
+  // Inside a code fence nothing is an id or a heading; a fence left open would swallow the rest, so it is a problem
+  let open = -1;
+  const fenced = lines.map((l, i) => {
+    const edge = FENCE.test(l);
+    if (edge) open = open < 0 ? i : -1;
+    return edge || open >= 0;
+  });
+  if (open >= 0) problems.push(`${file}:${open + 1}: unclosed code fence`);
   for (let i = 0; i < lines.length; i++) {
+    if (fenced[i]) continue;
     const id = STATEMENT.exec(lines[i])?.[1];
-    if (!id) continue;
+    if (!id) {
+      if (LOOSE.test(lines[i]))
+        problems.push(
+          `${file}:${i + 1}: looks like a statement id, which is **ABC-01**`,
+        );
+      continue;
+    }
     let end = i + 1;
     while (
       end < lines.length &&
-      !STATEMENT.test(lines[end]) &&
-      !/^#/.test(lines[end])
+      (fenced[end] || (!STATEMENT.test(lines[end]) && !/^#/.test(lines[end])))
     )
       end++;
     const block = lines.slice(i, end);
@@ -79,6 +96,7 @@ export function parseSpec(
           : hashOf(`${block.slice(0, reason).join("\n")}\n${block[layer]}`),
     });
   }
+  if (!statements.length) problems.push(`${file}: no statement found`);
   return { statements, problems };
 }
 
@@ -354,7 +372,7 @@ export function baseSets(
   return {
     held: new Set(
       [...files]
-        .filter((f) => /^spec\/[^/]+\.md$/.test(f))
+        .filter((f) => SPEC_FILE.test(f))
         .flatMap((f) => parseSpec(f, show(f)).statements.map((s) => s.id)),
     ),
     named: new Set(
@@ -417,8 +435,10 @@ function deletedTests(
   };
 }
 
+const SPEC_FILE = /^spec\/[^/]+\.md$/;
+
 function trace(root: string, list: Set<string>): Result {
-  const specFiles = [...list].filter((f) => /^spec\/[^/]+\.md$/.test(f)).sort();
+  const specFiles = [...list].filter((f) => SPEC_FILE.test(f)).sort();
   const statements: Statement[] = [];
   const findings: string[] = [];
   const cannot: string[] = [];
@@ -427,6 +447,21 @@ function trace(root: string, list: Set<string>): Result {
     statements.push(...r.statements);
     findings.push(...r.problems);
   }
+  const first = new Map<string, Statement>();
+  for (const s of statements) {
+    const was = first.get(s.id);
+    if (was)
+      findings.push(
+        `${s.file}:${s.line}: ${s.id}: also defined at ${was.file}:${was.line}`,
+      );
+    else first.set(s.id, s);
+  }
+  // Anything else under spec/ may hold statements the step does not read: never skipped
+  cannot.push(
+    ...[...list]
+      .filter((f) => f.startsWith("spec/") && !SPEC_FILE.test(f))
+      .map((f) => `${f}: under spec/ but not a top-level .md file`),
+  );
   const src = traceSources(list);
   // The node:test step runs scripts/*.test.{mjs,ts} and Vitest runs no path under scripts/: any other test file
   // there would never run. Fresh folder first: this run's reports only (a spec-less repository still resets it).
