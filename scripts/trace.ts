@@ -1,4 +1,5 @@
-// The trace step (G6): which spec statements have a passing test.
+// The trace step (G6): reads the spec statements, the @spec markers in the tests and the shared test run's results,
+// and says which statements have a passing test, which fail the check, and which no marker names (listed, exit 0).
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -28,7 +29,8 @@ const STATEMENT = /^\*\*([A-Z][A-Z0-9]*-\d+)\*\*/;
 /**
  * A line that looks like a statement's id but is not one the reader takes (a typo would hide the statement): bold, a
  * word, a hyphen and a digit, with at most stray punctuation inside the bold. Stated limits, not handled: an id in
- * underscores (`__X-05__`), in a blockquote, a list item or indented, a three-part id, an orphan `- Reason:` line.
+ * underscores (`__X-05__`), in a blockquote, a list item or indented, a three-part id, extra words inside the bold, an
+ * orphan `- Reason:` line.
  */
 const LOOSE =
   /^\*\*\s*[A-Za-z][A-Za-z0-9]*\s*-\s*\d[A-Za-z0-9]*\s*[:.,;!]?\s*\*\*/;
@@ -104,27 +106,25 @@ export interface Marker {
   hash: string;
   file: string;
   line: number; // of the marker comment
-  from: number; // first and last line of the statement it names
+  from: number; // first and last line of the code statement it leads
   to: number;
-  modifiers: string[]; // `.only`, `.skip`, `.todo`, `.fails` or `{ skip: true }` under the statement
+  modifiers: string[]; // `.only`, `.skip`, `.todo`, `.fails`, or an options object with one of those names set to `true` or a string
 }
 
 const MARKER = /^\/\/ @spec\("([^"]+)", "([0-9a-f]{8})"\)\s*$/;
 const MODIFIERS = new Set(["only", "skip", "todo", "fails"]);
-// Stated limit: markers are read only in the test sources traceSources picks (.test. and .spec. .js/.ts/.mjs/.cjs/.mts/.cts);
-// a marker in a helper, a .tsx or a .svelte file is not seen.
 /**
  * The test runner's entry points: a modifier counts only on a call chain rooted at one of these, never in test data.
- * Stated limit: a chain rooted elsewhere (the result of `it.extend`, an alias) is not seen; the results still show a skip.
+ * Stated limit: a chain rooted elsewhere (the result of `it.extend`, an alias) is not seen; the results still show a skip or todo, not a `.fails` or `.only`.
  */
 const ROOTS = new Set(["test", "it", "describe", "suite"]);
-/** Anything that looks like a marker, whatever its case or spacing: it must be one, in the one position, or it is a problem. */
+/** Any comment that mentions `@spec` (any case, any spacing, even inside a longer word) must be a marker in the one position, or it is a problem. */
 const SPEC_LIKE = /@\s*spec/i;
 
 /**
- * The `// @spec("ID", "hash")` markers of one test source, each attached to the statement after it in the same block
- * (TypeScript's parser finds the comments, so marker text inside a string is not read). A marker with no statement
- * after it names nothing, and a comment that mentions `@spec(` without being a marker is a mistake: both are problems.
+ * The `// @spec("ID", "hash")` markers of one test source, each attached to the code statement it leads in the same
+ * block (TypeScript's scanner finds the comments, so marker text inside a string is not read). A marker that leads no
+ * statement names nothing, and a comment that mentions `@spec` without being a marker is a mistake: both are problems.
  */
 export function readMarkers(
   file: string,
@@ -172,7 +172,7 @@ export function readMarkers(
     return [...found];
   };
   // A marker is a leading comment of its statement as TypeScript defines one; no adjacency is required.
-  /** The marker comments in the trivia at `pos`, each with `stmt` (the statement they lead) or none. */
+  /** The marker comments in the trivia at `pos`, each with `stmt` (the code statement they lead) or none. */
   const comments = (pos: number, stmt?: import("typescript").Statement) => {
     let named = false; // a statement has one marker
     for (const c of ts.getLeadingCommentRanges(text, pos) ?? []) {
@@ -216,7 +216,7 @@ export function readMarkers(
     ts.forEachChild(node, visit);
   };
   visit(sf);
-  // Fail closed: one marker position (directly above a statement); a comment like a marker anywhere else is a finding.
+  // Fail closed: one marker position (a leading comment of its statement); a comment like a marker anywhere else is a finding.
   // Every comment comes from the scanner, as the leading or trailing trivia of some token: strings and regexes are
   // never mistaken for comments, whatever they hold.
   const all = new Map<number, number>();
@@ -232,20 +232,22 @@ export function readMarkers(
   for (const [pos, end] of all)
     if (SPEC_LIKE.test(text.slice(pos, end)) && !read.has(pos))
       problems.push(
-        `${file}:${lineOf(pos)}: a @spec comment outside the one recognised position (directly above a test statement)`,
+        `${file}:${lineOf(pos)}: a @spec comment outside the one recognised position (a leading comment of its statement as TypeScript defines one; no adjacency is required)`,
       );
   return { markers, problems };
 }
 
 /** A test source: `.test.` or `.spec.` JavaScript or TypeScript. */
 const TEST_SOURCE = /\.(?:test|spec)\.[cm]?[jt]s$/;
-/** The folders whose tests Vitest runs and the trace reads results of. */
+/** The folders the gate expects Vitest to run; a test file there that the run misses is reported, not assumed. */
 const COVERED = /^(?:src|site|test)\//;
 
 /**
  * The tracked test sources, sorted by what the trace does with them: `read` (results are read), `scripts` (the gate's
- * own node:test files, whose markers are read but whose results are not yet) and `stray` (outside the covered folders
- * and scripts/: the trace cannot say it ran them). Canary fixtures are inputs, never tests, and appear nowhere.
+ * own node:test files, whose markers are read but whose results this step does not read) and `stray` (outside the
+ * covered folders and scripts/: the trace cannot say it ran them; their markers are not read). Canary fixtures are
+ * inputs, never tests, and appear nowhere. Stated limit: a marker in a stray test file, a helper, a .tsx or a .svelte
+ * file is not seen (the TEST_SOURCE pattern below is all the step reads).
  */
 export function traceSources(list: Set<string>): {
   read: string[];
@@ -262,7 +264,10 @@ export function traceSources(list: Set<string>): {
   };
 }
 
-/** The markers that name no statement of the specs, or that name one whose text has changed since the test was written. */
+/**
+ * A problem line for each marker that names no spec statement, or whose hash is not the statement's (its text changed
+ * since the test was written). A statement with no hash is already a spec problem and is left out here.
+ */
 export function judgeMarkers(
   markers: Marker[],
   statements: Statement[],
@@ -287,9 +292,9 @@ export interface Ran {
 
 /**
  * What the results say about each marker: a test counts for a marker when it ran in the marker's file on a line inside
- * the statement the marker names (the JSON's `location` is the test's own line). A marked statement with a modifier,
+ * the code statement the marker leads (the JSON's `location` is the test's own line). A marked statement with a modifier,
  * a failed or skipped test, or no test at all in a file that ran is a finding; a file that did not run at all cannot
- * be checked. `ok` is the markers none of which went wrong. Limit: a test that a helper defines (the call is not under
+ * be checked. `ok` is each marker whose tests all passed. Limit: a test that a helper defines (the call is not under
  * the marked statement) has no line there, so such a marker reports "no test ran": loud, never a silent pass.
  */
 export function judgeResults(
@@ -391,8 +396,10 @@ function duplicateIds(statements: Statement[]): string[] {
   return found;
 }
 
+/** A spec file the step reads: top level of spec/, Markdown. */
 const SPEC_FILE = /^spec\/[^/]+\.md$/;
 
+/** The step: spec statements and markers read, results judged, untested statements listed. */
 function trace(root: string, list: Set<string>): Result {
   const specFiles = [...list].filter((f) => SPEC_FILE.test(f)).sort();
   const statements: Statement[] = [];
@@ -433,7 +440,8 @@ function trace(root: string, list: Set<string>): Result {
   const scripts = markers.filter((m) => src.scripts.includes(m.file));
   cannot.push(
     ...scripts.map(
-      (m) => `${m.file}:${m.line}: ${m.id}: node:test results are not read yet`,
+      (m) =>
+        `${m.file}:${m.line}: ${m.id}: node:test results are not read by this step`,
     ),
   );
   const read = markers.filter((m) => src.read.includes(m.file));
@@ -453,7 +461,8 @@ function trace(root: string, list: Set<string>): Result {
     if (run.error) return result(CANNOT, run.error);
     if (!run.report)
       return result(CANNOT, "vitest wrote no report", tail(run.out));
-    // As the test step: an error outside any test (unhandled) fails the run though the report counts no failed test
+    // Same detection as the test step, but a trace that cannot trust the run says COULD NOT CHECK: an error outside any
+    // test (unhandled) fails the run though the report counts no failed test
     if (run.status !== 0 && run.report.numFailedTests === 0)
       return result(
         CANNOT,
@@ -491,7 +500,7 @@ function trace(root: string, list: Set<string>): Result {
     ]);
   return result(
     PASS,
-    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} result(s) read; ${tested.size} tested`,
+    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} test(s) ran; ${tested.size} of ${statements.length} statements tested`,
     listed,
   );
 }

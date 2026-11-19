@@ -173,7 +173,7 @@ export function commitRange(root: string): Result | { range: string } {
 let shared: { root: string; run: Result | VitestRun } | undefined;
 
 /**
- * The one Vitest run of the whole gate process, shared by `test` and `trace`: the first caller starts it, the next
+ * The Vitest run of the gate process (one per root; the last root is kept), shared by `test` and `trace`: the first caller starts it, the next
  * gets the same answer. Flags win over the config (measured): unhandled errors fail the run, a test without an
  * assertion fails, the tests run rather than only being type-checked, a snapshot with nothing stored fails instead of
  * being written (outside CI vitest writes it and passes), and every test carries its own line for the trace.

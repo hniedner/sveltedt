@@ -158,7 +158,7 @@ test("trace: marker text inside a string is not a marker", () => {
   const source = `const fixture = \`\n${MARK}\nit("a", () => {});\n\`;\n`;
   assert.deepEqual(markers(source), { markers: [], problems: [] });
 });
-test("trace: a comment that mentions @spec( and is not a marker is a problem", () => {
+test("trace: a comment that mentions @spec and is not a marker is a problem", () => {
   const r = markers('// @spec("TST-01")\nit("a", () => {});\n');
   assert.match(
     r.problems.join("\n"),
@@ -238,10 +238,10 @@ for (const [name, body, modifier] of [
     assert.deepEqual(m.modifiers, [modifier]);
   });
 }
-test("trace: a skip or only in test data, and { skip: false }, carry no modifier; a skip reason does", () => {
+test("trace: a skip or only in test data or in a non-runner call carries no modifier; a skip reason and an options argument on it.each do", () => {
   const data = `${MARK}\ndescribe("x", () => {\n  const row = { skip: 20, todo: "t" };\n  it("a", () => {\n    expect(row.only).toBe(1);\n  });\n});\n`;
   assert.deepEqual(markers(data).markers[0].modifiers, []);
-  const call = `${MARK}\ndescribe("x", () => {\n  load({ skip: 20 });\n  load({ skip: true });\n});\n`;
+  const call = `${MARK}\ndescribe("x", () => {\n  load({ skip: true });\n});\n`;
   assert.deepEqual(markers(call).markers[0].modifiers, []);
   const reason = markers(`${MARK}\nit("a", { skip: "why" }, () => {});\n`);
   assert.deepEqual(reason.markers[0].modifiers, ['{ skip: "why" }']);
@@ -347,7 +347,7 @@ function fixture(files: Record<string, string> = {}): string {
     "spec/a.md": SPEC_TEXT,
     "vitest.config.ts":
       'export default { test: { include: ["src/**/*.test.ts"] } };\n',
-    ".gitignore": "/node_modules\n/reports/\n",
+    ".gitignore": "/node_modules\n",
     ...files,
   };
   for (const [path, text] of Object.entries(all)) put(root, path, text);
@@ -384,7 +384,7 @@ test("trace: a marked test that ran and passed is tested, and the PASS line coun
   const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 0);
   assert.match(
     out,
-    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 result\(s\) read; 1 tested/,
+    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 test\(s\) ran; 1 of 2 statements tested/,
   );
 });
 test("trace: a statement no marker names exits 0 under `not yet tested`, and not in the PASS line", () => {
@@ -443,12 +443,12 @@ const LOOP = (rows: string): string =>
   );
 test("trace: a marker above a loop is tested when its generated tests passed", () => {
   const out = expectTrace(fixture({ "src/a.test.ts": LOOP('["a", "b"]') }), 0);
-  assert.match(out, /3 result\(s\) read; 1 tested/);
+  assert.match(out, /3 test\(s\) ran; 1 of 2 statements tested/);
 });
 test("trace: a marker above test.each is tested when its generated tests passed", () => {
   const each = `${mark("TST-01")}\ntest.each(["a", "b"])("%s", (row) => {\n  expect(row).toBe(row);\n});\n`;
   const out = expectTrace(fixture({ "src/a.test.ts": vitestFile(each) }), 0);
-  assert.match(out, /2 result\(s\) read; 1 tested/);
+  assert.match(out, /2 test\(s\) ran; 1 of 2 statements tested/);
 });
 test("trace: a marker above a loop that generated no test, in a file that ran, is a finding", () => {
   assert.match(
@@ -497,7 +497,7 @@ test("trace: a marker under scripts/canaries/ is not read", () => {
   );
   assert.doesNotMatch(out, /TST-99/);
 });
-test("trace: a marker in a test under scripts/ cannot be checked: its node:test results are not read yet", () => {
+test("trace: a marker in a test under scripts/ cannot be checked: its node:test results are not read by this step", () => {
   const out = expectTrace(
     fixture({
       "scripts/x.test.ts": `${mark("TST-01")}\ntest("x", () => {});\n`,
@@ -506,7 +506,7 @@ test("trace: a marker in a test under scripts/ cannot be checked: its node:test 
   );
   assert.match(
     out,
-    /scripts\/x\.test\.ts:1: TST-01: node:test results are not read yet/,
+    /scripts\/x\.test\.ts:1: TST-01: node:test results are not read by this step/,
   );
 });
 test("trace: an unmarked test under scripts/ is outside the trace", () => {
@@ -581,7 +581,7 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("trace: GATE_VARS names the four context variables, and childEnv strips each from a child", () => {
+test("gate: GATE_VARS names the four context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
@@ -602,7 +602,7 @@ test("trace: GATE_VARS names the four context variables, and childEnv strips eac
   );
   assert.deepEqual(seen, []);
 });
-test("trace: `needs` still runs in a copy of the scripts with no node_modules", () => {
+test("gate: `needs` still runs in a copy of the scripts with no node_modules", () => {
   const dir = tempDir();
   cpSync(here, join(dir, "scripts"), {
     recursive: true,
