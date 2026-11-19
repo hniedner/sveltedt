@@ -174,6 +174,7 @@ its cells.
   | `caption` is not a string (left out by a plain JavaScript caller) | `captionEmpty` | "Table caption must not be empty." |
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
+  | `columns` is not an array (left out) | `noColumns` | "Table has no columns." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
@@ -181,6 +182,7 @@ its cells.
   | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
+  | `rows` is not an array (left out), with `status 'ready'` | `rowsNotList` | "Table has no list of rows." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
   | two rows share an id in its text form (the number 1 and the string "1") | `rowIdDuplicate` | "Two rows share an id." |
@@ -188,7 +190,7 @@ its cells.
   | `getRowId` returns a value that is neither a string nor a finite number (`NaN`, `Infinity`, `null`) | `rowIdUnreadable` | "A row id could not be read." |
 
   A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
-  no alert.
+  no alert. `rows` that is not an array is no fault while `status` is `loading` or `failed` (STATE-08).
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
@@ -376,6 +378,23 @@ otherwise.
   to keep the last rows after a failed refetch keeps `status 'ready'` and reports the failure itself.
 - Layer: component.
 - Traces: PRD-B15.
+
+**STATE-08** With `status 'loading'` or `status 'failed'`, the table MUST show that state's message, and not the
+alert, when `rows` is not an array.
+- Examples (the test runs every row; columns Name and Code, `rows` as given; no element holds a message of RND-05):
+
+  | `status` | `rows` | Shown |
+  |---|---|---|
+  | `loading` | `undefined` | "Loading data…" |
+  | `loading` | `null` | "Loading data…" |
+  | `failed` | `undefined` | "The rows could not be loaded." |
+
+- Reason: a plain JavaScript caller whose request is still pending, or has failed, often has no rows to pass yet; the
+  state already says what the user sees, and the alert would call a normal wait a fault. With `status 'ready'` the
+  same input is a fault (RND-05). The type keeps `rows` a required array, as for the "left out" rows of RND-05: this
+  serves callers the type does not reach, and a test passes such a value through a cast.
+- Layer: component.
+- Traces: PRD-B15, PRD-B16.
 
 ## 3. Keyboard and screen reader: the APG table pattern (A11Y)
 
@@ -1785,6 +1804,7 @@ receives that number.
 | STATE-05 | PRD-B2, PRD-B1 |
 | STATE-06 | PRD-B15 |
 | STATE-07 | PRD-B15 |
+| STATE-08 | PRD-B15, PRD-B16 |
 | A11Y-01 | PRD-A2 |
 | A11Y-13 | PRD-A2 |
 | A11Y-09 | PRD-A2 |
@@ -1899,8 +1919,8 @@ state in their own statements.
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
-| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, A11Y-15, RND-13, A11Y-05 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05 | in full |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
