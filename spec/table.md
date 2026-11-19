@@ -2460,7 +2460,9 @@ the options' order.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B7.
 
-**FILT-37** A text filter's field MUST show the applied text of `filters` whenever it holds no unsent typing.
+**FILT-37** A text filter's field MUST take the applied text of `filters` when its dialog opens, and when `filters`
+changes while nothing has been typed in it since it last emitted or last took the applied text; otherwise it keeps
+its text.
 - Examples (the test runs every row; "Filter Name text" after the steps):
 
   | Steps | Field reads |
@@ -2468,9 +2470,13 @@ the options' order.
   | `filters` holds `name: { kind: 'text', text: 'beta' }`; open the dialog | "beta" |
   | `filters` holds no filter for Name; open the dialog | "" |
   | open the dialog with "beta" applied; with nothing typed, `filters` becomes `name: { kind: 'text', text: 'gamma' }` | "gamma" |
-  | type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'betax' }` (opened with "beta") | "betax" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 450 ms, `filters` unchanged | "betax" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'betax' }` | "betax" |
+  | opened with "beta"; type "x"; at 400 ms one call with "betax"; at 500 ms `filters` becomes `name: { kind: 'text', text: 'gamma' }` | "gamma" |
 
-- Reason: the field shows what narrows the rows; the props are the one source of truth (PRD-B2).
+- Reason: the field shows what narrows the rows, and the props are the one source of truth (PRD-B2); text the
+  user typed after the last emit is theirs until it is sent (FILT-05), and sent text stays while its answer is on
+  the way.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-B2.
 
