@@ -39,22 +39,22 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-[var(--sdt-border,GrayText)]">
-        {#each rows as row (getRowId(row))}
-          <tr>
-            {#each columns as column (column.id)}
-              <td
-                >{#if column.cell}{@render column.cell(
-                    row,
-                    column.id,
-                  )}{:else}{column.value?.(row)}{/if}</td
-              >
-            {/each}
-          </tr>
-        {:else}
-          {#if status === "ready"}
+        {#if status === "ready"}
+          {#each rows as row (getRowId(row))}
+            <tr>
+              {#each columns as column (column.id)}
+                <td
+                  >{#if column.cell}{@render column.cell(
+                      row,
+                      column.id,
+                    )}{:else}{column.value?.(row)}{/if}</td
+                >
+              {/each}
+            </tr>
+          {:else}
             <tr><td colspan={columns.length}>No data.</td></tr>
-          {/if}
-        {/each}
+          {/each}
+        {/if}
       </tbody>
     </table>
   </div>

@@ -76,6 +76,12 @@ const EMPTY = "No data.";
 
 const FAILED = "The data could not be loaded.";
 
+const threeRows: Item[] = [
+  { id: "r1", name: "Beta" },
+  { id: "r2", name: "Gamma" },
+  { id: "r3", name: "Delta" },
+];
+
 // @spec("A11Y-01", "c91fd776")
 describe("A11Y-01", () => {
   it("is a native table named by the caption it holds as its first child", () => {
@@ -598,6 +604,19 @@ describe("STATE-02", () => {
     expect(screen.getByText(FAILED).isConnected).toBe(true);
     expect(screen.queryByText(EMPTY)).toBeNull();
   });
+});
+
+// @spec("STATE-06", "a563c7c4")
+describe("STATE-06", () => {
+  it.each([false, true])(
+    "with status loading and busy %s, shows the loading message and none of the rows",
+    (busy) => {
+      show({ status: "loading", busy, rows: threeRows });
+      expect(screen.getByText(LOADING).isConnected).toBe(true);
+      for (const name of ["Beta", "Gamma", "Delta"])
+        expect(screen.queryByRole("cell", { name })).toBeNull();
+    },
+  );
 });
 
 // True when A and B are the same type, read-only modifiers included
