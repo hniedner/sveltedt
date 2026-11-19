@@ -57,9 +57,10 @@ to the consumer as one callback (stated with the statements that add user action
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
   A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
   empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
-  one of the two elements a test finds by an attribute, because the count has no role of its own. **The progress
-  indicator** of PRD-B22 is the element with the attribute `data-sdt-progress` within the component, the other
-  one, because it is hidden from assistive technology and so has no role or name.
+  one of the three elements a test finds by an attribute, because the count has no role of its own. **The progress
+  indicator** of PRD-B22 is the element with the attribute `data-sdt-progress` within the component, the second,
+  because it is hidden from assistive technology and so has no role or name. **A column's grip** of COL-13 is the
+  element `[data-sdt-grip]` within its header cell, the third, for the same reason.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
@@ -3264,6 +3265,97 @@ all given columns, when the first `columnState` after the press shows that move,
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I1, PRD-I2.
 
+### Column order: the drag grip (milestone 5)
+
+These statements state PRD-B11 (b). "Drag" means a press with the mouse on a grip, moves, and a release, driven by
+the test runner's mouse in Chromium, Firefox and WebKit; a touch drag is stated in COL-19. The application's
+`document` listener of COL-16 is added with no options (the bubble phase), as in FILT-36. The examples are those of
+section 12, with each column's grip found as the Conventions say.
+
+**COL-13** Each column's header cell MUST hold a grip that is at least 24 by 24 CSS px, not in the Tab order, and hidden
+from assistive technology.
+- Example: for each of Name, Code and Date: its header cell holds one grip; its box is at least 24 by 24 CSS px; Tab
+  from the element before the table through the header row never lands on it; it has `aria-hidden="true"`.
+- Reason: a pointer target of 24 by 24 meets WCAG 2.5.8; the chooser's buttons are the keyboard and screen-reader way
+  (COL-08), so the grip adds no stop and no name (PRD-B11 (b)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-A1.
+
+**COL-14** A drag of a column's grip, released over another column's header cell, MUST emit `oncolumnstate` once, on
+the release, with that column in the place of the column it was released over.
+- Examples (the test runs every row; `order` not given; no callback is called before the release):
+
+  | Drag | `oncolumnstate` on release |
+  |---|---|
+  | Name's grip to Date's header cell | `{ hidden: [], order: ['code', 'date', 'name'] }`, once |
+  | Date's grip to Name's header cell | `{ hidden: [], order: ['date', 'name', 'code'] }`, once |
+  | Name's grip, released over Name's own header cell | no call |
+  | Name's grip, released below the table | no call |
+
+  The pointer moves at least 40 CSS px between the press and the release, in steps of 10 px.
+- Reason: one drop is one change; per-move emits would flood the application (PRD-B11 (b), PRD-B2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-B2.
+
+**COL-15** A press on a header cell anywhere but its grip MUST keep its meaning, and a drag that starts there MUST NOT
+reorder.
+- Examples (the test runs every row):
+
+  | Steps | Calls |
+  |---|---|
+  | press "Sort by Code" | `onsort([code asc])`, once |
+  | press on "Sort by Code", move 40 px towards Date, release over Date's header cell | no `oncolumnstate` |
+
+- Reason: a grip keeps sort and reorder apart, so a press on the header has one meaning (PRD-B11 (b)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11.
+
+**COL-16** Escape during a drag MUST end it with no emit, and MUST NOT reach a `keydown` listener the application has on
+`document`; an Escape with no drag MUST reach it.
+- Examples (the test runs every row; the listener counts Escape key events):
+
+  | Steps | `oncolumnstate` | Escapes the listener counts |
+  |---|---|---|
+  | press Name's grip, move over Date's header cell, press Escape, release there | no call | 0 |
+  | press Escape with focus on "Sort by Code", no drag | no call | 1 |
+
+- Reason: Escape is the way out of a drag (WCAG 2.5.2, PRD-B11 (b)), and an application that closes its own modal on
+  Escape must not close it when the user only cancelled a drag (PRD-B19).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-B19.
+
+**COL-17** A drag whose pointer is cancelled MUST end with no emit.
+- Example: press Name's grip, move over Date's header cell, then the pointer is cancelled (the test dispatches
+  `pointercancel` on the grip for the pressed pointer's id) and the mouse is released over Date: no `oncolumnstate`
+  call.
+- Reason: a cancelled pointer is no drop (PRD-B11 (b)).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11.
+
+**COL-18** A drop MUST be announced as a move of the chooser is (COL-12).
+- Example: drag Name's grip to Date's header cell; `columnState` becomes the emitted state: the status region holds
+  "Name moved to position 3 of 3", added once.
+- Reason: the drop is announced like a button move (PRD-B11 (b), PRD-A4).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A4, PRD-B11.
+
+**COL-19** A drag MUST also work by touch: the grip MUST take touch drags for itself, and a touch drag MUST emit as
+COL-14 says.
+- Examples (the test runs every row):
+
+  | Engine | Check |
+  |---|---|
+  | Chromium, Firefox, WebKit | the grip's computed `touch-action` is "none" |
+  | Chromium | a trusted touch drag of Name's grip to Date's header cell, through the Chrome DevTools Protocol, emits `{ hidden: [], order: ['code', 'date', 'name'] }` once |
+
+  Stated limit: a trusted touch drag is not tested in Firefox and WebKit, because no test runner drives one there
+  (Playwright's touchscreen is "limited to emulating tap gestures", FETCHED 2026-11-19); the pointer
+  path they share with the mouse is tested with the mouse (COL-14).
+- Reason: PRD-B11 (b) asks that a drag works with pointer and touch; without `touch-action: none` the browser would
+  scroll the page instead.
+- Layer: real browser (Chromium, Firefox, WebKit; the drag row Chromium only, for the reason above).
+- Traces: PRD-B11.
+
 ## Trace
 
 ### Statement -> PRD
@@ -3497,6 +3589,13 @@ all given columns, when the first `columnState` after the press shows that move,
 | COL-11 | PRD-B11, PRD-A3 |
 | COL-12 | PRD-A4, PRD-B11 |
 | COL-30 | PRD-I1, PRD-I2 |
+| COL-13 | PRD-B11, PRD-A1 |
+| COL-14 | PRD-B11, PRD-B2 |
+| COL-15 | PRD-B11 |
+| COL-16 | PRD-B11, PRD-B19 |
+| COL-17 | PRD-B11 |
+| COL-18 | PRD-A4, PRD-B11 |
+| COL-19 | PRD-B11 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -3513,14 +3612,14 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25 | in part: (a), the buttons; the grip statements state (b) |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19 | in part: the box column and sticky columns staying in place come with the selection and sticky statements (milestone 6) |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
@@ -3529,14 +3628,14 @@ state in their own statements.
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle says the open-dialog delta "is one passive outside-press listener", and whether none meets it awaits the owner's word; the column chooser states its own |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle says the open-dialog delta "is one passive outside-press listener", and whether none meets it awaits the owner's word; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12 | in part: the grip statements state the drop's announcement |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30 | in part: later groups state the numbers they show in their own statements |
