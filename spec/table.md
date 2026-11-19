@@ -10,7 +10,8 @@
   props, the APG table pattern, no global footprint, and theming by prefixed tokens; the strict-policy rules for
   the component source (no raw-HTML path, no injected style, link or script, no inline style). Then server-driven
   multi-column sort, the pager, ids that stay unique per instance and across hydration, numbers through replaceable
-  functions, and focus and window scroll after a sort or pager intent.
+  functions, and focus and window scroll after a sort or pager intent. Then slow loads: the progress indicator,
+  "Cancel", the stopped state and "Try again".
 
 The component renders one page of rows in the order the server gives, as a native HTML table following the WAI-ARIA
 APG *table* pattern (not *grid*). It owns no data. It shows what its props say, and every user action is reported
@@ -37,7 +38,9 @@ to the consumer as one callback (stated with the statements that add user action
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
   `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
-  `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props.
+  `messages`, `onpage(offset)` and `onsize(n)`. Later groups add their own props: the slow-load statements of
+  milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
+  `cancel`, `stopped` and `retry`.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example pager
@@ -50,7 +53,9 @@ to the consumer as one callback (stated with the statements that add user action
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
   A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
   empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
-  the one element a test finds by an attribute, because the count has no role of its own.
+  one of the two elements a test finds by an attribute, because the count has no role of its own. **The progress
+  indicator** of PRD-B22 is the element with the attribute `data-sdt-progress` within the component, the other
+  one, because it is hidden from assistive technology and so has no role or name.
 - **Shown columns.** Every given column is shown until the column statements add hiding.
 - **"Emits X once"** (used by the statements that add user actions) means the callback prop `X` is called exactly once for that user action
   and no other callback is called.
@@ -79,6 +84,10 @@ to the consumer as one callback (stated with the statements that add user action
   section 2, step 7).
 - **What a statement covers.** A statement covers what its examples show. Where a later group's controls or states
   need the same rule, that group's own statement states it; an earlier statement is never widened to anticipate them.
+  One exception: a statement whose words name every state or the whole mounted life ("in every state", "whatever
+  `status` is", "exactly while ... ready", "while mounted") also covers a later group's state or control; that group
+  writes no sentence for it, lists the statement at the head of its own statements, and its build adds an example row
+  to that statement's test, under its marker. The statement's text is not changed.
 
 ---
 
@@ -400,6 +409,256 @@ alert, when `rows` is not an array.
 - Layer: component.
 - Traces: PRD-B15, PRD-B16.
 
+### Slow loads: the progress indicator, Cancel, the stopped state and "Try again" (milestone 3)
+
+These statements add the `status` value `'stopped'`, `oncancel()`, `onretry()` and four `messages` keys (PRD-B22,
+PRD-B23, PRD-B24). Times in their examples are counted from the moment `status` became `loading` or `busy` became true,
+and are moved by fake timers: the indicator appears at 1000 ms and the still-loading text at 6000 ms. "Still loading"
+is the still-loading text; "Cancel" and "Try again" are buttons found by those names.
+
+Covered by earlier statements, rows added by this group's build (their words reach every state or the whole mounted
+life): STATE-04 (`status 'stopped'`: "false"); A11Y-05 (`status 'stopped'`: the live count is empty); A11Y-22 (a step
+from `failed` to `stopped`); RND-13 (`status 'stopped'`: "Loading stopped" is not shown); RND-14 and EXP-02 (`status
+'stopped'`, with and without `onretry`); EXP-01 (the same states); FOOT-01, FOOT-02 and FOOT-03 (a run through the
+indicator, the still-loading text with "Cancel", `stopped` with "Try again", a press on each button, and `failed` with
+"Try again"); THEME-03 (the indicator with the still-loading text and "Cancel", and `status 'stopped'` with
+"Try again").
+
+**STATE-09** The progress indicator MUST appear once `status` has been `loading`, or `busy` has been true, for 1 second
+without a gap, and not before.
+- Examples (the test runs every row; "present" means the progress indicator is in the component):
+
+  | Steps | Present at |
+  |---|---|
+  | mounted with `status 'loading'` | not at 999 ms; at 1000 ms |
+  | mounted with `status 'ready'`, two rows, `busy true` | not at 999 ms; at 1000 ms |
+  | `status 'loading'`; at 600 ms `status 'ready'` with two rows and `busy true` | at 1000 ms (a change from loading to busy is no gap) |
+  | `status 'loading'`; at 600 ms `status 'ready'`, `busy false`; at 700 ms `status 'loading'` | not at 1000 ms nor at 1699 ms; at 1700 ms |
+
+- Reason: a fast answer must not flash an indicator; a slow one must be visibly in progress (PRD-B22).
+- Layer: component.
+- Traces: PRD-B22.
+
+**STATE-10** Once shown, the progress indicator MUST stay at least 500 ms, and MUST go once that time has passed and
+neither `status 'loading'` nor `busy` true holds.
+- Examples (the test runs every row; mounted with `status 'loading'`, so the indicator appears at 1000 ms):
+
+  | Answer | Present at | Gone at |
+  |---|---|---|
+  | at 1100 ms `status 'ready'` with two rows, `busy false` | 1499 ms | 1500 ms |
+  | at 1100 ms `status 'failed'` | 1499 ms | 1500 ms |
+  | at 2000 ms `status 'ready'` with two rows, `busy false` | 1999 ms | 2000 ms |
+  | at 2000 ms `status 'stopped'` | 1999 ms | 2000 ms |
+
+- Reason: an indicator that blinks for a frame reads as a glitch; once the answer is there and the minimum has passed,
+  nothing is in progress any more (PRD-B22).
+- Layer: component.
+- Traces: PRD-B22.
+
+**STATE-11** The progress indicator MUST be hidden from assistive technology and MUST hold no focusable element.
+- Example: at 6000 ms with `status 'loading'` and `oncancel` passed: the indicator has `aria-hidden="true"`, and no
+  element in it is focusable or a button, link or form control; the button "Cancel" is not in it.
+- Reason: the indicator is decoration; what it means reaches a screen-reader user through the polite status, and a
+  control inside a hidden element would be reachable but unnamed (PRD-B22, PRD-B23).
+- Layer: component.
+- Traces: PRD-B22, PRD-B23.
+
+**STATE-12** The still-loading text MUST be shown exactly while the progress indicator has been present for 5 seconds
+or more.
+- Examples (the test runs every row; "Still loading" is looked for in the component's text):
+
+  | Steps | "Still loading" |
+  |---|---|
+  | `status 'loading'`, at 5999 ms | not shown |
+  | `status 'loading'`, at 6000 ms | shown |
+  | `status 'ready'` with two rows, `busy true`, at 6000 ms | shown |
+  | `status 'loading'`; at 7000 ms `status 'ready'` with two rows, `busy false` | not shown at 7000 ms |
+
+- Reason: a load that takes long must say so in words, not only by an indicator that has stopped moving (PRD-B22).
+- Layer: component.
+- Traces: PRD-B22.
+
+**STATE-13** The progress indicator MUST move for the first 5 seconds after it appears and MUST NOT move after.
+- Example: `status 'loading'`. At 1000 ms the indicator, or an element in it, has a running animation
+  (`getAnimations({ subtree: true })` holds one whose `playState` is "running"); at 6000 ms none is running. The test
+  moves time by fake timers if the build stops the motion by a timer, or sets `currentTime` on the
+  `getAnimations()` entries if the motion ends by the animation's own end.
+- Reason: a moving part beside content a user is reading must stop within 5 seconds (WCAG 2.2.2), and the strict
+  policy lets it move through a class only (PRD-B22, PRD-S1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22.
+
+**STATE-14** Under `prefers-reduced-motion: reduce`, the progress indicator MUST NOT move at any time.
+- Example: `status 'loading'`: at 1000 ms and at 6000 ms neither the indicator nor any element in it has a running
+  animation.
+- Reason: a user who asked the system for less motion gets a still indicator from the start (PRD-B22).
+- Layer: real browser (Chromium, Firefox, WebKit), in the browser instance the test runner configures with reduced
+  motion.
+- Traces: PRD-B22.
+
+**STATE-15** The region's position and size MUST be the same with and without the progress indicator, the
+still-loading text and "Cancel".
+- Examples (the test runs every row; `oncancel` passed; the region's `getBoundingClientRect()` x, y, width and height
+  are equal at 500 ms, 1000 ms and 6000 ms):
+
+  | State |
+  |---|
+  | `status 'loading'` |
+  | `status 'ready'` with 25 rows, `busy true` |
+
+- Reason: content that moves when the indicator appears puts something else under the pointer the user is about to
+  press (PRD-B22).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22, PRD-B23.
+
+**STATE-16** The progress indicator, the still-loading text and "Cancel" MUST overlap neither the region nor a control
+of the `heading` or `actions` snippet.
+- Example: 30 columns at least 120 px wide in a 600 px wide viewport, `status 'ready'` with 25 rows, `busy true`,
+  `oncancel` passed, an `actions` snippet holding "Export", the region scrolled to its right end; at 6000 ms the
+  bounding boxes of the indicator, of the still-loading text and of "Cancel" intersect neither the region's box nor
+  the box of "Export", and each lies within the viewport's width.
+- Reason: outside the region they are never scrolled sideways out of view with a wide table, and they cover no control
+  (PRD-B22).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22, PRD-B23.
+
+**STATE-17** "Cancel" MUST be shown exactly while the still-loading text is shown and `oncancel` is passed.
+- Examples (the test runs every row):
+
+  | Steps | `oncancel` | "Cancel" |
+  |---|---|---|
+  | `status 'loading'`, at 5999 ms | passed | not shown |
+  | `status 'loading'`, at 6000 ms | passed | shown |
+  | `status 'loading'`, at 6000 ms | not passed | not shown |
+  | `status 'ready'` with two rows, `busy true`, at 6000 ms | passed | shown |
+  | `status 'loading'`; at 7000 ms `status 'ready'` with two rows, `busy false` | passed | not shown at 7000 ms |
+
+- Reason: a control that does nothing misleads (PRD-B3), so Cancel shows only when someone acts on it (PRD-B23).
+- Layer: component.
+- Traces: PRD-B23, PRD-B3.
+
+**STATE-18** One press on "Cancel" or on "Try again" MUST emit that button's callback once.
+- Examples (the test runs every row; "emits once" as the Conventions define it):
+
+  | Button, state | Input | Emits once |
+  |---|---|---|
+  | "Cancel", `status 'loading'` at 6000 ms | click; Enter on the focused button; Space on the focused button | `oncancel` |
+  | "Try again", `status 'stopped'` | click; Enter on the focused button; Space on the focused button | `onretry` |
+  | "Try again", `status 'failed'` | click | `onretry` |
+
+- Reason: two emits are two requests whose answers can race (PRD-B2).
+- Layer: component.
+- Traces: PRD-B23, PRD-B24, PRD-B2.
+
+**STATE-19** A press on "Cancel" or on "Try again" MUST NOT change what the table shows until the consumer passes new
+props.
+- Examples (the test runs every row; the callback records its call and passes nothing back):
+
+  | Button, state | After the press |
+  |---|---|
+  | "Cancel", `status 'loading'` at 6000 ms | "Loading data…", "Still loading" and "Cancel" are still shown |
+  | "Try again", `status 'stopped'` | "Loading stopped" and "Try again" are still shown; "Loading data…" is not |
+  | "Try again", `status 'failed'` | "The data could not be loaded." and "Try again" are still shown |
+
+  Break that turns it red: the table switches itself to its loading look on a press.
+- Reason: the component stops and starts nothing itself; the application may refuse (PRD-B2, PRD-B23).
+- Layer: component.
+- Traces: PRD-B2, PRD-B23, PRD-B24.
+
+**STATE-20** With `status 'stopped'`, the table MUST show the stopped message in one body cell that spans every shown
+column, and none of the rows it is given.
+- Examples (the test runs every row; three columns; the stopped message is read within the `table` element):
+
+  | `rows` | Shown |
+  |---|---|
+  | `[]` | one body cell with `colspan="3"` holding "Loading stopped"; the `table` element and its header row are present |
+  | Beta, Gamma, Delta | the same, and no body cell holds "Beta", "Gamma" or "Delta" |
+
+- Reason: `stopped` means the user ended the load before any answer, so no row on screen is an answer; the header
+  stays so the user still sees what the table is (PRD-B24: "where the rows would be").
+- Layer: component.
+- Traces: PRD-B24, PRD-B15.
+
+**STATE-21** With `status 'stopped'`, the table MUST NOT show the empty message.
+- Examples (the test runs every row): `status 'stopped'` with `rows []`, and with the rows Beta and Gamma: "No data."
+  is nowhere in the component.
+- Reason: a stopped load is not an empty result; "no data" would be a false statement about the data.
+- Layer: component.
+- Traces: PRD-B15, PRD-B24.
+
+**STATE-22** With `status 'stopped'`, the table MUST show the stopped message, and not the alert, when `rows` is not an
+array (as STATE-08, for the stopped state).
+- Examples (the test runs every row; columns Name and Code; no element holds a message of RND-05): `rows` `undefined`;
+  `rows` `null`: "Loading stopped" is shown.
+- Reason: a load cancelled before any answer often leaves the caller with no rows to pass; the state already says what
+  the user sees.
+- Layer: component.
+- Traces: PRD-B24, PRD-B16.
+
+**STATE-23** While the input is valid, "Try again" MUST be shown exactly while `onretry` is passed and `status` is
+`stopped` or `failed`, whatever `busy` is.
+- Examples (the test runs every row; valid input):
+
+  | `status` | `busy` | `onretry` | "Try again" |
+  |---|---|---|---|
+  | `stopped` | false | passed | shown |
+  | `failed` | false | passed | shown |
+  | `stopped` | true | passed | shown |
+  | `failed` | true | passed | shown |
+  | `stopped` | false | not passed | not shown |
+  | `failed` | false | not passed | not shown |
+  | `loading` | false | passed | not shown |
+  | `ready` | false | passed | not shown |
+  | `ready` | true | passed | not shown |
+
+- Reason: a control that does nothing misleads (PRD-B3), so the button shows only when someone acts on it (PRD-B24).
+- Layer: component.
+- Traces: PRD-B24, PRD-B3.
+
+**STATE-24** While the input is invalid, "Try again" MUST NOT be shown.
+- Examples (the test runs every row, each with `columns []` and `onretry` passed; the alert holds "Table has no
+  columns."): `status 'stopped'`; `status 'failed'`: no button "Try again" exists.
+- Reason: a retry beside the alert would offer to reload a table that cannot be shown (PRD-B24, PRD-B16).
+- Layer: component.
+- Traces: PRD-B24, PRD-B16.
+
+**STATE-25** "Try again" MUST sit outside the region and after it in document order.
+- Examples (the test runs every row; `onretry` passed): `status 'stopped'`; `status 'failed'`: "Try again" is not a
+  descendant of the region and follows it in document order.
+- Reason: outside the region the button is never scrolled sideways out of view with a wide table, and it has one
+  place in both states, after the table and its message (PRD-B24, PRD-A3).
+- Layer: component.
+- Traces: PRD-B24, PRD-A3.
+
+**STATE-26** The still-loading text, the stopped message and the names of "Cancel" and "Try again" MUST come from
+`messages`, with English defaults (as RND-06, for this group).
+- Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
+  replacement appears where the row says and that none of these English defaults is left on the page, in an
+  accessible name or in a description):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `stillLoading` | "Still loading" | STATE-12 |
+  | `cancel` | "Cancel" | STATE-17 |
+  | `stopped` | "Loading stopped" | STATE-20 |
+  | `retry` | "Try again" | STATE-23 |
+
+  For example `messages={{ retry: 'Erneut versuchen' }}` names the button "Erneut versuchen".
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1, PRD-B22, PRD-B23, PRD-B24.
+
+**STATE-27** The still-loading text, the stopped message and the names of "Cancel" and "Try again" MUST render as text,
+never as markup (as RND-03, for this group).
+- Examples (the test runs every row, once with the value `<img src=x onerror=alert(1)>` and once with `<none>`): the
+  `stillLoading` and `cancel` messages at 6000 ms with `status 'loading'` and `oncancel` passed; the `stopped` and
+  `retry` messages with `status 'stopped'` and `onretry` passed. In every row the literal text appears on the page or
+  in an accessible name, and the component holds no `img` and no `none` element.
+- Reason: the words may come from a translation file the consumer does not review; any markup path is a cross-site
+  scripting path (PRD-S2).
+- Layer: component.
+- Traces: PRD-S2.
+
 ## 3. Keyboard and screen reader: the APG table pattern (A11Y)
 
 **A11Y-01** The table MUST be a native `table` element named by a `caption` element holding the `caption` prop.
@@ -530,6 +789,38 @@ snippet's controls, then the region while it is a stop, then the controls in the
   alert of RND-05 is the only state shown (RND-13).
 - Layer: component.
 - Traces: PRD-A4.
+
+**A11Y-21** The stopped message MUST NOT be inside an element with `role="alert"`.
+- Examples (the test runs every row): mounted with `status 'stopped'`; a rerender from `status 'loading'` to
+  `status 'stopped'`; a rerender from `status 'failed'` to `status 'stopped'`: after each, no element with
+  `role="alert"` holds "Loading stopped".
+- Reason: the user chose to stop; an alert would interrupt as if something went wrong (PRD-B15, PRD-B24: "not as an
+  alert").
+- Layer: component.
+- Traces: PRD-B24, PRD-B15.
+
+**A11Y-23** With `status 'failed'`, "Try again" MUST sit outside the failed notice and after it in document order.
+- Example: `status 'failed'` with `onretry`: "Try again" is not a descendant of the failed notice and follows it in
+  document order.
+- Reason: the alert holds only the failed text, so the button is not read as part of the alert; reading order puts
+  the cause before the way out (PRD-B24).
+- Layer: component.
+- Traces: PRD-B24, PRD-A3.
+
+**A11Y-24** The Tab order MUST reach "Try again" after the `actions` snippet's controls (as A11Y-10, for this group).
+- Examples (the test runs every row; a table that fits its viewport, an `actions` snippet holding "Export", a
+  `heading` snippet holding a link "All orders", `onretry` passed; Tab from the start):
+
+  | `status` | Tab reaches |
+  |---|---|
+  | `stopped` | "All orders", "Export", "Try again" |
+  | `failed` | "All orders", "Export", "Try again" |
+
+  Where the region is a Tab stop (A11Y-12), it comes before "Try again", since the button follows the region in
+  document order (STATE-25).
+- Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
+- Layer: component.
+- Traces: PRD-A3.
 
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
@@ -717,6 +1008,15 @@ anything to the document head.
   belongs to the app (PRD-B19).
 - Layer: static check.
 - Traces: PRD-S1, PRD-T3, PRD-T15, PRD-B19.
+
+**FOOT-05** After unmount, the table MUST leave no timer pending.
+- Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
+  unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
+  `status 'ready'` (inside the indicator's 500 ms); at 6000 ms (the still-loading text and "Cancel" shown).
+- Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
+  first to time anything (PRD-B22).
+- Layer: component.
+- Traces: PRD-B19, PRD-B22.
 
 ---
 
@@ -1893,6 +2193,25 @@ receives that number.
 | STATE-06 | PRD-B15 |
 | STATE-07 | PRD-B15 |
 | STATE-08 | PRD-B15, PRD-B16 |
+| STATE-09 | PRD-B22 |
+| STATE-10 | PRD-B22 |
+| STATE-11 | PRD-B22, PRD-B23 |
+| STATE-12 | PRD-B22 |
+| STATE-13 | PRD-B22 |
+| STATE-14 | PRD-B22 |
+| STATE-15 | PRD-B22, PRD-B23 |
+| STATE-16 | PRD-B22, PRD-B23 |
+| STATE-17 | PRD-B23, PRD-B3 |
+| STATE-18 | PRD-B23, PRD-B24, PRD-B2 |
+| STATE-19 | PRD-B2, PRD-B23, PRD-B24 |
+| STATE-20 | PRD-B24, PRD-B15 |
+| STATE-21 | PRD-B15, PRD-B24 |
+| STATE-22 | PRD-B24, PRD-B16 |
+| STATE-23 | PRD-B24, PRD-B3 |
+| STATE-24 | PRD-B24, PRD-B16 |
+| STATE-25 | PRD-B24, PRD-A3 |
+| STATE-26 | PRD-I1, PRD-B22, PRD-B23, PRD-B24 |
+| STATE-27 | PRD-S2 |
 | A11Y-01 | PRD-A2 |
 | A11Y-13 | PRD-A2 |
 | A11Y-09 | PRD-A2 |
@@ -1905,6 +2224,9 @@ receives that number.
 | A11Y-14 | PRD-A4 |
 | A11Y-15 | PRD-A4, PRD-B15 |
 | A11Y-22 | PRD-A4 |
+| A11Y-21 | PRD-B24, PRD-B15 |
+| A11Y-23 | PRD-B24, PRD-A3 |
+| A11Y-24 | PRD-A3 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -1915,6 +2237,7 @@ receives that number.
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
 | FOOT-04 | PRD-S1, PRD-T3, PRD-T15, PRD-B19 |
+| FOOT-05 | PRD-B19, PRD-B22 |
 | THEME-01 | PRD-T1 |
 | THEME-02 | PRD-T1 |
 | THEME-03 | PRD-T2, PRD-A1 |
@@ -2004,26 +2327,29 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
-| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23 | in part: the filter group states the positive halves of RND-11 and RND-12 in its own statements |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15 | in part: the column group adds "hidden columns keep their place" |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06 | in part: the column group states, in its own statements, ranks that count hidden columns and the toolbar summary while a sorted column is hidden |
 | PRD-B8 | RND-12 | in part: the filter statements add the badges, "Clear column filters", "Reset table" and the `criteria` snippet |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
-| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
-| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05 | in part: the still-loading text said once in the polite status arrives with the slow-load announcements; not under the sticky header arrives with the sticky group |
+| PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26 | in part: focus when Cancel appears or goes arrives with the slow-load focus statements |
+| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23 | in part: the stopped text said once in the polite status and focus after a retry arrive with the slow-load announcement and focus statements |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22 | in part: the column group states the column-move announcement, the slow-load group the still-loading and stopped texts |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
-| PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20 | in part: later groups state their own props in their own statements |
+| PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
 | PRD-S4 | RND-09, SORT-16, PAGE-16 | in part: the filter group states its refusal messages in its own statement |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
