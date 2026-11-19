@@ -840,6 +840,103 @@ snippet's controls, then the region while it is a stop, then the controls in the
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1, PRD-B22, PRD-B23, PRD-B24.
 
+### Slow loads: announcements and focus (milestone 3)
+
+Times as in the slow-load statements of section 2 (counted from mount, moved by fake timers). "Added" counts the
+times the words are put into the status region, as a `MutationObserver` on it records them; a live region announces
+what is added to it.
+
+**A11Y-20** The still-loading text MUST be in the status region exactly while it is shown, and be added to it once each
+time it appears.
+- Examples (the test runs every row; the status region is read after the last step):
+
+  | Steps | "Still loading" in the status region | Added |
+  |---|---|---|
+  | `status 'loading'`; at 6000 ms `busy true` too; at 8000 ms | yes | 1 |
+  | `status 'ready'` with two rows, `busy true`; at 6000 ms the same rows as new objects | yes | 1 |
+  | `status 'loading'`; at 7000 ms `status 'ready'` with two rows, `busy false` | no | 1 |
+  | `status 'loading'`; at 7000 ms `status 'ready'`, `busy false`; at 7100 ms `status 'loading'`; at 13100 ms | yes | 2 |
+
+- Reason: a screen-reader user must hear once what a sighted user reads, not on every rerender while the load goes on
+  (PRD-A4, PRD-B22).
+- Layer: component.
+- Traces: PRD-A4, PRD-B22.
+
+**A11Y-26** The stopped message MUST be in the status region exactly while `status` is `stopped`, and be added to it
+once each time `status` becomes `stopped`.
+- Examples (the test runs every row; the status region is read after the last step):
+
+  | Steps | "Loading stopped" in the status region | Added |
+  |---|---|---|
+  | `status 'loading'`; `status 'stopped'` | yes | 1 |
+  | `status 'loading'`; `status 'stopped'`; `status 'stopped'` with `onretry` passed and new `rows` | yes | 1 |
+  | `status 'loading'`; `status 'stopped'`; `status 'loading'` | no | 1 |
+  | `status 'loading'`; `status 'stopped'`; `status 'loading'`; `status 'stopped'` | yes | 2 |
+
+- Reason: the user chose to stop, so the news is polite, said once, and not an alert (PRD-B24, PRD-A4).
+- Layer: component.
+- Traces: PRD-A4, PRD-B24.
+
+**A11Y-27** "Cancel" MUST NOT take focus when it appears.
+- Examples (the test runs every row; `oncancel` passed, an `actions` snippet holding "Export"; at 6000 ms "Cancel"
+  appears): "Export" focused at 5000 ms: it is still the focused element at 6000 ms; nothing focused: `document.body`
+  is still the focused element at 6000 ms.
+- Reason: a control that grabs focus as it appears interrupts the user, who may be reading or working elsewhere
+  (WCAG 3.2.1, PRD-B23).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B23, PRD-A3.
+
+**A11Y-28** When "Cancel" goes while it has focus, focus MUST move to the `table` element without scrolling.
+- Examples (the test runs every row; `status 'loading'`, `oncancel` passed; the window is scrolled so the table's top
+  lies above the viewport; "Cancel" is focused at 6000 ms, then the consumer passes the props of the row; after it the
+  `table` element is the focused element, and the window's and the region's scroll positions are those before):
+
+  | Consumer passes |
+  |---|
+  | `status 'ready'` with 25 rows |
+  | `status 'stopped'` |
+  | `status 'failed'` |
+
+- Reason: focus that falls to the page body sends a keyboard user back to the top of the page (WCAG 2.4.3); a scroll
+  would move the content the user was reading (PRD-B23).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B23, PRD-A3.
+
+**A11Y-29** "Try again" MUST NOT take focus when it appears or returns.
+- Examples (the test runs every row; `onretry` passed, an `actions` snippet holding "Export", focused before the first
+  step; after each step "Export" is the focused element): `status 'loading'`, then `status 'stopped'`; `status
+  'stopped'`, then `status 'loading'`, then `status 'failed'`.
+- Reason: as A11Y-27: the button is offered, never forced on the user (WCAG 3.2.1, PRD-B24).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B24, PRD-A3.
+
+**A11Y-30** When "Try again" goes while it has focus, focus MUST move to the `table` element without scrolling.
+- Examples (the test runs every row; `onretry` passed; the window is scrolled so the table's top lies above the
+  viewport; "Try again" is focused and pressed with Enter, then the consumer passes the props of the row; after it the
+  `table` element is the focused element, and the window's and the region's scroll positions are those before):
+
+  | State before | Consumer passes |
+  |---|---|
+  | `status 'stopped'` | `status 'loading'` |
+  | `status 'failed'` | `status 'loading'` |
+  | `status 'stopped'` | `status 'ready'` with 25 rows |
+
+- Reason: PRD-B24 names the retry that turns `status` to `loading`; any other way the button goes would drop focus to
+  the page body the same way (WCAG 2.4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B24, PRD-A3.
+
+**A11Y-31** The Tab order MUST reach "Cancel" after the `actions` snippet's controls and before the region and the
+controls in the cells (as A11Y-10, for this group).
+- Example: a table that fits its viewport, `status 'ready'` with rows Beta and Gamma, `busy true`, `oncancel` passed,
+  a `heading` snippet holding a link "All orders", an `actions` snippet holding "Export", a `cell` snippet holding a
+  link "Open <name>"; at 6000 ms, Tab from the start reaches "All orders", "Export", "Cancel", "Open Beta",
+  "Open Gamma".
+- Reason: a keyboard user reaches the way out of a long load before the rows, not after every control in them
+  (WCAG 2.4.3).
+- Layer: component.
+- Traces: PRD-A3, PRD-B23.
+
 **A11Y-16** Hovering or focusing any part of the table MUST NOT make content appear, other than the focused element's
 own focus indicator.
 - Example: the 30-column, 25-row table with a link in one column: hover every header cell and every body cell in turn,
@@ -2254,6 +2351,13 @@ receives that number.
 | A11Y-23 | PRD-B24, PRD-A3 |
 | A11Y-24 | PRD-A3 |
 | A11Y-25 | PRD-A1, PRD-B22, PRD-B23, PRD-B24 |
+| A11Y-20 | PRD-A4, PRD-B22 |
+| A11Y-26 | PRD-A4, PRD-B24 |
+| A11Y-27 | PRD-B23, PRD-A3 |
+| A11Y-28 | PRD-B23, PRD-A3 |
+| A11Y-29 | PRD-B24, PRD-A3 |
+| A11Y-30 | PRD-B24, PRD-A3 |
+| A11Y-31 | PRD-A3, PRD-B23 |
 | A11Y-16 | PRD-A10, PRD-A1 |
 | A11Y-07 | PRD-A1 |
 | A11Y-06 | PRD-A1 |
@@ -2366,13 +2470,13 @@ state in their own statements.
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05 | in part: the dialog groups add the one passive outside-press listener and the Escape rule |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25 | in part: the still-loading text said once in the polite status arrives with the slow-load announcements; not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
-| PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25 | in part: focus when Cancel appears or goes arrives with the slow-load focus statements |
-| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25 | in part: the stopped text said once in the polite status and focus after a retry arrive with the slow-load announcement and focus statements |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
+| PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06 | in part: the column group states the hidden-lead case and the sticky group the `stickyHeader` case, each in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22 | in part: the column group states the column-move announcement, the slow-load group the still-loading and stopped texts |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26 | in part: the column group states the column-move announcement |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26 | in part: later groups state their own words in their own statements |
 | PRD-I2 | RND-06, SORT-17, I18N-01 | in part: later groups state the numbers they show in their own statements |
