@@ -94,6 +94,8 @@ export interface Marker {
 
 const MARKER = /^\/\/ @spec\("([^"]+)", "([0-9a-f]{8})"\)\s*$/;
 const MODIFIERS = new Set(["only", "skip", "todo", "fails"]);
+/** Anything that looks like a marker, whatever its case or spacing: it must be one, in the one position, or it is a problem. */
+const SPEC_LIKE = /@\s*spec/i;
 
 /**
  * The `// @spec("ID", "hash")` markers of one test source, each attached to the statement after it in the same block
@@ -130,14 +132,19 @@ export function readMarkers(
   };
   /** The marker comments in the trivia at `pos`, each with `stmt` (the statement they lead) or none. */
   const comments = (pos: number, stmt?: import("typescript").Statement) => {
+    let named = false; // a statement has one marker
     for (const c of ts.getLeadingCommentRanges(text, pos) ?? []) {
       const comment = text.slice(c.pos, c.end);
-      if (!comment.includes("@spec(")) continue;
+      if (!SPEC_LIKE.test(comment)) continue;
+      read.add(c.pos);
       const m = MARKER.exec(comment);
       const at = `${file}:${lineOf(c.pos)}`;
       if (!m) problems.push(`${at}: malformed @spec marker`);
       else if (!stmt) problems.push(`${at}: ${m[1]}: names no statement`);
-      else
+      else if (named)
+        problems.push(`${at}: ${m[1]}: two markers on one statement`);
+      else {
+        named = true;
         markers.push({
           id: m[1],
           hash: m[2],
@@ -147,9 +154,18 @@ export function readMarkers(
           to: lineOf(stmt.end),
           modifiers: modifiersOf(stmt),
         });
+      }
     }
   };
+  const read = new Set<number>(); // the comments a recognised position gave
+  const literals: [number, number][] = []; // text a `//` in which is no comment
   const visit = (node: import("typescript").Node): void => {
+    if (
+      ts.isStringLiteralLike(node) ||
+      ts.isTemplateLiteralToken(node) ||
+      node.kind === ts.SyntaxKind.RegularExpressionLiteral
+    )
+      literals.push([node.getStart(sf), node.end]);
     const list =
       ts.isSourceFile(node) ||
       ts.isBlock(node) ||
@@ -165,6 +181,16 @@ export function readMarkers(
     ts.forEachChild(node, visit);
   };
   visit(sf);
+  // Fail closed: one marker position (directly above a statement); a comment like a marker anywhere else is a finding
+  for (const c of text.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g))
+    if (
+      SPEC_LIKE.test(c[0]) &&
+      !read.has(c.index) &&
+      !literals.some(([a, b]) => c.index >= a && c.index < b)
+    )
+      problems.push(
+        `${file}:${lineOf(c.index)}: a @spec comment outside the one recognised position (directly above a test statement)`,
+      );
   return { markers, problems };
 }
 
