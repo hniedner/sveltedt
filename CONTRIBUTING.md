@@ -37,6 +37,8 @@ section 6). CI runs the same command; its `gate` check is required on
 The checks today:
 
 - **toolchain:** Node's major version, pnpm's version and the gitleaks version are the pinned ones.
+- **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
+  range in CI). It runs right after `toolchain`, so a later failing step does not skip it.
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
@@ -128,8 +130,6 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
   injection, dangerous triggers and over-broad permissions. It runs offline, so whether a pinned SHA belongs to its
   tag is not checked (docs/decisions/001-quality-tooling.md).
-- **secrets:** gitleaks scans the branch's commits (after `origin/main` locally; the pull request's or the pushed
-  range in CI).
 
 Every tool step first runs on a planted violation (files in `scripts/canaries/`, or one the step builds) and must
 find it, so a tool that silently checks nothing cannot pass.
@@ -153,31 +153,41 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-To run the header check before each commit, set once per clone, by choice (nothing checks the setting yet):
+To run the hooks before each commit, set once per clone, by choice (nothing checks the setting yet):
 
 ```sh
 git config core.hooksPath .githooks
 ```
 
 git then runs `.githooks/commit-msg` when `git commit` (also `--amend`) writes a message or `git merge` makes a merge
-commit. The hook needs the Node version of
-`.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell. The
-setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for this clone, and there is no supported
-place for a hook of your own yet: do not copy one into the tracked `.githooks/`, and run your own checks, such as a
-secret scan, by hand until the setup step exists (Not built yet). The hook applies the rules above to the message git
-hands it, before git's own clean-up:
+commit, and `.githooks/pre-commit` before `git commit` writes it, a commit that concludes a conflicted merge included.
+A `git merge` that needs no conflict resolution runs no pre-commit hook (measured, git 2.56.0: it runs
+`pre-merge-commit`, for which this project has no hook, then commit-msg). The hooks need the Node version of
+`.node-version` first on the `PATH` that git sees, which a desktop git client may not share with your shell;
+pre-commit also needs the installed dependencies (`pnpm install`, in every new worktree too, or it cannot run
+Prettier and ESLint) and gitleaks. The setting replaces any global `core.hooksPath` and the hooks in `.git/hooks` for
+this clone, and there is no supported place for a hook of your own yet: do not copy one into the tracked `.githooks/`,
+and run your own checks, such as a secret scan, by hand.
 
-- Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
-  (`commit -v`). A message with nothing else is refused as empty.
-- A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
-  the `commits` step refuses the autosquash ones at the pull request.
-- Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one on
-  an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook (measured); git
-  keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"` passes the hook (which
-  judges `feat: y`) while git stores `# x` as the header; a comment character other than `#` (`core.commentChar`) is
-  not known to the hook.
+- **pre-commit**, on the staged files: `text` on all of them, `format` and `lint` on the files of their class;
+  `lockfile` when `package.json`, the lockfile, `pnpm-workspace.yaml` or `dependabot.yml` is staged; `workflows` when
+  a file under `.github/` is; then gitleaks on the staged files (symlinks and empty files have nothing to scan). A
+  staged file of no class stops the commit at `text`, which names it, as in the gate. A staged file changed again
+  before the commit stops it, which includes staging part of a file (`git add -p`): stage the whole file, or set the
+  unstaged part aside and commit the rest. The hook never stashes or re-stages anything.
+- **commit-msg** applies the rules above to the message git hands it, before git's own clean-up:
+  - Lines starting with `#` (git's editor template) are not read, nor anything below git's scissors line
+    (`commit -v`). A message with nothing else is refused as empty.
+  - A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
+    the `commits` step refuses the autosquash ones at the pull request.
+  - Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one
+    on an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook
+    (measured); git keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"`
+    passes the hook (which judges `feat: y`) while git stores `# x` as the header; a comment character other than `#`
+    (`core.commentChar`) is not known to the hook.
 
-A hook that refuses is answered by rewording the message, never by skipping the hook (`--no-verify`). The path is
+A hook that refuses is answered by fixing what it names (rewording the message, or correcting the staged files),
+never by skipping the hook (`--no-verify`). The path is
 relative: in any worktree of the clone, git runs the hooks in `.githooks/` of the branch checked out there, which are
 code from that branch.
 
@@ -196,9 +206,9 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the hooks that run
-  checks before a commit or a push (issue #6); only the commit-msg hook exists (Commit headers). Until the rest exist,
-  maintainers run the private word scan by hand before every push;
+- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the pre-push hook
+  (issue #6); only the pre-commit and commit-msg hooks exist (Commit headers). Until the rest exist, maintainers run
+  the private word scan by hand before every push;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 
