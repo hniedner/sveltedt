@@ -153,7 +153,7 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-To run the hooks before each commit, set once per clone, by choice (nothing checks the setting yet):
+To run the hooks before each commit and push, set once per clone, by choice (nothing checks the setting yet):
 
 ```sh
 git config core.hooksPath .githooks
@@ -187,6 +187,16 @@ and run your own checks, such as a secret scan, by hand.
     (measured); git keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"`
     passes the hook (which judges `feat: y`) while git stores `# x` as the header; a comment character other than `#`
     (`core.commentChar`) is not known to the hook.
+- **pre-push**, for each pushed branch with new commits (a new branch: those after the remote's `main`; an update:
+  those after the remote's commit; a deletion or a tag: nothing): gitleaks on those commits, the private word scan
+  when this clone names it, then the whole gate. The work tree must be the pushed commit, clean, since the gate reads
+  it, so a push of a second branch with new commits cannot be checked. A pushed secret or private word counts as
+  published, so these scans block the push.
+
+Maintainers' clones also name, in git config, the owner-only word scan (`sveltedt.wordScan`, the scan program;
+`sveltedt.wordList` and `sveltedt.wordAllow`, its lists) and the machine's heavy-work lock (`sveltedt.lock`, a script
+taking `take|release <holder>`), which pre-push holds while the gate runs and always releases. A clone without them
+skips the word scan and runs the gate unlocked.
 
 A hook that refuses is answered by fixing what it names (rewording the message, or correcting the staged files),
 never by skipping the hook (`--no-verify`). The path is
@@ -208,9 +218,8 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the setup step that sets `core.hooksPath`, the gate's check that it is set (gates.md G9) and the pre-push hook
-  (issue #6); only the pre-commit and commit-msg hooks exist (Commit headers). Until the rest exist, maintainers run
-  the private word scan by hand before every push;
+- the setup step that sets `core.hooksPath` and the gate's check that it is set (gates.md G9) (issue #6); until they
+  exist the hooks are opt-in, as above;
 - the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
   first code that needs them).
 
