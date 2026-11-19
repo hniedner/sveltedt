@@ -15,7 +15,7 @@
     nameValue = (row: Item) => row.name,
   }: { rows: readonly Item[]; nameValue?: unknown } = $props();
   // The snippet column second and with a value too: the snippet wins, and gets its own column's id
-  const columns: DataTableColumn<Item>[] = [
+  const columns: DataTableColumn<Item>[] = $derived([
     { id: "id", label: "Id", value: (row) => row.id },
     {
       id: "name",
@@ -23,7 +23,7 @@
       value: nameValue as (row: Item) => string,
       cell: link,
     },
-  ];
+  ]);
   const getRowId = (row: Item): string => row.id;
 </script>
 
