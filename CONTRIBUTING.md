@@ -208,16 +208,16 @@ global `core.hooksPath`, and there is no supported place for a hook of your own 
     (measured); git keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"`
     passes the hook (which judges `feat: y`) while git stores `# x` as the header; a comment character other than `#`
     (`core.commentChar`) is not known to the hook.
-- **pre-push**, for each pushed branch with new commits (a new branch: those after the remote's `main`; an update:
-  those after the remote's commit; a deletion or a tag: nothing): gitleaks on those commits, the private word scan
-  when this clone names it, then the whole gate. The work tree must be the pushed commit, clean, since the gate reads
-  it, so a push of a second branch with new commits cannot be checked. A pushed secret or private word counts as
-  published, so these scans block the push.
+- **pre-push**, for each pushed ref with new commits (a new branch, a tag with commits no remote ref holds, or an update
+  whose old tip is not an ancestor: those after the remote's `main`; an update: those after the remote's commit; a
+  deletion or a tag with nothing new: nothing): gitleaks on those commits and on their messages, the private word scan
+  when this clone names it, then the whole gate. The work tree must be the pushed commit, with no change to a tracked
+  file, since the gate reads it, so a push of a second branch with new commits cannot be checked. A pushed secret or
+  private word counts as published, so these scans block the push.
 
 Maintainers' clones also name, in git config, the owner-only word scan (`sveltedt.wordScan`, the scan program;
-`sveltedt.wordList` and `sveltedt.wordAllow`, its lists) and the machine's heavy-work lock (`sveltedt.lock`, a script
-taking `take|release <holder>`), which pre-push holds while the gate runs and always releases. A clone without them
-skips the word scan and runs the gate unlocked.
+`sveltedt.wordList` and `sveltedt.wordAllow`, its lists). A clone without it skips the word scan. The hook takes no
+lock: sessions that share one machine take theirs around `git push` themselves.
 
 A hook that refuses is answered by fixing what it names (rewording the message, or correcting the staged files),
 never by skipping the hook (`--no-verify`). The path is

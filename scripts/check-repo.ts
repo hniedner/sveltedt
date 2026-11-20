@@ -2581,23 +2581,10 @@ function words(root: string, range: string): Result {
   );
 }
 
-const GATE_LIMIT_MS = 9 * 60_000; // under the heavy-work lock's 10-minute hold
+const GATE_LIMIT_MS = 9 * 60_000;
 
-// The whole gate, under the machine's heavy-work lock when this clone names one (sveltedt.lock: a script taking
-// `take|release <holder>`, exit 0 when done). The lock is released on every path.
+// The whole gate, as a child process. The hook takes no lock: sessions that share a machine take theirs around the push.
 function gate(root: string): Result {
-  const lock = setting(root, "lock");
-  const holder = `pre-push-${process.pid}`;
-  const locking = (act: string) =>
-    spawnSync("sh", [lock, act, holder], { encoding: "utf8", env: childEnv() });
-  if (lock) {
-    const take = locking("take");
-    if (take.status !== 0)
-      return result(
-        CANNOT,
-        `the heavy-work lock is not free: ${take.stdout.trim()}`,
-      );
-  }
   const r = spawnSync(
     process.execPath,
     [join(root, "scripts", "check-repo.ts"), "all", "--root", root],
@@ -2605,19 +2592,21 @@ function gate(root: string): Result {
       encoding: "utf8",
       env: childEnv(),
       timeout: GATE_LIMIT_MS,
+      maxBuffer: 1 << 28,
     },
   );
-  if (lock && locking("release").status !== 0)
-    return result(CANNOT, `the heavy-work lock ${lock} was not released`);
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
   if (r.status === PASS) return result(PASS, out.at(-1) ?? "", []);
   if (r.status === FINDING)
     return result(FINDING, "the gate found a problem", out);
+  const code = errorCode(r.error);
   return result(
     CANNOT,
-    r.error
+    code === "ETIMEDOUT"
       ? `the gate ran over ${GATE_LIMIT_MS / 60_000} minutes`
-      : "the gate could not check",
+      : code
+        ? `the gate could not run: ${code}`
+        : "the gate could not check",
     out,
   );
 }

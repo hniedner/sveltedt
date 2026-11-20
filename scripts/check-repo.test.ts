@@ -3861,28 +3861,8 @@ const stages = (out: string): string[] =>
   ].map((m) => m[1]);
 const sha = (root: string, rev = "HEAD"): string =>
   git(root, "rev-parse", rev).trim();
-/** A lock script with heavy-lock.sh's interface (take|release <holder>) that logs each call next to itself. */
-function fakeLock(held = false): { lock: string; log: string } {
-  const dir = tempDir();
-  const lock = join(dir, "lock.sh");
-  writeFileSync(
-    lock,
-    `#!/bin/sh
-echo "$1 $2" >> "${dir}/log"
-case "$1" in
-  take) mkdir "${dir}/HELD" 2>/dev/null && { echo "TAKEN by $2"; exit 0; }; echo "REFUSED: held"; exit 1;;
-  release) rmdir "${dir}/HELD" && echo "RELEASED by $2";;
-esac
-`,
-  );
-  if (held) mkdirSync(join(dir, "HELD"));
-  return { lock, log: join(dir, "log") };
-}
-
-test("pre-push: a new branch scans its commits after origin/main, runs the gate under the lock and releases it", () => {
+test("pre-push: a new branch scans its commits after origin/main, runs the gate", () => {
   const root = pushable();
-  const { lock, log } = fakeLock();
-  git(root, "config", "sveltedt.lock", lock);
   const base = sha(root, "origin/main");
   const r = gitPush(root, ["feat/x"]);
   assert.equal(r.code, 0, r.out);
@@ -3897,13 +3877,6 @@ test("pre-push: a new branch scans its commits after origin/main, runs the gate 
     r.out,
   );
   assert.match(r.out, /^PASS pre-push: /m);
-  const calls = readFileSync(log, "utf8").trim().split("\n");
-  assert.deepEqual(
-    calls.map((l) => l.split(" ")[0]),
-    ["take", "release"],
-    calls.join("\n"),
-  );
-  assert.equal(calls[0].split(" ")[1], calls[1].split(" ")[1]);
 });
 test("pre-push: an update scans only the commits after the remote's sha", () => {
   const root = pushable();
@@ -3915,31 +3888,12 @@ test("pre-push: an update scans only the commits after the remote's sha", () => 
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, new RegExp(`scan-secrets git ${old}\\.\\.${sha(root)}`));
 });
-test("pre-push: a failing gate blocks the push and still releases the lock", () => {
+test("pre-push: a failing gate blocks the push", () => {
   const root = pushable();
-  const { lock, log } = fakeLock();
-  git(root, "config", "sveltedt.lock", lock);
   const r = gitPush(root, ["feat/x"], { PNPM_BIN: fakePnpm("0.0.1") });
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^COULD NOT CHECK gate: /m);
-  assert.deepEqual(
-    readFileSync(log, "utf8")
-      .trim()
-      .split("\n")
-      .map((l) => l.split(" ")[0]),
-    ["take", "release"],
-  );
   assert.equal(git(root, "ls-remote", "origin", "feat/x"), "");
-});
-test("pre-push: a lock held by another holder cannot be checked, and the gate does not run", () => {
-  const root = pushable();
-  git(root, "config", "sveltedt.lock", fakeLock(true).lock);
-  const r = gitPush(root, ["feat/x"]);
-  assert.notEqual(r.code, 0, r.out);
-  assert.match(
-    r.out,
-    /^COULD NOT CHECK gate: the heavy-work lock is not free/m,
-  );
 });
 test("pre-push: a secret in a pushed commit blocks the push before the gate", () => {
   const root = pushable();
