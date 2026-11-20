@@ -4695,7 +4695,7 @@ state in their own statements.
 | PRD-I3 | COL-22, I18N-02, I18N-03, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
-| PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4714,7 +4714,6 @@ state in their own statements.
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
-| PRD-A11 | A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
