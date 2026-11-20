@@ -19,12 +19,14 @@
   <button
     type="button"
     aria-label={words.firstPage}
+    aria-disabled={!state.canPrevious}
     onclick={() => step(state.canPrevious, 0)}
     ><span aria-hidden="true">«</span></button
   >
   <button
     type="button"
     aria-label={words.previousPage}
+    aria-disabled={!state.canPrevious}
     onclick={() => step(state.canPrevious, state.previous)}
     ><span aria-hidden="true">‹</span></button
   >
@@ -44,12 +46,14 @@
   <button
     type="button"
     aria-label={words.nextPage}
+    aria-disabled={!state.canNext}
     onclick={() => step(state.canNext, state.next)}
     ><span aria-hidden="true">›</span></button
   >
   <button
     type="button"
     aria-label={words.lastPage}
+    aria-disabled={!state.canNext}
     onclick={() => step(state.canNext, state.last)}
     ><span aria-hidden="true">»</span></button
   >

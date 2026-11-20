@@ -44,6 +44,8 @@ const current = (): string[] =>
       `${element.getAttribute("aria-label")}=${element.getAttribute("aria-current")}`,
   );
 
+const STEPS = ["First page", "Previous page", "Next page", "Last page"];
+
 // @spec("PAGE-09", "b2e86c2c")
 describe("PAGE-09", () => {
   it("is exactly one nav element named by its label", () => {
@@ -114,6 +116,31 @@ describe("PAGE-04", () => {
     mount({ offset: 25, limit: 25, total: 130 });
     expect(button("Page 2").getAttribute("aria-current")).toBe("page");
     expect(current()).toEqual(["Page 2=page"]);
+  });
+});
+
+// @spec("PAGE-05", "4f1295b7")
+describe("PAGE-05", () => {
+  it.each<[Partial<PaginationProps>, string[]]>([
+    [{ offset: 0 }, ["First page", "Previous page"]],
+    [{ offset: 90 }, ["Next page", "Last page"]],
+    [{ offset: 80, total: 90 }, ["Next page", "Last page"]],
+    [{ offset: 40 }, []],
+    [{ offset: 0, total: 7 }, STEPS],
+    [{ offset: 0, total: 0 }, STEPS],
+    [{ offset: 100 }, ["Next page", "Last page"]],
+    [{ offset: 25, limit: 50 }, []],
+    [{ offset: 91 }, ["Next page", "Last page"]],
+    [{ offset: 85 }, []],
+  ])("with %j marks exactly %j aria-disabled", (props, disabled) => {
+    mount(props);
+    expect(
+      STEPS.filter(
+        (name) => button(name).getAttribute("aria-disabled") === "true",
+      ),
+    ).toEqual(disabled);
+    for (const name of STEPS)
+      expect(button(name).hasAttribute("disabled")).toBe(false);
   });
 });
 
