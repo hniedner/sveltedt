@@ -46,6 +46,11 @@ const current = (): string[] =>
       `${element.getAttribute("aria-label")}=${element.getAttribute("aria-current")}`,
   );
 
+const follows = (earlier: Element, later: Element): boolean =>
+  Boolean(
+    earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+
 // The pager's text and accessible names, for the "no NaN, no Infinity, no Page 0" checks
 function pagerWords(): string {
   return [
@@ -72,6 +77,24 @@ describe("PAGE-09", () => {
     expect(navs).toHaveLength(1);
     expect(navs[0]).toBe(nav());
     expect(navs[0]?.tagName).toBe("NAV");
+  });
+});
+
+// @spec("PAGE-10", "e506a7de")
+describe("PAGE-10", () => {
+  it("orders the select, First, Previous, the numbers, Next and Last", () => {
+    mount({ offset: 100, limit: 10, total: 200, sizes: [10, 25] });
+    const select = within(nav()).getByRole("combobox");
+    const [first, previous, next, last] = STEPS.map(button);
+    expect(follows(select, first)).toBe(true);
+    expect(follows(first, previous)).toBe(true);
+    const numbers = pageButtons();
+    expect(numbers.length).toBeGreaterThan(0);
+    for (const number of numbers) {
+      expect(follows(previous, number)).toBe(true);
+      expect(follows(number, next)).toBe(true);
+    }
+    expect(follows(next, last)).toBe(true);
   });
 });
 
