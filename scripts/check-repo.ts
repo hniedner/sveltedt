@@ -174,6 +174,31 @@ function pins(root: string, list: Set<string>): Result {
   );
 }
 
+/**
+ * GATE_BROWSER leaves the browser step to the job `browser`, which gate must need (gateNeeds) and which runs it; the
+ * problems, given the workflow's lines above `jobs:` and its jobs.
+ */
+function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
+  const sets = (l: string[]) => l.some((x) => /^\s+GATE_BROWSER\s*:/.test(x));
+  const job = jobs.get("browser");
+  const found = [];
+  if (sets(top)) found.push("GATE_BROWSER is set for the whole workflow");
+  if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
+  // The step's own command line, as `run:` or in a `run: |` block; nothing may let the job pass without it
+  const runs = job?.some((l) =>
+    /^\s*(-\s+)?(run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
+  );
+  if ([...jobs.values()].some(sets) && !runs)
+    found.push("GATE_BROWSER is set but no job named browser runs the step");
+  // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
+  // on failure) narrows this rule in its own branch, with its rows
+  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+    found.push(
+      "the job browser has continue-on-error or if: it may pass without the step",
+    );
+  return found;
+}
+
 function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
@@ -214,6 +239,7 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
+  details.push(...browserJob(lines.slice(0, start), jobs));
   if (details.length)
     return result(
       FINDING,
@@ -2338,6 +2364,14 @@ function browser(root: string, list: Set<string>): Result {
     );
   if (!list.has(PW_CONFIG))
     return result(CANNOT, `${PW_CONFIG} is not tracked`, specs);
+  // Checked by gate-needs: GATE_BROWSER may stand only in a job other than browser, beside a job browser that runs it;
+  // the job browser itself never leaves the step out, however the variable reached it
+  if (
+    inCI() &&
+    process.env.GATE_BROWSER === "job" &&
+    process.env.GITHUB_JOB !== "browser"
+  )
+    return result(NA, "left to the CI job browser (GATE_BROWSER)");
   const pin = readJson(root, "package.json")?.devDependencies?.[
     "@playwright/test"
   ];
