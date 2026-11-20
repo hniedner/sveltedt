@@ -367,11 +367,12 @@ describe("PAGE-14", () => {
   });
 });
 
-// @spec("PAGE-15", "62664302")
+// @spec("PAGE-15", "ae65f3d6")
 describe("PAGE-15", () => {
   it.each<[string, Partial<PaginationProps>]>([
     ["no sizes prop", {}],
     ["sizes []", { sizes: [] }],
+    ["sizes null", { sizes: null as unknown as number[] }],
   ])("shows no page-size select with %s", (_case, props) => {
     mount(props);
     expect(within(nav()).queryByRole("combobox")).toBeNull();
@@ -392,7 +393,7 @@ const PAGER_ALERTS = {
 };
 const BAD_NUMBERS = [Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53];
 
-// @spec("PAGE-16", "6c643bff")
+// @spec("PAGE-16", "93e12b77")
 describe("PAGE-16", () => {
   it.each<[keyof typeof PAGER_ALERTS, Partial<PaginationProps>]>([
     ...[-1, 1.5, ...BAD_NUMBERS].map(

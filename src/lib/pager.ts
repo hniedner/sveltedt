@@ -71,7 +71,9 @@ const isSize = (value: unknown): boolean => isCount(value) && value !== 0;
 
 // The message key of the first fault, in the order of PAGE-16's table, or null when the input is valid
 export function validatePager(input: PaginationProps): PagerFault | null {
-  const { offset, limit, total, label, sizes = [], onpage, onsize } = input;
+  const { offset, limit, total, label, onpage, onsize } = input;
+  // sizes given as null is no sizes, as left out (PAGE-15)
+  const sizes = input.sizes ?? [];
   if (!isCount(total)) return "totalInvalid";
   if (!isCount(offset)) return "offsetInvalid";
   if (!isSize(limit)) return "limitInvalid";
