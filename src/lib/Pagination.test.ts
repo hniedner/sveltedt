@@ -116,3 +116,16 @@ describe("PAGE-04", () => {
     expect(current()).toEqual(["Page 2=page"]);
   });
 });
+
+// @spec("PAGE-13", "bb09aa83")
+describe("PAGE-13", () => {
+  it.each([
+    [0, ["First page", "Previous page"]],
+    [90, ["Next page", "Last page"]],
+  ])("with offset %i, pressing %j emits nothing", async (offset, names) => {
+    const { onpage, onsize } = mount({ offset });
+    for (const name of names) await fireEvent.click(button(name));
+    expect(onpage).not.toHaveBeenCalled();
+    expect(onsize).not.toHaveBeenCalled();
+  });
+});
