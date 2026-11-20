@@ -1,3 +1,5 @@
+import type { PaginationProps } from "./types.ts";
+
 // pageNumbers is adapted from vincjo/datatables, src/lib/src/server/AbstractTableHandler.svelte.ts, commit fe6f7bb1,
 // MIT License, Copyright (c) 2020 vincjo (full text in NOTICE). Changed: 0-based pages, named gaps, no page array, a
 // pure function.
@@ -49,4 +51,38 @@ export function pagerState(
     next: page * limit,
     last: (pages - 1) * limit,
   };
+}
+
+// The alert keys of PAGE-16
+export type PagerFault =
+  | "totalInvalid"
+  | "offsetInvalid"
+  | "limitInvalid"
+  | "labelEmpty"
+  | "sizesInvalid"
+  | "limitNotInSizes"
+  | "pageHandlerMissing"
+  | "sizeHandlerMissing"
+  | "unfilteredTotalInvalid";
+
+const isCount = (value: unknown): boolean =>
+  Number.isSafeInteger(value) && (value as number) >= 0;
+const isSize = (value: unknown): boolean => isCount(value) && value !== 0;
+
+// The message key of the first fault, in the order of PAGE-16's table, or null when the input is valid
+export function validatePager(input: PaginationProps): PagerFault | null {
+  const { offset, limit, total, label, sizes = [], onpage, onsize } = input;
+  if (!isCount(total)) return "totalInvalid";
+  if (!isCount(offset)) return "offsetInvalid";
+  if (!isSize(limit)) return "limitInvalid";
+  if (typeof label !== "string" || label.trim() === "") return "labelEmpty";
+  if (!sizes.every(isSize) || new Set(sizes).size !== sizes.length)
+    return "sizesInvalid";
+  if (sizes.length > 0 && !sizes.includes(limit)) return "limitNotInSizes";
+  if (typeof onpage !== "function") return "pageHandlerMissing";
+  if (sizes.length > 0 && typeof onsize !== "function")
+    return "sizeHandlerMissing";
+  if (input.unfilteredTotal !== undefined && !isCount(input.unfilteredTotal))
+    return "unfilteredTotalInvalid";
+  return null;
 }

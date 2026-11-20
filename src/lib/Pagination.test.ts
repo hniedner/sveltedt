@@ -378,3 +378,68 @@ describe("PAGE-15", () => {
     expect(within(nav()).queryByRole("listbox")).toBeNull();
   });
 });
+
+const PAGER_ALERTS = {
+  totalInvalid: "The row total is not a valid number.",
+  offsetInvalid: "The page offset is not a valid number.",
+  limitInvalid: "The page size is not a valid number.",
+  labelEmpty: "Pager label must not be empty.",
+  sizesInvalid: "The page sizes are not valid.",
+  limitNotInSizes: "The page size is not one of the offered sizes.",
+  pageHandlerMissing: "The pager has no page handler.",
+  sizeHandlerMissing: "The page-size select has no handler.",
+  unfilteredTotalInvalid: "The unfiltered row total is not a valid number.",
+};
+const BAD_NUMBERS = [Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53];
+
+// @spec("PAGE-16", "6c643bff")
+describe("PAGE-16", () => {
+  it.each<[keyof typeof PAGER_ALERTS, Partial<PaginationProps>]>([
+    ...[-1, 1.5, ...BAD_NUMBERS].map(
+      (total): [keyof typeof PAGER_ALERTS, Partial<PaginationProps>] => [
+        "totalInvalid",
+        { total },
+      ],
+    ),
+    ...[-25, 2.5, ...BAD_NUMBERS].map(
+      (offset): [keyof typeof PAGER_ALERTS, Partial<PaginationProps>] => [
+        "offsetInvalid",
+        { offset },
+      ],
+    ),
+    ...[0, -10, 2.5, ...BAD_NUMBERS].map(
+      (limit): [keyof typeof PAGER_ALERTS, Partial<PaginationProps>] => [
+        "limitInvalid",
+        { limit },
+      ],
+    ),
+    ["labelEmpty", { label: "" }],
+    ["labelEmpty", { label: "  " }],
+    ["sizesInvalid", { sizes: [0, 10] }],
+    ["sizesInvalid", { sizes: [2.5, 10] }],
+    ["sizesInvalid", { sizes: [10, 10] }],
+    ["limitNotInSizes", { sizes: [25, 50] }],
+    ["pageHandlerMissing", { onpage: undefined }],
+    ["sizeHandlerMissing", { sizes: [10, 25], onsize: undefined }],
+    ...[-1, 1.5, ...BAD_NUMBERS].map(
+      (
+        unfilteredTotal,
+      ): [keyof typeof PAGER_ALERTS, Partial<PaginationProps>] => [
+        "unfilteredTotalInvalid",
+        { unfilteredTotal },
+      ],
+    ),
+  ])("shows only the alert %s, no nav, for %j", (key, props) => {
+    const { container } = mount(props);
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([PAGER_ALERTS[key]]);
+    expect(container.querySelector("nav")).toBeNull();
+  });
+
+  it("takes an unfilteredTotal below total as no fault", () => {
+    mount({ total: 95, unfilteredTotal: 50 });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(nav().isConnected).toBe(true);
+  });
+});
