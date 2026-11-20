@@ -805,7 +805,7 @@ test("trace: on a pull request an id marked at the base and unmarked now is a fi
   });
   const out = expectTrace(root, 1, ci("pull_request", base, head));
   assert.match(out, /TST-01: marked at the base, no marker names it now/);
-  assert.doesNotMatch(out, /TST-02: tested/);
+  assert.doesNotMatch(out, /TST-02: marked at the base/);
 });
 test("trace: on a pull request a statement untested at both commits exits 0 and is listed", () => {
   const root = fixture();
@@ -919,7 +919,8 @@ test("trace: a vitest.config.ts the step cannot check still empties reports/test
 
 test("baseCommit: a malformed GATE_BASE or GATE_HEAD on a pull request cannot be checked, with the message saying so", () => {
   const { root, a, b } = history();
-  for (const bad of ["main", a.slice(0, 7), "--all"])
+  // the last two hold a whole commit id, with something before or after it
+  for (const bad of ["main", a.slice(0, 7), "--all", `x${a}`, `${a} --all`])
     for (const env of [
       ci("pull_request", bad, b),
       ci("pull_request", a, bad),
