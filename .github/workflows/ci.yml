@@ -17,6 +17,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # The browser step runs in the job browser below; gate-needs refuses this line without that job
+    env:
+      GATE_BROWSER: job
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,8 +84,33 @@ jobs:
           overwrite: true
           if-no-files-found: warn
 
+  # The real-browser tests in the three engines, on the site the gate's site step builds. No browser cache: restoring
+  # one costs about as much as the download (playwright.dev/docs/ci).
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install the locked development dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install the browsers of the pinned Playwright
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - name: Build the site and run the browser step
+        run: |
+          node scripts/check-repo.ts site
+          node scripts/check-repo.ts browser
+
   gate:
-    needs: [static]
+    needs: [static, browser]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -35,12 +35,13 @@ export const errorCode = (
 ): string | undefined => e?.code;
 
 /**
- * The variables that change a step's context (`inCI()`, `canaries()`, the range). `childEnv()` strips them, so a child
+ * The variables that change a step's context (`inCI()`, `canaries()`, the range, the browser step's CI hand-off). `childEnv()` strips them, so a child
  * started with `env: childEnv()` never sees them; a spawn that passes no `env` inherits them.
  */
 export const GATE_VARS: readonly string[] = [
   "CANARY_DIR",
   "GATE_BASE",
+  "GATE_BROWSER",
   "GATE_EVENT",
   "GATE_HEAD",
   "GITHUB_ACTIONS",
@@ -62,7 +63,7 @@ export function childEnv(): NodeJS.ProcessEnv {
 export const HERE = dirname(fileURLToPath(import.meta.url));
 // Test seams held here, unset in normal use: CANARY_DIR (planted folders) and VITEST_BIN (a fake vitest). An empty
 // value counts as unset in each. The other seams (<NAME>_BIN via binaryOf in pinned.ts, SVELTE_CHECK_BIN, JSCPD_BIN,
-// ESLINT_CONFIG) are read in check-repo.ts.
+// VITE_BIN, PLAYWRIGHT_BIN, ESLINT_CONFIG) are read in check-repo.ts.
 export const canaries = (step: string): string =>
   join(process.env.CANARY_DIR || join(HERE, "canaries"), step);
 

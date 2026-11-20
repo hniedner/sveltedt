@@ -176,6 +176,31 @@ function pins(root: string, list: Set<string>): Result {
   );
 }
 
+/**
+ * GATE_BROWSER leaves the browser step to the job `browser`, which gate must need (gateNeeds) and which runs it; the
+ * problems, given the workflow's lines above `jobs:` and its jobs.
+ */
+function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
+  const sets = (l: string[]) => l.some((x) => /^\s+GATE_BROWSER\s*:/.test(x));
+  const job = jobs.get("browser");
+  const found = [];
+  if (sets(top)) found.push("GATE_BROWSER is set for the whole workflow");
+  if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
+  // The step's own command line, as `run:` or in a `run: |` block; nothing may let the job pass without it
+  const runs = job?.some((l) =>
+    /^\s*(-\s+)?(run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
+  );
+  if ([...jobs.values()].some(sets) && !runs)
+    found.push("GATE_BROWSER is set but no job named browser runs the step");
+  // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
+  // on failure) narrows this rule in its own branch, with its rows
+  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+    found.push(
+      "the job browser has continue-on-error or if: it may pass without the step",
+    );
+  return found;
+}
+
 function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
@@ -216,6 +241,7 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
+  details.push(...browserJob(lines.slice(0, start), jobs));
   if (details.length)
     return result(
       FINDING,
@@ -1784,6 +1810,7 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
+const BROWSER_DIR = "site/browser/";
 const viteBin = (): string =>
   process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
 const SITE_CONFIG = "site/vite.config.ts";
@@ -1908,7 +1935,7 @@ function inline(root: string, list: Set<string>): Result {
 }
 
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
-// test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
+// test file outside scripts/ (node:test files and canaries) and site/browser/ must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
 function test(root: string, list: Set<string>): Result {
   const pin = readJson(root, "package.json")?.devDependencies?.vitest;
@@ -1928,7 +1955,13 @@ function test(root: string, list: Set<string>): Result {
       tail(canary.out),
     );
   const mine = [...list]
-    .filter((f) => /\.(?:test|spec)\.ts$/.test(f) && !f.startsWith("scripts/"))
+    // scripts/ holds node:test files; site/browser/ the browser step's Playwright specs (*.spec.ts only)
+    .filter(
+      (f) =>
+        /\.(?:test|spec)\.ts$/.test(f) &&
+        !f.startsWith("scripts/") &&
+        !f.startsWith(BROWSER_DIR),
+    )
     .sort();
   if (!mine.length)
     // code a test should cover: TypeScript and components under src/ and site/
@@ -2209,6 +2242,210 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }
 
+// The real-browser layer: Playwright with the one tracked playwright.config.ts, after the test step, so the site's
+// address 127.0.0.1:4173 is never shared with the site's start tests. A planted failing spec must be reported first.
+const PW_CONFIG = "playwright.config.ts";
+const playwrightBin = (): string =>
+  process.env.PLAYWRIGHT_BIN ||
+  join(HERE, "..", "node_modules", ".bin", "playwright");
+// Substrings of Playwright's own messages at the pinned version (measured on 1.65.1, 2026-11-19; re-measure when the
+// pin moves: the two real-Playwright rows fail if they drift); any other error cannot be checked
+const PORT_TAKEN = "is already used, make sure that nothing is running";
+const NO_BROWSER = "Executable doesn't exist at";
+// Every tracked spec must run in each of the three engines the method names
+const ENGINES = ["chromium", "firefox", "webkit"];
+interface PwTest {
+  projectName: string;
+  status: string;
+  annotations?: { type: string }[];
+  results: { error?: { message?: string } }[];
+}
+interface PwSuite {
+  file: string;
+  specs?: { title: string; tests: PwTest[] }[];
+  suites?: PwSuite[];
+}
+interface PwReport {
+  stats: {
+    expected?: number;
+    unexpected?: number;
+    flaky?: number;
+    skipped?: number;
+  };
+  errors: { message?: string }[];
+  suites: PwSuite[];
+}
+interface PwRun {
+  report: PwReport | null;
+  status: number | null;
+  out: string;
+}
+
+/** One Playwright run in `cwd`: its JSON report (null when it wrote none or none readable), exit status and output. */
+function playwright(cwd: string): PwRun {
+  const dir = mkdtempSync(join(tmpdir(), "playwright-"));
+  try {
+    const file = join(dir, "report.json");
+    const r = spawnSync(
+      playwrightBin(),
+      ["test", "--config", PW_CONFIG, "--reporter=json"],
+      {
+        cwd,
+        encoding: "utf8",
+        env: { ...childEnv(), PLAYWRIGHT_JSON_OUTPUT_FILE: file },
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+    let report: PwReport | null = null;
+    try {
+      report = JSON.parse(readFileSync(file, "utf8")) as PwReport;
+    } catch {
+      // No file, or a cut one: the run is judged as having written no report
+    }
+    return { report, status: r.status, out: `${r.stdout}${r.stderr}` };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Every test of a report as [file, title, test], describe blocks flattened. */
+const pwTests = (suites: PwSuite[]): [string, string, PwTest][] =>
+  suites.flatMap((s) => [
+    ...(s.specs ?? []).flatMap((spec) =>
+      spec.tests.map((t): [string, string, PwTest] => [s.file, spec.title, t]),
+    ),
+    ...pwTests(s.suites ?? []),
+  ]);
+
+/** Why a run could not check anything: a taken port, a missing browser, any error outside the tests, no report. */
+function pwCannot(run: PwRun): Result | null {
+  if (!run.report)
+    return result(CANNOT, "playwright wrote no readable report", tail(run.out));
+  const errors = run.report.errors.map((e) => e.message ?? "");
+  if (errors.some((m) => m.includes(PORT_TAKEN)))
+    return result(
+      CANNOT,
+      "127.0.0.1:4173 is held by another process (stop pnpm site:serve)",
+    );
+  if (errors.length)
+    return result(CANNOT, "playwright could not run", tail(errors.join("\n")));
+  const missing = pwTests(run.report.suites).filter(([, , t]) =>
+    t.results.some((r) => r.error?.message?.includes(NO_BROWSER)),
+  );
+  if (missing.length)
+    return result(
+      CANNOT,
+      "a browser is not installed: run pnpm exec playwright install",
+      [...new Set(missing.map(([, , t]) => t.projectName))],
+    );
+  return null;
+}
+
+/**
+ * A test that did not pass, or passed only as an expected failure (test.fail): one line, the first three lines of
+ * its reason as tail() keeps them (error lines first, no stack frames), joined by " / ".
+ */
+const pwBad = ([file, title, t]: [string, string, PwTest]): string[] => {
+  const head = `${file} > ${title} [${t.projectName}]`;
+  if (t.annotations?.some((a) => a.type === "fail"))
+    return [`${head}: marked test.fail`];
+  if (t.status === "expected") return [];
+  if (t.status === "skipped") return [`${head}: skipped`];
+  const why = tail(t.results.at(-1)?.error?.message ?? t.status);
+  return [`${head}: ${why.slice(0, 3).join(" / ")}`];
+};
+
+function browser(root: string, list: Set<string>): Result {
+  const specs = [...list].filter(
+    (f) => f.startsWith(BROWSER_DIR) && f.endsWith(".spec.ts"),
+  );
+  if (!specs.length)
+    return result(
+      NA,
+      `no tracked spec under ${BROWSER_DIR}: no browser test to run`,
+    );
+  if (!list.has(PW_CONFIG))
+    return result(CANNOT, `${PW_CONFIG} is not tracked`, specs);
+  // Checked by gate-needs: GATE_BROWSER may stand only in a job other than browser, beside a job browser that runs it;
+  // the job browser itself never leaves the step out, however the variable reached it
+  if (
+    inCI() &&
+    process.env.GATE_BROWSER === "job" &&
+    process.env.GITHUB_JOB !== "browser"
+  )
+    return result(NA, "left to the CI job browser (GATE_BROWSER)");
+  const pin = readJson(root, "package.json")?.devDependencies?.[
+    "@playwright/test"
+  ];
+  const v = versionOf(playwrightBin(), "--version");
+  if (isResult(v)) return v;
+  const got = v.line.replace("Version ", "");
+  if (got !== pin)
+    return result(
+      CANNOT,
+      `playwright ${got} is installed, package.json pins ${pin}`,
+    );
+  // The canary goes through the same reading as the real run: its one test (canary.spec.ts) must have failed
+  const canary = playwright(canaries("browser"));
+  const cannot = pwCannot(canary);
+  if (cannot) return cannot;
+  const planted = pwTests(canary.report?.suites ?? []);
+  if (planted[0]?.[2].status !== "unexpected")
+    return result(
+      CANNOT,
+      "playwright did not report the planted failing test (canary.spec.ts)",
+    );
+  return pwJudge(playwright(root), specs);
+}
+
+/** The real run's result: every tracked spec in each engine, the report's totals, then each test, then the exit. */
+function pwJudge(run: PwRun, specs: string[]): Result {
+  const stopped = pwCannot(run);
+  if (stopped) return stopped;
+  // pwCannot answers for a run without a report
+  const report = run.report as PwReport;
+  const tests = pwTests(report.suites);
+  const missed = specs.flatMap((f) => {
+    const ran = new Set(
+      tests
+        .filter(([file]) => `${BROWSER_DIR}${file}` === f)
+        .map(([, , t]) => t.projectName),
+    );
+    const not = ENGINES.filter((e) => !ran.has(e));
+    return not.length ? [`${f}: not in ${not.join(", ")}`] : [];
+  });
+  if (missed.length)
+    return result(
+      CANNOT,
+      "tracked browser specs did not run in every engine",
+      missed,
+    );
+  // The report's own totals must count the tests read, or the reading missed some
+  const { expected = 0, unexpected = 0, flaky = 0, skipped = 0 } = report.stats;
+  if (expected + unexpected + flaky + skipped !== tests.length)
+    return result(
+      CANNOT,
+      `the report counts ${expected + unexpected + flaky + skipped} test(s), ${tests.length} were read`,
+    );
+  const bad = tests.flatMap(pwBad);
+  if (bad.length)
+    return result(
+      FINDING,
+      `${bad.length} browser test(s) failed, skipped or marked to fail`,
+      bad,
+    );
+  if (run.status !== 0)
+    return result(
+      CANNOT,
+      `playwright exited ${run.status} with every test passed`,
+      tail(run.out),
+    );
+  return result(
+    PASS,
+    `playwright failed the canary; ${tests.length} test(s) in ${specs.length} file(s) passed`,
+  );
+}
+
 // The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
 // this runner. No hook changes a file.
 const HOOKS = ["pre-commit", "commit-msg"];
@@ -2441,6 +2678,7 @@ const CHECKS: Record<string, Check> = {
   inline,
   test,
   trace,
+  browser,
   dupes,
   commits,
   pins,

@@ -591,10 +591,11 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("gate: GATE_VARS names the five context variables, and childEnv strips each from a child", () => {
+test("gate: GATE_VARS names the six context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
+    "GATE_BROWSER",
     "GATE_EVENT",
     "GATE_HEAD",
     "GITHUB_ACTIONS",
