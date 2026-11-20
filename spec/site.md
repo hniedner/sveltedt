@@ -309,7 +309,8 @@ before every other script of the page.
 - Traces: PRD-W4, PRD-S1.
 
 **POL-03** The HTML files of the site's build MUST NOT hold an inline script (a `script` element with text, an
-event-handler attribute or a `javascript:` URL) or an inline `style` element.
+event-handler attribute, a `javascript:` or `vbscript:` URL, or a `data:` URL that a script or an embedded document is
+loaded from) or an inline `style` element.
 - Examples (the scan reads every `.html` file of the build folder; the test runs every row as a canary planted in a
   copy of the built `index.html`, which must be found):
 
@@ -321,8 +322,14 @@ event-handler attribute or a `javascript:` URL) or an inline `style` element.
   | `<style>body { margin: 0 }</style>` |
   | `<body onload="start()">` (an event-handler attribute) |
   | `<a href="javascript:start()">Start</a>` |
+  | `<a href="vbscript:start()">Start</a>` |
+  | `<script src="data:text/javascript,start()"></script>` |
+  | `<iframe src="data:text/html,start"></iframe>` |
+  | `<embed src="data:text/html,start">` |
+  | `<object data="data:text/html,start"></object>` |
 
-  A `script` element with a `src` and no text, and a `link rel="stylesheet"` to a file of the build, pass. A `style`
+  A `script` element with a `src` and no text, a `link rel="stylesheet"` to a file of the build, and an `img` whose
+  `src` is a `data:` URL (Vite writes small assets so; an image runs no script), pass. A `style`
   attribute is not this scan's: POL-04 finds it in the browser. The scan reports how many HTML files it read; when it
   reads none, it reports "could not check", which blocks like a finding. Break that turns it red: the build writes
   its entry script into `index.html` instead of a file.
