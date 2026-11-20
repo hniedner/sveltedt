@@ -28,11 +28,10 @@ const isEmpty = (text: unknown): boolean =>
 // undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
 const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
 
-// An entry of the order as its type says: an object, not a list, with a string id and a boolean desc (SORT-15)
+// An entry of the order as its type says: an object with a string id and a boolean desc (SORT-15)
 const isSortEntry = (entry: unknown): boolean =>
   typeof entry === "object" &&
   entry !== null &&
-  !Array.isArray(entry) &&
   typeof (entry as { id?: unknown }).id === "string" &&
   typeof (entry as { desc?: unknown }).desc === "boolean";
 
