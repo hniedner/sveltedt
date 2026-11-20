@@ -429,7 +429,7 @@ describe("PAGE-16", () => {
         { unfilteredTotal },
       ],
     ),
-  ])("shows only the alert %s, no nav, for %j", (key, props) => {
+  ])("shows only the alert %s, no nav, for %o", (key, props) => {
     const { container } = mount(props);
     expect(
       screen.getAllByRole("alert").map((alert) => alert.textContent),
