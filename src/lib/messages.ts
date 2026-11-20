@@ -37,3 +37,16 @@ export const defaultMessages: DataTableMessages = {
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
   sortColumnDuplicate: "The sort names a column twice.",
 };
+
+// Numbers group the English way whatever the runtime's locale
+const number = new Intl.NumberFormat("en-US");
+
+// The pager's English words
+export const pagerWords = {
+  firstPage: "First page",
+  previousPage: "Previous page",
+  nextPage: "Next page",
+  lastPage: "Last page",
+  pageLabel: (page: number) => `Page ${number.format(page)}`,
+  pageNumber: (page: number) => number.format(page),
+};
