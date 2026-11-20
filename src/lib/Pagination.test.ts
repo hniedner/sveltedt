@@ -119,6 +119,16 @@ describe("PAGE-04", () => {
   });
 });
 
+// @spec("PAGE-12", "03a695a6")
+describe("PAGE-12", () => {
+  it("emits nothing for a press on the current page at its own offset", async () => {
+    const { onpage, onsize } = mount({ offset: 25, limit: 25, total: 130 });
+    await fireEvent.click(button("Page 2"));
+    expect(onpage).not.toHaveBeenCalled();
+    expect(onsize).not.toHaveBeenCalled();
+  });
+});
+
 // @spec("PAGE-05", "4f1295b7")
 describe("PAGE-05", () => {
   it.each<[Partial<PaginationProps>, string[]]>([
