@@ -2445,39 +2445,54 @@ function prePush(remote: string | undefined): Result | Stage[] {
     spawnSync("git", ["-C", root, ...args], {
       encoding: "utf8",
       env: childEnv(),
+      maxBuffer: 1 << 28,
     });
+  const out = (r: { stdout: string }) => r.stdout.trim();
+  const main = `refs/remotes/${remote}/main`;
   const ranges: string[] = [],
     skipped: string[] = [];
   for (const line of readFileSync(0, "utf8").split("\n").filter(Boolean)) {
-    const [localRef, localSha, remoteRef, remoteSha] = line.split(" ");
-    if (ZERO.test(localSha)) skipped.push(`${remoteRef}: deletion`);
-    else if (localRef.startsWith("refs/tags/"))
-      skipped.push(`${remoteRef}: tag`);
-    else {
-      // A new branch: its commits after the remote's main, as the gate's own range.
-      const base = ZERO.test(remoteSha)
-        ? git("merge-base", `refs/remotes/${remote}/main`, localSha)
-        : { status: 0, stdout: remoteSha };
-      const count = git(
-        "rev-list",
-        "--count",
-        `${base.stdout.trim()}..${localSha}`,
-      );
-      if (base.status !== 0 || count.status !== 0)
-        return result(
-          CANNOT,
-          `git cannot list the commits of ${remoteRef} (fetch ${remote} first)`,
-        );
-      if (count.stdout.trim() === "0")
-        skipped.push(`${remoteRef}: no new commit`);
-      else ranges.push(`${base.stdout.trim()}..${localSha}`);
+    const [, localSha, remoteRef, remoteSha] = line.split(" ");
+    if (ZERO.test(localSha)) {
+      skipped.push(`${remoteRef}: deletion`);
+      continue;
     }
+    // The remote ref decides what is pushed; a tag object is read as the commit it names.
+    const tip = out(git("rev-parse", `${localSha}^{commit}`));
+    const fresh = git(
+      "rev-list",
+      "--count",
+      tip,
+      "--not",
+      `--remotes=${remote}`,
+    );
+    if (remoteRef.startsWith("refs/tags/") && out(fresh) === "0") {
+      skipped.push(`${remoteRef}: tag, nothing new`);
+      continue;
+    }
+    // An update: its commits after the remote's. A new branch, a tag with new commits, or an update whose old tip
+    // is not an ancestor (a force-push after a rebase): those after the remote's main, as the gate's own range.
+    const update =
+      !ZERO.test(remoteSha) &&
+      !remoteRef.startsWith("refs/tags/") &&
+      git("merge-base", "--is-ancestor", remoteSha, tip).status === 0;
+    const base = update
+      ? { status: 0, stdout: remoteSha }
+      : git("merge-base", main, tip);
+    const count = git("rev-list", "--count", `${out(base)}..${tip}`);
+    if (!tip || base.status !== 0 || count.status !== 0)
+      return result(
+        CANNOT,
+        `git cannot list the commits of ${remoteRef}: ${remote}/main must be fetched (git fetch ${remote})`,
+      );
+    if (out(count) === "0") skipped.push(`${remoteRef}: no new commit`);
+    else ranges.push(`${out(base)}..${tip}`);
   }
   if (!ranges.length) return result(NA, skipped.join("; ") || "nothing pushed");
   // The gate reads the work tree, so it must be the pushed commit.
-  const head = git("rev-parse", "HEAD").stdout.trim();
+  const head = out(git("rev-parse", "HEAD"));
   if (
-    git("status", "--porcelain").stdout.trim() ||
+    out(git("status", "--porcelain", "--untracked-files=no")) ||
     ranges.some((r) => !r.endsWith(`..${head}`))
   )
     return result(
@@ -2487,19 +2502,40 @@ function prePush(remote: string | undefined): Result | Stage[] {
   return [
     ...ranges.map((r): Stage => [
       `secrets ${r}`,
-      () =>
-        scanResult(
+      () => {
+        const added = git(
+          ...[
+            "log",
+            "--diff-merges=first-parent",
+            "--numstat",
+            "--format=%x00%H",
+          ],
+          ...[r, "--"],
+        );
+        // The scanner cannot check a range that adds no text (only deletions): nothing there to leak.
+        if (added.status === 0 && !/^[1-9]\d*\t/m.test(added.stdout))
+          return result(PASS, `${r}: no text added`);
+        return scanResult(
           spawnSync(
             process.execPath,
             [join(root, "scripts", "scan-secrets.ts"), "git", root, r],
-            {
-              encoding: "utf8",
-              env: childEnv(),
-            },
+            { encoding: "utf8", env: childEnv() },
           ),
           r,
           `${r} scanned`,
-        ),
+        );
+      },
+    ]),
+    // Gitleaks' git mode was measured to miss a token in a message body, and a commit made without the hook, a
+    // cherry-pick or a rebase has had no commit-msg scan.
+    ...ranges.map((r): Stage => [
+      `messages ${r}`,
+      () => {
+        const log = git("log", "--format=%B%x00", r);
+        return log.status === 0 && log.stdout
+          ? messageSecrets(log.stdout)
+          : result(CANNOT, `git cannot read the messages of ${r}`);
+      },
     ]),
     ...ranges.map((r): Stage => [`words ${r}`, () => words(root, r)]),
     ["gate", () => gate(root)],

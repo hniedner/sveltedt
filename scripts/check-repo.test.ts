@@ -3776,17 +3776,29 @@ test("commit-msg: git runs the hook from .githooks and commits only what it pass
   assert.match(head(root), /^fixup! /);
 });
 
-/** The secret scan replaced by one that names its range and finds a `leak` line added in it. */
+/**
+ * The secret scan replaced by one that finds a `leak`: a line added in the range (git mode, which names the range and,
+ * like the real one, cannot check a range adding no text) or in a file of the folder (dir mode).
+ */
 const rangeScan = (root: string): void =>
   put(
     root,
     "scripts/scan-secrets.ts",
     // Formatted and typed, since the gate in a pushed fixture checks it like any script.
     `import { execFileSync } from "node:child_process";
-const [mode, repo, range] = process.argv.slice(2) as [string, string, string];
-const log = execFileSync("git", ["-C", repo, "log", "-p", range]);
-console.log("scan-secrets " + mode + " " + range);
-if (/^\\+.*leak/m.test(String(log))) {
+import { readdirSync, readFileSync } from "node:fs";
+const [mode, target, range] = process.argv.slice(2) as [string, string, string];
+const text =
+  mode === "dir"
+    ? readdirSync(target)
+        .map((f) => readFileSync(target + "/" + f, "utf8"))
+        .join("\\n")
+    : String(execFileSync("git", ["-C", target, "log", "-p", range]));
+console.log("scan-secrets " + mode + " " + (mode === "dir" ? "" : range));
+if (mode === "git" && !/^\\+(?!\\+\\+)/m.test(text)) {
+  console.log("COULD NOT CHECK scan-secrets: no text added");
+  process.exitCode = 3;
+} else if ((mode === "dir" ? /leak/ : /^\\+.*leak/m).test(text)) {
   console.log("FINDING scan-secrets: 1 leak(s)");
   process.exitCode = 1;
 }
@@ -3902,6 +3914,68 @@ test("pre-push: a secret in a pushed commit blocks the push before the gate", ()
   assert.match(r.out, /^FINDING secrets /m);
   assert.doesNotMatch(r.out, /gate: /);
 });
+test("pre-push: a secret in the message of a pushed commit blocks the push, though the commit skipped the hook", () => {
+  const root = pushable();
+  put(root, "notes/b.md", "# B note\n");
+  commit(root, "docs: add a note\n\nthe leak is in this body\n");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /^FINDING messages /m);
+  assert.doesNotMatch(r.out, /^PASS gate: /m);
+  assert.equal(git(root, "ls-remote", "origin", "feat/x"), "");
+});
+test("pre-push: a tag on commits no remote ref holds is scanned, a tag pushed as a branch is a branch", () => {
+  const root = pushable();
+  put(root, "notes/b.md", "# A leak\n");
+  commit(root, "docs: add a note");
+  git(root, "tag", "v1");
+  for (const ref of ["v1", "v1:refs/heads/x"]) {
+    const r = gitPush(root, [ref]);
+    assert.notEqual(r.code, 0, `${ref}: ${r.out}`);
+    assert.match(r.out, /^FINDING secrets /m);
+  }
+  assert.equal(git(root, "ls-remote", "origin", "v1", "x"), "");
+});
+test("pre-push: an untracked file does not block the push", () => {
+  const root = pushable();
+  put(root, "scratch.txt", "notes\n");
+  const r = gitPush(root, ["feat/x"]);
+  assert.equal(r.code, 0, r.out);
+});
+test("pre-push: a range that only deletes passes its secret stage and says no text was added", () => {
+  const root = pushable();
+  assert.equal(gitPush(root, ["feat/x"]).code, 0);
+  git(root, "rm", "-q", "notes/a.md");
+  commit(root, "docs: drop the note");
+  const r = gitPush(root, ["feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^PASS secrets \S+: .*no text added/m);
+});
+test("pre-push: a force-push after a rebase scans after main, not after the remote's old tip", () => {
+  const root = pushable();
+  assert.equal(gitPush(root, ["feat/x"]).code, 0);
+  git(root, "checkout", "-q", "-B", "feat/x", "origin/main");
+  put(root, "notes/c.md", "# C note\n");
+  commit(root, "docs: add a rebased note");
+  const r = gitPush(root, ["--force", "feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    new RegExp(
+      `scan-secrets git ${sha(root, "origin/main")}\\.\\.${sha(root)}`,
+    ),
+  );
+});
+test("pre-push: a remote whose main is not fetched cannot be checked, and the message says to fetch it", () => {
+  const root = pushable();
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  const r = gitPush(root, ["feat/x"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^COULD NOT CHECK pre-push: .*origin\/main must be fetched/m,
+  );
+});
 test("pre-push: the word scan set up in git config runs on the range and its finding blocks the push", () => {
   const root = pushable();
   const scan = join(tempDir(), "scan-words.ts");
@@ -3959,10 +4033,10 @@ test("pre-push: a deletion, a tag and a branch with no new commit have nothing t
   let r = gitPush(root, [":feat/x"]);
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /^NOT APPLICABLE pre-push: .*deletion/m);
-  git(root, "tag", "v0.0.1");
+  git(root, "tag", "v0.0.1", "origin/main");
   r = gitPush(root, ["v0.0.1"]);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /^NOT APPLICABLE pre-push: .*tag/m);
+  assert.match(r.out, /^NOT APPLICABLE pre-push: .*tag, nothing new/m);
   r = gitPush(root, ["origin/main:refs/heads/copy"]);
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /^NOT APPLICABLE pre-push: .*no new commit/m);
