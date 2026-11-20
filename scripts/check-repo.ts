@@ -7,9 +7,12 @@
 import { createHash } from "node:crypto";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -782,7 +785,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/(setup|[\w-]+\.version))$/,
     steps: ["text"],
   },
   {
@@ -2441,6 +2444,86 @@ function pwJudge(run: PwRun, specs: string[]): Result {
   );
 }
 
+// The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
+// this runner. No hook changes a file.
+const HOOKS = ["pre-commit", "commit-msg"];
+const shim = (hook: string): string =>
+  `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
+
+// The problems with core.hooksPath in this clone, or the Result when git cannot say.
+function hooksPath(root: string): Result | string[] {
+  // git's status: 0 set, 1 unset, anything else is git failing (a broken configuration file), not an unset path.
+  const g = spawnSync(
+    "git",
+    ["-C", root, "config", "--show-origin", "--get", "core.hooksPath"],
+    { encoding: "utf8", env: childEnv() },
+  );
+  if (g.status !== 0 && g.status !== 1)
+    return result(
+      CANNOT,
+      `git cannot read core.hooksPath: ${g.stderr.trim() || "no reason given"}`,
+    );
+  // Only the line end goes: an empty value leaves "<origin>\t", and trimming that would lose the value.
+  const [origin, value] = g.stdout.replace(/\n$/, "").split("\t");
+  if (g.status === 1) return ["core.hooksPath is unset: run ./scripts/setup"];
+  return value === ".githooks"
+    ? []
+    : [
+        `core.hooksPath is "${value}" (${origin}): ./scripts/setup will not replace it; set it to .githooks in this clone (git config core.hooksPath .githooks), which replaces the other value here, whose hooks then stop running in this clone`,
+      ];
+}
+
+// What is wrong with one shim, or null; a Result when it cannot be opened for another reason. The file is opened
+// once and its mode and content are read from that one descriptor, so the two checks see the same file.
+function shimProblem(f: string, hook: string): string | Result | null {
+  let fd: number;
+  try {
+    fd = openSync(f, "r");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "missing";
+    return result(
+      CANNOT,
+      `.githooks/${hook} cannot be opened: ${code ?? String(e)}`,
+    );
+  }
+  try {
+    if (!(fstatSync(fd).mode & 0o100)) return "not executable";
+    return readFileSync(fd, "utf8") === shim(hook)
+      ? null
+      : "not the two-line shim";
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// The shims are checked wherever the gate runs; core.hooksPath only in a clone (CI has no clone-local git config, and
+// an extra file in .githooks would run in any maintainer's clone that has set it up). The folder is read from the
+// tracked list: an untracked file in it (a Finder .DS_Store) is not part of the repository.
+function hooks(root: string, list: Set<string>): Result {
+  const ci = inCI();
+  const path = ci ? [] : hooksPath(root);
+  if (isResult(path)) return path;
+  const details = [...path];
+  for (const f of [...list].sort())
+    if (f.startsWith(".githooks/") && !HOOKS.includes(f.slice(10)))
+      details.push(`${f}: not a known hook`);
+  for (const h of HOOKS) {
+    const problem = shimProblem(join(root, ".githooks", h), h);
+    if (typeof problem === "string") details.push(`.githooks/${h}: ${problem}`);
+    else if (problem) return problem;
+  }
+  if (details.length)
+    return result(FINDING, `${details.length} problem(s)`, details);
+  const shims = `${HOOKS.join(", ")} as shims`;
+  return result(
+    PASS,
+    ci
+      ? `${shims}; core.hooksPath not checked (CI has no clone-local git configuration)`
+      : `core.hooksPath .githooks; ${shims}`,
+  );
+}
+
 type Stage = [string, () => Result];
 
 // The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
@@ -2574,11 +2657,12 @@ function runStages(name: string, stages: Stage[]): number {
   );
 }
 
-// `all` stops at the first step that does not pass, so `secrets` comes right after the toolchain check: a pull request
-// red on any later step still gets its secret scan in CI, which has no other.
+// `all` stops at the first step that does not pass, so the order is toolchain, secrets, hooks: a pull request red on
+// any later step, `hooks` included, still gets its secret scan in CI, which has no other.
 const CHECKS: Record<string, Check> = {
   toolchain,
   secrets,
+  hooks,
   selftest,
   files,
   lockfile,
