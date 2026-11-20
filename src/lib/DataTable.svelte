@@ -24,6 +24,19 @@
   }: DataTableProps<Row> = $props();
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
+  // Shift held on the Enter or Space that activates a sort button: Firefox's click from a key carries no shiftKey
+  // (measured in Playwright 1.65.1's Firefox), so the key's own Shift decides the one click with no pointer (detail 0)
+  // that follows it. Not cleared on keyup: Space's click comes after its keyup. A plain variable of this table, not
+  // reactive state; the click that reads it and a blur clear it, so a later scripted click is never a Shift press.
+  let keyShift = false;
+  function sortKey(event: KeyboardEvent): void {
+    keyShift = event.shiftKey && (event.key === "Enter" || event.key === " ");
+  }
+  function shiftOf(event: MouseEvent): boolean {
+    const shift = event.shiftKey || (event.detail === 0 && keyShift);
+    keyShift = false;
+    return shift;
+  }
   // An entry given as undefined keeps its default, as a translation lookup that misses gives it
   const words = $derived({
     ...defaultMessages,
@@ -102,13 +115,15 @@
                   type="button"
                   aria-label={words.sortBy(column.label)}
                   aria-describedby={`${uid}-sort-${index}`}
+                  onkeydown={sortKey}
+                  onblur={() => (keyShift = false)}
                   onclick={(event) =>
                     onsort?.(
                       nextOrder(
                         sort,
                         column.id,
                         column.sortable ?? [],
-                        event.shiftKey,
+                        shiftOf(event),
                       ),
                     )}>{column.label}</button
                 >{#if state.direction}<span aria-hidden="true"

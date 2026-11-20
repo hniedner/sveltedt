@@ -98,8 +98,8 @@ describe("SORT-01", () => {
     },
   );
 });
-// SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are owed to the real-browser sort step, so the
-// statement carries no marker until then.
+// SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are in site/browser/sort.spec.ts (a real
+// browser), so the statement carries no marker here.
 describe("SORT-02, Shift+click rows", () => {
   it.each([
     ["code asc", "code asc, name asc"],
@@ -117,8 +117,8 @@ describe("SORT-02, Shift+click rows", () => {
     },
   );
 });
-// SORT-03's click row. Its Enter and Space rows are owed to the real-browser sort step, so the statement carries no
-// marker until then.
+// SORT-03's click row. Its Enter and Space rows are in site/browser/sort.spec.ts (a real browser), so the statement
+// carries no marker here.
 describe("SORT-03, click row", () => {
   it("one click on Name with the order [] emits exactly one onsort", async () => {
     const { onsort } = mount();

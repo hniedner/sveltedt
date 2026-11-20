@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { join } from "node:path";
 import { defineConfig } from "vite";
 
-// Builds site/index.html and site/canary.html and what they load into site/dist, the folder site/server.ts serves.
+// Builds site/index.html, site/canary.html and site/sort.html and what they load into site/dist, the folder site/server.ts serves.
 // The Svelte options come from the repository's one svelte.config.js.
 export default defineConfig({
   root: import.meta.dirname,
@@ -13,6 +13,7 @@ export default defineConfig({
       input: [
         join(import.meta.dirname, "index.html"),
         join(import.meta.dirname, "canary.html"),
+        join(import.meta.dirname, "sort.html"),
       ],
     },
   },
