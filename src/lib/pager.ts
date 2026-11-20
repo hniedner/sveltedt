@@ -35,14 +35,15 @@ export function pagerState(
   total: number,
 ): PagerState {
   const pages = Math.max(1, Math.ceil(total / limit));
-  const page = Math.floor(offset / limit) + 1;
+  const past = offset > 0 && offset >= total;
+  const page = past ? pages : Math.floor(offset / limit) + 1;
   return {
     pages,
     page,
-    current: page,
+    current: past ? null : page,
     canPrevious: offset > 0,
     // The page that holds `offset` ends before `total` (PAGE-05)
-    canNext: page * limit < total,
+    canNext: !past && page * limit < total,
     previous: Math.max(0, offset - limit),
     next: offset + limit,
     last: (pages - 1) * limit,

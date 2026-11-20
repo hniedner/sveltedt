@@ -159,6 +159,24 @@ describe("PAGE-18", () => {
   );
 });
 
+// @spec("PAGE-25", "fc092594")
+describe("PAGE-25", () => {
+  it.each([
+    [100, 95, "1 … 6 7 8 9 10"],
+    [90, 90, "1 … 5 6 7 8 9"],
+    [95, 95, "1 … 6 7 8 9 10"],
+    [25, 0, "1"],
+  ])(
+    "with offset %i at or past total %i shows %s and no current page",
+    (offset, total, shown) => {
+      mount({ offset, limit: 10, total });
+      expect(places()).toBe(shown);
+      expect(current()).toEqual([]);
+      expect(screen.queryByRole("alert")).toBeNull();
+    },
+  );
+});
+
 // @spec("PAGE-04", "60fec150")
 describe("PAGE-04", () => {
   it("marks Page 2 and nothing else with aria-current", () => {
