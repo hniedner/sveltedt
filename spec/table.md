@@ -44,8 +44,9 @@ to the consumer as one callback (stated with the statements that add user action
   `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
   `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search);
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
-  statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), and the
-  sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14).
+  statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
+  sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
+  snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -3081,7 +3082,7 @@ and Date (id `date`), in that order, all three sortable, with no filter unless t
   |---|---|
   | press Escape | "Columns" |
   | press on the text of a body cell | not in the dialog and not on "Columns" |
-  | press Tab from the checkbox "Date", the last control in the dialog | "Sort by Name", the next control |
+  | press Tab from "Move later Date", the last control in the dialog (`aria-disabled`, still focusable: COL-10) | "Sort by Name", the next control |
   | press "Filter Name" (Name with a text filter) | "Filter Name text", in the open "Name filter" |
 
 - Reason: the chooser behaves like the table's other dialogs, so the user learns one way to leave them (PRD-B10,
@@ -3451,7 +3452,7 @@ COL-14 says.
   (Playwright's touchscreen is "limited to emulating tap gestures", FETCHED 2026-11-19); the pointer path they share
   with the mouse is tested with the mouse (COL-14). The Chromium route through the Chrome DevTools Protocol is
   INFERRED (its documentation page did not load, 2026-11-19); the build verifies it first, and if it cannot drive a
-  touch drag, the Chromium row joins the stated limit and the reviewer tells the owner.
+  touch drag, the Chromium row joins the stated limit, which is then reported to the owner.
 - Reason: PRD-B11 (b) asks that a drag works with pointer and touch; without `touch-action: none` the browser would
   scroll the page instead.
 - Layer: real browser (Chromium, Firefox, WebKit; the drag row Chromium only, for the reason above).
@@ -3804,7 +3805,8 @@ the table's width MUST count it.
 These statements add `stickyHeader` (default `false`), `stickyTop` (CSS px, default 0: the height of the application's
 fixed bar) and a column's `sticky` (default `false`) (PRD-B14, design D of PRD section 5.1: the document scrolls, the
 header sticks to the viewport). Sticky columns come first, in their given order, before every other column whatever
-`columnState.order` says, after the box column when selection is on; the box column is sticky whenever a column is. The
+`columnState.order` says, after the box column (selection on) and the details column (child rows on, section 15); the
+box column and the details column are sticky whenever a column is, in that order, before the sticky data columns. The
 component computes their inline-start offsets from the rendered widths. Without `stickyHeader` the region scrolls
 sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here are tested in a real browser, in
 Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
@@ -3902,10 +3904,11 @@ offset being the sum of the widths of the sticky columns before it.
 - Examples (the test runs every row; `stickyHeader`; 30 columns as in STK-09, Name and Code `sticky`; the window
   scrolled right 2000 px; offsets measured from the viewport's left edge, within 1 px):
 
-  | Selection | Left edge of the box column | of Name | of Code |
-  |---|---|---|---|
-  | off | - | 0 | Name's width |
-  | on | 0 | the box column's width | the box column's and Name's widths |
+  | Selection, child rows | Left edge of the box column | of the details column | of Name | of Code |
+  |---|---|---|---|---|
+  | off, off | - | - | 0 | Name's width |
+  | on, off | 0 | - | the box column's width | the box column's and Name's widths |
+  | on, on | 0 | the box column's width | the box and details columns' widths | those and Name's width |
 
 - Reason: the identifying columns stay in view beside the values being read; the component computes the offsets, so
   the application gives none (PRD-B14, section 5.1).
@@ -3978,7 +3981,7 @@ NOT be fully hidden by the bar, the sticky header or a sticky column, unless it 
   |---|---|---|
   | `stickyTop` is -1, `NaN` or `Infinity` | `stickyTopInvalid` | "The sticky top offset is not a valid number." |
 
-  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25 and SEL-10 win, in that order.
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order.
 - Reason: a header stuck at a wrong place hides rows (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-B14.
@@ -3994,6 +3997,282 @@ the region scrolls sideways.
 
 **STK-15** Every fixed word this section's table shows MUST come from a prop with an English default.
 - Examples (as RND-06): the alert message of STK-11 (STK-11). STK-10's console warning is not shown by the table.
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+## 15. Child rows (CHILD, milestone 6)
+
+These statements add the snippet `detail` (called with a row), `detailName(row)` (the accessible name of that row's
+disclosure button), `expanded` (a list of the row ids whose details are open; default empty) and the callback
+`onexpand({ rowId, expanded })` (PRD-B27). The application owns which rows are open; the table shows what `expanded`
+says. The pattern is a disclosure button in a leading column of its own, as the practice check of 2026-11-19 found in
+the accessible examples (Adrian Roselli's expandable rows, FETCHED); DataTables' row-details example uses an unnamed
+cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
+`{ id: 'r2', name: 'alpha' }`, `detailName: (r) => 'Details for ' + r.name`, a `detail` snippet holding the paragraph
+"More about <name>" and a link "Open <name>", and `onexpand` passed. The columns are those of section 12.
+
+**CHILD-01** With `detail`, the table MUST show a leading column whose header cell holds the word `detailsColumn`
+("Details") hidden visually, and whose body cells each hold one button named by `detailName(row)`.
+- Examples (the test runs every row):
+
+  | Props | Leading columns, in order |
+  |---|---|
+  | `detail` given | the details column, then Name |
+  | `detail` and `selection` given | the box column, the details column, then Name |
+  | `detailName` and `onexpand` given, no `detail` | none: three column headers, none named "Details", and no button whose name starts with "Details for" |
+  | `detail` given, and a fourth given column labelled "Details" | the details column first; no alert; two column headers named "Details" |
+
+  The header cell of the details column has the accessible text "Details" and no visible text. A given column labelled
+  "Details" is no fault: its header is a different cell.
+- Reason: a disclosure button the user can reach in every row, named by its row (PRD-B27); a column header names what
+  the column holds.
+- Layer: component.
+- Traces: PRD-B27, PRD-A1.
+
+**CHILD-02** A row's button MUST have `aria-expanded="true"` exactly while its row id is in `expanded`.
+- Examples (the test runs every row): `expanded` `['r1']`: "Details for Beta" has "true", "Details for alpha"
+  "false"; `expanded` `[]`: both "false"; `expanded` `['r9']` (not on the page): both "false", and no fault.
+- Reason: assistive technology says whether the details are open (APG disclosure, FETCHED; PRD-B27).
+- Layer: component.
+- Traces: PRD-B27.
+
+**CHILD-03** A press on a row's button MUST emit `onexpand` once with the row's id and the next state.
+- Examples (the test runs every row; one press, as "emits once" defines it):
+
+  | `expanded` | Press | `onexpand` receives |
+  |---|---|---|
+  | `[]` | "Details for Beta" | `{ rowId: 'r1', expanded: true }` |
+  | `['r1']` | "Details for Beta" | `{ rowId: 'r1', expanded: false }` |
+
+- Reason: one press is one change; the application keeps the open set (PRD-B27, PRD-B2).
+- Layer: component.
+- Traces: PRD-B27, PRD-B2.
+
+**CHILD-04** A press MUST change nothing on screen until `expanded` changes.
+- Example: an `onexpand` that changes nothing; press "Details for Beta": its `aria-expanded` stays "false" and no
+  detail row appears.
+- Reason: the application's state is the only source of truth (PRD-B2).
+- Layer: component.
+- Traces: PRD-B27, PRD-B2.
+
+**CHILD-05** Each open row MUST be followed by exactly one detail row: one cell spanning every shown column, filled by
+`detail` with that row.
+- Examples (the test runs every row; three data columns):
+
+  | `expanded` | Rows of the body, in order |
+  |---|---|
+  | `['r1']` | r1, a detail row with "More about Beta", r2 |
+  | `['r1', 'r2']` | r1, its detail row, r2, its detail row |
+  | `[]` | r1, r2 |
+
+  The detail row's one cell has `colspan` equal to the number of shown columns, the box and details columns included:
+
+  | Columns | `colspan` |
+  |---|---|
+  | Name, Code, Date, details column | 4 |
+  | Code hidden | 3 |
+  | with `selection` | 5 |
+
+- Reason: the details belong under their row, across the whole width (PRD-B27).
+- Layer: component.
+- Traces: PRD-B27.
+
+**CHILD-14** An open row's button MUST name its detail row in `aria-controls`, and a closed row's button MUST have no
+`aria-controls`.
+- Example: `expanded` `['r1']`: "Details for Beta" has `aria-controls` holding the detail row's id; "Details for alpha"
+  has none.
+- Reason: the APG disclosure's optional reference, and a reference never points at nothing (FETCHED, practice check of
+  2026-11-19).
+- Layer: component.
+- Traces: PRD-B27.
+
+**CHILD-15** The live count MUST count data rows only, not detail rows.
+- Example: `expanded` `['r1']`, `status 'ready'`: the live count of A11Y-05 says "2 rows displayed".
+- Reason: a detail row is part of its row, not a row of the data (PRD-A4).
+- Layer: component.
+- Traces: PRD-B27, PRD-A4.
+
+**CHILD-11** Each detail row's id MUST meet ID-01 to ID-03 and be resolved from its row's button by `aria-controls`.
+- Examples (the test runs every row):
+
+  | Set-up | Check |
+  |---|---|
+  | two tables side by side, both with r1 open | their detail-row ids differ, and each `aria-controls` names a row inside its own table |
+  | a row whose id is "a b", open | its detail row's id holds no white space, and the button's `aria-controls` resolves to it |
+  | a server-rendered table with r1 open, hydrated as in ID-03 | the detail row's id and the reference are the same before and after |
+
+- Reason: a reference that resolves into a neighbour, or one split at a space, reads the wrong thing (PRD-B18).
+- Layer: component.
+- Traces: PRD-B18, PRD-B27.
+
+**CHILD-06** After `rows` changes to the same row ids in another order, each detail row MUST be rendered by the same
+element as before, as RND-15 states for the rows.
+- Example: `expanded` `['r1']`; the rows come again as new objects in the order r2, r1: r1's detail row is the same
+  element (`===`), now after r1 in the new order. Break that turns it red: the detail rows keyed by index.
+- Reason: a row keeps its detail row when rows come in another order (PRD-B27, PRD-B1); state inside the snippet stays
+  with its row.
+- Layer: component.
+- Traces: PRD-B27, PRD-B1.
+
+**CHILD-07** After a press on a row's button, focus MUST stay on that button.
+- Example: focus "Details for Beta", press Enter; `expanded` becomes `['r1']`: focus is on "Details for Beta"; press
+  Enter again, `expanded` becomes `[]`: still there.
+- Reason: the user toggles the details from one place (PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-A3.
+
+**CHILD-13** When `expanded` closes a detail while focus is inside it and its row stays, focus MUST move to that row's
+button.
+- Examples (the test runs every row):
+
+  | Steps | Focus after |
+  |---|---|
+  | `expanded` `['r1']`; focus the link "Open Beta"; `expanded` becomes `[]` | "Details for Beta" |
+
+- Reason: focus must never fall to the page body (PRD-A3); the button is where the user opened the details.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-A3.
+
+**CHILD-08** The details column MUST stay in place as the box column does (SEL-09): directly after it, before every
+data column.
+- Examples (the test runs every row; `oncolumnstate` passed):
+
+  | Steps | Result |
+  |---|---|
+  | press "Columns" | no checkbox for the details column |
+  | its header cell | no grip |
+  | `columnState.order` `['date', 'name', 'code']` | the details column, then Date, Name, Code |
+  | drag Date's grip to the details column's header cell | no `oncolumnstate` call |
+  | press "Move earlier Date" twice, the state following each | `order` `['date', 'name', 'code']`; the details column still directly before Date |
+
+- Reason: the disclosure buttons are where every row starts, like the boxes (PRD-B27, PRD-B11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-B11.
+
+**CHILD-12** While columns are resizable (section 12), the details column MUST be drawn 40 CSS px wide with no separator,
+and the table's width MUST count it, as SEL-12 states for the box column.
+- Example: `detail`, `selection` and `widths` `{ name: 200, code: 120, date: 120 }`: the details column's header cell is
+  40 px wide (within 1 px), holds no element with role `separator`, and the table is 520 px wide.
+- Reason: the column holds one button and is no data (INFERRED: 40 px leaves room for a 24 by 24 target and its focus
+  indicator); the sum keeps COL-33's rule (PRD-B12, PRD-B27).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-B12.
+
+**CHILD-16** The Tab order MUST reach, in each row, its box, its details button and its cells' controls, then the
+controls of its open detail row, before the next row.
+- Example: `selection` given, the Name cells hold a link "Go <name>", `expanded` `['r1']`: Tab from "Select all rows on
+  this page" through the header's controls reaches "Select row Beta", "Details for Beta", "Go Beta", "Open Beta",
+  "Select row alpha", "Details for alpha", "Go alpha", in that order.
+- Reason: reading order and Tab order match (WCAG 2.4.3; PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B27, PRD-A3.
+
+**CHILD-09** For invalid child-row input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05; the test runs every row and every alternative in it):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | `detail` is given and `detailName` or `onexpand` is not, or `detailName` is not a function | `detailInvalid` | "The row details are not valid." |
+  | `expanded` is given and is not a list | `detailInvalid` | "The row details are not valid." |
+  | `detailName` returns an empty text, a value that is not a text, or throws, for r1 | `detailInvalid` | "The row details are not valid." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25 and SEL-10 win, in that order. An id in
+  `expanded` that is on no row of the page is no fault (rows come and go between pages). The alert holds no value taken
+  from the rows or a thrown error (as RND-09).
+- Reason: a disclosure button with no name, or one that does nothing, misleads (PRD-B16, PRD-B3).
+- Layer: component.
+- Traces: PRD-B16, PRD-B27.
+
+**CHILD-10** Every fixed word of the child rows MUST come from a prop with an English default.
+- Examples (as RND-06): `detailsColumn` "Details" (CHILD-01); the alert message of CHILD-09 (CHILD-09).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+## 16. Accessibility conformance: the skip link, focus, scroll, keys and names (A11Y, milestone 7)
+
+These statements close PRD-A3 and PRD-A9 for every intent of sections 7 to 15, and state 2.1.4 and 2.4.6 of PRD
+section 4.3. "Every intent" is the list of the intents' examples below, one row each; a table in these examples has
+every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
+chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
+
+**A11Y-36** The "Skip past table" link MUST be the component's first focusable element.
+- Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
+  element before the component lands first on "Skip past table", then on "All orders", then on "Export".
+- Reason: a keyboard user meets the way past the table before its other stops (PRD-A9). The Tab sequences of A11Y-10
+  and A11Y-12 gain it at their head with this milestone's build (an edit of their tests, travelling with that build).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9.
+
+**A11Y-48** Activating the skip link MUST move focus to a target at the end of the table that only script can focus.
+- Example: Enter on "Skip past table": focus is on an element after the region, inside the component, with
+  `tabindex="-1"` and no control in it; the next Tab reaches the first focusable element after the component (a
+  `Pagination` the application places after the table included).
+- Reason: with selection a 1000-row page has over a thousand Tab stops; the link lets a keyboard user pass the table in
+  one step (PRD-A9).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9, PRD-A3.
+
+**A11Y-46** The skip link MUST be visible exactly while it has focus.
+- Examples (the test runs every row): not focused: its box lies outside the viewport or measures at most 1 by 1 CSS px;
+  focused: its box lies inside the viewport, at least 24 by 24 CSS px, and its text is drawn (its computed `clip` is
+  "auto", its `clip-path` "none", and its `opacity` not 0).
+- Reason: a sighted keyboard user sees where focus is; others are not shown a control they do not need (PRD-A9, PRD-A10,
+  WCAG 2.4.7).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A9, PRD-A10.
+
+**A11Y-37** After every intent, focus MUST be on the control that acted or elsewhere inside the component, never on the
+page body.
+- Examples (the test runs every row, by keyboard; `document.activeElement` after the application's state follows):
+
+  | Intent |
+  |---|
+  | a sort press; a pager press; a page-size choice |
+  | Enter in a text filter; a categorical option's toggle; a badge press; "Clear column filters"; "Reset table" |
+  | Enter in the search field |
+  | a chooser checkbox; "Move later Name"; "Wider Name"; Right on a separator |
+  | a row box; the header box; a details button |
+  | "Cancel" while loading; "Try again" after a failure |
+
+- Reason: a focus that falls to the body throws the keyboard user back to the start of the page (PRD-A3, WCAG 2.4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A3.
+
+**A11Y-38** The intents in the rows of A11Y-37 after its first MUST NOT scroll the window.
+- Examples (the test runs every row of A11Y-37 but its first, which A11Y-17 states, as A11Y-17 does: the window starts
+  mid-page, the row count stays the same, the page sets `overflow-anchor: none`, and the scroll position is read
+  before the intent and after the new state is painted). Breaks that turn it red: the table calls `focus()` without
+  `preventScroll` on a control it moves focus to, or `scrollIntoView` on a row.
+- Reason: users keep their place; only the skip link may scroll (PRD-A3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A3.
+
+**A11Y-43** A printable character key other than Space MUST act only in a focused text field.
+- Examples (the test runs every row; the keys "s", "1" and "?" pressed with focus on each):
+
+  | Focus on | Result |
+  |---|---|
+  | a sort button, a pager button, a row box, a details button, a badge, the region, a separator | no callback, no scroll, no change on screen |
+  | "Filter Name text", the search field | the character is typed into the field |
+  | (Space instead) a sort button | it acts once, as a press does (SORT-01) |
+
+- Reason: a single-key shortcut fires by accident under speech input (WCAG 2.1.4); the table defines none (PRD section
+  4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**A11Y-44** The accessible names the component gives its own controls MUST be unique within the component.
+- Example: the table of this section's set-up, every dialog opened in turn: the names of its buttons, fields,
+  checkboxes, separators and links, except those named by the application (`selection.name`, `detailName`, snippets),
+  hold no name twice.
+- Reason: two controls with one name cannot be told apart in a screen reader's list of controls (WCAG 2.4.6).
+- Layer: real browser (Chromium, Firefox, WebKit), since the dialogs are among them.
+- Traces: PRD-A1.
+
+**A11Y-47** Every fixed word of this section MUST come from a prop with an English default.
+- Examples (as RND-06): `skipTable` "Skip past table" (A11Y-36).
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
 - Traces: PRD-I1.
@@ -4277,6 +4556,30 @@ the region scrolls sideways.
 | STK-11 | PRD-B16, PRD-B14 |
 | STK-13 | PRD-B14 |
 | STK-15 | PRD-I1 |
+| CHILD-01 | PRD-B27, PRD-A1 |
+| CHILD-02 | PRD-B27 |
+| CHILD-03 | PRD-B27, PRD-B2 |
+| CHILD-04 | PRD-B27, PRD-B2 |
+| CHILD-05 | PRD-B27 |
+| CHILD-14 | PRD-B27 |
+| CHILD-15 | PRD-B27, PRD-A4 |
+| CHILD-11 | PRD-B18, PRD-B27 |
+| CHILD-06 | PRD-B27, PRD-B1 |
+| CHILD-07 | PRD-B27, PRD-A3 |
+| CHILD-13 | PRD-B27, PRD-A3 |
+| CHILD-08 | PRD-B27, PRD-B11 |
+| CHILD-12 | PRD-B27, PRD-B12 |
+| CHILD-16 | PRD-B27, PRD-A3 |
+| CHILD-09 | PRD-B16, PRD-B27 |
+| CHILD-10 | PRD-I1 |
+| A11Y-36 | PRD-A9 |
+| A11Y-48 | PRD-A9, PRD-A3 |
+| A11Y-46 | PRD-A9, PRD-A10 |
+| A11Y-37 | PRD-A3 |
+| A11Y-38 | PRD-A3 |
+| A11Y-43 | PRD-A1 |
+| A11Y-44 | PRD-A1 |
+| A11Y-47 | PRD-I1 |
 | FILT-45 | PRD-B25, PRD-A3 |
 | A11Y-17 | PRD-A3 |
 | A11Y-18 | PRD-A1 |
@@ -4292,41 +4595,43 @@ state in their own statements.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07 | in full |
-| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12 | in full |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
+| PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
 | PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
 | PRD-I3 | COL-22, STK-06 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
 | PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
+| PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, STK-11, CHILD-09 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
-| PRD-B18 | ID-01, ID-02, ID-03 | in part: each later group that adds an id reference states its instances in its own statement |
+| PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, STK-08, CHILD-01, A11Y-43, A11Y-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
-| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39 | in full |
-| PRD-A10 | A11Y-16, SORT-18, PAGE-28 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15 | in part: later groups state their own words in their own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
+| PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
+| PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
@@ -4346,7 +4651,7 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A9, PRD-A12.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
