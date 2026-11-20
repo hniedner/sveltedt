@@ -2128,8 +2128,8 @@ new `limit` and offset.
 - Traces: PRD-A3, PRD-B9.
 
 **PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
-- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
-  `listbox` is in the pager.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`; `sizes null` (as left out). In each, no element
+  with role `combobox` or `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -2152,7 +2152,8 @@ new `limit` and offset.
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
   request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
-  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given. `sizes`
+  given as `null` means no sizes, as when it is left out, and is no fault (PAGE-15).
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.
