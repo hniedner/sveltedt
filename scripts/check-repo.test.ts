@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -3219,6 +3220,30 @@ test("commit-msg: a secret under a merge header or in a comment line is a findin
       /^FINDING commit-msg: secrets in the message$/m,
     );
 });
+// Pins: nothing below the scissors line is the message, so a diff there that holds a token is not scanned.
+test("commit-msg: a token below the scissors line passes", () => {
+  commitMsg(
+    `feat: x\n\n# ------------------------ >8 ------------------------\n+${fakeToken()}\n`,
+    0,
+  );
+});
+// Pins: the folder the message was scanned in is gone afterwards, on a pass and on a finding.
+test("commit-msg: the temporary folder of the scan is removed", () => {
+  for (const [token, code] of [
+    ["", 0],
+    [fakeToken(), 1],
+  ] as const) {
+    const tmp = tempDir();
+    const file = join(tempDir(), "COMMIT_EDITMSG");
+    writeFileSync(file, `feat: x\n\n${token}\n`);
+    const r = run(["commit-msg", file], {
+      gitleaks: "",
+      extraEnv: { TMPDIR: tmp },
+    });
+    assert.equal(r.code, code, r.out);
+    assert.deepEqual(readdirSync(tmp), [], r.out);
+  }
+});
 // Pins: git hands the hook its editor template (lines starting with #) and, with -v, a scissors line and the diff
 // below it (measured): comment lines are not the header, and nothing below the scissors line is read.
 test("commit-msg: comment lines and everything below the scissors line are not read", () => {
@@ -3827,6 +3852,13 @@ function pushable(): string {
 }
 const gitPush = (root: string, args: string[], env?: Record<string, string>) =>
   hookGit(root, ["push", "-q", "origin", ...args], env);
+/** The stages of a push, in the order they ran (each reports one line, whatever its result). */
+const stages = (out: string): string[] =>
+  [
+    ...out.matchAll(
+      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) (secrets|messages|words|gate)\b/gm,
+    ),
+  ].map((m) => m[1]);
 const sha = (root: string, rev = "HEAD"): string =>
   git(root, "rev-parse", rev).trim();
 /** A lock script with heavy-lock.sh's interface (take|release <holder>) that logs each call next to itself. */
@@ -3859,7 +3891,11 @@ test("pre-push: a new branch scans its commits after origin/main, runs the gate 
     r.out,
     /^NOT APPLICABLE words .*: word scan not set up in this clone/m,
   );
-  assert.match(r.out, /^PASS gate: /m);
+  assert.deepEqual(
+    stages(r.out),
+    ["secrets", "messages", "words", "gate"],
+    r.out,
+  );
   assert.match(r.out, /^PASS pre-push: /m);
   const calls = readFileSync(log, "utf8").trim().split("\n");
   assert.deepEqual(
@@ -3912,7 +3948,7 @@ test("pre-push: a secret in a pushed commit blocks the push before the gate", ()
   const r = gitPush(root, ["feat/x"]);
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^FINDING secrets /m);
-  assert.doesNotMatch(r.out, /gate: /);
+  assert.deepEqual(stages(r.out), ["secrets"], r.out);
 });
 test("pre-push: a secret in the message of a pushed commit blocks the push, though the commit skipped the hook", () => {
   const root = pushable();
@@ -3921,7 +3957,7 @@ test("pre-push: a secret in the message of a pushed commit blocks the push, thou
   const r = gitPush(root, ["feat/x"]);
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /^FINDING messages /m);
-  assert.doesNotMatch(r.out, /^PASS gate: /m);
+  assert.deepEqual(stages(r.out), ["secrets", "messages"], r.out);
   assert.equal(git(root, "ls-remote", "origin", "feat/x"), "");
 });
 test("pre-push: a tag on commits no remote ref holds is scanned, a tag pushed as a branch is a branch", () => {
