@@ -437,6 +437,15 @@ describe("PAGE-16", () => {
     expect(container.querySelector("nav")).toBeNull();
   });
 
+  it.each<[string, Partial<PaginationProps>]>([
+    ["no sizes", { onsize: undefined }],
+    ["sizes []", { sizes: [], onsize: undefined }],
+  ])("takes %s and no onsize as no fault", (_case, props) => {
+    mount(props);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(nav().isConnected).toBe(true);
+  });
+
   it("takes an unfilteredTotal below total as no fault", () => {
     mount({ total: 95, unfilteredTotal: 50 });
     expect(screen.queryByRole("alert")).toBeNull();
