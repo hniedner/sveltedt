@@ -95,6 +95,19 @@ describe("PAGE-02", () => {
   });
 });
 
+// @spec("PAGE-11", "1c83f221")
+describe("PAGE-11", () => {
+  it("draws each gap as an aria-hidden … outside any button", () => {
+    mount({ offset: 100, limit: 10, total: 200 });
+    const marks = within(nav()).getAllByText("…");
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) {
+      expect(mark.getAttribute("aria-hidden")).toBe("true");
+      expect(mark.closest("button")).toBeNull();
+    }
+  });
+});
+
 // @spec("PAGE-04", "60fec150")
 describe("PAGE-04", () => {
   it("marks Page 2 and nothing else with aria-current", () => {
