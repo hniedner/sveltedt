@@ -2216,7 +2216,7 @@ function commitMsg(file: string | undefined): Result {
 
 // The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
 // this runner. No hook changes a file.
-const HOOKS = ["pre-commit", "commit-msg"];
+const HOOKS = ["pre-commit", "commit-msg", "pre-push"];
 const shim = (hook: string): string =>
   `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
 

@@ -3275,7 +3275,7 @@ test("hooks: passes when core.hooksPath is .githooks and every hook is the execu
   const out = expect("hooks", repo(), 0);
   assert.match(
     out,
-    /^PASS hooks: core\.hooksPath \.githooks; pre-commit, commit-msg as shims$/m,
+    /^PASS hooks: core\.hooksPath \.githooks; pre-commit, commit-msg, pre-push as shims$/m,
   );
 });
 test("hooks: a local .githooks over another global core.hooksPath passes", () => {
@@ -3381,7 +3381,7 @@ test("hooks: in CI only the shims are checked, and the pass line names core.hook
   const out = expect("hooks", root, 0, inCI);
   assert.match(
     out,
-    /^PASS hooks: pre-commit, commit-msg as shims; core\.hooksPath not checked \(CI has no clone-local git configuration\)$/m,
+    /^PASS hooks: pre-commit, commit-msg, pre-push as shims; core\.hooksPath not checked \(CI has no clone-local git configuration\)$/m,
   );
 });
 test("hooks: in CI a shim that is not executable is a finding", () => {

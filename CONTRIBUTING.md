@@ -15,7 +15,7 @@ option covers only the command it precedes: every later git command in that clon
 hooks of the checked-out tree again. With the setting in place, git runs any hook the branch puts in `.githooks/`, such
 as post-checkout on a checkout or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg
 on a merge commit (Git hooks and commit headers). A tracked hooks folder runs what the checked-out tree holds, as in
-every project that tracks its hooks; the gate's `hooks` step refuses a file there that is not one of the two shims, in
+every project that tracks its hooks; the gate's `hooks` step refuses a file there that is not one of the three shims, in
 CI too.
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
