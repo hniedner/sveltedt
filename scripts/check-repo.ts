@@ -2548,23 +2548,31 @@ function words(root: string, range: string): Result {
   const scan = setting(root, "wordScan");
   if (!scan)
     return result(NA, "word scan not set up in this clone (owner only)");
+  // A scan run with an empty list would pass whatever it is given.
+  const keys = ["wordList", "wordAllow"];
+  const lists = keys.map((key) => setting(root, key));
+  for (const [i, file] of lists.entries()) {
+    try {
+      readFileSync(file);
+    } catch {
+      return result(
+        CANNOT,
+        `sveltedt.${keys[i]} is not set or names no readable file`,
+      );
+    }
+  }
   const r = spawnSync(
     process.execPath,
-    [
-      scan,
-      "git",
-      root,
-      range,
-      "--list",
-      setting(root, "wordList"),
-      "--allow",
-      setting(root, "wordAllow"),
-    ],
+    [scan, "git", root, range, "--list", lists[0], "--allow", lists[1]],
     { encoding: "utf8", env: childEnv() },
   );
   const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
   if (r.status === PASS) return result(PASS, `${range} scanned`, out);
-  if (r.status === FINDING)
+  // node also exits 1 on an uncaught error: only the scanner's own line makes it a finding.
+  if (
+    r.status === FINDING &&
+    out.some((l) => l.startsWith("FINDING scan-words:"))
+  )
     return result(FINDING, `private words in ${range}`, out);
   return result(
     CANNOT,

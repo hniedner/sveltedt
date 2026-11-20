@@ -3976,23 +3976,61 @@ test("pre-push: a remote whose main is not fetched cannot be checked, and the me
     /^COULD NOT CHECK pre-push: .*origin\/main must be fetched/m,
   );
 });
-test("pre-push: the word scan set up in git config runs on the range and its finding blocks the push", () => {
+/** A pushable fixture whose word scan is a script running `body`, with its two lists as real files. */
+function withWordScan(body: string): string {
   const root = pushable();
-  const scan = join(tempDir(), "scan-words.ts");
-  writeFileSync(
-    scan,
-    'console.log("scan-words " + process.argv.slice(2).join(" "));\nprocess.exitCode = 1;\n',
+  const dir = tempDir();
+  writeFileSync(join(dir, "scan-words.ts"), body);
+  writeFileSync(join(dir, "words.txt"), "x\n");
+  writeFileSync(join(dir, "allow.txt"), "x\n");
+  git(root, "config", "sveltedt.wordScan", join(dir, "scan-words.ts"));
+  git(root, "config", "sveltedt.wordList", join(dir, "words.txt"));
+  git(root, "config", "sveltedt.wordAllow", join(dir, "allow.txt"));
+  return root;
+}
+const echoWords =
+  'console.log("scan-words " + process.argv.slice(2).join(" "));\n';
+test("pre-push: the word scan set up in git config runs on the range and its finding blocks the push", () => {
+  const root = withWordScan(
+    `${echoWords}console.log("FINDING scan-words: 1 hit(s)");\nprocess.exitCode = 1;\n`,
   );
-  git(root, "config", "sveltedt.wordScan", scan);
-  git(root, "config", "sveltedt.wordList", "/lists/words.txt");
-  git(root, "config", "sveltedt.wordAllow", "/lists/allow.txt");
   const r = gitPush(root, ["feat/x"]);
   assert.notEqual(r.code, 0, r.out);
   assert.match(
     r.out,
-    /scan-words git \S+ \S+\.\.\S+ --list \/lists\/words\.txt --allow \/lists\/allow\.txt/,
+    /scan-words git \S+ \S+\.\.\S+ --list \S+words\.txt --allow \S+allow\.txt/,
   );
   assert.match(r.out, /^FINDING words /m);
+});
+test("pre-push: a word scan that passes is a pass of the words stage", () => {
+  const r = gitPush(withWordScan(echoWords), ["feat/x"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^PASS words \S+: /m);
+});
+test("pre-push: a word scan that crashes or exits 1 without its FINDING line cannot be checked", () => {
+  for (const code of [1, 2]) {
+    const root = withWordScan(
+      `console.error("boom");\nprocess.exitCode = ${code};\n`,
+    );
+    const r = gitPush(root, ["feat/x"]);
+    assert.notEqual(r.code, 0, r.out);
+    assert.match(r.out, /^COULD NOT CHECK words /m);
+  }
+});
+test("pre-push: a word scan whose list is unset or not a readable file cannot be checked, naming the key", () => {
+  for (const [key, value] of [
+    ["wordList", ""],
+    ["wordAllow", "/nowhere/allow.txt"],
+  ]) {
+    const root = withWordScan(echoWords);
+    git(root, "config", `sveltedt.${key}`, value);
+    const r = gitPush(root, ["feat/x"]);
+    assert.notEqual(r.code, 0, r.out);
+    assert.match(
+      r.out,
+      new RegExp(`^COULD NOT CHECK words .*sveltedt\\.${key}`, "m"),
+    );
+  }
 });
 test("pre-push: a work tree with uncommitted changes cannot be checked, since the gate reads it", () => {
   const root = pushable();
