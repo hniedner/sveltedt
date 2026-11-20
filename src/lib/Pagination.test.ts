@@ -38,6 +38,12 @@ function places(): string {
     .join(" ");
 }
 
+const current = (): string[] =>
+  [...nav().querySelectorAll("[aria-current]")].map(
+    (element) =>
+      `${element.getAttribute("aria-label")}=${element.getAttribute("aria-current")}`,
+  );
+
 // @spec("PAGE-09", "b2e86c2c")
 describe("PAGE-09", () => {
   it("is exactly one nav element named by its label", () => {
@@ -68,4 +74,13 @@ describe("PAGE-01", () => {
       expect(onsize).not.toHaveBeenCalled();
     },
   );
+});
+
+// @spec("PAGE-04", "60fec150")
+describe("PAGE-04", () => {
+  it("marks Page 2 and nothing else with aria-current", () => {
+    mount({ offset: 25, limit: 25, total: 130 });
+    expect(button("Page 2").getAttribute("aria-current")).toBe("page");
+    expect(current()).toEqual(["Page 2=page"]);
+  });
 });

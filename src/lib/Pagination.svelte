@@ -33,6 +33,7 @@
       <button
         type="button"
         aria-label={words.pageLabel(item + 1)}
+        aria-current={item + 1 === state.current ? "page" : undefined}
         onclick={() => step(true, item * props.limit)}
         >{words.pageNumber(item + 1)}</button
       >
