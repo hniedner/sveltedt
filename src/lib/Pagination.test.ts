@@ -142,6 +142,23 @@ describe("PAGE-17", () => {
   });
 });
 
+// @spec("PAGE-18", "c238a5f5")
+describe("PAGE-18", () => {
+  it.each([
+    [26, 25],
+    [50, 25],
+    [51, 50],
+    [9007199254740991, 9007199254740975],
+  ])(
+    "with offset 0, limit 25, total %i, Last page emits %i",
+    async (total, offset) => {
+      const { onpage } = mount({ offset: 0, limit: 25, total });
+      await fireEvent.click(button("Last page"));
+      expect(onpage.mock.calls).toEqual([[offset]]);
+    },
+  );
+});
+
 // @spec("PAGE-04", "60fec150")
 describe("PAGE-04", () => {
   it("marks Page 2 and nothing else with aria-current", () => {
