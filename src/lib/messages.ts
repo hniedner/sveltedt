@@ -49,4 +49,6 @@ export const pagerWords = {
   lastPage: "Last page",
   pageLabel: (page: number) => `Page ${number.format(page)}`,
   pageNumber: (page: number) => number.format(page),
+  sizeLabel: "rows per page",
+  sizeOption: (size: number) => number.format(size),
 };

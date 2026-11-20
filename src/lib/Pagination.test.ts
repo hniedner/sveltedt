@@ -292,6 +292,22 @@ describe("PAGE-08", () => {
   });
 });
 
+// @spec("PAGE-07", "0a863ab2")
+describe("PAGE-07", () => {
+  it("offers exactly the given sizes in order, named rows per page, with limit selected", () => {
+    const sizes = [10, 25, 50, 100, 250, 500, 1000];
+    mount({ limit: 25, sizes });
+    const select = within(nav()).getByRole<HTMLSelectElement>("combobox", {
+      name: "rows per page",
+    });
+    expect(within(nav()).getAllByRole("combobox")).toHaveLength(1);
+    expect([...select.options].map((option) => Number(option.value))).toEqual(
+      sizes,
+    );
+    expect(select.value).toBe("25");
+  });
+});
+
 // @spec("PAGE-15", "62664302")
 describe("PAGE-15", () => {
   it.each<[string, Partial<PaginationProps>]>([

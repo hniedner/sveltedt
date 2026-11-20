@@ -8,6 +8,7 @@
   const props: PaginationProps = $props();
   const state = $derived(pagerState(props.offset, props.limit, props.total));
   const items = $derived(pageNumbers(state.page - 1, state.pages));
+  const sizes = $derived(props.sizes ?? []);
 
   // A step that cannot move stays a focusable button and emits nothing (PAGE-05, PAGE-13)
   function step(can: boolean, offset: number): void {
@@ -16,6 +17,16 @@
 </script>
 
 <nav aria-label={props.label}>
+  {#if sizes.length > 0}
+    <label
+      >{words.sizeLabel}
+      <select value={props.limit}>
+        {#each sizes as size (size)}
+          <option value={size}>{words.sizeOption(size)}</option>
+        {/each}
+      </select></label
+    >
+  {/if}
   <button
     type="button"
     aria-label={words.firstPage}
