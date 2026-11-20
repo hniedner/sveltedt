@@ -5,7 +5,7 @@ import type { Snippet } from "svelte";
 export type DataTableColumn<Row> = {
   readonly id: string;
   readonly label: string;
-  // The directions a press steps through, ascending before descending; absent: the column is not sortable
+  // The directions a press steps through, in this order; absent: the column is not sortable
   readonly sortable?: readonly SortDirection[];
 } & (
   | {
@@ -41,6 +41,7 @@ export interface DataTableMessages {
   readonly columnLabelEmpty: string;
   readonly columnLabelDuplicate: string;
   readonly columnContentMissing: string;
+  readonly statusUnknown: string;
   readonly rowsNotList: string;
   readonly rowIdEmpty: string;
   readonly rowIdDuplicate: string;
@@ -54,6 +55,7 @@ export interface DataTableMessages {
   }) => string;
   readonly sortableInvalid: string;
   readonly sortHandlerMissing: string;
+  readonly sortInvalid: string;
   readonly sortColumnUnknown: string;
   readonly sortColumnNotSortable: string;
   readonly sortDirectionNotAllowed: string;
@@ -74,10 +76,10 @@ export interface DataTableProps<Row> {
   status?: DataTableStatus;
   // A newer answer is on its way while the rows shown stay; default false
   busy?: boolean;
-  // Replaces any of the English defaults
+  // Replaces any of the English defaults; an entry that is not of its default's type is ignored (RND-06)
   messages?: Partial<DataTableMessages>;
-  // The order the server applied, the lead first; the table shows it and never reorders the rows
-  sort?: readonly DataTableSortEntry[];
+  // The order the server applied, the lead first; the table shows it and never reorders the rows; null is no order
+  sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
   heading?: Snippet;
