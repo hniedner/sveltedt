@@ -1,21 +1,15 @@
 import type { DataTableSortEntry, SortDirection } from "./types.ts";
 
-// A column's directions in press order: ascending before descending, whatever order the column lists them in
-const pressOrder = (sortable: readonly SortDirection[]): SortDirection[] =>
-  (["asc", "desc"] as const).filter((direction) =>
-    sortable.includes(direction),
-  );
-
 // The column's entry one press on, or null after its last direction: it then leaves the order
 function step(
   id: string,
   sortable: readonly SortDirection[],
   entry: DataTableSortEntry | undefined,
 ): DataTableSortEntry | null {
-  const directions = pressOrder(sortable);
+  // A press steps through the directions in the order the column lists them (SORT-01)
   const next = entry
-    ? directions[directions.indexOf(entry.desc ? "desc" : "asc") + 1]
-    : directions[0];
+    ? sortable[sortable.indexOf(entry.desc ? "desc" : "asc") + 1]
+    : sortable[0];
   return next ? { id, desc: next === "desc" } : null;
 }
 
