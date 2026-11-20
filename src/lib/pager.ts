@@ -78,13 +78,18 @@ export function validatePager(input: PaginationProps): PagerFault | null {
   if (!isCount(offset)) return "offsetInvalid";
   if (!isSize(limit)) return "limitInvalid";
   if (typeof label !== "string" || label.trim() === "") return "labelEmpty";
-  if (!sizes.every(isSize) || new Set(sizes).size !== sizes.length)
+  if (
+    !Array.isArray(sizes) ||
+    !sizes.every(isSize) ||
+    new Set(sizes).size !== sizes.length
+  )
     return "sizesInvalid";
   if (sizes.length > 0 && !sizes.includes(limit)) return "limitNotInSizes";
   if (typeof onpage !== "function") return "pageHandlerMissing";
   if (sizes.length > 0 && typeof onsize !== "function")
     return "sizeHandlerMissing";
-  if (input.unfilteredTotal !== undefined && !isCount(input.unfilteredTotal))
+  // unfilteredTotal given as null is not given (PAGE-16)
+  if (input.unfilteredTotal != null && !isCount(input.unfilteredTotal))
     return "unfilteredTotalInvalid";
   return null;
 }

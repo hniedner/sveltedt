@@ -393,7 +393,7 @@ const PAGER_ALERTS = {
 };
 const BAD_NUMBERS = [Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53];
 
-// @spec("PAGE-16", "93e12b77")
+// @spec("PAGE-16", "df108f5e")
 describe("PAGE-16", () => {
   it.each<[keyof typeof PAGER_ALERTS, Partial<PaginationProps>]>([
     ...[-1, 1.5, ...BAD_NUMBERS].map(
@@ -416,6 +416,8 @@ describe("PAGE-16", () => {
     ),
     ["labelEmpty", { label: "" }],
     ["labelEmpty", { label: "  " }],
+    ["sizesInvalid", { sizes: "10,25" as unknown as number[] }],
+    ["sizesInvalid", { sizes: 25 as unknown as number[] }],
     ["sizesInvalid", { sizes: [0, 10] }],
     ["sizesInvalid", { sizes: [2.5, 10] }],
     ["sizesInvalid", { sizes: [10, 10] }],
@@ -443,6 +445,12 @@ describe("PAGE-16", () => {
     ["sizes []", { sizes: [], onsize: undefined }],
   ])("takes %s and no onsize as no fault", (_case, props) => {
     mount(props);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(nav().isConnected).toBe(true);
+  });
+
+  it("takes an unfilteredTotal given as null as not given", () => {
+    mount({ unfilteredTotal: null as unknown as number });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(nav().isConnected).toBe(true);
   });
