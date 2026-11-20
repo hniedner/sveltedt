@@ -44,7 +44,8 @@ export function pagerState(
     canPrevious: offset > 0,
     // The page that holds `offset` ends before `total` (PAGE-05)
     canNext: !past && page * limit < total,
-    previous: Math.max(0, offset - limit),
+    // Past the end, Previous goes to the last page (PAGE-26)
+    previous: past ? (pages - 1) * limit : Math.max(0, offset - limit),
     next: offset + limit,
     last: (pages - 1) * limit,
   };
