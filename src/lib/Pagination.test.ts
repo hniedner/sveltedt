@@ -291,3 +291,15 @@ describe("PAGE-08", () => {
     expectNoBrokenNumber();
   });
 });
+
+// @spec("PAGE-15", "62664302")
+describe("PAGE-15", () => {
+  it.each<[string, Partial<PaginationProps>]>([
+    ["no sizes prop", {}],
+    ["sizes []", { sizes: [] }],
+  ])("shows no page-size select with %s", (_case, props) => {
+    mount(props);
+    expect(within(nav()).queryByRole("combobox")).toBeNull();
+    expect(within(nav()).queryByRole("listbox")).toBeNull();
+  });
+});
