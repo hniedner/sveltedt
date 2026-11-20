@@ -195,6 +195,34 @@ describe("PAGE-26", () => {
   );
 });
 
+// @spec("PAGE-27", "100349df")
+describe("PAGE-27", () => {
+  it.each<[number, number, number, number, string | null, string, number]>([
+    [25, 10, 95, 3, "1 2 3 4 5 … 10", "First page", 0],
+    [25, 10, 95, 3, null, "Previous page", 10],
+    [25, 10, 95, 3, null, "Next page", 30],
+    [25, 10, 95, 3, null, "Last page", 90],
+    [25, 10, 95, 3, null, "Page 5", 40],
+    [25, 10, 95, 3, null, "Page 3", 20],
+    [25, 50, 95, 1, "1 2", "First page", 0],
+    [25, 50, 95, 1, null, "Previous page", 0],
+    [25, 50, 95, 1, null, "Next page", 50],
+    [25, 50, 95, 1, null, "Last page", 50],
+    [91, 10, 95, 10, "1 … 6 7 8 9 10", "Previous page", 80],
+    [85, 10, 95, 9, "1 … 6 7 8 9 10", "Next page", 90],
+    [91, 10, 95, 10, null, "Page 10", 90],
+  ])(
+    "with offset %i, limit %i, total %i (page %i, %s), a press on %s emits %i",
+    async (offset, limit, total, page, shown, name, emitted) => {
+      const { onpage } = mount({ offset, limit, total });
+      expect(current()).toEqual([`Page ${page}=page`]);
+      if (shown !== null) expect(places()).toBe(shown);
+      await fireEvent.click(button(name));
+      expect(onpage.mock.calls).toEqual([[emitted]]);
+    },
+  );
+});
+
 // @spec("PAGE-04", "60fec150")
 describe("PAGE-04", () => {
   it("marks Page 2 and nothing else with aria-current", () => {

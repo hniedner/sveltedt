@@ -32,12 +32,13 @@
   >
   {#each items as item (item)}
     {#if typeof item === "number"}
-      <!-- The current page emits nothing (PAGE-12) -->
+      <!-- The current page emits only when `offset` is off its own grid offset (PAGE-12, PAGE-27) -->
       <button
         type="button"
         aria-label={words.pageLabel(item + 1)}
         aria-current={item + 1 === state.current ? "page" : undefined}
-        onclick={() => step(item + 1 !== state.current, item * props.limit)}
+        onclick={() =>
+          step(item * props.limit !== props.offset, item * props.limit)}
         >{words.pageNumber(item + 1)}</button
       >
     {:else}
