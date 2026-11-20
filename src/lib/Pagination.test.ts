@@ -280,6 +280,30 @@ describe("PAGE-13", () => {
   });
 });
 
+// @spec("PAGE-22", "0ee69ca9")
+describe("PAGE-22", () => {
+  const props = { offset: 20, sizes: [10, 25, 50] };
+
+  it.each(["Next page", "Page 5"])(
+    "after a press on %s still marks Page 3 and shows the same places",
+    async (name) => {
+      const { onpage } = mount(props);
+      await fireEvent.click(button(name));
+      expect(onpage).toHaveBeenCalledTimes(1);
+      expect(current()).toEqual(["Page 3=page"]);
+      expect(places()).toBe("1 2 3 4 5 … 10");
+    },
+  );
+
+  it("after 50 is chosen, the select still shows 10", async () => {
+    const { onsize } = mount(props);
+    const select = within(nav()).getByRole<HTMLSelectElement>("combobox");
+    await fireEvent.change(select, { target: { value: "50" } });
+    expect(onsize.mock.calls).toEqual([[50]]);
+    expect(select.value).toBe("10");
+  });
+});
+
 // @spec("PAGE-08", "55968793")
 describe("PAGE-08", () => {
   it("with total 0 shows exactly one page button, Page 1, as the current page", () => {

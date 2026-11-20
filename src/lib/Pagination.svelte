@@ -15,9 +15,10 @@
     if (can) props.onpage(offset);
   }
 
-  // Emits the size chosen (PAGE-14)
+  // The select shows `limit` again until the consumer passes a new one (PAGE-22)
   function choose(event: Event & { currentTarget: HTMLSelectElement }): void {
     const size = Number(event.currentTarget.value);
+    event.currentTarget.value = String(props.limit);
     props.onsize?.(size);
   }
 </script>
