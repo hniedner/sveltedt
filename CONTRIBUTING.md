@@ -228,8 +228,7 @@ code from that branch.
 These checks are part of the method but do not exist in this repository yet:
 
 - the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
-- the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
-  first code that needs them).
+- `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the first code that needs them).
 
 ## Known limits of the merge rules
 
