@@ -141,11 +141,13 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
 - **trace:** ties each spec statement (`spec/*.md`) to the tests that prove it, through `@spec("<id>", "<hash>")`
-  markers in a leading comment of a test; it reads the results of the same Vitest run as `test`. A marker whose hash no
-  longer matches its statement, a marked test that is skipped, failing or did not run, and a marker outside its one
-  position are findings; statements no marker names are listed as not yet tested (gates.md G6). On a pull request,
-  and locally against the merge base with `origin/main`, an id marked at the base whose statement still exists and
-  which no marker names now is a finding; a base that cannot be named or read is could not check.
+  markers in a leading comment of a test under `src/`, `site/` or `test/`; it reads the results of the same Vitest run
+  as `test`. A marker whose hash no longer matches its statement, a marked test that is skipped or failing, a marker
+  with no test under it, and a marker outside its one position are findings; a marked file absent from the results, a
+  marker in a `scripts/` test (node:test results are not read) and a test file outside those folders are could not
+  check; statements no marker names are listed as not yet tested (gates.md G6). On a pull request, and locally against
+  the merge base with `origin/main`, an id marked at the base whose statement still exists and which no marker names
+  now is a finding; a base that cannot be named or read is could not check.
 - **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header
   (see Git hooks and commit headers).
 - **pins, gate-needs, links, actionlint, workflows:** the workflow and documentation checks; zizmor looks for
