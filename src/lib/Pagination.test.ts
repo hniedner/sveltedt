@@ -24,6 +24,8 @@ const nav = (): HTMLElement =>
   screen.getByRole("navigation", { name: "Pages of orders" });
 const button = (name: string): HTMLElement =>
   within(nav()).getByRole("button", { name });
+const pageButtons = (): HTMLElement[] =>
+  within(nav()).queryAllByRole("button", { name: /^Page / });
 
 // The number row as the spec writes it: "1 … 6 7 8 9 10", each number the visible text of its button, each gap an
 // aria-hidden "…" outside any button
@@ -43,6 +45,22 @@ const current = (): string[] =>
     (element) =>
       `${element.getAttribute("aria-label")}=${element.getAttribute("aria-current")}`,
   );
+
+// The pager's text and accessible names, for the "no NaN, no Infinity, no Page 0" checks
+function pagerWords(): string {
+  return [
+    nav().textContent,
+    ...[...nav().querySelectorAll("[aria-label]")].map(
+      (element) => element.getAttribute("aria-label") ?? "",
+    ),
+  ].join("\n");
+}
+
+function expectNoBrokenNumber(): void {
+  const words = pagerWords();
+  for (const bad of ["NaN", "Infinity", "Page 0"])
+    expect(words).not.toContain(bad);
+}
 
 const STEPS = ["First page", "Previous page", "Next page", "Last page"];
 
@@ -164,5 +182,17 @@ describe("PAGE-13", () => {
     for (const name of names) await fireEvent.click(button(name));
     expect(onpage).not.toHaveBeenCalled();
     expect(onsize).not.toHaveBeenCalled();
+  });
+});
+
+// @spec("PAGE-08", "55968793")
+describe("PAGE-08", () => {
+  it("with total 0 shows exactly one page button, Page 1, as the current page", () => {
+    mount({ offset: 0, limit: 25, total: 0 });
+    expect(pageButtons().map((element) => element.textContent.trim())).toEqual([
+      "1",
+    ]);
+    expect(current()).toEqual(["Page 1=page"]);
+    expectNoBrokenNumber();
   });
 });
