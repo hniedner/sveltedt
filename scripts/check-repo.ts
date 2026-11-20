@@ -7,9 +7,12 @@
 import { createHash } from "node:crypto";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -20,6 +23,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { DefaultTreeAdapterTypes } from "parse5";
 import {
   binaryOf,
   CANNOT,
@@ -755,7 +759,7 @@ const CLASSES: FileClass[] = [
   { match: /\.(md|ya?ml|json|html|css)$/, steps: ["format"] },
   {
     match:
-      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/[\w-]+\.version)$/,
+      /^(LICENSE|NOTICE|\.editorconfig|\.gitignore|\.node-version|\.github\/CODEOWNERS|\.githooks\/[\w-]+|scripts\/(setup|[\w-]+\.version))$/,
     steps: ["text"],
   },
   {
@@ -1815,6 +1819,92 @@ function site(root: string, list: Set<string>): Result {
     : result(CANNOT, "the build left no HTML page in site/dist");
 }
 
+// POL-03: no inline script and no inline style in the site's build, read by parse5, the WHATWG parser jsdom uses
+// (docs/decisions/001-quality-tooling.md), never by a regular expression, as a browser with scripting on reads it.
+// Stated limits: a `script` of any type with any text counts, blank or beside a `src` too; every attribute whose
+// name starts with `on` counts as an event handler; a `javascript:` or `vbscript:` URL is looked for only in URL_ATTRS
+// (WHATWG URL parsing, as a browser reads it); a `data:` URL only where a script or an embedded document is loaded from
+// it (DATA_LOADS), never in an `img`, a `link`, a `source` or an `a`: Vite writes small assets as data: URLs, and they
+// run no script. Not read: a `template`'s content, `noscript` (text to a browser with scripting on), `iframe`
+// `srcdoc` and a `meta` refresh. A `style` attribute is POL-04's, found in the browser.
+const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data"]);
+const DATA_LOADS: Record<string, string> = {
+  script: "src",
+  iframe: "src",
+  embed: "src",
+  object: "data",
+};
+function inlineIn(node: DefaultTreeAdapterTypes.Node, found: string[]): void {
+  if ("tagName" in node) {
+    if (node.tagName === "style") found.push("a style element");
+    // Any text node counts, as POL-03 words it: the scan fails closed on text a browser might not run
+    if (node.tagName === "script" && node.childNodes.length)
+      found.push("a script element with text");
+    for (const { name, value } of node.attrs) {
+      if (name.startsWith("on")) found.push(`the event handler ${name}`);
+      const scheme = URL_ATTRS.has(name) ? URL.parse(value)?.protocol : null;
+      if (scheme === "javascript:" || scheme === "vbscript:")
+        found.push(`a ${scheme} URL in ${name}`);
+      if (scheme === "data:" && DATA_LOADS[node.tagName] === name)
+        found.push(`a data: URL in ${node.tagName} ${name}`);
+    }
+  }
+  if ("childNodes" in node) for (const c of node.childNodes) inlineIn(c, found);
+}
+
+/**
+ * Every `.html` file under `folder`, clean ones included, with what inline script or style it holds; [] when the
+ * folder is missing. `inline` reads both: an empty list cannot be checked.
+ */
+function inlineScan(folder: string): { file: string; found: string[] }[] {
+  if (!existsSync(folder)) return [];
+  // Loaded here, not at the top: the gate's `needs` runs in CI without node_modules
+  const { parse } = createRequire(join(HERE, "..", "package.json"))(
+    "parse5",
+  ) as typeof import("parse5");
+  return readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".html"))
+    .map((e) => {
+      const path = join(e.parentPath, e.name);
+      const found: string[] = [];
+      const html = readFileSync(path, "utf8");
+      inlineIn(parse(html), found);
+      return { file: relative(folder, path), found };
+    });
+}
+
+// The planted pages (scripts/canaries/inline/), one per kind POL-03 lists, each with the finding it must raise
+const INLINE_CANARIES: Record<string, string> = {
+  "script.html": "a script element with text",
+  "module.html": "a script element with text",
+  "importmap.html": "a script element with text",
+  "style.html": "a style element",
+  "handler.html": "the event handler onload",
+  "javascript-url.html": "a javascript: URL in href",
+  "vbscript-url.html": "a vbscript: URL in href",
+  "data-url.html": "a data: URL in script src",
+};
+
+// After the site step, which builds site/dist afresh. Each planted canary must raise its own finding first.
+function inline(root: string, list: Set<string>): Result {
+  if (!list.has(SITE_CONFIG))
+    return result(NA, `no tracked ${SITE_CONFIG}: no site build to scan`);
+  const planted = new Map(
+    inlineScan(canaries("inline")).map((p) => [p.file, p.found]),
+  );
+  const missed = Object.entries(INLINE_CANARIES)
+    .filter(([file, kind]) => !planted.get(file)?.includes(kind))
+    .map(([file, kind]) => `${file}: ${kind}`);
+  if (missed.length)
+    return result(CANNOT, "the scan missed a planted canary", missed);
+  const pages = inlineScan(join(root, "site", "dist"));
+  if (!pages.length) return result(CANNOT, "no HTML file in site/dist to scan");
+  const bad = pages.flatMap((p) => p.found.map((f) => `${p.file}: ${f}`));
+  return bad.length
+    ? result(FINDING, `inline script or style in ${bad.length} place(s)`, bad)
+    : result(PASS, `read ${pages.length} HTML file(s) in site/dist`);
+}
+
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
 // test file outside scripts/ (which holds the node:test files and canaries) must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
@@ -2117,6 +2207,86 @@ function commitMsg(file: string | undefined): Result {
   return problem ? result(FINDING, problem) : result(PASS, shownHeader(header));
 }
 
+// The git hooks: `git config core.hooksPath .githooks` makes git run each file there, the same two-line shim into
+// this runner. No hook changes a file.
+const HOOKS = ["pre-commit", "commit-msg"];
+const shim = (hook: string): string =>
+  `#!/bin/sh\nexec node scripts/check-repo.ts ${hook} "$@"\n`;
+
+// The problems with core.hooksPath in this clone, or the Result when git cannot say.
+function hooksPath(root: string): Result | string[] {
+  // git's status: 0 set, 1 unset, anything else is git failing (a broken configuration file), not an unset path.
+  const g = spawnSync(
+    "git",
+    ["-C", root, "config", "--show-origin", "--get", "core.hooksPath"],
+    { encoding: "utf8", env: childEnv() },
+  );
+  if (g.status !== 0 && g.status !== 1)
+    return result(
+      CANNOT,
+      `git cannot read core.hooksPath: ${g.stderr.trim() || "no reason given"}`,
+    );
+  // Only the line end goes: an empty value leaves "<origin>\t", and trimming that would lose the value.
+  const [origin, value] = g.stdout.replace(/\n$/, "").split("\t");
+  if (g.status === 1) return ["core.hooksPath is unset: run ./scripts/setup"];
+  return value === ".githooks"
+    ? []
+    : [
+        `core.hooksPath is "${value}" (${origin}): ./scripts/setup will not replace it; set it to .githooks in this clone (git config core.hooksPath .githooks), which replaces the other value here, whose hooks then stop running in this clone`,
+      ];
+}
+
+// What is wrong with one shim, or null; a Result when it cannot be opened for another reason. The file is opened
+// once and its mode and content are read from that one descriptor, so the two checks see the same file.
+function shimProblem(f: string, hook: string): string | Result | null {
+  let fd: number;
+  try {
+    fd = openSync(f, "r");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "missing";
+    return result(
+      CANNOT,
+      `.githooks/${hook} cannot be opened: ${code ?? String(e)}`,
+    );
+  }
+  try {
+    if (!(fstatSync(fd).mode & 0o100)) return "not executable";
+    return readFileSync(fd, "utf8") === shim(hook)
+      ? null
+      : "not the two-line shim";
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// The shims are checked wherever the gate runs; core.hooksPath only in a clone (CI has no clone-local git config, and
+// an extra file in .githooks would run in any maintainer's clone that has set it up). The folder is read from the
+// tracked list: an untracked file in it (a Finder .DS_Store) is not part of the repository.
+function hooks(root: string, list: Set<string>): Result {
+  const ci = inCI();
+  const path = ci ? [] : hooksPath(root);
+  if (isResult(path)) return path;
+  const details = [...path];
+  for (const f of [...list].sort())
+    if (f.startsWith(".githooks/") && !HOOKS.includes(f.slice(10)))
+      details.push(`${f}: not a known hook`);
+  for (const h of HOOKS) {
+    const problem = shimProblem(join(root, ".githooks", h), h);
+    if (typeof problem === "string") details.push(`.githooks/${h}: ${problem}`);
+    else if (problem) return problem;
+  }
+  if (details.length)
+    return result(FINDING, `${details.length} problem(s)`, details);
+  const shims = `${HOOKS.join(", ")} as shims`;
+  return result(
+    PASS,
+    ci
+      ? `${shims}; core.hooksPath not checked (CI has no clone-local git configuration)`
+      : `core.hooksPath .githooks; ${shims}`,
+  );
+}
+
 type Stage = [string, () => Result];
 
 // The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
@@ -2250,11 +2420,12 @@ function runStages(name: string, stages: Stage[]): number {
   );
 }
 
-// `all` stops at the first step that does not pass, so `secrets` comes right after the toolchain check: a pull request
-// red on any later step still gets its secret scan in CI, which has no other.
+// `all` stops at the first step that does not pass, so the order is toolchain, secrets, hooks: a pull request red on
+// any later step, `hooks` included, still gets its secret scan in CI, which has no other.
 const CHECKS: Record<string, Check> = {
   toolchain,
   secrets,
+  hooks,
   selftest,
   files,
   lockfile,
@@ -2265,6 +2436,7 @@ const CHECKS: Record<string, Check> = {
   types,
   svelte,
   site,
+  inline,
   test,
   trace,
   dupes,

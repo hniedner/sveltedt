@@ -1,0 +1,25 @@
+#!/bin/sh
+# One-time set-up of a clone: git runs the hooks in .githooks/ (CONTRIBUTING, "Git hooks and commit headers"). It stops and changes
+# nothing when core.hooksPath is already set to another value, in any configuration file git reads.
+set -eu
+cd "$(dirname "$0")/.."
+tab=$(printf '\t')
+# git's status: 0 set, 1 unset; anything else is git failing to read its configuration, never an unset path.
+rc=0
+found=$(git config --show-origin --get core.hooksPath) || rc=$?
+if [ "$rc" -gt 1 ]; then
+  echo "setup: git cannot read core.hooksPath (exit $rc); nothing changed" >&2
+  exit 2
+fi
+if [ -n "$found" ]; then
+  value=${found#*"$tab"}
+  where=${found%%"$tab"*}
+  if [ "$value" != .githooks ]; then
+    echo "setup: core.hooksPath is \"$value\" ($where); not changed. To use .githooks in this clone, run: git config core.hooksPath .githooks. That replaces the other value here, and its hooks then stop running in this clone." >&2
+    exit 1
+  fi
+  echo "setup: core.hooksPath is already .githooks"
+  exit 0
+fi
+git config core.hooksPath .githooks
+echo "setup: core.hooksPath set to .githooks"
