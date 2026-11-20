@@ -76,6 +76,25 @@ describe("PAGE-01", () => {
   );
 });
 
+// @spec("PAGE-02", "d5eaa755")
+describe("PAGE-02", () => {
+  it.each([
+    [1, 1, "1"],
+    [7, 1, "1 2 3 4 5 6 7"],
+    [7, 4, "1 2 3 4 5 6 7"],
+    [7, 7, "1 2 3 4 5 6 7"],
+    [8, 1, "1 2 3 4 5 … 8"],
+    [8, 4, "1 2 3 4 5 … 8"],
+    [8, 5, "1 … 4 5 6 7 8"],
+    [8, 8, "1 … 4 5 6 7 8"],
+    [20, 11, "1 … 10 11 12 … 20"],
+  ])("with %i pages and page %i current shows %s", (pages, page, shown) => {
+    mount({ offset: (page - 1) * 10, limit: 10, total: pages * 10 });
+    expect(places()).toBe(shown);
+    expect(current()).toEqual([`Page ${page}=page`]);
+  });
+});
+
 // @spec("PAGE-04", "60fec150")
 describe("PAGE-04", () => {
   it("marks Page 2 and nothing else with aria-current", () => {
