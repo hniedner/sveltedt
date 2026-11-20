@@ -12,7 +12,9 @@
   zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Part 1 also states the
   `./styles.css` export (PKG-05). Further `exports` subpaths,
   the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
-  dependency and that there is no runtime dependency is SUP-04 of `spec/release.md`, not restated here.
+  dependency and that `esm-env` is the only runtime dependency is SUP-04 of `spec/release.md`, not restated here.
+  CON-14 states that the component's development warning is absent from the consumer's production build (PRD-D3,
+  PRD-B14, in part).
 
 ## Conventions
 
@@ -368,6 +370,22 @@ without `!`.
 - Layer: consumer browser.
 - Traces: PRD-T11, PRD-T3.
 
+**CON-14** The consumer's production client build MUST NOT hold the text of SvelteDT's development warning (STK-10
+of `spec/table.md`).
+- Examples (consumer files: the test searches every file of the client build output for "SvelteDT: the sticky header
+  cannot stick"; the second row shows the search finds the text when it is there):
+
+  | Build of the consumer copy | Files holding the text |
+  |---|---|
+  | its production build | none |
+  | the same build with the `development` export condition added to the bundler's resolve conditions | at least one, found |
+
+  Break that turns it red: the warning written behind a check that is true in production.
+- Reason: `esm-env`'s `DEV` is false under the production condition, so the bundler drops the warning; a warning in
+  production would reach every user's console.
+- Layer: consumer files.
+- Traces: PRD-D3, PRD-B14.
+
 ## Trace
 
 ### Statement -> PRD
@@ -391,6 +409,7 @@ without `!`.
 | CON-11 | PRD-K2, PRD-W8 |
 | CON-12 | PRD-T11, PRD-W8 |
 | CON-13 | PRD-T11, PRD-T3 |
+| CON-14 | PRD-D3, PRD-B14 |
 
 ### PRD must -> statements
 
@@ -399,11 +418,14 @@ without `!`.
 | PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11, CON-12 | in part: "its files are the README quick start" comes with PRD-D1 |
+| PRD-D3 | CON-14 | in part: the development warning is absent from a production build; the warning itself is STK-10 of `spec/table.md` |
+| PRD-B14 | CON-14 | in part: the rest is section 14 of `spec/table.md` |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
 | PRD-T3 | PKG-05, CON-10, CON-13 | in part: the export (PKG-05) and the consumer's layered import (CON-10); one static, unlayered stylesheet is THEME-04 of `spec/table.md`; the import line for an application without Tailwind arrives with PRD-D1 |
 | PRD-T11 | CON-12, CON-13 | in part: the Tailwind 4 host; the none and Bootstrap 5.3 hosts are THEME-10 and THEME-11 of `spec/table.md` |
 | PRD-S1 | CON-03, CON-04, CON-05 | in part: of the server-rendered half, the server HTML, the header and the listener; the zero-violation check of the server half: no statement yet, owner decision pending (CON-07 reserved); the client-rendered half is in `spec/site.md` (POL-01, POL-02, POL-04); the component injecting no `style`, `link` or `script` is `spec/table.md`'s FOOT-04, and its build holding no `eval`, `new Function` or string timers has no statement yet |
 
-PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8, PRD-S1, PRD-T3 and PRD-T11 (as above). PRD-W9's
+PRD musts touched by this file and left to later parts: PRD-K2, PRD-W8, PRD-S1, PRD-T3, PRD-T11, PRD-D3 and PRD-B14
+(as above). PRD-W9's
 three engines for the consumer's browser statements are carried by the consumer browser layer; their CI wiring is the
 gates'.
