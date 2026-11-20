@@ -6,12 +6,15 @@ pages named, or measured with the command named.
 ## Hook runner
 
 - **Need:** hooks installed by a setup step, verified by the gate (method section 10; companion G9).
-  Until that step exists, the setting is made by hand (CONTRIBUTING, "Commit headers").
 - **Candidates:**
   - git's own `core.hooksPath` with our hook files;
   - husky 9 (a `prepare` script sets `core.hooksPath`);
   - lefthook 2 and simple-git-hooks 2 (both install from a `postinstall` script).
 - **Decision:** `core.hooksPath`, no runner.
+  - The setup step is `./scripts/setup`, a POSIX shell script that runs `git config core.hooksPath .githooks`; the
+    gate's `hooks` step fails until it has run, and prints it. It stops when another `core.hooksPath` is set, as
+    lefthook's install does unless forced (read 2026-11-18, lefthook.dev/usage/commands/install: it stops when
+    `core.hooksPath` is set), instead of replacing it silently.
   - Each hook is a two-line shim into `scripts/check-repo.ts`, the layout husky 9 uses for `.husky/` (read
     2026-11-18, typicode.github.io/husky/get-started.html).
   - pre-commit refuses a staged file that was changed again, instead of hiding the unstaged change in a stash and
@@ -147,10 +150,25 @@ Development dependencies on the same terms as the test toolchain.
   alternative is none (Svelte's own compiler has no Vite integration of its own).
 - **@tailwindcss/vite 4.3.5:** Tailwind's own Vite integration for version 4 (the PostCSS route would add a PostCSS
   config, which the Svelte lint's settings keep out).
+- **parse5 8.1.1:** POL-03's scan reads the site's built HTML with the WHATWG parser that jsdom (already here)
+  uses; it was in the lockfile through jsdom, so the pin adds no package. jsdom from `scripts/` would need a
+  second type package and a whole DOM; a regular expression does not parse HTML as a browser does. A jsdom bump
+  that needs another parse5 moves this pin with it.
 - **`import.meta.main` in `site/server.ts`:** the documented way for an ES module to know it is the program's entry
   (Node 24.2 and later; "Stability: 1.0 - Early development" in the Node.js v26.13.1 documentation, read
   2026-11-18). An early-development feature may change in a minor release: when the Node pin moves, the site
   server's start is checked against that release's notes.
+
+## Real-browser toolchain (build 2a)
+
+- **@playwright/test 1.65.1** (Apache-2.0, exact pin; with playwright and playwright-core 1.65.1, Apache-2.0, no install
+  script): runs the real-browser layer against the built test site in Chromium, Firefox and WebKit, behind the gate's
+  `browser` step. Vitest browser mode was left: it injects inline code into the page under test, which the strict
+  policy of PRD-S1 refuses on the very page the tests read; Playwright's component testing was left as well (its own
+  bundler, not the site's build that POL-04 proves).
+- **The browsers** come from `playwright install`, from Playwright's download hosts over TLS with no hash pinned by
+  this repository: they are programs the checks run (Licences, above). A Playwright bump changes them, so its pull
+  request is read with the release notes.
 
 ## Accepted advisories
 

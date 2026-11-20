@@ -1,7 +1,7 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the word its last line starts with; a usage case asserts exit 2.
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   cpSync,
@@ -828,6 +828,16 @@ test("text: a repository without a file of its class cannot be checked", () => {
   );
   assert.match(out, /no file to check/);
 });
+test("text: the setup script is a file of the text class", () => {
+  assert.match(
+    expect(
+      "text",
+      repo((root) => put(root, "scripts/setup", "#!/bin/sh \n")),
+      1,
+    ),
+    /scripts\/setup/,
+  );
+});
 test("text: a tracked file of no known class cannot be checked, and names the file", () => {
   assert.match(
     expect(
@@ -1561,6 +1571,268 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
     assert.ok(out.split("\n").includes(`  ${path}`), out);
     assert.match(out, /did not run/);
   }
+});
+test("test: a Playwright spec under site/browser/ is left to the browser step", () => {
+  const browserSpec = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { test } from "@playwright/test";\n',
+    );
+  };
+  expect("test", repo(browserSpec), 0);
+});
+// A tracked Playwright config and spec, with @playwright/test pinned; the fixture reaches the real one through its
+// node_modules link
+const browserSite =
+  (webServer = "") =>
+  (root: string): void => {
+    const pkg = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as {
+      devDependencies: Record<string, string>;
+    };
+    pkg.devDependencies["@playwright/test"] = PINS["@playwright/test"];
+    put(root, "package.json", `${JSON.stringify(pkg, null, 2)}\n`);
+    put(
+      root,
+      "playwright.config.ts",
+      `import { defineConfig } from "@playwright/test";\nexport default defineConfig({ testDir: "site/browser", projects: [{ name: "chromium", use: { browserName: "chromium" } }]${webServer} });\n`,
+    );
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { expect, test } from "@playwright/test";\ntest("opens", async ({ page }) => {\n  await page.setContent("<p>x</p>");\n  await expect(page.locator("p")).toHaveText("x");\n});\n',
+    );
+  };
+// A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
+// the real run's exit code
+function fakePlaywright(
+  report: object | string,
+  version = PINS["@playwright/test"],
+  canary = "unexpected",
+): string {
+  const bin = join(tempDir(), "playwright");
+  const planted = {
+    stats: { unexpected: 1 },
+    errors: [],
+    suites: [
+      {
+        file: "canary.spec.ts",
+        specs: [
+          {
+            title: "fails on purpose",
+            tests: [{ projectName: "", status: canary, results: [{}] }],
+          },
+        ],
+      },
+    ],
+  };
+  const real = typeof report === "string" ? report : JSON.stringify(report);
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const out = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+if (process.argv[2] === "--version") console.log("Version ${version}");
+else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
+if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+// Playwright's messages are coloured and span lines; the step shows them without the colour codes
+const BOOM = "\u001b[31mError: boom\u001b[39m\n\nExpected: 1\nReceived: 2";
+/** A report of the spec file `a.spec.ts` whose test "opens" ended with `status` in each of `engines`. */
+const pwReport = (
+  status: string,
+  errors: object[] = [],
+  file = "a.spec.ts",
+  engines = ["chromium", "firefox", "webkit"],
+) => ({
+  stats: { [status]: engines.length },
+  errors,
+  suites: [
+    {
+      file,
+      specs: [
+        {
+          title: "opens",
+          tests: engines.map((projectName) => ({
+            projectName,
+            status,
+            results: [{ error: { message: BOOM } }],
+          })),
+        },
+      ],
+    },
+  ],
+});
+const withPw = (
+  report: object | string,
+  version?: string,
+  canary?: string,
+) => ({
+  extraEnv: { PLAYWRIGHT_BIN: fakePlaywright(report, version, canary) },
+});
+test("browser: without a tracked spec the step is not applicable; a spec without the config cannot be checked", () => {
+  const r = run(["browser", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE browser:/m);
+  const noConfig = repo((root) => {
+    browserSite()(root);
+    rmSync(join(root, "playwright.config.ts"));
+  });
+  assert.match(
+    expect("browser", noConfig, 3),
+    /playwright\.config\.ts is not tracked/,
+  );
+});
+test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    0,
+    withPw(pwReport("expected")),
+  );
+  assert.match(out, /3 test\(s\) in 1 file\(s\) passed/);
+});
+test("browser: a failed or skipped test is a finding that names it, its engine and its reason", () => {
+  for (const status of ["unexpected", "skipped"]) {
+    const out = expect(
+      "browser",
+      repo(browserSite()),
+      1,
+      withPw(pwReport(status)),
+    );
+    assert.match(
+      out,
+      /^ {2}a\.spec\.ts > opens \[webkit\]: (?:Error: boom \/ Expected: 1 \/ Received: 2|skipped)$/m,
+    );
+  }
+});
+test("browser: a failed test inside a describe block is found", () => {
+  const report = pwReport("unexpected");
+  const nested = {
+    ...report,
+    suites: [{ file: "a.spec.ts", suites: report.suites }],
+  };
+  assert.match(
+    expect("browser", repo(browserSite()), 1, withPw(nested)),
+    /a\.spec\.ts > opens \[chromium\]/,
+  );
+});
+test("browser: a test that passed only as an expected failure (test.fail) is a finding", () => {
+  const report = pwReport("expected");
+  report.suites[0].specs[0].tests[0] = {
+    ...report.suites[0].specs[0].tests[0],
+    annotations: [{ type: "fail" }],
+  } as (typeof report.suites)[0]["specs"][0]["tests"][0];
+  assert.match(
+    expect("browser", repo(browserSite()), 1, withPw(report)),
+    /opens \[chromium\]: marked test\.fail/,
+  );
+});
+test("browser: a spec that did not run in every engine, a canary that passed or another version cannot be checked", () => {
+  const site = repo(browserSite());
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected", [], "b.spec.ts"))),
+    /^ {2}site\/browser\/a\.spec\.ts: not in chromium, firefox, webkit$/m,
+  );
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("expected", [], "a.spec.ts", ["chromium"])),
+    ),
+    /^ {2}site\/browser\/a\.spec\.ts: not in firefox, webkit$/m,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected"), "0.0.1")),
+    /playwright 0\.0\.1 is installed/,
+  );
+  // The canary is judged before the real run, whose failure must not show instead
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("unexpected"), undefined, "expected"),
+    ),
+    /did not report the planted failing test/,
+  );
+});
+test("browser: a report whose totals differ from its tests, or that cannot be read, cannot be checked", () => {
+  const site = repo(browserSite());
+  const report = { ...pwReport("expected"), stats: { expected: 2 } };
+  assert.match(
+    expect("browser", site, 3, withPw(report)),
+    /the report counts 2 test\(s\), 3 were read/,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw('{"stats":')),
+    /playwright wrote no readable report/,
+  );
+});
+test("browser: a run that exits non-zero with every test passed cannot be checked", () => {
+  const pw = withPw(pwReport("expected")).extraEnv;
+  assert.match(
+    expect("browser", repo(browserSite()), 3, {
+      extraEnv: { ...pw, FAKE_EXIT: "1" },
+    }),
+    /playwright exited 1 with every test passed/,
+  );
+});
+test("browser: an error outside the tests that the step does not know cannot be checked, and is shown", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    3,
+    withPw(pwReport("expected", [{ message: "Error: odd" }])),
+  );
+  assert.match(out, /Error: odd/);
+});
+// The two could-not-check rows with the real Playwright: neither starts a browser
+test("browser: a taken 127.0.0.1:4173 cannot be checked (the web server refuses a running one)", async () => {
+  // A child process holds 127.0.0.1:4173 while the gate runs. The row needs that port free (stop pnpm site:serve, no
+  // second gate run at once): a port already taken fails the row, never hangs it
+  const holder = spawn(process.execPath, [
+    "-e",
+    'require("node:http").createServer((q, s) => s.end("held")).listen(4173, "127.0.0.1", () => console.log("up"))',
+  ]);
+  try {
+    await new Promise((up, down) => {
+      holder.stdout.once("data", up);
+      holder.once("error", down);
+      holder.once("exit", () =>
+        down(new Error("the holder could not listen on 4173")),
+      );
+    });
+    const site = repo(
+      browserSite(
+        ', webServer: { command: "node -e 0", url: "http://127.0.0.1:4173/", reuseExistingServer: false }',
+      ),
+    );
+    assert.match(
+      expect("browser", site, 3),
+      /127\.0\.0\.1:4173 is held by another process \(stop pnpm site:serve\)/,
+    );
+  } finally {
+    holder.kill();
+  }
+});
+test("browser: a browser that is not installed cannot be checked, and says how to install it", () => {
+  const out = expect("browser", repo(browserSite()), 3, {
+    extraEnv: { PLAYWRIGHT_BROWSERS_PATH: tempDir() },
+  });
+  assert.match(
+    out,
+    /a browser is not installed: run pnpm exec playwright install/,
+  );
+  assert.match(out, /^ {2}chromium$/m);
 });
 test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
   for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
@@ -2762,6 +3034,13 @@ test("secrets: a wrapper that could not check cannot be checked", () => {
 test("secrets: a branch with no commit after origin/main is not applicable", () => {
   notApplicable(["secrets", "--root", repo()]);
 });
+/** The step names of the result lines `all` printed, in order. */
+const stepsOf = (out: string): string[] =>
+  [
+    ...out.matchAll(
+      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
+    ),
+  ].map((m) => m[1]);
 // Pins the order: `all` stops at the first step that does not pass, so a pull request red on any later step must still
 // have had its secret scan.
 test("all: scans the branch's commits for secrets before it reaches a later step that fails", () => {
@@ -2772,13 +3051,8 @@ test("all: scans the branch's commits for secrets before it reaches a later step
   assert.match(out, /^FINDING secrets: /m);
   assert.match(out, /^FINDING all: stopped at secrets$/m);
   assert.doesNotMatch(out, /format/);
-  // secrets runs right after toolchain: no other step reports before it
-  const steps = [
-    ...out.matchAll(
-      /^(?:PASS|FINDING|COULD NOT CHECK|NOT APPLICABLE) ([\w-]+):/gm,
-    ),
-  ].map((m) => m[1]);
-  assert.deepEqual(steps, ["toolchain", "secrets", "all"]);
+  // toolchain, then secrets: no other step reports before them
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "all"]);
 });
 test("secrets: a repository without origin/main cannot be checked", () => {
   const root = scanBranch(0);
@@ -3219,6 +3493,156 @@ test("commit-msg: no message file is a usage error that says so", () => {
   const r = run(["commit-msg"]);
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /^USAGE commit-msg: no message file given$/m);
+});
+
+/** A home folder of its own, so a contributor's global git configuration never reaches a row. */
+function isolatedHome(global = ""): Record<string, string> {
+  const home = tempDir();
+  put(home, ".gitconfig", global);
+  return {
+    HOME: home,
+    XDG_CONFIG_HOME: join(home, "xdg"),
+    GIT_CONFIG_GLOBAL: join(home, ".gitconfig"),
+  };
+}
+test("hooks: passes when core.hooksPath is .githooks and every hook is the executable shim", () => {
+  const out = expect("hooks", repo(), 0);
+  assert.match(
+    out,
+    /^PASS hooks: core\.hooksPath \.githooks; pre-commit, commit-msg as shims$/m,
+  );
+});
+test("hooks: a local .githooks over another global core.hooksPath passes", () => {
+  const root = repo();
+  expect("hooks", root, 0, {
+    extraEnv: isolatedHome("[core]\n\thooksPath = /opt/global\n"),
+  });
+});
+test("hooks: an empty core.hooksPath is a finding that shows the empty value", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "");
+  assert.match(expect("hooks", root, 1), /core\.hooksPath is "" \(file:/);
+});
+test("all: hooks runs right after secrets, and its finding stops all there", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("all", root, 1, { extraEnv: isolatedHome() });
+  assert.deepEqual(stepsOf(out), ["toolchain", "secrets", "hooks", "all"]);
+});
+test("hooks: an unset core.hooksPath is a finding that gives the command", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  assert.match(
+    expect("hooks", root, 1, { extraEnv: isolatedHome() }),
+    /core\.hooksPath is unset: run \.\/scripts\/setup/,
+  );
+});
+test("hooks: another local core.hooksPath is a finding that says setup will not replace it and how to proceed", () => {
+  const root = repo();
+  git(root, "config", "core.hooksPath", "/opt/mine");
+  const out = expect("hooks", root, 1);
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/mine" \(file:\S*\.git\/config\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+  assert.match(out, /git config core\.hooksPath \.githooks/);
+  assert.match(out, /whose hooks then stop running in this clone/);
+  assert.doesNotMatch(out, /unset/);
+});
+test("hooks: another global core.hooksPath is a finding that names the global file", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("hooks", root, 1, {
+    extraEnv: isolatedHome("[core]\n\thooksPath = /opt/global\n"),
+  });
+  assert.match(
+    out,
+    /core\.hooksPath is "\/opt\/global" \(file:\S*\.gitconfig\)/,
+  );
+  assert.match(out, /\.\/scripts\/setup will not replace it/);
+});
+test("hooks: a git that cannot read its configuration is COULD NOT CHECK, not an unset path", () => {
+  const root = repo();
+  // A git first on the PATH that fails `config` (as it does on a broken configuration file) and is git otherwise.
+  const bin = tempDir();
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  put(
+    bin,
+    "git",
+    `#!/bin/sh\ncase " $* " in *" config "*) echo "fatal: bad config line 1" >&2; exit 128;; esac\nexec ${real} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  const out = expect("hooks", root, 3, {
+    extraEnv: { PATH: `${bin}${delimiter}${GIT_ENV.PATH ?? ""}` },
+  });
+  assert.match(out, /git cannot read core\.hooksPath: fatal: bad config/);
+  assert.doesNotMatch(out, /unset/);
+});
+test("hooks: a hook that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "commit-msg"), 0o644)),
+    1,
+  );
+  assert.match(out, /\.githooks\/commit-msg: not executable/);
+});
+test("hooks: a hook that cannot be opened is COULD NOT CHECK, naming the reason", () => {
+  const root = repo();
+  // A link to itself fails to open for every user, root included
+  const f = join(root, ".githooks", "commit-msg");
+  rmSync(f);
+  symlinkSync("commit-msg", f);
+  const out = expect("hooks", root, 3);
+  assert.match(out, /\.githooks\/commit-msg cannot be opened: ELOOP/);
+});
+test("hooks: a hook that is not the shim is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo(edit(".githooks/pre-commit", "exec ", "true || exec ")),
+    1,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not the two-line shim/);
+});
+test("hooks: a missing hook is a finding", () => {
+  const out = expect("hooks", repo(remove(".githooks/pre-commit")), 1);
+  assert.match(out, /\.githooks\/pre-commit: missing/);
+});
+const inCI = { extraEnv: { GITHUB_ACTIONS: "true" } };
+test("hooks: in CI only the shims are checked, and the pass line names core.hooksPath as not checked", () => {
+  const root = repo();
+  git(root, "config", "--unset", "core.hooksPath");
+  const out = expect("hooks", root, 0, inCI);
+  assert.match(
+    out,
+    /^PASS hooks: pre-commit, commit-msg as shims; core\.hooksPath not checked \(CI has no clone-local git configuration\)$/m,
+  );
+});
+test("hooks: in CI a shim that is not executable is a finding", () => {
+  const out = expect(
+    "hooks",
+    repo((root) => chmodSync(join(root, ".githooks", "pre-commit"), 0o644)),
+    1,
+    inCI,
+  );
+  assert.match(out, /\.githooks\/pre-commit: not executable/);
+});
+test("hooks: a file in .githooks that is not a known shim is a finding, in CI and in a clone", () => {
+  for (const opts of [inCI, undefined]) {
+    const out = expect(
+      "hooks",
+      repo((root) => put(root, ".githooks/post-checkout", "#!/bin/sh\n")),
+      1,
+      opts,
+    );
+    assert.match(out, /\.githooks\/post-checkout: not a known hook/);
+  }
+});
+test("hooks: an untracked file in .githooks (a Finder .DS_Store) is not a finding", () => {
+  const root = repo();
+  put(root, ".githooks/.DS_Store", "x"); // untracked: a listing by readdir would see it
+  const out = expect("hooks", root, 0);
+  assert.doesNotMatch(out, /DS_Store/);
 });
 
 /**
@@ -3888,12 +4312,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no test file, no spec and no commit after origin/main: svelte, test, trace, commits
-  // and secrets have nothing to check.
+  // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
+  // svelte, site, inline, test, trace, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 15 checks passed, 6 not applicable: secrets, svelte, site, test, trace, commits$/m,
+    /^PASS all: 16 checks passed, 8 not applicable: secrets, svelte, site, inline, test, trace, browser, commits$/m,
   );
 });
 test("all: test and trace share one vitest run", () => {
@@ -4118,6 +4542,61 @@ test("site: a build that writes no HTML page cannot be checked", () => {
     expect("site", repo(scriptOnly), 3),
     /no HTML page in site\/dist/,
   );
+});
+
+// The inline step's own contract; POL-03's rows run in site/policy.test.ts against the real build
+const builtPage = (html: string) => (root: string) => {
+  put(root, "site/vite.config.ts", "export default {};\n");
+  put(root, "site/dist/index.html", html);
+};
+test("inline: without a tracked site/vite.config.ts the step is not applicable", () => {
+  const r = run(["inline", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE inline:/m);
+});
+test("inline: a site/dist with no HTML file cannot be checked", () => {
+  const none = (root: string) =>
+    put(root, "site/vite.config.ts", "export default {};\n");
+  assert.match(expect("inline", repo(none), 3), /no HTML file in site\/dist/);
+});
+test("inline: a planted canary the scan misses, or none planted, cannot be checked", () => {
+  const dir = tempDir();
+  const clean = "<!doctype html><title>c</title><script src=/a.js></script>\n";
+  const site = repo(builtPage(clean));
+  const none = expect("inline", site, 3, { canaries: dir });
+  assert.match(none, /missed a planted canary/);
+  assert.match(none, /^ {2}handler\.html: the event handler onload$/m);
+  // A canary that raises another kind than its own is missed too
+  put(dir, "inline/style.html", "<!doctype html><p onclick=x()>\n");
+  const other = expect("inline", site, 3, { canaries: dir });
+  assert.match(other, /^ {2}style\.html: a style element$/m);
+});
+test("inline: names each file and kind it finds", () => {
+  const two =
+    "<!doctype html><style>p{}</style><a href=' JAVASCRIPT:x()'>x</a><script src=/a.js>\n</script>\n";
+  const out = expect("inline", repo(builtPage(two)), 1);
+  assert.match(out, /^ {2}index\.html: a style element$/m);
+  assert.match(out, /^ {2}index\.html: a javascript: URL in href$/m);
+  assert.match(out, /^ {2}index\.html: a script element with text$/m);
+  assert.match(out, /in 3 place\(s\)/);
+});
+test("inline: looks for javascript: and vbscript: in each URL attribute it lists, in nested pages too", () => {
+  for (const [scheme, tag, attr] of [
+    ["javascript", "img", "src"],
+    ["vbscript", "form", "action"],
+    ["javascript", "button", "formaction"],
+    ["vbscript", "object", "data"],
+  ]) {
+    const page = (root: string) => {
+      put(root, "site/vite.config.ts", "export default {};\n");
+      put(root, "site/dist/sub/page.html", `<${tag} ${attr}="${scheme}:x()">`);
+    };
+    const out = expect("inline", repo(page), 1);
+    assert.match(
+      out,
+      new RegExp(`^ {2}sub/page\\.html: a ${scheme}: URL in ${attr}$`, "m"),
+    );
+  }
 });
 test("site: a vite that cannot be started cannot be checked, and says why", () => {
   assert.match(
