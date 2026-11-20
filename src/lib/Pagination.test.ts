@@ -308,6 +308,18 @@ describe("PAGE-07", () => {
   });
 });
 
+// @spec("PAGE-14", "5efc1301")
+describe("PAGE-14", () => {
+  it("emits onsize(50) once when 50 is chosen, and no onpage", async () => {
+    const { onpage, onsize } = mount({ limit: 25, sizes: [10, 25, 50] });
+    await fireEvent.change(within(nav()).getByRole("combobox"), {
+      target: { value: "50" },
+    });
+    expect(onsize.mock.calls).toEqual([[50]]);
+    expect(onpage).not.toHaveBeenCalled();
+  });
+});
+
 // @spec("PAGE-15", "62664302")
 describe("PAGE-15", () => {
   it.each<[string, Partial<PaginationProps>]>([

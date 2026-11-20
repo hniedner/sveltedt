@@ -14,13 +14,19 @@
   function step(can: boolean, offset: number): void {
     if (can) props.onpage(offset);
   }
+
+  // Emits the size chosen (PAGE-14)
+  function choose(event: Event & { currentTarget: HTMLSelectElement }): void {
+    const size = Number(event.currentTarget.value);
+    props.onsize?.(size);
+  }
 </script>
 
 <nav aria-label={props.label}>
   {#if sizes.length > 0}
     <label
       >{words.sizeLabel}
-      <select value={props.limit}>
+      <select value={props.limit} onchange={choose}>
         {#each sizes as size (size)}
           <option value={size}>{words.sizeOption(size)}</option>
         {/each}
