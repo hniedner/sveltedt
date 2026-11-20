@@ -24,14 +24,15 @@
   }: DataTableProps<Row> = $props();
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
-  // An entry that is undefined, null or not of its default's type keeps the default (RND-06)
+  // An entry that is undefined, null, not of its default's type or a blank text keeps the default (RND-06)
   const words = $derived({
     ...defaultMessages,
     ...(Object.fromEntries(
       Object.entries(messages ?? {}).filter(
         ([key, word]) =>
           typeof word ===
-          typeof defaultMessages[key as keyof DataTableMessages],
+            typeof defaultMessages[key as keyof DataTableMessages] &&
+          !(typeof word === "string" && word.trim() === ""),
       ),
     ) as Partial<DataTableMessages>),
   });

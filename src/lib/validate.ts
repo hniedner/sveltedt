@@ -130,7 +130,10 @@ function sortFault<Row>(
     (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc") ||
     // A direction named twice would make a press repeat it, and the column would never leave the order
     new Set(sortable as unknown[]).size !== (sortable as unknown[]).length;
-  const sortables = columns.filter((column) => column.sortable !== undefined);
+  // A sortable given as null is not sortable, as left out (SORT-15)
+  const sortables = columns.filter(
+    (column) => (column.sortable ?? undefined) !== undefined,
+  );
   if (sortables.some((column) => invalid(column.sortable)))
     return "sortableInvalid";
   if (sortables.length > 0 && typeof onsort !== "function")
