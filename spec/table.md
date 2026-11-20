@@ -37,7 +37,8 @@ to the consumer as one callback (stated with the statements that add user action
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `'desc'`; a press steps through them in the order listed) and `onsort(next)`; and the props of `Pagination`:
+  `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
@@ -197,6 +198,7 @@ its cells.
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | `columns` is not an array (left out) | `noColumns` | "Table has no columns." |
+  | a column is not an object (`null`, the text "name") | `columnIdEmpty` | "A column id is empty." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
@@ -204,6 +206,9 @@ its cells.
   | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `value` is given and is not a function (the text "name"), and it has no `cell` snippet | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `cell` is given and is not a snippet (the text "name"), and it has no `value` function | `columnContentMissing` | "A column has no value and no cell." |
+  | `status` is a value outside its type (the text "done", `null`) | `statusUnknown` | "Table status is not known." |
   | `rows` is not an array (left out), with `status 'ready'` | `rowsNotList` | "Table has no list of rows." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
@@ -213,6 +218,15 @@ its cells.
 
   A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
   no alert. `rows` that is not an array is no fault while `status` is `loading` or `failed` (STATE-08).
+
+  `status` left out or given as `undefined` takes its default, `'ready'`, and is no fault.
+
+  A column with a `value` function or a `cell` snippet is valid when its other one is given and is not a function:
+  it renders by RND-08 or RND-02 (a `value` function beside `cell` the text "name" shows the value's text; a `cell`
+  snippet beside `value` the text "name" shows the snippet).
+
+  Stated limits, not detected: a plain function given as `cell` is taken as a snippet (a snippet is a function, and
+  the two cannot be told apart); a `value` function that throws is not caught, unlike `getRowId`.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
@@ -311,7 +325,7 @@ cells MUST be rendered by the same element as before.
   | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
-  | any entry given as `undefined` (a translation lookup that misses) | that entry's English default | the statement that shows the entry |
+  | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups state their own words in their own
@@ -1491,15 +1505,19 @@ tests of the statement its marker names red by a failed assertion.
   | Order before | Press | `onsort` receives |
   |---|---|---|
   | `[]` | Name | `[name asc]` |
+  | `null` (counts as `[]`, SORT-15) | Name | `[name asc]` |
   | `[name asc]` | Name | `[name desc]` |
   | `[name desc]` | Name | `[]` |
   | `[code asc]` | Name | `[name asc]` |
   | `[code asc, name desc]` | Name | `[name asc]` |
   | `[name asc, code desc]` | Name | `[name desc]` |
+  | `[]` | Date (lists `['desc', 'asc']`) | `[date desc]` |
+  | `[date desc]` | Date (lists `['desc', 'asc']`) | `[date asc]` |
+  | `[date asc]` | Date (lists `['desc', 'asc']`) | `[]` |
 
-  The rule: if the column leads the order, it moves on to the next direction it allows (ascending before
-  descending) and the other columns are dropped; after its last allowed direction it leaves the order. Otherwise it
-  becomes the only sorted column, in the first direction it allows. SORT-04 holds the single-direction rows.
+  The rule: if the column leads the order, it moves on to the next direction in the order its `sortable` lists them
+  and the other columns are dropped; after its last listed direction it leaves the order. Otherwise it becomes the only
+  sorted column, in the first direction its `sortable` lists. SORT-04 holds the single-direction rows.
 - Reason: emitting the whole order means the consumer sends it as is and never merges partial changes.
 - Layer: component.
 - Traces: PRD-B4, PRD-B2.
@@ -1516,9 +1534,10 @@ moved on one step and every other column keeps its relative order and direction.
   | `[name asc, code asc]` | Name | `[name desc, code asc]` |
   | `[name desc, code asc]` | Name | `[code asc]` |
   | `[]` | Name | `[name asc]` |
+  | `[code asc]` | Date (lists `['desc', 'asc']`) | `[code asc, date desc]` |
 
-  A column not yet in the order joins at the end, in the first direction it allows; after its last allowed direction
-  it leaves the order.
+  A column not yet in the order joins at the end, in the first direction its `sortable` lists; it moves on in that
+  order, and after its last listed direction it leaves the order.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1547,7 +1566,7 @@ moved on one step and every other column keeps its relative order and direction.
   | `['asc']` | `[date asc]` | Date | `[]` |
   | `['asc']` | `[code asc, date asc]` | Shift+Date | `[code asc]` |
 
-  Break that turns it red: a press always steps through ascending and descending.
+  Break that turns it red: a press steps through both directions whatever the column lists.
 - Reason: the other direction is one the server would refuse.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1681,7 +1700,12 @@ list.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
+  | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
+  | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', desc: false }`) | `sortInvalid` | "The sort is not valid." |
+  | an entry of `sort` is `null`, an array or not an object (`[null]`, `[['name']]`, `["name"]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `id` is left out or is not a string (`[{ desc: false }]`, `[{ id: 5, desc: false }]`, `[{ id: null, desc: false }]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `desc` is left out or is not a boolean (`[{ id: 'name' }]`, `[{ id: 'name', desc: undefined }]`, `[{ id: 'name', desc: null }]`, `[{ id: 'name', desc: 'true' }]`) | `sortInvalid` | "The sort is not valid." |
   | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
   | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
   | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
@@ -1690,6 +1714,11 @@ list.
   With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
   the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
   empty.").
+
+  `sort` left out, given as `undefined` or `null`, or given as an empty list means no order and is no fault; a press
+  then emits as from `[]`.
+
+  A column's `sortable` given as `null` means the column is not sortable, as when it is left out, and is no fault.
 - Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3, PRD-B4.
