@@ -1953,6 +1953,7 @@ current page.
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
   | 90 | 90 | `1 … 5 6 7 8 9` |
+  | 95 | 95 | `1 … 6 7 8 9 10` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -2019,6 +2020,7 @@ offsets on the page grid.
   |---|---|
   | `offset 0, total 95` (first of several pages) | First page, Previous page |
   | `offset 90, total 95` (last of several pages) | Next page, Last page |
+  | `offset 80, total 90` (last page, `total` a multiple of `limit`) | Next page, Last page |
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
@@ -2127,8 +2129,8 @@ new `limit` and offset.
 - Traces: PRD-A3, PRD-B9.
 
 **PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
-- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
-  `listbox` is in the pager.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`; `sizes null` (as left out). In each, no element
+  with role `combobox` or `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -2143,7 +2145,7 @@ new `limit` and offset.
   | `offset` is -25, 2.5, `NaN`, `Infinity` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
   | `limit` is 0, -10, 2.5, `NaN`, `Infinity` or 2^53 | `limitInvalid` | "The page size is not a valid number." |
   | `label` is empty or blank | `labelEmpty` | "Pager label must not be empty." |
-  | `sizes` holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
+  | `sizes` is not a list (a string, a number), or holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
@@ -2151,7 +2153,9 @@ new `limit` and offset.
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
   request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
-  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given. `sizes`
+  given as `null` means no sizes, as when it is left out, and is no fault (PAGE-15). `unfilteredTotal` given as `null`
+  means not given, and is no fault: a JSON answer has no other way to leave the count out.
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.

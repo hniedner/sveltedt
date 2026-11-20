@@ -1,4 +1,7 @@
 /tmp/
+# What the gate steps write: the test run's and the trace's reports; coverage will be written here too
+/reports/
+/coverage/
 # Every node_modules: the install, the site's workspace link, and the Vite cache Vitest writes beside a canary
 # run (scripts/canaries/test/).
 node_modules/
