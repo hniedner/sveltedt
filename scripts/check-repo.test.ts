@@ -165,7 +165,7 @@ function repo(change: (root: string) => void = () => {}): string {
     NOTICE: "Fixture\nCopyright 2026 R. Hannes Niedner\n",
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
-    ".gitignore": "/tmp/\n/node_modules\n",
+    ".gitignore": "/tmp/\n/node_modules\n/reports/\n/coverage/\n",
     "tsconfig.json": FIXTURE_TSCONFIG,
     "scripts/tsconfig.json": SCRIPTS_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
@@ -433,6 +433,13 @@ test("files: a NOTICE without the copyright line is a finding", () => {
 });
 test("files: a .gitignore without /tmp/ is a finding", () => {
   expect("files", repo(edit(".gitignore", "/tmp/", "/other/")), 1);
+});
+test("files: a .gitignore without /reports/ or /coverage/ is a finding", () => {
+  for (const line of ["/reports/", "/coverage/"])
+    assert.match(
+      expect("files", repo(edit(".gitignore", `${line}\n`, "")), 1),
+      new RegExp(`.gitignore: no line ${line}`),
+    );
 });
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
@@ -4307,7 +4314,14 @@ test("selftest: a test file the gate runs sees none of the gate's context variab
   const sees = `import assert from "node:assert/strict";
 import { test } from "node:test";
 test("no gate variable", () => {
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_BROWSER", "GATE_HEAD", "GITHUB_ACTIONS"])
+  for (const k of [
+    "CANARY_DIR",
+    "GATE_BASE",
+    "GATE_BROWSER",
+    "GATE_EVENT",
+    "GATE_HEAD",
+    "GITHUB_ACTIONS",
+  ])
     assert.equal(process.env[k], undefined, k);
 });
 `;
@@ -4318,6 +4332,7 @@ test("no gate variable", () => {
     {
       extraEnv: {
         GITHUB_ACTIONS: "true",
+        GATE_EVENT: "pull_request",
         GATE_BASE: "HEAD",
         GATE_BROWSER: "job",
         GATE_HEAD: "HEAD",

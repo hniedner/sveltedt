@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +42,7 @@ export const GATE_VARS: readonly string[] = [
   "CANARY_DIR",
   "GATE_BASE",
   "GATE_BROWSER",
+  "GATE_EVENT",
   "GATE_HEAD",
   "GITHUB_ACTIONS",
 ];
@@ -108,11 +115,25 @@ export interface VitestRun {
   error?: string;
 }
 
-/** One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn error. */
-export function vitest(cwd: string, args: string[]): VitestRun {
-  const dir = mkdtempSync(join(tmpdir(), "vitest-"));
+/** `reports/<step>/`, removed and created again: a file an earlier run left there is never read as this run's. */
+export function freshReports(root: string, step: string): string {
+  const dir = join(root, "reports", step);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+/** A report's file in `dir`: the name with each `/` replaced by `__`, so a path is one file name. */
+export const reportFile = (dir: string, name: string): string =>
+  join(dir, name.replaceAll("/", "__"));
+
+/**
+ * One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn
+ * error. The report goes to `keep` (a reports folder) when given, else to a folder removed after the run.
+ */
+export function vitest(cwd: string, args: string[], keep?: string): VitestRun {
+  const dir = keep ?? mkdtempSync(join(tmpdir(), "vitest-"));
   try {
-    const file = join(dir, "report.json");
+    const file = reportFile(dir, "vitest.json");
     const r = spawnSync(
       vitestBin(),
       // dot prints what the JSON report leaves out: errors thrown outside a test
@@ -140,7 +161,7 @@ export function vitest(cwd: string, args: string[]): VitestRun {
       error: r.error && `cannot run ${vitestBin()}: ${errorCode(r.error)}`,
     };
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    if (!keep) rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -184,6 +205,8 @@ let shared: { root: string; run: Result | VitestRun } | undefined;
  */
 export function testRun(root: string): Result | VitestRun {
   if (shared?.root === root) return shared.run;
+  // This run's reports only, whichever branch follows: an earlier run's report is never left to be read
+  const reports = freshReports(root, "test");
   const config = join(root, "vitest.config.ts");
   const unchecked = [
     ["onUnhandledError", "lets an unhandled error pass"],
@@ -198,15 +221,68 @@ export function testRun(root: string): Result | VitestRun {
         `vitest.config.ts ${unchecked.map(([, why]) => why).join("; ")}`,
         unchecked.map(([name]) => name),
       )
-    : vitest(root, [
-        "--config",
-        config,
-        "--dangerouslyIgnoreUnhandledErrors=false",
-        "--expect.requireAssertions",
-        "--typecheck.enabled=false",
-        "--update=none",
-        "--includeTaskLocation",
-      ]);
+    : vitest(
+        root,
+        [
+          "--config",
+          config,
+          "--dangerouslyIgnoreUnhandledErrors=false",
+          "--expect.requireAssertions",
+          "--typecheck.enabled=false",
+          "--update=none",
+          "--includeTaskLocation",
+        ],
+        reports,
+      );
   shared = { root, run };
   return run;
+}
+
+export interface Base {
+  kind: "pull_request" | "push" | "local";
+  base: string | null; // null: a push with no usable GATE_BASE
+}
+const COMMIT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+/**
+ * The commit a step compares its answer with, one truth table for the steps that compare with a base (`trace` today;
+ * `diff-coverage` will). A pull request is checked out as the merge of its head, so the base is that merge's first
+ * parent; else the merge base of GATE_BASE and GATE_HEAD. A push has GATE_BASE (the commits before it) or none. Locally
+ * it is the merge base with origin/main. Anything else, in CI, has no base: the step says so, never guesses.
+ */
+export function baseCommit(root: string): Result | Base {
+  const git = (...args: string[]): string | null => {
+    const r = spawnSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      env: childEnv(),
+    });
+    return r.status === 0 ? r.stdout.trim() : null;
+  };
+  if (!inCI()) {
+    const base = git("merge-base", "refs/remotes/origin/main", "HEAD");
+    return base
+      ? { kind: "local", base }
+      : result(CANNOT, "no merge base with origin/main (fetch it first)");
+  }
+  const { GATE_EVENT: event, GATE_BASE: base, GATE_HEAD: head } = process.env;
+  if (event === "push")
+    return { kind: "push", base: base && !/^0+$/.test(base) ? base : null };
+  if (event !== "pull_request")
+    return result(
+      CANNOT,
+      `GATE_EVENT is ${event ? `"${event}"` : "not set"} in CI`,
+    );
+  // Commit ids only: the values reach git as revisions
+  if (!base || !head || !COMMIT_ID.test(base) || !COMMIT_ID.test(head))
+    return result(
+      CANNOT,
+      "GATE_BASE or GATE_HEAD is not a commit id on a pull request",
+    );
+  const merged =
+    git("rev-parse", "HEAD^2") === head
+      ? git("rev-parse", "HEAD^1")
+      : git("merge-base", base, head);
+  return merged
+    ? { kind: "pull_request", base: merged }
+    : result(CANNOT, `no merge base of ${base} and ${head}`);
 }

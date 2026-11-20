@@ -142,6 +142,14 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
   not seen by `expect-expect`, `no-focused-tests` or `no-disabled-tests` (measured); at run time one with no
   assertion still fails, and a skipped one still stops the step.
+- **trace:** ties each spec statement (`spec/*.md`) to the tests that prove it, through `@spec("<id>", "<hash>")`
+  markers in a leading comment of a test under `src/`, `site/` or `test/`; it reads the results of the same Vitest run
+  as `test`. A marker whose hash no longer matches its statement, a marked test that is skipped or failing, a marker
+  with no test under it, and a marker outside its one position are findings; a marked file absent from the results, a
+  marker in a `scripts/` test (node:test results are not read) and a test file outside those folders are could not
+  check; statements no marker names are listed as not yet tested (gates.md G6). On a pull request, and locally against
+  the merge base with `origin/main`, an id marked at the base whose statement still exists and which no marker names
+  now is a finding; a base that cannot be named or read is could not check.
 - **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
   `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
   (never one already running), after the test step so that address is never shared. The planted failing spec in
@@ -240,8 +248,7 @@ code from that branch.
 These checks are part of the method but do not exist in this repository yet:
 
 - the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
-- the Svelte checks, `trace`, `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the
-  first code that needs them).
+- `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the first code that needs them).
 
 ## Known limits of the merge rules
 

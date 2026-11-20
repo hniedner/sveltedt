@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -17,7 +19,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GATE_VARS } from "./gate-step.ts";
+import { baseCommit, GATE_VARS, isResult } from "./gate-step.ts";
 import { judgeResults, parseSpec, readMarkers, traceSources } from "./trace.ts";
 
 const sha8 = (text: string): string =>
@@ -589,11 +591,12 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("gate: GATE_VARS names the five context variables, and childEnv strips each from a child", () => {
+test("gate: GATE_VARS names the six context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
     "GATE_BROWSER",
+    "GATE_EVENT",
     "GATE_HEAD",
     "GITHUB_ACTIONS",
   ]);
@@ -670,4 +673,274 @@ test("trace: a pending or disabled result is reported as skipped", () => {
     );
     assert.match(r.findings.join("\n"), /skipped: a/);
   }
+});
+
+/** Commits `files` on top of the fixture's HEAD (null removes a file); origin/main stays where it was. */
+function advance(root: string, files: Record<string, string | null>): string {
+  for (const [path, text] of Object.entries(files))
+    if (text === null) rmSync(join(root, path));
+    else put(root, path, text);
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "chore: a change");
+  return git(root, "rev-parse", "HEAD").trim();
+}
+const ci = (event: string, base?: string, head?: string) => ({
+  GITHUB_ACTIONS: "true",
+  GATE_EVENT: event,
+  ...(base ? { GATE_BASE: base } : {}),
+  ...(head ? { GATE_HEAD: head } : {}),
+});
+
+/** main at A2, a branch from A at B and B2, and the merge of B into A2 that a pull request is checked out as (HEAD). */
+function history() {
+  const root = fixture();
+  const a = git(root, "rev-parse", "HEAD").trim();
+  const a2 = advance(root, { x: "1\n" });
+  git(root, "update-ref", "refs/remotes/origin/main", a2);
+  git(root, "checkout", "-q", "--detach", a);
+  const b = advance(root, { y: "1\n" });
+  const b2 = advance(root, { z: "1\n" });
+  git(root, "checkout", "-q", "--detach", a2);
+  git(root, "merge", "-q", "--no-ff", "-m", "merge", b);
+  return { root, a, a2, b, b2, m: git(root, "rev-parse", "HEAD").trim() };
+}
+/** The base `baseCommit` names with `env` set (and git's and the gate's own variables otherwise unset). */
+function baseWith(root: string, env: Record<string, string>) {
+  const saved = Object.fromEntries(GATE_VARS.map((k) => [k, process.env[k]]));
+  for (const k of GATE_VARS) delete process.env[k];
+  Object.assign(process.env, env);
+  try {
+    return baseCommit(root);
+  } finally {
+    for (const k of GATE_VARS)
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+  }
+}
+// The pull-request rows run with HEAD at the merge m, whose first parent a2 is not the merge base a: a base taken from
+// the merge base instead of HEAD^1 (or the reverse) names the wrong commit.
+test("baseCommit: one case per row of the truth table", () => {
+  const { root, a, a2, b, b2, m } = history();
+  // each row: its name, the environment, the base wanted (a pattern: could not check, with that message), and the commit HEAD is at (default m)
+  const NOT_ID = /is not a commit id on a pull request/;
+  const table: [string, Record<string, string>, unknown, string?][] = [
+    [
+      "a pull request checked out as the merge of its head",
+      ci("pull_request", a, b),
+      { kind: "pull_request", base: a2 },
+    ],
+    [
+      "a pull request that is not that merge: the merge base of GATE_BASE and GATE_HEAD, not HEAD^1 (b)",
+      ci("pull_request", a2, b2),
+      { kind: "pull_request", base: a },
+      b2,
+    ],
+    [
+      "a merge whose second parent is not GATE_HEAD: the merge base, not the merge's first parent",
+      ci("pull_request", a2, b2),
+      { kind: "pull_request", base: a },
+    ],
+    ["a pull request without GATE_HEAD", ci("pull_request", a), NOT_ID],
+    [
+      "a pull request without GATE_BASE",
+      ci("pull_request", undefined, b),
+      NOT_ID,
+    ],
+    ["a push with GATE_BASE", ci("push", a, b), { kind: "push", base: a }],
+    ["a push without GATE_BASE", ci("push"), { kind: "push", base: null }],
+    [
+      "a push with an all-zero GATE_BASE",
+      ci("push", "0".repeat(40)),
+      { kind: "push", base: null },
+    ],
+    [
+      "CI with no event",
+      { GITHUB_ACTIONS: "true", GATE_BASE: a },
+      /GATE_EVENT is not set in CI/,
+    ],
+    [
+      "CI with another event",
+      ci("schedule", a, b),
+      /GATE_EVENT is "schedule" in CI/,
+    ],
+    [
+      "locally: the merge base with origin/main",
+      { GATE_BASE: "ignored" },
+      { kind: "local", base: a2 },
+    ],
+    [
+      "locally, on a branch behind main: the merge base, not origin/main's tip",
+      {},
+      { kind: "local", base: a },
+      b,
+    ],
+  ];
+  for (const [row, env, want, at] of table) {
+    git(root, "checkout", "-q", "--detach", at ?? m);
+    const got = baseWith(root, env);
+    if (want instanceof RegExp) {
+      assert.ok(isResult(got) && got.code === 3, row);
+      assert.match(got.summary, want, row);
+    } else assert.deepEqual(got, want, row);
+  }
+});
+test("baseCommit: locally without origin/main there is no base", () => {
+  const { root } = history();
+  git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  const got = baseWith(root, {});
+  assert.ok(isResult(got) && got.code === 3);
+});
+
+const WITHOUT_TST02 = SPEC_TEXT.replace(/\n\*\*TST-02\*\*[\s\S]*$/, "");
+test("trace: on a pull request an id marked at the base and unmarked now is a finding; one whose statement was deleted is not", () => {
+  const root = fixture({
+    "src/a.test.ts": ONE(),
+    "src/b.test.ts": ONE("TST-02"),
+  });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, {
+    "src/a.test.ts": null,
+    "src/b.test.ts": null,
+    "spec/a.md": WITHOUT_TST02,
+  });
+  const out = expectTrace(root, 1, ci("pull_request", base, head));
+  assert.match(out, /TST-01: marked at the base, no marker names it now/);
+  assert.doesNotMatch(out, /TST-02: marked at the base/);
+});
+test("trace: on a pull request a statement untested at both commits exits 0 and is listed", () => {
+  const root = fixture();
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "README.md": "x\n" });
+  const out = expectTrace(root, 0, ci("pull_request", base, head));
+  assert.match(out, /not yet tested \(2\):\n {4}TST-01\n {4}TST-02/);
+});
+test("trace: a spec and test file new in the pull request count as untested at the base: no finding", () => {
+  const root = fixture();
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const added = SPEC_TEXT.replaceAll("TST-0", "NEW-0");
+  const hash = parseSpec("spec/b.md", added).statements[0].hash!;
+  const head = advance(root, {
+    "spec/b.md": added,
+    "src/a.test.ts": vitestFile(
+      `${mark("NEW-01", hash)}\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`,
+    ),
+  });
+  expectTrace(root, 0, ci("pull_request", base, head));
+});
+test("trace: a base commit whose object git cannot read cannot be checked", () => {
+  const { root, a, a2, b } = history();
+  // the pull request's base is the merge's first parent a2; its object is gone, but HEAD still names it
+  rmSync(join(root, ".git", "objects", a2.slice(0, 2), a2.slice(2)));
+  const out = expectTrace(root, 3, ci("pull_request", a, b));
+  assert.match(out, new RegExp(`the base commit ${a2} cannot be read`));
+});
+test("trace: a base commit that cannot be named, in CI, cannot be checked", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const out = expectTrace(root, 3, { GITHUB_ACTIONS: "true" });
+  assert.match(out, /no base to compare with: GATE_EVENT is not set in CI/);
+});
+test("trace: locally the set is compared with the merge base of origin/main, as on a pull request", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  advance(root, { "src/a.test.ts": null });
+  assert.match(expectTrace(root, 1), /TST-01: marked at the base/);
+});
+test("trace: on a push to main only the list is printed, whatever the base held", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  const base = git(root, "rev-parse", "HEAD").trim();
+  const head = advance(root, { "src/a.test.ts": null });
+  const out = expectTrace(root, 0, ci("push", base, head));
+  assert.match(out, /not yet tested \(2\)/);
+});
+
+test("trace: a file left in reports/ by an earlier run is gone after the run, and the run writes its results there", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  put(root, "reports/test/old.json", "{}");
+  put(root, "reports/trace/old.json", "{}");
+  expectTrace(root, 0);
+  assert.equal(existsSync(join(root, "reports/test/old.json")), false);
+  assert.equal(existsSync(join(root, "reports/trace/old.json")), false);
+  assert.match(
+    readFileSync(join(root, "reports/test/vitest.json"), "utf8"),
+    /"numTotalTests":1\b/,
+  );
+  // the marked file's path with / replaced by __
+  assert.match(
+    readFileSync(join(root, "reports/trace/src__a.test.ts.json"), "utf8"),
+    /"name": "one"/,
+  );
+});
+
+/** A git that fails `sub` (the subcommand after `-C <root>`) and runs everything else; returns the PATH to run with. */
+function pathWithGitFailing(sub: string): string {
+  const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  const dir = tempDir();
+  const bin = join(dir, "git");
+  writeFileSync(
+    bin,
+    `#!/bin/sh\nif [ "$3" = "${sub}" ]; then echo "fatal: planted" >&2; exit 128; fi\nexec ${real} "$@"\n`,
+  );
+  chmodSync(bin, 0o755);
+  return `${dir}:${process.env.PATH}`;
+}
+test("trace: a base whose file list or file git cannot read cannot be checked, naming what it could not read", () => {
+  for (const [sub, what] of [
+    ["ls-tree", "the file list"],
+    ["show", "spec/a.md"],
+  ]) {
+    const root = fixture({ "src/a.test.ts": ONE() });
+    const out = expectTrace(root, 3, { PATH: pathWithGitFailing(sub) });
+    assert.match(out, new RegExp(`cannot read ${what} at [0-9a-f]{40}`), sub);
+    assert.match(out, /\d+ item\(s\) not checked/, sub);
+  }
+});
+test("trace: a spec or test file at the base that the reader reports problems for cannot be checked, naming the file", () => {
+  for (const [path, text] of [
+    ["spec/old.md", "# Nothing here\n"],
+    ["src/old.test.ts", `${vitestFile("// @spec(\n")}`],
+  ]) {
+    const root = fixture({ "src/a.test.ts": ONE(), [path]: text });
+    advance(root, { [path]: null });
+    const out = expectTrace(root, 3);
+    assert.match(
+      out,
+      new RegExp(`${path.replace(".", "\\.")} at [0-9a-f]{40}`),
+    );
+  }
+});
+test("trace: a vitest.config.ts the step cannot check still empties reports/test", () => {
+  const root = fixture({
+    "src/a.test.ts": ONE(),
+    "vitest.config.ts": "export default { test: { projects: [] } };\n",
+  });
+  put(root, "reports/test/old.json", "{}");
+  expectTrace(root, 3);
+  assert.equal(existsSync(join(root, "reports/test/old.json")), false);
+});
+
+test("baseCommit: a malformed GATE_BASE or GATE_HEAD on a pull request cannot be checked, with the message saying so", () => {
+  const { root, a, b } = history();
+  // the last two hold a whole commit id, with something before or after it
+  for (const bad of ["main", a.slice(0, 7), "--all", `x${a}`, `${a} --all`])
+    for (const env of [
+      ci("pull_request", bad, b),
+      ci("pull_request", a, bad),
+    ]) {
+      const got = baseWith(root, env);
+      assert.ok(isResult(got) && got.code === 3, JSON.stringify(env));
+      assert.match(got.summary, /is not a commit id on a pull request/);
+    }
+});
+test("trace: locally a marked test file deleted but not committed is a finding", () => {
+  const root = fixture({ "src/a.test.ts": ONE() });
+  rmSync(join(root, "src/a.test.ts"));
+  assert.match(expectTrace(root, 1), /TST-01: marked at the base/);
+});
+test("trace: an id marked at the base whose statement did not exist there is no finding when the statement is added and the marker removed", () => {
+  const root = fixture({ "src/a.test.ts": ONE("TST-09") });
+  advance(root, {
+    "src/a.test.ts": null,
+    "spec/b.md":
+      "# More\n\n**TST-09** A table MUST page.\n\n- Reason: r.\n- Layer: unit.\n",
+  });
+  assert.doesNotMatch(expectTrace(root, 0), /TST-09: marked at the base/);
 });

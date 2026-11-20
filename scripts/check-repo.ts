@@ -133,8 +133,10 @@ function files(root: string, list: Set<string>): Result {
     details.push("LICENSE: not the Apache-2.0 text");
   if (!read("NOTICE").includes(COPYRIGHT))
     details.push(`NOTICE: no line "${COPYRIGHT}"`);
-  if (!read(".gitignore").split("\n").includes("/tmp/"))
-    details.push(".gitignore: no line /tmp/");
+  // Run output stays out of commits: /reports/ is written now, /coverage/ will be once a step writes it
+  for (const line of ["/tmp/", "/reports/", "/coverage/"])
+    if (!read(".gitignore").split("\n").includes(line))
+      details.push(`.gitignore: no line ${line}`);
   if (details.length)
     return result(FINDING, `${details.length} problem(s)`, details);
   return result(
