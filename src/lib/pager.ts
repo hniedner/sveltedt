@@ -1,8 +1,8 @@
 import type { PaginationProps } from "./types.ts";
 
-// pageNumbers is adapted from vincjo/datatables, src/lib/src/server/AbstractTableHandler.svelte.ts, commit fe6f7bb1,
-// MIT License, Copyright (c) 2020 vincjo (full text in NOTICE). Changed: 0-based pages, named gaps, no page array, a
-// pure function.
+// pageNumbers is adapted from vincjo/datatables' createPagesWithEllipsis (src/lib/src/server/
+// AbstractTableHandler.svelte.ts, commit fe6f7bb1), MIT License, Copyright (c) 2020 vincjo (full text in NOTICE).
+// Changed: 0-based pages, named gaps, no page array, a pure function.
 export type PageItem = number | "gap-start" | "gap-end";
 
 // The number row for page index `current` of `pages` pages: a page index, or a named gap (two need distinct keys);

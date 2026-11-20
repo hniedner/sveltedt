@@ -1,7 +1,8 @@
 SvelteDT
 Copyright 2026 R. Hannes Niedner
 
-This product includes code adapted from vincjo/datatables (src/lib/pager.ts, pageNumbers), under the MIT License:
+This product includes code adapted from vincjo/datatables (src/lib/src/server/AbstractTableHandler.svelte.ts,
+commit fe6f7bb1, createPagesWithEllipsis), used in pageNumbers in src/lib/pager.ts, under the MIT License:
 
 MIT License
 
