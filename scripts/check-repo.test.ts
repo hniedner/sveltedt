@@ -165,7 +165,7 @@ function repo(change: (root: string) => void = () => {}): string {
     NOTICE: "Fixture\nCopyright 2026 R. Hannes Niedner\n",
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
-    ".gitignore": "/tmp/\n/node_modules\n",
+    ".gitignore": "/tmp/\n/node_modules\n/reports/\n/coverage/\n",
     "tsconfig.json": FIXTURE_TSCONFIG,
     "scripts/tsconfig.json": SCRIPTS_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
@@ -433,6 +433,13 @@ test("files: a NOTICE without the copyright line is a finding", () => {
 });
 test("files: a .gitignore without /tmp/ is a finding", () => {
   expect("files", repo(edit(".gitignore", "/tmp/", "/other/")), 1);
+});
+test("files: a .gitignore without /reports/ or /coverage/ is a finding", () => {
+  for (const line of ["/reports/", "/coverage/"])
+    assert.match(
+      expect("files", repo(edit(".gitignore", `${line}\n`, "")), 1),
+      new RegExp(`.gitignore: no line ${line}`),
+    );
 });
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
@@ -1689,6 +1696,25 @@ test("browser: without a tracked spec the step is not applicable; a spec without
     expect("browser", noConfig, 3),
     /playwright\.config\.ts is not tracked/,
   );
+});
+test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
+  const site = repo(browserSite());
+  const pw = withPw(pwReport("unexpected")).extraEnv;
+  const ci = run(["browser", "--root", site], {
+    extraEnv: { ...pw, GITHUB_ACTIONS: "true", GATE_BROWSER: "job" },
+  });
+  assert.equal(ci.code, 0, ci.out);
+  assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
+  // Locally, in CI without the variable, and in the job browser whatever its variables, nothing is left out
+  for (const env of [
+    { GATE_BROWSER: "job" },
+    { GITHUB_ACTIONS: "true" },
+    { GITHUB_ACTIONS: "true", GATE_BROWSER: "job", GITHUB_JOB: "browser" },
+  ] as Record<string, string>[])
+    assert.match(
+      expect("browser", site, 1, { extraEnv: { ...pw, ...env } }),
+      /^FINDING browser: /m,
+    );
 });
 test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
   const out = expect(
@@ -4079,6 +4105,80 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
     /extra/,
   );
 });
+// The static job leaves the browser step to its own CI job through GATE_BROWSER: allowed only outside the job browser,
+// and only when a job browser that runs the step exists and gate needs it
+const ciWith = (ci: string) => (root: string) =>
+  put(root, ".github/workflows/ci.yml", ci);
+const leavesBrowser = CI.replace(
+  "    runs-on: ubuntu-latest\n    steps:\n      - uses",
+  "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
+);
+const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
+  ci
+    .replace(
+      "  gate:",
+      `  browser:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n  gate:`,
+    )
+    .replace("needs: [static]", "needs: [static, browser]");
+test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
+  for (const ci of [
+    leavesBrowser,
+    browserJob(leavesBrowser, "echo ok"),
+    browserJob(leavesBrowser, "echo node scripts/check-repo.ts browser"),
+    browserJob(leavesBrowser, "node scripts/check-repo.ts browser || true"),
+  ])
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /GATE_BROWSER is set but no job named browser runs the step/,
+    );
+  expect("gate-needs", repo(ciWith(browserJob(leavesBrowser))), 0);
+});
+test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a finding", () => {
+  const top = browserJob(CI).replace(
+    "jobs:\n",
+    "env:\n  GATE_BROWSER: job\njobs:\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(top)), 1),
+    /GATE_BROWSER is set for the whole workflow/,
+  );
+  const inJob = browserJob(leavesBrowser).replace(
+    "  browser:\n    runs-on: ubuntu-latest\n",
+    "  browser:\n    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(inJob)), 1),
+    /GATE_BROWSER is set in the job browser/,
+  );
+});
+test("gate-needs: a job browser that may pass without the step is a finding", () => {
+  // An if: or a continue-on-error at job level, on the step itself, after it, or on another step
+  for (const shape of [
+    "    continue-on-error: true\n    steps:\n      - run: node",
+    "    if: false\n    steps:\n      - run: node",
+    "    steps:\n      - continue-on-error: true\n        run: node",
+    "    steps:\n      - run: node scripts/check-repo.ts browser\n        continue-on-error: true\n      - run: node",
+    "    steps:\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
+  ]) {
+    const ci = browserJob(leavesBrowser).replace(
+      "    steps:\n      - run: node",
+      shape,
+    );
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /the job browser has continue-on-error or if/,
+    );
+  }
+  // A named step's run line is fine
+  const named = browserJob(leavesBrowser).replace(
+    "- run: node",
+    "- name: Browser\n        run: node",
+  );
+  expect("gate-needs", repo(ciWith(named)), 0);
+});
+test("gate-needs: a browser job without GATE_BROWSER passes", () => {
+  expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
+});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -4214,7 +4314,14 @@ test("selftest: a test file the gate runs sees none of the gate's context variab
   const sees = `import assert from "node:assert/strict";
 import { test } from "node:test";
 test("no gate variable", () => {
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
+  for (const k of [
+    "CANARY_DIR",
+    "GATE_BASE",
+    "GATE_BROWSER",
+    "GATE_EVENT",
+    "GATE_HEAD",
+    "GITHUB_ACTIONS",
+  ])
     assert.equal(process.env[k], undefined, k);
 });
 `;
@@ -4225,7 +4332,9 @@ test("no gate variable", () => {
     {
       extraEnv: {
         GITHUB_ACTIONS: "true",
+        GATE_EVENT: "pull_request",
         GATE_BASE: "HEAD",
+        GATE_BROWSER: "job",
         GATE_HEAD: "HEAD",
         CANARY_DIR: join(here, "canaries"),
       },

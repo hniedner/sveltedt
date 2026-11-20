@@ -1953,6 +1953,7 @@ current page.
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
   | 90 | 90 | `1 … 5 6 7 8 9` |
+  | 95 | 95 | `1 … 6 7 8 9 10` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -2019,6 +2020,7 @@ offsets on the page grid.
   |---|---|
   | `offset 0, total 95` (first of several pages) | First page, Previous page |
   | `offset 90, total 95` (last of several pages) | Next page, Last page |
+  | `offset 80, total 90` (last page, `total` a multiple of `limit`) | Next page, Last page |
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
@@ -2127,8 +2129,8 @@ new `limit` and offset.
 - Traces: PRD-A3, PRD-B9.
 
 **PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
-- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
-  `listbox` is in the pager.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`; `sizes null` (as left out). In each, no element
+  with role `combobox` or `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -2143,7 +2145,7 @@ new `limit` and offset.
   | `offset` is -25, 2.5, `NaN`, `Infinity` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
   | `limit` is 0, -10, 2.5, `NaN`, `Infinity` or 2^53 | `limitInvalid` | "The page size is not a valid number." |
   | `label` is empty or blank | `labelEmpty` | "Pager label must not be empty." |
-  | `sizes` holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
+  | `sizes` is not a list (a string, a number), or holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
@@ -2151,7 +2153,9 @@ new `limit` and offset.
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
   request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
-  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given. `sizes`
+  given as `null` means no sizes, as when it is left out, and is no fault (PAGE-15). `unfilteredTotal` given as `null`
+  means not given, and is no fault: a JSON answer has no other way to leave the count out.
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.
@@ -4306,6 +4310,92 @@ page body.
 - Layer: component.
 - Traces: PRD-I1.
 
+### The views: target size, zoom, reflow, text spacing, focus and right-to-left (milestone 7)
+
+These statements run in the views of PRD section 4.3 on the test site's page with the table of section 16's set-up
+(every feature on), with no dialog open unless a statement opens one: the default view (1280 by 800 CSS px), the zoom
+view (640 by 400 at device scale factor 2, 200 % zoom), the 320 view (320 by 256 at factor 4) and the spacing view (a
+same-origin stylesheet setting the WCAG text-spacing values with `!important`; the test first asserts that a body
+cell's computed `line-height` and `letter-spacing` equal them). "The clipping check" is the algorithm of PRD section
+4.3, in its words: (a) for every text-holding element and control in the component except the scroll region itself,
+where computed overflow is not `visible`, `scrollWidth <= clientWidth + 1` and `scrollHeight <= clientHeight + 1`;
+(b) for every header and body cell, the bounding box of a text range over its contents lies within the cell's border
+box (+-1 px); (c) the bounding boxes of visible controls in the toolbar, header cells, badges and pager intersect by at
+most 1 px; (d) at horizontal scroll 0, every element outside the table lies within the viewport width. One reading
+of (a) this spec fixes, of the PRD's own exception for what is clipped by design: the caption, the live regions and
+the skip link while not focused are visually hidden on purpose, hold no visible text and are left out, and the test
+asserts that each of them is hidden as A11Y-46 states for the skip link (outside the viewport or at most 1 by 1 CSS
+px). A later branch states the views with each dialog open,
+forced colours (A11Y-11) and focus on selected rows. The views with density "compact" and the variants are the
+theming milestone's (PRD-T5, T6).
+
+**A11Y-39** Every pointer target of the component MUST be at least 24 by 24 CSS px while it is shown.
+- Examples (the test runs every row; every button, link, checkbox, field, separator and grip the component renders
+  itself, not the application's snippets; each measured with `getBoundingClientRect` while shown: a dialog's controls
+  while it is open, the skip link while focused):
+
+  | View | Smallest width and height |
+  |---|---|
+  | default | at least 24 by 24 |
+  | 320, no dialog open | at least 24 by 24 |
+
+  Spacing between targets is not relied on, which is stricter than PRD-A6 allows.
+- Reason: WCAG 2.5.8 (PRD-A6, section 4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A6, PRD-A1.
+
+**A11Y-40** In the zoom view, the clipping check MUST pass.
+- Example: the zoom view, then the progress indicator with "Still loading" and "Cancel" shown (`oncancel` passed,
+  `status 'loading'` for 6 seconds, fake timers): the clipping check passes in both.
+- Reason: WCAG 1.4.4 (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-41** In the 320 view, the clipping check MUST pass.
+- Example: the 320 view, as A11Y-40: the clipping check passes in both; by its part (d) the toolbar, the badges,
+  the pager, "Still loading" and "Cancel" lie within the viewport's width at a horizontal scroll of 0, while the table
+  scrolls sideways inside the region.
+- Reason: WCAG 1.4.10 exempts the table but not what surrounds it (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-42** In the spacing view, the clipping check MUST pass.
+- Example: the spacing view, as A11Y-40, after the test has asserted the spacing values on a body cell.
+- Reason: WCAG 1.4.12 (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-45** Every control of the component but the region MUST show a visible focus indicator when it is focused by
+keyboard.
+- Example: the default view, plain rows: Tab through every control, each dialog opened in turn: each control's
+  computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour whose alpha
+  is above 0, and differs from its unfocused style, as A11Y-07 states for the region. Striped and hovered rows are the
+  theming milestone's (PRD-T5, T6).
+- Reason: WCAG 2.4.7 (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**I18N-02** Under `dir="rtl"`, the component's reading order MUST be its document order and its layout MUST mirror.
+- Examples (the test runs every row; the default view, the page's `html` element with `dir="rtl"`):
+
+  | Check | Result |
+  |---|---|
+  | Tab through the controls but the region; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's |
+  | the box column's header cell | its right edge within 1 px of the region's inner right edge (`clientLeft + clientWidth` from the region's left) |
+  | the pager | "First page" lies right of "Last page" |
+
+- Reason: WCAG 1.3.2 in right-to-left, and logical properties mirror the layout (PRD-I3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I3, PRD-A1.
+
+**I18N-03** Under `dir="rtl"`, the arrow keys on the focused region MUST scroll it the way they point.
+- Example: the 30-column table of A11Y-12 in a 600 px viewport, `dir="rtl"`: Tab to the region; ArrowLeft three times
+  reveals the columns at the inline end (the region's `scrollLeft` moves to more negative values); ArrowRight
+  scrolls back.
+- Reason: arrow keys follow the reading direction (PRD-I3), as A11Y-08 states left to right.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I3, PRD-A3.
+
 ## Trace
 
 ### Statement -> PRD
@@ -4603,6 +4693,13 @@ page body.
 | CHILD-10 | PRD-I1 |
 | A11Y-36 | PRD-A9 |
 | A11Y-48 | PRD-A9, PRD-A3 |
+| A11Y-39 | PRD-A6, PRD-A1 |
+| A11Y-40 | PRD-A11, PRD-A1 |
+| A11Y-41 | PRD-A11, PRD-A1 |
+| A11Y-42 | PRD-A11, PRD-A1 |
+| A11Y-45 | PRD-A1 |
+| I18N-02 | PRD-I3, PRD-A1 |
+| I18N-03 | PRD-I3, PRD-A3 |
 | A11Y-46 | PRD-A9, PRD-A10 |
 | A11Y-37 | PRD-A3 |
 | A11Y-38 | PRD-A3 |
@@ -4634,12 +4731,12 @@ state in their own statements.
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
-| PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
-| PRD-I3 | COL-22, STK-06 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
+| PRD-A6 | COL-33, A11Y-39 | in part: the compact density's row is the theming milestone's |
+| PRD-I3 | COL-22, I18N-02, I18N-03, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
-| PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4654,9 +4751,9 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, STK-08, CHILD-01, A11Y-43, A11Y-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, I18N-02, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern; focus on selected rows is a later branch's |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |

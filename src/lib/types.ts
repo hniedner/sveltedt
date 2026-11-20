@@ -85,3 +85,22 @@ export interface DataTableProps<Row> {
   heading?: Snippet;
   actions?: Snippet;
 }
+
+export interface PaginationProps {
+  // Where the shown page starts, a row index
+  offset: number;
+  // The page size
+  limit: number;
+  // The row count the pages cover
+  total: number;
+  // Names the pager's nav landmark
+  label: string;
+  // The page sizes offered; none or empty: no page-size select
+  sizes?: readonly number[];
+  // Called with the offset of the page pressed
+  onpage: (offset: number) => void;
+  // Called with the size chosen; required while `sizes` is not empty (PAGE-16)
+  onsize?: (size: number) => void;
+  // The row count before filtering, as the server reports it
+  unfilteredTotal?: number;
+}
