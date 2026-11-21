@@ -1,7 +1,7 @@
 // Tests for check-repo.ts. Each case builds a small git repository in a temporary folder, plants one break
 // and asserts the exit code and the word its last line starts with; a usage case asserts exit 2.
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   cpSync,
@@ -165,7 +165,7 @@ function repo(change: (root: string) => void = () => {}): string {
     NOTICE: "Fixture\nCopyright 2026 R. Hannes Niedner\n",
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
-    ".gitignore": "/tmp/\n/node_modules\n",
+    ".gitignore": "/tmp/\n/node_modules\n/reports/\n/coverage/\n",
     "tsconfig.json": FIXTURE_TSCONFIG,
     "scripts/tsconfig.json": SCRIPTS_TSCONFIG,
     ".node-version": `${NODE_MAJOR}.0.0\n`,
@@ -433,6 +433,13 @@ test("files: a NOTICE without the copyright line is a finding", () => {
 });
 test("files: a .gitignore without /tmp/ is a finding", () => {
   expect("files", repo(edit(".gitignore", "/tmp/", "/other/")), 1);
+});
+test("files: a .gitignore without /reports/ or /coverage/ is a finding", () => {
+  for (const line of ["/reports/", "/coverage/"])
+    assert.match(
+      expect("files", repo(edit(".gitignore", `${line}\n`, "")), 1),
+      new RegExp(`.gitignore: no line ${line}`),
+    );
 });
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
@@ -1571,6 +1578,287 @@ test("test: a tracked test file outside src/ and site/, or named .spec.ts, must 
     assert.ok(out.split("\n").includes(`  ${path}`), out);
     assert.match(out, /did not run/);
   }
+});
+test("test: a Playwright spec under site/browser/ is left to the browser step", () => {
+  const browserSpec = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { test } from "@playwright/test";\n',
+    );
+  };
+  expect("test", repo(browserSpec), 0);
+});
+// A tracked Playwright config and spec, with @playwright/test pinned; the fixture reaches the real one through its
+// node_modules link
+const browserSite =
+  (webServer = "") =>
+  (root: string): void => {
+    const pkg = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as {
+      devDependencies: Record<string, string>;
+    };
+    pkg.devDependencies["@playwright/test"] = PINS["@playwright/test"];
+    put(root, "package.json", `${JSON.stringify(pkg, null, 2)}\n`);
+    put(
+      root,
+      "playwright.config.ts",
+      `import { defineConfig } from "@playwright/test";\nexport default defineConfig({ testDir: "site/browser", projects: [{ name: "chromium", use: { browserName: "chromium" } }]${webServer} });\n`,
+    );
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { expect, test } from "@playwright/test";\ntest("opens", async ({ page }) => {\n  await page.setContent("<p>x</p>");\n  await expect(page.locator("p")).toHaveText("x");\n});\n',
+    );
+  };
+// A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
+// the real run's exit code
+function fakePlaywright(
+  report: object | string,
+  version = PINS["@playwright/test"],
+  canary = "unexpected",
+): string {
+  const bin = join(tempDir(), "playwright");
+  const planted = {
+    stats: { unexpected: 1 },
+    errors: [],
+    suites: [
+      {
+        file: "canary.spec.ts",
+        specs: [
+          {
+            title: "fails on purpose",
+            tests: [{ projectName: "", status: canary, results: [{}] }],
+          },
+        ],
+      },
+    ],
+  };
+  const real = typeof report === "string" ? report : JSON.stringify(report);
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const out = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+if (process.argv[2] === "--version") console.log("Version ${version}");
+else require("node:fs").writeFileSync(out, process.cwd().includes("canaries") ? ${JSON.stringify(JSON.stringify(planted))} : ${JSON.stringify(real)});
+if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.exitCode = Number(process.env.FAKE_EXIT ?? 0);
+`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+// Playwright's messages are coloured and span lines; the step shows them without the colour codes
+const BOOM = "\u001b[31mError: boom\u001b[39m\n\nExpected: 1\nReceived: 2";
+/** A report of the spec file `a.spec.ts` whose test "opens" ended with `status` in each of `engines`. */
+const pwReport = (
+  status: string,
+  errors: object[] = [],
+  file = "a.spec.ts",
+  engines = ["chromium", "firefox", "webkit"],
+) => ({
+  stats: { [status]: engines.length },
+  errors,
+  suites: [
+    {
+      file,
+      specs: [
+        {
+          title: "opens",
+          tests: engines.map((projectName) => ({
+            projectName,
+            status,
+            results: [{ error: { message: BOOM } }],
+          })),
+        },
+      ],
+    },
+  ],
+});
+const withPw = (
+  report: object | string,
+  version?: string,
+  canary?: string,
+) => ({
+  extraEnv: { PLAYWRIGHT_BIN: fakePlaywright(report, version, canary) },
+});
+test("browser: without a tracked spec the step is not applicable; a spec without the config cannot be checked", () => {
+  const r = run(["browser", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^NOT APPLICABLE browser:/m);
+  const noConfig = repo((root) => {
+    browserSite()(root);
+    rmSync(join(root, "playwright.config.ts"));
+  });
+  assert.match(
+    expect("browser", noConfig, 3),
+    /playwright\.config\.ts is not tracked/,
+  );
+});
+test("browser: left to the CI job browser by GATE_BROWSER in CI only", () => {
+  const site = repo(browserSite());
+  const pw = withPw(pwReport("unexpected")).extraEnv;
+  const ci = run(["browser", "--root", site], {
+    extraEnv: { ...pw, GITHUB_ACTIONS: "true", GATE_BROWSER: "job" },
+  });
+  assert.equal(ci.code, 0, ci.out);
+  assert.match(ci.out, /^NOT APPLICABLE browser: left to the CI job browser/m);
+  // Locally, in CI without the variable, and in the job browser whatever its variables, nothing is left out
+  for (const env of [
+    { GATE_BROWSER: "job" },
+    { GITHUB_ACTIONS: "true" },
+    { GITHUB_ACTIONS: "true", GATE_BROWSER: "job", GITHUB_JOB: "browser" },
+  ] as Record<string, string>[])
+    assert.match(
+      expect("browser", site, 1, { extraEnv: { ...pw, ...env } }),
+      /^FINDING browser: /m,
+    );
+});
+test("browser: passes when every tracked spec ran and passed in each engine, and counts the tests", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    0,
+    withPw(pwReport("expected")),
+  );
+  assert.match(out, /3 test\(s\) in 1 file\(s\) passed/);
+});
+test("browser: a failed or skipped test is a finding that names it, its engine and its reason", () => {
+  for (const status of ["unexpected", "skipped"]) {
+    const out = expect(
+      "browser",
+      repo(browserSite()),
+      1,
+      withPw(pwReport(status)),
+    );
+    assert.match(
+      out,
+      /^ {2}a\.spec\.ts > opens \[webkit\]: (?:Error: boom \/ Expected: 1 \/ Received: 2|skipped)$/m,
+    );
+  }
+});
+test("browser: a failed test inside a describe block is found", () => {
+  const report = pwReport("unexpected");
+  const nested = {
+    ...report,
+    suites: [{ file: "a.spec.ts", suites: report.suites }],
+  };
+  assert.match(
+    expect("browser", repo(browserSite()), 1, withPw(nested)),
+    /a\.spec\.ts > opens \[chromium\]/,
+  );
+});
+test("browser: a test that passed only as an expected failure (test.fail) is a finding", () => {
+  const report = pwReport("expected");
+  report.suites[0].specs[0].tests[0] = {
+    ...report.suites[0].specs[0].tests[0],
+    annotations: [{ type: "fail" }],
+  } as (typeof report.suites)[0]["specs"][0]["tests"][0];
+  assert.match(
+    expect("browser", repo(browserSite()), 1, withPw(report)),
+    /opens \[chromium\]: marked test\.fail/,
+  );
+});
+test("browser: a spec that did not run in every engine, a canary that passed or another version cannot be checked", () => {
+  const site = repo(browserSite());
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected", [], "b.spec.ts"))),
+    /^ {2}site\/browser\/a\.spec\.ts: not in chromium, firefox, webkit$/m,
+  );
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("expected", [], "a.spec.ts", ["chromium"])),
+    ),
+    /^ {2}site\/browser\/a\.spec\.ts: not in firefox, webkit$/m,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw(pwReport("expected"), "0.0.1")),
+    /playwright 0\.0\.1 is installed/,
+  );
+  // The canary is judged before the real run, whose failure must not show instead
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("unexpected"), undefined, "expected"),
+    ),
+    /did not report the planted failing test/,
+  );
+});
+test("browser: a report whose totals differ from its tests, or that cannot be read, cannot be checked", () => {
+  const site = repo(browserSite());
+  const report = { ...pwReport("expected"), stats: { expected: 2 } };
+  assert.match(
+    expect("browser", site, 3, withPw(report)),
+    /the report counts 2 test\(s\), 3 were read/,
+  );
+  assert.match(
+    expect("browser", site, 3, withPw('{"stats":')),
+    /playwright wrote no readable report/,
+  );
+});
+test("browser: a run that exits non-zero with every test passed cannot be checked", () => {
+  const pw = withPw(pwReport("expected")).extraEnv;
+  assert.match(
+    expect("browser", repo(browserSite()), 3, {
+      extraEnv: { ...pw, FAKE_EXIT: "1" },
+    }),
+    /playwright exited 1 with every test passed/,
+  );
+});
+test("browser: an error outside the tests that the step does not know cannot be checked, and is shown", () => {
+  const out = expect(
+    "browser",
+    repo(browserSite()),
+    3,
+    withPw(pwReport("expected", [{ message: "Error: odd" }])),
+  );
+  assert.match(out, /Error: odd/);
+});
+// The two could-not-check rows with the real Playwright: neither starts a browser
+test("browser: a taken 127.0.0.1:4173 cannot be checked (the web server refuses a running one)", async () => {
+  // A child process holds 127.0.0.1:4173 while the gate runs. The row needs that port free (stop pnpm site:serve, no
+  // second gate run at once): a port already taken fails the row, never hangs it
+  const holder = spawn(process.execPath, [
+    "-e",
+    'require("node:http").createServer((q, s) => s.end("held")).listen(4173, "127.0.0.1", () => console.log("up"))',
+  ]);
+  try {
+    await new Promise((up, down) => {
+      holder.stdout.once("data", up);
+      holder.once("error", down);
+      holder.once("exit", () =>
+        down(new Error("the holder could not listen on 4173")),
+      );
+    });
+    const site = repo(
+      browserSite(
+        ', webServer: { command: "node -e 0", url: "http://127.0.0.1:4173/", reuseExistingServer: false }',
+      ),
+    );
+    assert.match(
+      expect("browser", site, 3),
+      /127\.0\.0\.1:4173 is held by another process \(stop pnpm site:serve\)/,
+    );
+  } finally {
+    holder.kill();
+  }
+});
+test("browser: a browser that is not installed cannot be checked, and says how to install it", () => {
+  const out = expect("browser", repo(browserSite()), 3, {
+    extraEnv: { PLAYWRIGHT_BROWSERS_PATH: tempDir() },
+  });
+  assert.match(
+    out,
+    /a browser is not installed: run pnpm exec playwright install/,
+  );
+  assert.match(out, /^ {2}chromium$/m);
 });
 test("test: tracked source under src/ or site/ with no test file cannot be checked", () => {
   for (const path of ["src/lib/a.ts", "site/src/App.svelte"]) {
@@ -3817,6 +4105,80 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
     /extra/,
   );
 });
+// The static job leaves the browser step to its own CI job through GATE_BROWSER: allowed only outside the job browser,
+// and only when a job browser that runs the step exists and gate needs it
+const ciWith = (ci: string) => (root: string) =>
+  put(root, ".github/workflows/ci.yml", ci);
+const leavesBrowser = CI.replace(
+  "    runs-on: ubuntu-latest\n    steps:\n      - uses",
+  "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
+);
+const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
+  ci
+    .replace(
+      "  gate:",
+      `  browser:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n  gate:`,
+    )
+    .replace("needs: [static]", "needs: [static, browser]");
+test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
+  for (const ci of [
+    leavesBrowser,
+    browserJob(leavesBrowser, "echo ok"),
+    browserJob(leavesBrowser, "echo node scripts/check-repo.ts browser"),
+    browserJob(leavesBrowser, "node scripts/check-repo.ts browser || true"),
+  ])
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /GATE_BROWSER is set but no job named browser runs the step/,
+    );
+  expect("gate-needs", repo(ciWith(browserJob(leavesBrowser))), 0);
+});
+test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a finding", () => {
+  const top = browserJob(CI).replace(
+    "jobs:\n",
+    "env:\n  GATE_BROWSER: job\njobs:\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(top)), 1),
+    /GATE_BROWSER is set for the whole workflow/,
+  );
+  const inJob = browserJob(leavesBrowser).replace(
+    "  browser:\n    runs-on: ubuntu-latest\n",
+    "  browser:\n    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(inJob)), 1),
+    /GATE_BROWSER is set in the job browser/,
+  );
+});
+test("gate-needs: a job browser that may pass without the step is a finding", () => {
+  // An if: or a continue-on-error at job level, on the step itself, after it, or on another step
+  for (const shape of [
+    "    continue-on-error: true\n    steps:\n      - run: node",
+    "    if: false\n    steps:\n      - run: node",
+    "    steps:\n      - continue-on-error: true\n        run: node",
+    "    steps:\n      - run: node scripts/check-repo.ts browser\n        continue-on-error: true\n      - run: node",
+    "    steps:\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
+  ]) {
+    const ci = browserJob(leavesBrowser).replace(
+      "    steps:\n      - run: node",
+      shape,
+    );
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /the job browser has continue-on-error or if/,
+    );
+  }
+  // A named step's run line is fine
+  const named = browserJob(leavesBrowser).replace(
+    "- run: node",
+    "- name: Browser\n        run: node",
+  );
+  expect("gate-needs", repo(ciWith(named)), 0);
+});
+test("gate-needs: a browser job without GATE_BROWSER passes", () => {
+  expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
+});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -3952,7 +4314,14 @@ test("selftest: a test file the gate runs sees none of the gate's context variab
   const sees = `import assert from "node:assert/strict";
 import { test } from "node:test";
 test("no gate variable", () => {
-  for (const k of ["CANARY_DIR", "GATE_BASE", "GATE_HEAD", "GITHUB_ACTIONS"])
+  for (const k of [
+    "CANARY_DIR",
+    "GATE_BASE",
+    "GATE_BROWSER",
+    "GATE_EVENT",
+    "GATE_HEAD",
+    "GITHUB_ACTIONS",
+  ])
     assert.equal(process.env[k], undefined, k);
 });
 `;
@@ -3963,7 +4332,9 @@ test("no gate variable", () => {
     {
       extraEnv: {
         GITHUB_ACTIONS: "true",
+        GATE_EVENT: "pull_request",
         GATE_BASE: "HEAD",
+        GATE_BROWSER: "job",
         GATE_HEAD: "HEAD",
         CANARY_DIR: join(here, "canaries"),
       },
@@ -4050,12 +4421,12 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 });
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
-  // The fixture has no component, no site, no test file, no spec and no commit after origin/main: svelte, site,
-  // inline, test, trace, commits and secrets have nothing to check.
+  // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
+  // svelte, site, inline, test, trace, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 7 not applicable: secrets, svelte, site, inline, test, trace, commits$/m,
+    /^PASS all: 16 checks passed, 8 not applicable: secrets, svelte, site, inline, test, trace, browser, commits$/m,
   );
 });
 test("all: test and trace share one vitest run", () => {

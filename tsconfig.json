@@ -11,5 +11,5 @@
     "types": ["node", "svelte", "vite/client"],
     "skipLibCheck": true
   },
-  "include": ["src", "site", "test", "vitest.config.ts"]
+  "include": ["src", "site", "test", "vitest.config.ts", "playwright.config.ts"]
 }
