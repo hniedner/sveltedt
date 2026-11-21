@@ -258,11 +258,12 @@ const TEST_SOURCE = /\.(?:test|spec)\.[cm]?[jt]s$/;
 const COVERED = /^(?:src|site|test)\//;
 
 /**
- * The tracked test sources, sorted by what the trace does with them: `read` (results are read), `scripts` (the gate's
- * own node:test files, whose markers are read but whose results this step does not read) and `stray` (outside the
- * covered folders and scripts/: the trace cannot say it ran them; their markers are not read). Canary fixtures are
- * inputs, never tests, and appear nowhere. Stated limit: a marker in a stray test file, a helper, a .tsx or a .svelte
- * file is not seen: the step reads markers only in files TEST_SOURCE matches, under src/, site/, test/ or scripts/.
+ * The tracked test sources, sorted by what the trace does with them: `read` (results are read, except a browser
+ * spec's, which are the browser step's), `scripts` (the gate's own node:test files, whose markers are read but whose
+ * results this step does not read) and `stray` (outside the covered folders and scripts/: the trace cannot say it ran
+ * them; their markers are not read). Canary fixtures are inputs, never tests, and appear nowhere. Stated limit: a
+ * marker in a stray test file, a helper, a .tsx or a .svelte file is not seen: the step reads markers only in files
+ * TEST_SOURCE matches, under src/, site/, test/ or scripts/.
  */
 export function traceSources(list: Set<string>): {
   read: string[];

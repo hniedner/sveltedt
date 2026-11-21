@@ -386,7 +386,7 @@ test("trace: a marked test that ran and passed is tested, and the PASS line coun
   const out = expectTrace(fixture({ "src/a.test.ts": ONE() }), 0);
   assert.match(
     out,
-    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 test result\(s\) read; 1 of 2 statements tested/,
+    /PASS trace: 1 spec file\(s\), 2 statement\(s\), 1 marker\(s\), 1 test result\(s\) read; 1 of 2 statements tested$/m,
   );
 });
 test("trace: a statement no marker names exits 0 under `not yet tested`, and not in the PASS line", () => {
@@ -478,6 +478,15 @@ test("trace: a marker in any other test file, under site/browser/ or not, expect
       expectTrace(fixture({ [f]: PW(), "src/b.test.ts": ONE("TST-02") }), 3),
       /TST-01: the test file is not in the results/,
     );
+});
+test("trace: a malformed marker in a browser spec is still a finding of trace", () => {
+  assert.match(
+    expectTrace(
+      fixture({ "site/browser/a.spec.ts": PW('// @spec("TST-01")') }),
+      1,
+    ),
+    /^ {2}site\/browser\/a\.spec\.ts:2: malformed @spec marker$/m,
+  );
 });
 test("trace: a stale marker in a browser spec is still a finding", () => {
   assert.match(
