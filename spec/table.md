@@ -4257,7 +4257,8 @@ controls of its open detail row, before the next row.
 These statements close PRD-A3 and PRD-A9 for every intent of sections 7 to 15, and state 2.1.4 and 2.4.6 of PRD
 section 4.3. "Every intent" is the list of the intents' examples below, one row each; a table in these examples has
 every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
-chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
+chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows: the site's full
+page (`spec/site.md` FULL-01 and FULL-02).
 
 **A11Y-36** The "Skip past table" link MUST be the component's first focusable element.
 - Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
