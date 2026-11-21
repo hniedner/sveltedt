@@ -9,8 +9,8 @@
 - **Scope:** part 1: the request the helper sends (its keys, its three forms, the query's sort, filters, search,
   offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
   refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
-  and `reload()`. Later parts: the empty alternative of a categorical filter (CONN-11 is reserved for it; the owner
-  decided it on 2026-11-20 as its own branch, with PRD-B7 and FILT-32); cancel, the stopped state, `onretry` and
+  `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
+  cancel, the stopped state, `onretry` and
   writing the query (PRD-B23, PRD-B24), which would take this part past its cap of 25 statements; the first page
   loaded on the server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is
   silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
@@ -186,8 +186,12 @@ selected, `""` and `false`.
   | `['a.b', 'x-(1)', 'a/b']` | `^(a\.b\|x\-\(1\)\|a\/b)$` | `true` |
   | one value of the ten characters `*+?[]{}\$^` (in JavaScript `'*+?[]{}\\$^'`) | `^(\*\+\?\[\]\{\}\\\$\^)$` | `true` |
   | `[]` | `""` | `false` |
+  | `['']`, the empty option of FILT-53 in `spec/table.md` | `^()$` | `true` |
+  | `['active', '']` | `^(active\|)$` | `true` |
+  | `['', 'active']` | `^(\|active)$` | `true` |
 
-  A `\|` in a cell is the character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`
+  `['']` is a selection, unlike `[]`: its empty value is sent as an empty alternative. A `\|` in a cell is the
+  character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`
   (backslash, then pipe), `true`.
 
 - Reason: the protocol has one search value per column, so "one of these values" is an anchored alternation that a
@@ -196,7 +200,10 @@ selected, `""` and `false`.
   `LIKE '%value%'` (FETCHED 2026-11-20, its source, master): there a categorical filter matches no row, and the
   server guide (PRD-D6) says so. The escaped characters are those of DataTables' own `escapeRegex` (FETCHED
   2026-11-20, DataTables 2.3.2); a JavaScript backend compiling the value with the `u` or `v` flag rejects `\-`
-  (MEASURED 2026-11-20, Node 26), which the server guide also says.
+  (MEASURED 2026-11-20, Node 26), which the server guide also says. The empty alternative adds the empty value, and no
+  other, to what the group matches, so "no value" needs no word a server must know; that `^()$` with `regex=true`
+  finds exactly the rows without a value is the backend reviewer's claim (2026-11-20), not measured here, and whether
+  a server counts a null as empty is the server's (PRD-D6).
 - Layer: component.
 - Traces: PRD-B20, PRD-B7.
 

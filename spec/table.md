@@ -2430,7 +2430,8 @@ receives that number.
 ## 11. Filters: the fields and what they emit (FILT, milestone 4)
 
 These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
-`options` a list of `{ value, label }`; `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
+`options` a list of `{ value, label }` and an optional `emptyOption`, a boolean (default `false`, FILT-53);
+`filters`, the applied filter of each column id, `{ kind: 'text', text }` or
 `{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
 with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
 `maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
@@ -2555,7 +2556,8 @@ an alert that says why.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
+**FILT-17** A categorical filter MUST offer exactly its options (with `emptyOption: true`, also the option of
+FILT-53), as checkboxes named by their labels, in the given
 order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
 - Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
   checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
@@ -2667,19 +2669,43 @@ button, then its filter button, and a filter dialog's markup follows its own fil
 - Traces: PRD-B6, PRD-B7, PRD-A1, PRD-B29.
 
 **FILT-52** A categorical filter's dialog MUST show the find field "Find <label> options" above its options exactly
-while the filter has more than 10 options.
+while the filter has more than 10 options, the option of FILT-53 included.
 - Examples (the test runs every row; press the column's filter button):
 
   | Options | Find field |
   |---|---|
   | Status's 2 options | none |
   | Kind's 11 options | "Find Kind options", before the first checkbox in document order |
+  | Kind's options `k1` to `k10` and `emptyOption: true` | "Find Kind options": the option of FILT-53 counts |
 
   Column Kind (id `kind`) has a categorical filter with the options `k1` "Alpha" to `k10` "Kappa" (the Greek letter
   names in order) and `k11` "Inactive".
 - Reason: a long vocabulary needs a way to reach an option, and a short list needs none (PRD-B29).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B29, PRD-B7.
+
+**FILT-53** A categorical filter with `emptyOption: true` MUST offer one more option after its given ones, the
+checkbox named by the `emptyOption` message, whose value in `selected` and in `onfilter` is `''`.
+- Examples (the test runs every row; Status with `emptyOption: true`; press its filter button, then the press):
+
+  | `selected` before | Checkboxes, in order (checked) | Press | `onfilter` call |
+  |---|---|---|---|
+  | `[]` | "Active", "Inactive", "(empty)" (none) | "(empty)" | `('status', { kind: 'categorical', selected: [''] })` |
+  | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `('status', { kind: 'categorical', selected: ['active', ''] })` |
+  | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `('status', { kind: 'categorical', selected: ['active'] })` |
+
+  Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). FILT-18, FILT-22 and FILT-52
+  each hold an example with the option.
+- Reason: rows without a value are part of the data (PRD-B7, the owner's decision of 2026-11-20), and `''` is a value
+  no given option can hold (FILT-32), so "no value" needs no word the server must know. The option is off by default
+  because the table sees one page and cannot know whether any row is empty, while the libraries that list a blank
+  entry derive it from the data they hold (FETCHED 2026-11-20: AG Grid's set filter lists "(Blanks)" when its values
+  hold blanks and keeps it in its filter model as `null`; Excel's "(Blanks)" is "available only if the column that
+  you want to filter contains a blank cell"; SearchPanes shows empty cells as "No Data"). It sits last because Excel's
+  user scrolls down to "(Blanks)" (FETCHED; the bottom implied, not stated; AG Grid and SearchPanes name no place),
+  and so the given vocabulary keeps its order.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
 
 **FILT-18** Typing in a find field MUST narrow the shown options to those whose label contains the text, ignoring
 case, and MUST NOT emit anything or change the selection.
@@ -2692,11 +2718,12 @@ case, and MUST NOT emit anything or change the selection.
   | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
   | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
   | type "xyz" | none; the text "No options match." in their place | no callback called |
+  | with Kind's `emptyOption: true`, type "EMPT" | "(empty)" only, matched by its label | no callback called |
 
 - Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
   dialog (PRD-B29, PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B29, PRD-B2.
+- Traces: PRD-B29, PRD-B2, PRD-B7.
 
 **FILT-06** Opening a filter dialog MUST close any other open filter dialog.
 - Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
@@ -2798,8 +2825,8 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Traces: PRD-B8, PRD-A1.
 
 **FILT-22** A badge of a categorical filter MUST name the selected options by their labels, in the options' order.
-- Example: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
-  Inactive".
+- Examples: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
+  Inactive"; with Status's `emptyOption: true`, `selected: ['', 'active']` gives "Status: Active, (empty)".
 - Reason: values are codes that mean nothing to the user (PRD-B7, PRD-B8).
 - Layer: component.
 - Traces: PRD-B7, PRD-B8.
@@ -2887,12 +2914,13 @@ below list.
   |---|---|---|
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
-  | an option's value or label is empty | `filterInvalid` | "A column filter is not valid." |
-  | two options share a value, or labels equal after trimming | `filterInvalid` | "A column filter is not valid." |
+  | an option's value or label in `options` is empty (the option of FILT-53 is not in `options`) | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `emptyOption` is `'yes'` or `1`, or a text filter's is `true` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
+  | two options share a value, or labels equal after trimming, the option of FILT-53 with its shown label included (Status with an option `none` "(empty)" and `emptyOption: true`) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
-  | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
+  | `selected` holds a value that is no option (`''` without `emptyOption: true` included), or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
   | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
   | `search` is not a string | `searchInvalid` | "The applied search is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
@@ -2949,6 +2977,7 @@ below list.
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
   | `noOptions` | "No options match." | FILT-18 |
+  | `emptyOption` | "(empty)" | FILT-53, with Status's `emptyOption: true` |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
@@ -2957,7 +2986,7 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1, PRD-I2, PRD-B29.
+- Traces: PRD-I1, PRD-I2, PRD-B29, PRD-B7.
 
 ### The global search (milestone 4)
 
@@ -4713,7 +4742,8 @@ names.
 | FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
 | FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
 | FILT-52 | PRD-B29, PRD-B7 |
-| FILT-18 | PRD-B29, PRD-B2 |
+| FILT-53 | PRD-B7 |
+| FILT-18 | PRD-B29, PRD-B2, PRD-B7 |
 | FILT-06 | PRD-B6, PRD-B7 |
 | FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
 | FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
@@ -4733,7 +4763,7 @@ names.
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
 | FILT-33 | PRD-I1, PRD-B25 |
-| FILT-47 | PRD-I1, PRD-I2, PRD-B29 |
+| FILT-47 | PRD-I1, PRD-I2, PRD-B29, PRD-B7 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
 | FILT-42 | PRD-B25, PRD-B6 |
@@ -4872,7 +4902,7 @@ state in their own statements.
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
