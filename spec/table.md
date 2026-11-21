@@ -82,7 +82,7 @@ to the consumer as one callback (stated with the statements that add user action
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
-  takes the next free number in its group; SORT-07, SORT-08 and A11Y-11 are reserved for the draft statements of
+  takes the next free number in its group; SORT-07 and SORT-08 are reserved for the draft statements of
   those numbers, which later groups write, and A11Y-20, A11Y-21 and A11Y-23 to A11Y-34 for the slow-load group's
   draft (progress, Cancel, the stopped state and "Try again"). A requirement id from `docs/PRD.md` is written
   `PRD-B1`.
@@ -4341,7 +4341,7 @@ page body.
 - Layer: component.
 - Traces: PRD-I1.
 
-### The views: target size, zoom, reflow, text spacing, focus and right-to-left (milestone 7)
+### The views: target size, zoom, reflow, text spacing, forced colours, focus and right-to-left (milestone 7)
 
 These statements run in the views of PRD section 4.3 on the test site's page with the table of section 16's set-up
 (every feature on), with no dialog open unless a statement opens one: the default view (1280 by 800 CSS px), the zoom
@@ -4356,8 +4356,9 @@ most 1 px; (d) at horizontal scroll 0, every element outside the table lies with
 of (a) this spec fixes, of the PRD's own exception for what is clipped by design: the caption, the live regions and
 the skip link while not focused are visually hidden on purpose, hold no visible text and are left out, and the test
 asserts that each of them is hidden as A11Y-46 states for the skip link (outside the viewport or at most 1 by 1 CSS
-px). A later branch states the views with each dialog open,
-forced colours (A11Y-11) and focus on selected rows. The views with density "compact" and the variants are the
+px). A second reading of (a), for a dialog that scrolls by design, is A11Y-49's. "The dialogs" are the filter
+dialog of the text filter's column, the filter dialog of the categorical filter's column and the column chooser. The
+views with density "compact" and the variants are the
 theming milestone's (PRD-T5, T6).
 
 **A11Y-39** Every pointer target of the component MUST be at least 24 by 24 CSS px while it is shown.
@@ -4396,15 +4397,68 @@ theming milestone's (PRD-T5, T6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A11, PRD-A1.
 
+**A11Y-49** With each dialog open in turn, the clipping check MUST pass in the zoom, 320 and spacing views.
+- Examples (the test runs every row with each of the dialogs; a dialog is opened by its trigger and left open while
+  the check runs):
+
+  | View | Result |
+  |---|---|
+  | zoom | the clipping check passes, and the open dialog's box lies within the viewport |
+  | 320 | the clipping check passes, and the open dialog's box lies within the viewport |
+  | spacing | the clipping check passes, and the open dialog's box lies within the viewport |
+
+  "Within the viewport": the dialog's `getBoundingClientRect()` has left and top at least 0 and right and bottom at
+  most the viewport's width and height (+-1 px), as FILT-34 states. With a dialog open, part (b) also covers each
+  text-holding element of the dialog (its text range within its own border box) and part (c) also covers the
+  dialog's visible controls. One reading of (a): an open dialog whose computed `overflow-y` is `auto` or `scroll` is
+  left out of (a)'s `scrollHeight` half only (a long chooser scrolls inside a 320 by 256 view by design, its box
+  still within the viewport); its `scrollWidth` half, and every element inside it, are checked as usual.
+- Reason: the dialogs are part of the component that surrounds the table, which WCAG 1.4.4, 1.4.10 and 1.4.12 do not
+  exempt (PRD-A11); a dialog that scrolls vertically is a scroll region, as the region is.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
 **A11Y-45** Every control of the component but the region MUST show a visible focus indicator when it is focused by
 keyboard.
-- Example: the default view, plain rows: Tab through every control, each dialog opened in turn: each control's
-  computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour whose alpha
-  is above 0, and differs from its unfocused style, as A11Y-07 states for the region. Striped and hovered rows are the
-  theming milestone's (PRD-T5, T6).
+- Examples (the test runs every row; the default view; Tab through every control, each dialog opened in turn; each
+  control's computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour
+  whose alpha is above 0, and differs from its unfocused style, as A11Y-07 states for the region):
+
+  | Rows |
+  |---|
+  | plain rows |
+  | the first row selected (`isSelected` true for it only): its box and the controls in its cells |
+
+  Striped and hovered rows are the theming milestone's (PRD-T5, T6).
 - Reason: WCAG 2.4.7 (PRD-A1).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A1.
+
+**A11Y-11** In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and
+the "Cancel" and "Try again" buttons MUST stay visible.
+- Examples (the test runs every row; Chromium's forced-colours emulation (`forcedColors: 'active'`), the default
+  view; every screenshot is taken with animations disabled and the mouse outside the component; "drawn" means that a
+  screenshot of the element's box differs from a screenshot of the same box with the element set to
+  `visibility: hidden`; "differ" means that two screenshots of the same box differ; a focus row's box is the
+  control's box grown by 8 CSS px on each side, so a ring drawn outside the control is in the shot):
+
+  | Item | Check |
+  |---|---|
+  | every control A11Y-45 reaches by Tab, the column separators included, but the skip link | focused and unfocused differ |
+  | the region, on A11Y-07's 30-column table in a 600 px viewport, once the test has asserted it is a Tab stop | focused and unfocused differ |
+  | the skip link | focused, and focused with `outline-style: none` and `box-shadow: none` set through the CSSOM, differ (unfocused it is hidden, A11Y-46) |
+  | "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) and "Try again" (`onretry`, `status 'stopped'`) | each: focused and unfocused differ |
+  | a row box | unchecked, checked and, for the header box, mixed differ pairwise |
+  | the mark of a sort with rank "2" | ascending and descending differ |
+  | a column separator | drawn |
+  | the progress indicator, "Still loading" and "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) | each drawn |
+  | "Try again" (`onretry`, `status 'stopped'`) | drawn |
+
+- Reason: users of high-contrast modes lose any state shown only by a background, a box-shadow or a custom colour
+  (PRD-A8). Stated limits (PRD section 4.3): Firefox's emulation only flips the media query, so its rendered proof is
+  the release's contrast-theme step (PRD-A5); WebKit has no rendered proof, a limit PRD-D3 states.
+- Layer: real browser (Chromium only, for the reason above).
+- Traces: PRD-A8.
 
 **I18N-02** Under `dir="rtl"`, the component's reading order MUST be its document order and its layout MUST mirror.
 - Examples (the test runs every row; the default view, the page's `html` element with `dir="rtl"`):
@@ -4414,6 +4468,7 @@ keyboard.
   | Tab through the controls but the region; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's |
   | the box column's header cell | its right edge within 1 px of the region's inner right edge (`clientLeft + clientWidth` from the region's left) |
   | the pager | "First page" lies right of "Last page" |
+  | the column chooser open: Tab through its controls; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's ("Move earlier" before "Move later"); at least one such pair exists in each entry, or the row fails |
 
 - Reason: WCAG 1.3.2 in right-to-left, and logical properties mirror the layout (PRD-I3).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -4863,7 +4918,9 @@ names.
 | A11Y-40 | PRD-A11, PRD-A1 |
 | A11Y-41 | PRD-A11, PRD-A1 |
 | A11Y-42 | PRD-A11, PRD-A1 |
+| A11Y-49 | PRD-A11, PRD-A1 |
 | A11Y-45 | PRD-A1 |
+| A11Y-11 | PRD-A8 |
 | I18N-02 | PRD-I3, PRD-A1 |
 | I18N-03 | PRD-I3, PRD-A3 |
 | THEME-23 | PRD-T7 |
@@ -4907,11 +4964,11 @@ state in their own statements.
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
 | PRD-A6 | COL-33, A11Y-39 | in part: the compact density's row is the theming milestone's |
-| PRD-I3 | COL-22, I18N-02, I18N-03, THEME-30, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
+| PRD-I3 | COL-22, I18N-02, I18N-03, THEME-30, STK-06 | in part: sticky columns at the inline start are the sticky group's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
-| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49 | in part: the views with density "compact" and the variants are the theming milestone's |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4926,10 +4983,11 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, I18N-02, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern; focus on selected rows is a later branch's |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
+| PRD-A8 | A11Y-11 | in part: the variant views are the theming milestone's; the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, STK-15 | in part: later groups state their own words in their own statements |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
@@ -4955,7 +5013,7 @@ state in their own statements.
 
 ### PRD musts not yet traced
 
-- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A12.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A12.
 - Theming: PRD-T4 (the example token set, light and dark), PRD-T10, PRD-T13.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
