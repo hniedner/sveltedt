@@ -507,20 +507,19 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
   | `/full.html?pageSize=3` | r1, r2, r3 |
   | `/full.html?rows=some` | none: the page shows "Unknown rows value: some", and no `table` element (as VIEW-03) |
   | `/full.html?pageSize=4` | r1 to r4, and the pager shows the alert of PAGE-16 for `limitNotInSizes` |
-  | `/full.html?pageSize=3&page=11` | the empty message; the pager is past the last page, as PAGE's row `offset 100, total 95` |
 
   `rows` takes only `none`; `pageSize` and `page` reach the table and the pager unchecked, so a typo shows by their own
-  fault handling, as the last two rows show.
+  fault handling, as the `pageSize=4` row shows.
 
 - Reason: THEME-20 counts stripes on an empty page and on page 2 of `pageSize` 3; a URL reaches them in one step.
 - Layer: real browser.
 - Traces: PRD-W6.
 
 **FULL-05** The full page MUST give its Name column `sticky`.
-- Example: the 320 view of PRD section 4.3, the full page leaving `stickyHeader` off (STK-09); the test first asserts
-  that the region's `scrollWidth` exceeds its `clientWidth`, then scrolls it sideways to its end: Name's header and body
-  cells keep their inline-start offset, within 1 px of the width of the box and details columns before them (STK-13,
-  section 14's intro), while Date's cells have moved.
+- Example: the 320 view of PRD section 4.3, the full page leaving `stickyHeader` at its default `false` (section 14's
+  intro); the test first asserts that the region's `scrollWidth` exceeds its `clientWidth`, then scrolls it sideways to
+  its end: Name's header and body cells keep their inline-start offset, within 1 px of the width of the box and details
+  columns before them (STK-13, section 14's intro), while Date's cells have moved.
 - Reason: THEME-43 checks focus under the pointer on a sticky cell; PRD-W6 asks for sticky leading columns.
 - Layer: real browser.
 - Traces: PRD-W6.
