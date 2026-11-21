@@ -68,10 +68,11 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 - Reads test results, not test names (JUnit XML, Vitest JSON, Playwright JSON). Every statement has at least one
   test that ran and passed, except one reported as *not yet tested*.
 - The results of a marker in a browser spec (`site/browser/**/*.spec.ts`) are judged by the `browser` step, in the
-  job that ran Playwright, with the same marker reading: no test under the marker, a test that did not pass, or a
-  test missing in an engine fails there. `trace` checks such a marker's statement, hash and position and counts it
-  as left to the `browser` step, never as tested. `--close` and `--release` take a browser marker as tested only
-  together with that step's pass in the same gate run.
+  job that ran Playwright, with the same marker reading: no test under the marker or a test that did not pass fails
+  there, and a marked test missing in an engine is could not check. `trace` checks such a marker's statement, hash
+  and position and counts it as left to the `browser` step, never as tested. `--close` and `--release` (not built
+  yet) must, when built, count a browser marker as tested only with a `browser` pass on the same commit; until then
+  a statement proven only in a browser spec is left to the `browser` step for them too.
 - *Not yet tested* means that no `@spec` marker in the test sources names the statement; the check reads those
   markers as well as the results. A skipped, stale or failing test is never this state; it fails. A protected
   statement is never this state; with no test it fails.
