@@ -4401,11 +4401,11 @@ keyboard.
 ## 17. Class hooks and alignment (THEME, milestone 8)
 
 These statements add a column's `class` and `headerClass` (strings), a column's `align` (`'start'`, the default,
-`'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string
-(PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
+`'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string, or
+`undefined` or `null` for no class (PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
 only, DEP-36). A hook adds classes: the component's own classes (THEME-09) stay. "Data cells" are the body cells of
 the given columns in data rows. A hook, class or alignment given as
-`undefined` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
+`undefined` or `null` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
 `{ id: 'r2', name: 'alpha', code: 'A-1' }` and the columns Name and Code.
 
 **THEME-23** A column's `class` MUST appear, as given, on that column's header cell and on each of its data cells.
@@ -4415,7 +4415,7 @@ the given columns in data rows. A hook, class or alignment given as
   |---|---|---|
   | `'num wide'` | hold `num` and `wide`, and `sdt-th` or `sdt-cell` | hold neither |
   | `''` | hold no class but `sdt-th` or `sdt-cell` | as before |
-  | not given, or `undefined` | as for `''` | as before |
+  | not given, `undefined` or `null` | as for `''` | as before |
 
 - Reason: DataTables users style columns by class (PRD-T7).
 - Layer: component.
@@ -4435,6 +4435,8 @@ the given columns in data rows. A hook, class or alignment given as
   |---|---|---|
   | `(r) => r.name === 'Beta' ? 'hot' : ''` | holds `hot` and `sdt-row` | holds `sdt-row` only |
   | `() => 'x  y'` | holds `x`, `y` and `sdt-row` | the same |
+  | `(r) => r.name === 'Beta' ? 'hot' : undefined` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+  | `(r) => r.name === 'Beta' ? 'hot' : null` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
 
   With `detail` and `expanded` `['r1']`, r1's detail row holds no `hot`; with `status 'ready'` and no rows,
   `rowClass` is not called.
@@ -4448,7 +4450,8 @@ result MUST appear on that cell's `td`, after the column's `class`.
   r2's Code cell holds `num` before `low`, and `sdt-cell`; r1's Code cell holds `num` only besides `sdt-cell`; the
   Name cells hold neither; with `selection` given, the box cells hold no class from `cellClass`, and every call of
   `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code; compared by `r.id` and `c.id`), each pair at least
-  once.
+  once. With `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : undefined` the cells hold
+  the same classes, and no alert shows.
 - Reason: DataTables' `createdCell` marks cells by their value (PRD-T8).
 - Layer: component.
 - Traces: PRD-T8.
@@ -4476,7 +4479,7 @@ and the replacement of a row by a new object, and an unchanged row MUST keep its
 
   | Code's `align` | Code's `text-align` | Name's `text-align` |
   |---|---|---|
-  | not given, or `undefined` | `start` | `start` |
+  | not given, `undefined` or `null` | `start` | `start` |
   | `'start'` | `start` | `start` |
   | `'center'` | `center` | `start` |
   | `'end'` | `end` | `start` |
@@ -4511,10 +4514,10 @@ names.
 
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
-  | a column's `class` or `headerClass` is given and is not a text (5, `null`) | `classInvalid` | "A class setting is not valid." |
+  | a column's `class` or `headerClass` is given and is not a text (5) | `classInvalid` | "A class setting is not valid." |
   | `rowClass` or `cellClass` is given and is not a function (the text "hot") | `classInvalid` | "A class setting is not valid." |
-  | `rowClass` or `cellClass` returns a value that is not a text (`undefined`, 5), or throws, for r1 | `classInvalid` | "A class setting is not valid." |
-  | a column's `align` is given and is not one of `'start'`, `'center'`, `'end'` (`'left'`, `null`) | `alignInvalid` | "A column alignment is not valid." |
+  | `rowClass` or `cellClass` returns a value that is not a text, `undefined` or `null` (5, `false`), or throws, for r1 | `classInvalid` | "A class setting is not valid." |
+  | a column's `align` is given and is not one of `'start'`, `'center'`, `'end'` (`'left'`, 5) | `alignInvalid` | "A column alignment is not valid." |
 
   With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order,
   then the rows above in their order. The alert holds no value taken from the rows, the columns or a thrown error (as
