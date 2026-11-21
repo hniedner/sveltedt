@@ -1754,7 +1754,7 @@ test("browser: a marked test that passed in every engine proves its marker", () 
   );
   assert.match(
     out,
-    /3 test\(s\) in 1 file\(s\) passed; 1 marker\(s\) proven$/m,
+    /3 test\(s\) in 1 file\(s\) passed; 1 marker\(s\) with passing tests in every engine \(ids and hashes: trace\)$/m,
   );
 });
 test("browser: a marker with no test under it in the report is a finding", () => {

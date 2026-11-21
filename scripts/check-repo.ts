@@ -2524,7 +2524,7 @@ function pwJudge(run: PwRun, specs: string[], root: string): Result {
     );
   return result(
     PASS,
-    `playwright failed the canary; ${tests.length} test(s) in ${specs.length} file(s) passed; ${marked.total} marker(s) proven`,
+    `playwright failed the canary; ${tests.length} test(s) in ${specs.length} file(s) passed; ${marked.total} marker(s) with passing tests in every engine (ids and hashes: trace)`,
   );
 }
 
