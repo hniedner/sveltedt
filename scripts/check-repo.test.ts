@@ -1656,12 +1656,13 @@ if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.e
 }
 // Playwright's messages are coloured and span lines; the step shows them without the colour codes
 const BOOM = "\u001b[31mError: boom\u001b[39m\n\nExpected: 1\nReceived: 2";
-/** A report of the spec file `a.spec.ts` whose test "opens" ended with `status` in each of `engines`. */
+/** A report of the spec file `a.spec.ts` whose test "opens" (at `line`) ended with `status` in each of `engines`. */
 const pwReport = (
   status: string,
   errors: object[] = [],
   file = "a.spec.ts",
   engines = ["chromium", "firefox", "webkit"],
+  line = 3,
 ) => ({
   stats: { [status]: engines.length },
   errors,
@@ -1671,6 +1672,7 @@ const pwReport = (
       specs: [
         {
           title: "opens",
+          line,
           tests: engines.map((projectName) => ({
             projectName,
             status,
@@ -1728,6 +1730,52 @@ test("browser: passes when every tracked spec ran and passed in each engine, and
     withPw(pwReport("expected")),
   );
   assert.match(out, /3 test\(s\) in 1 file\(s\) passed/);
+});
+// a.spec.ts with a marked test: the marker on line 2, its test( on line 3
+const markedSite = (root: string): void => {
+  browserSite()(root);
+  put(
+    root,
+    "site/browser/a.spec.ts",
+    'import { expect, test } from "@playwright/test";\n// @spec("TST-01", "aaaaaaaa")\ntest("opens", () => {\n  expect(1).toBe(1);\n});\n',
+  );
+};
+test("browser: a marked test that passed in every engine proves its marker", () => {
+  const out = expect(
+    "browser",
+    repo(markedSite),
+    0,
+    withPw(pwReport("expected")),
+  );
+  assert.match(
+    out,
+    /3 test\(s\) in 1 file\(s\) passed; 1 marker\(s\) proven$/m,
+  );
+});
+test("browser: a marker with no test under it in the report is a finding", () => {
+  const report = pwReport("expected", [], "a.spec.ts", undefined, 9);
+  assert.match(
+    expect("browser", repo(markedSite), 1, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:2: TST-01: no test ran under the marker \(lines 3-5\)$/m,
+  );
+});
+test("browser: a marker whose tests did not run in every engine cannot be checked, though its file did", () => {
+  const marked = pwReport("expected", [], "a.spec.ts", ["chromium"]);
+  const other = pwReport("expected", [], "a.spec.ts", undefined, 9);
+  const report = {
+    ...marked,
+    stats: { expected: 4 },
+    suites: [
+      {
+        file: "a.spec.ts",
+        specs: [...marked.suites[0].specs, ...other.suites[0].specs],
+      },
+    ],
+  };
+  assert.match(
+    expect("browser", repo(markedSite), 3, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:2: TST-01: not in firefox, webkit$/m,
+  );
 });
 test("browser: a failed or skipped test is a finding that names it, its engine and its reason", () => {
   for (const status of ["unexpected", "skipped"]) {
