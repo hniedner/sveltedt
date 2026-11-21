@@ -303,7 +303,7 @@ as before, and `onerror` called once with an `Error`.
   | A1 with `data: {}` | not a list |
   | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'` | `draw` given and neither the number sent nor its decimal text |
 
-  With A1 on screen, a later request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false.
+  With A1 on screen, the second request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false.
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
   `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20).
