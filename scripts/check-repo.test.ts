@@ -4151,6 +4151,8 @@ const sha = (root: string, rev = "HEAD"): string =>
   git(root, "rev-parse", rev).trim();
 test("pre-push: a new branch scans its commits after origin/main and runs the scans only", () => {
   const root = pushable();
+  put(root, "notes/b.md", "# B note\n");
+  commit(root, "docs: add another note");
   const base = sha(root, "origin/main");
   const r = gitPush(root, ["feat/x"]);
   assert.equal(r.code, 0, r.out);
