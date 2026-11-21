@@ -2669,7 +2669,7 @@ button, then its filter button, and a filter dialog's markup follows its own fil
 - Traces: PRD-B6, PRD-B7, PRD-A1, PRD-B29.
 
 **FILT-52** A categorical filter's dialog MUST show the find field "Find <label> options" above its options exactly
-while the filter has more than 10 options.
+while the filter has more than 10 options, the option of FILT-53 included.
 - Examples (the test runs every row; press the column's filter button):
 
   | Options | Find field |
@@ -2723,7 +2723,7 @@ case, and MUST NOT emit anything or change the selection.
 - Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
   dialog (PRD-B29, PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B29, PRD-B2.
+- Traces: PRD-B29, PRD-B2, PRD-B7.
 
 **FILT-06** Opening a filter dialog MUST close any other open filter dialog.
 - Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
@@ -2915,7 +2915,7 @@ below list.
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
   | an option's value or label in `options` is empty (the option of FILT-53 is not in `options`) | `filterInvalid` | "A column filter is not valid." |
-  | a categorical filter's `emptyOption` is `'yes'` or `1` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `emptyOption` is `'yes'` or `1`, or a text filter's is `true` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
   | two options share a value, or labels equal after trimming, the option of FILT-53 with its shown label included (Status with an option `none` "(empty)" and `emptyOption: true`) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
@@ -4743,7 +4743,7 @@ names.
 | FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
 | FILT-52 | PRD-B29, PRD-B7 |
 | FILT-53 | PRD-B7 |
-| FILT-18 | PRD-B29, PRD-B2 |
+| FILT-18 | PRD-B29, PRD-B2, PRD-B7 |
 | FILT-06 | PRD-B6, PRD-B7 |
 | FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
 | FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
@@ -4902,7 +4902,7 @@ state in their own statements.
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
