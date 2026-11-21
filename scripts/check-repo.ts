@@ -37,8 +37,10 @@ import {
   childEnv,
   commitRange,
   errorCode,
+  BROWSER_DIR,
   HERE,
   inCI,
+  isBrowserSpec,
   isResult,
   NA,
   NO_CACHE,
@@ -1811,7 +1813,6 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
-const BROWSER_DIR = "site/browser/";
 const viteBin = (): string =>
   process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
 const SITE_CONFIG = "site/vite.config.ts";
@@ -2366,9 +2367,7 @@ const pwBad = ([file, title, t]: PwRow): string[] => {
 };
 
 function browser(root: string, list: Set<string>): Result {
-  const specs = [...list].filter(
-    (f) => f.startsWith(BROWSER_DIR) && f.endsWith(".spec.ts"),
-  );
+  const specs = [...list].filter(isBrowserSpec);
   if (!specs.length)
     return result(
       NA,

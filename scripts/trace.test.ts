@@ -439,6 +439,36 @@ test("trace: a marked test missing from the results cannot be checked", () => {
     /site\/a\.test\.ts:\d: TST-01: the test file is not in the results/,
   );
 });
+/** A Playwright spec whose one test carries `marker`; Vitest never runs it. */
+const PW = (marker = mark("TST-01")): string =>
+  `import { expect, test } from "@playwright/test";\n${marker}\ntest("one", () => {\n  expect(1).toBe(1);\n});\n`;
+test("trace: a marker in a browser spec is left to the browser step and not counted as tested", () => {
+  const out = expectTrace(fixture({ "site/browser/a.spec.ts": PW() }), 0);
+  assert.match(
+    out,
+    /1 marker\(s\), 0 test result\(s\) read; 0 of 2 statements tested; 1 marker\(s\) left to the browser step$/m,
+  );
+});
+test("trace: a marker in another test file under site/browser/ expects a Vitest result, so it cannot be checked", () => {
+  for (const f of ["site/browser/a.test.ts", "site/browser/a.spec.mts"])
+    assert.match(
+      // src/b.test.ts gives Vitest a file to run
+      expectTrace(fixture({ [f]: PW(), "src/b.test.ts": ONE("TST-02") }), 3),
+      /TST-01: the test file is not in the results/,
+    );
+});
+test("trace: a stale marker in a browser spec is still a finding", () => {
+  assert.match(
+    expectTrace(
+      fixture({
+        "site/browser/a.spec.ts": PW(mark("TST-01", "bbbbbbbb")),
+        "src/b.test.ts": ONE("TST-02"),
+      }),
+      1,
+    ),
+    /site\/browser\/a\.spec\.ts:2: TST-01: stale/,
+  );
+});
 const LOOP = (rows: string): string =>
   vitestFile(
     `${mark("TST-01")}\nfor (const row of ${rows}) {\n  test(row, () => {\n    expect(row).toBe(row);\n  });\n}\ntest("other", () => {\n  expect(1).toBe(1);\n});\n`,
