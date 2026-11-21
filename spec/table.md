@@ -2696,11 +2696,12 @@ checkbox named by the `emptyOption` message, whose value in `selected` and in `o
   option is one of the filter's options, last in their order (FILT-04, FILT-18, FILT-22, FILT-52).
 - Reason: rows without a value are part of the data (PRD-B7, the owner's decision of 2026-11-20), and `''` is a value
   no given option can hold (FILT-32), so "no value" needs no word the server must know. The option is off by default
-  because the table sees one page and cannot know whether any row is empty, while AG Grid's set filter, Excel's
-  filter and SearchPanes list their blank entry only when the data they hold has a blank (FETCHED 2026-11-20: AG
-  Grid's "(Blanks)", held in its filter model as `null`; Excel's "(Blanks)", "available only if the column that you
-  want to filter contains a blank cell"; SearchPanes' "No Data"). It sits last, as Excel's "(Blanks)" sits below
-  the values (FETCHED; AG Grid and SearchPanes name no place), so the given vocabulary keeps its order.
+  because the table sees one page and cannot know whether any row is empty, while the libraries that list a blank
+  entry derive it from the data they hold (FETCHED 2026-11-20: AG Grid's set filter lists "(Blanks)" when its values
+  hold blanks and keeps it in its filter model as `null`; Excel's "(Blanks)" is "available only if the column that
+  you want to filter contains a blank cell"; SearchPanes shows empty cells as "No Data"). It sits last because Excel's
+  user scrolls down to "(Blanks)" (FETCHED; the bottom implied, not stated; AG Grid and SearchPanes name no place),
+  and so the given vocabulary keeps its order.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B7.
 
@@ -2911,12 +2912,12 @@ below list.
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
   | an option's value or label in `options` is empty (the option of FILT-53 is not in `options`) | `filterInvalid` | "A column filter is not valid." |
-  | a categorical filter's `emptyOption` is given and is neither `true` nor `false` | `filterInvalid` | "A column filter is not valid." |
-  | two options share a value, or labels equal after trimming (the option of FILT-53 and its label included) | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `emptyOption` is `'yes'` or `1` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
+  | two options share a value, or labels equal after trimming, the option of FILT-53 with its shown label included (Status with an option `none` "(empty)" and `emptyOption: true`) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
-  | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
+  | `selected` holds a value that is no option (`''` without `emptyOption: true` included), or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
   | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
   | `search` is not a string | `searchInvalid` | "The applied search is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
@@ -2973,7 +2974,7 @@ below list.
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
   | `noOptions` | "No options match." | FILT-18 |
-  | `emptyOption` | "(empty)" | FILT-53 |
+  | `emptyOption` | "(empty)" | FILT-53, with Status's `emptyOption: true` |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
