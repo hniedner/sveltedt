@@ -202,10 +202,8 @@ Development dependencies on the same terms as the test toolchain.
 
 ## Overrides
 
-- **minimatch 11.0.8 under @typescript-eslint/typescript-estree** (`pnpm-workspace.yaml`), for GHSA-g3hv-75wg-m249
-  (minimatch >= 7.0.0, < 11.0.1, fixed in 11.0.1). typescript-estree 8.72.2 asks for `^10.2.2`; between v8.72.2 and
-  v8.73.0 its only minimatch change is that range, to `^11.0.1`. 8.73.0 is younger than the release age.
-- **Removed** after 2026-11-19 17:15 UTC: a typescript-eslint >= 8.73.0 bump, Dependabot's too, merges only without it.
+None. The last one (minimatch 11.0.8 under @typescript-eslint/typescript-estree, for GHSA-g3hv-75wg-m249) came out
+with typescript-eslint 8.73.0, whose typescript-estree asks for minimatch `^11.0.1` itself.
 
 ## Pinned programs
 
