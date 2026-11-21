@@ -4627,8 +4627,9 @@ its criterion asks (4.5 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WC
 without touch; "the light view", "the dark view" and "the no-token view" are the site's views with the light set, the
 dark set and no `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are
 given by its own parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted
-by Name and then Code where a row says so, with the columns Name, Code and Date and selection on. A prop given as
-`undefined` or `null` counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
+by Name and then Code where a row says so, with the columns Name, Code and Date and selection on: the site's full page
+(`spec/site.md` FULL-01 to FULL-05), whose list gives the rows, pages and sticky cell these examples name. A prop given
+as `undefined` or `null` counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
 size budgets of the variants (PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the
 hover surface is painted (`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in
 the paint order and THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view
@@ -4703,6 +4704,15 @@ contrast, in the light and in the dark set.
   (PRD-T4).
 - Layer: static check.
 - Traces: PRD-T4.
+
+**THEME-47** The styling guide `docs/styling.md` MUST hold the token table and the token-pair table, each a Markdown
+table under its own heading.
+- Example: under "Tokens", the columns Token, Paints and Fallback, one row per `--sdt-*` name (THEME-02); under "Token
+  pairs", the columns Foreground role, Foreground token, Background role, Background token and Ratio (THEME-33). A
+  missing heading or column is "could not check" for THEME-02 and THEME-33.
+- Reason: the checks read the tables from one known place; PRD-D9 puts the token table in the styling guide.
+- Layer: static check.
+- Traces: PRD-D9, PRD-T4.
 
 **THEME-19** `density 'compact'` MUST lower the body and header cells' padding and MUST change no other property of
 THEME-10's named set.
@@ -5209,6 +5219,7 @@ pointer.
 | THEME-33 | PRD-T4, PRD-A12 |
 | THEME-17 | PRD-T4, PRD-A12 |
 | THEME-34 | PRD-T4 |
+| THEME-47 | PRD-D9, PRD-T4 |
 | THEME-41 | PRD-T6, PRD-T13, PRD-A12 |
 | THEME-19 | PRD-T5 |
 | THEME-20 | PRD-T6 |
@@ -5290,7 +5301,8 @@ state in their own statements.
 | PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
-| PRD-T4 | THEME-33, THEME-17, THEME-34 | in full |
+| PRD-T4 | THEME-33, THEME-17, THEME-34, THEME-47 | in full |
+| PRD-D9 | THEME-11, THEME-47 | in part: the overrides (THEME-11) and the place and form of the token table; the rest of the guide comes with the docs |
 | PRD-A12 | THEME-33, THEME-17, THEME-41 | in part: the browser check of computed colours in each theme view comes with a later theming branch |
 | PRD-T10 | THEME-22, THEME-42, THEME-43, THEME-44, THEME-45 | in part: the P2 and P3 budgets of the variants are the performance group's |
 | PRD-T13 | THEME-25, THEME-38, THEME-41 | in part: the no-token view's sorted cells come with a later theming branch |
@@ -5314,7 +5326,7 @@ state in their own statements.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3 (in part, see above), PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
+- Documentation: PRD-D1, PRD-D2, PRD-D3 and PRD-D9 (in part, see above), PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
