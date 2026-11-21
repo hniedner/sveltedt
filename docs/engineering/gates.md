@@ -72,8 +72,12 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   statement is never this state; with no test it fails.
 - Without a mode the check exits 0 on untested statements and prints their ids under the heading `not yet tested`,
   never under pass. On a pull request it also compares the set of untested ids with the base commit's: an id that
-  was tested there and is untested now fails, so a deleted test fails. On main and locally there is no base, and
-  only the list is printed.
+  a marker named at the base, whose statement still exists and which no marker names now fails, so a deleted test
+  fails; a renamed or deleted statement is not a finding. Locally it makes the same comparison with the
+  merge base of `origin/main` and `HEAD`; on a push to main there is no base, and only the list is printed.
+  A base that cannot be named or read (no `origin/main` locally, an unknown event in CI, an unreadable commit) is
+  could not check. A pull request that changes the readers so that main's own files no longer read is could not
+  check; it lands the fixes to those files first, in their own pull request, so its base reads clean.
 - `trace --close <ids>` (the ids the milestone's issues name, run by the coordinator before closing the milestone and
   recorded in the closing comment, which no check enforces) exits 1 while any of them is untested; an empty list or
   an id no spec holds is exit 2. `trace --release` runs in the release build: from 1.0 on (a 1.0 release candidate
@@ -156,7 +160,7 @@ CI is on in every repo (owner, 2026-11-17 11:06). Sources, read 2026-11-17 and c
   · *codeql-about* docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql
   · *codeql-suites* docs.github.com/en/code-security/code-scanning/managing-your-code-scanning-configuration/codeql-query-suites
 - *dep-review* github.com/actions/dependency-review-action · *scorecard* github.com/ossf/scorecard-action ·
-  *playwright-ci* playwright.dev/docs/ci · *vitest-browser* vitest.dev/guide/browser · *setup-uv*
+  *playwright-ci* playwright.dev/docs/ci · *setup-uv*
   docs.astral.sh/uv/guides/integration/github
 - *npm-tp* docs.npmjs.com/trusted-publishers · *npm-prov* docs.npmjs.com/generating-provenance-statements · *pypi-tp*
   docs.pypi.org/trusted-publishers/adding-a-publisher · *pypi-action* github.com/pypa/gh-action-pypi-publish ·
@@ -173,12 +177,18 @@ $0 budget, no self-hosted runners.
   *(fetched, caching)*). Jobs:
   - `static`: format check, lint, types, the static checks of method §2 (no raw-HTML path, no eval, design tokens
     only, no shipped CSS), `scan-secrets` (G2) over the pull request's commits, and the synthetic-shape check (G11).
+    The steps' reports (`reports/`) are uploaded from this job as one artifact, also when the job fails; the job is
+    split into the jobs below when the job's time on main passes 12 of its 15 minutes in three runs in a row, and
+    with mutation testing at the latest.
   - `test`: every layer that needs no real browser (unit, component in a simulated DOM, HTTP or public interface),
     with coverage; `diff-coverage` (G4) on pull requests.
-  - `browser`: real-browser component tests and journey tests, a matrix over `chromium`, `firefox` and `webkit` with
-    `fail-fast: false`, so one engine's failure does not hide another's *(inferred)*. Vitest browser mode's Playwright
-    provider runs all three *(fetched, vitest-browser)*. Each job installs only its engine with
-    `playwright install --with-deps <engine>`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
+  - `browser`: real-browser component tests and journey tests, one job running Playwright's three projects `chromium`,
+    `firefox` and `webkit`. The gate's `browser` step requires every spec in each engine and names the engine of each
+    failure, so one engine's failure does not hide another's *(measured: the browser rows of scripts/check-repo.test.ts)*.
+    The `static` job leaves the step to this job through `GATE_BROWSER`; gate-needs allows the variable in any job but
+    `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
+    (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
+    `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
   - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI
     *(inferred: G7 needs only the parent commit and that commit's test files)*.
   - `mutation` (G8) on the step diff, Linux only.

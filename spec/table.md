@@ -37,15 +37,18 @@ to the consumer as one callback (stated with the statements that add user action
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `'desc'`; a press steps through them in the order listed) and `onsort(next)`; and the props of `Pagination`:
+  `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
   `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
   `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search);
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
-  statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), and the
-  child-row statements the snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15).
+  statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
+  sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
+  snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
+  a column's `class`, `headerClass` and `align`, `rowClass(row)` and `cellClass(row, column)` (section 17).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -74,14 +77,13 @@ to the consumer as one callback (stated with the statements that add user action
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
   id or a class, except THEME-09, which tests the public classes
-  of PRD-K3 themselves.
+  of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
+  hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
-  takes the next free number in its group; SORT-07, SORT-08 and A11Y-11 are reserved for the draft statements of
-  those numbers, which later groups write, and A11Y-20, A11Y-21 and A11Y-23 to A11Y-34 for the slow-load group's
-  draft (progress, Cancel, the stopped state and "Try again"). A requirement id from `docs/PRD.md` is written
-  `PRD-B1`.
+  takes the next free number in its group; A11Y-33 and A11Y-34 (reserved for the slow-load group, which needed
+  neither), THEME-18, THEME-35 and THEME-40 stay unused. A requirement id from `docs/PRD.md` is written `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
@@ -196,6 +198,7 @@ its cells.
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | `columns` is not an array (left out) | `noColumns` | "Table has no columns." |
+  | a column is not an object (`null`, the text "name") | `columnIdEmpty` | "A column id is empty." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
@@ -203,6 +206,9 @@ its cells.
   | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `value` is given and is not a function (the text "name"), and it has no `cell` snippet | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `cell` is given and is not a snippet (the text "name"), and it has no `value` function | `columnContentMissing` | "A column has no value and no cell." |
+  | `status` is a value outside its type (the text "done", `null`) | `statusUnknown` | "Table status is not known." |
   | `rows` is not an array (left out), with `status 'ready'` | `rowsNotList` | "Table has no list of rows." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
@@ -212,6 +218,15 @@ its cells.
 
   A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
   no alert. `rows` that is not an array is no fault while `status` is `loading` or `failed` (STATE-08).
+
+  `status` left out or given as `undefined` takes its default, `'ready'`, and is no fault.
+
+  A column with a `value` function or a `cell` snippet is valid when its other one is given and is not a function:
+  it renders by RND-08 or RND-02 (a `value` function beside `cell` the text "name" shows the value's text; a `cell`
+  snippet beside `value` the text "name" shows the snippet).
+
+  Stated limits, not detected: a plain function given as `cell` is taken as a snippet (a snippet is a function, and
+  the two cannot be told apart); a `value` function that throws is not caught, unlike `getRowId`.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
@@ -310,7 +325,7 @@ cells MUST be rendered by the same element as before.
   | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
-  | any entry given as `undefined` (a translation lookup that misses) | that entry's English default | the statement that shows the entry |
+  | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups state their own words in their own
@@ -1490,15 +1505,19 @@ tests of the statement its marker names red by a failed assertion.
   | Order before | Press | `onsort` receives |
   |---|---|---|
   | `[]` | Name | `[name asc]` |
+  | `null` (counts as `[]`, SORT-15) | Name | `[name asc]` |
   | `[name asc]` | Name | `[name desc]` |
   | `[name desc]` | Name | `[]` |
   | `[code asc]` | Name | `[name asc]` |
   | `[code asc, name desc]` | Name | `[name asc]` |
   | `[name asc, code desc]` | Name | `[name desc]` |
+  | `[]` | Date (lists `['desc', 'asc']`) | `[date desc]` |
+  | `[date desc]` | Date (lists `['desc', 'asc']`) | `[date asc]` |
+  | `[date asc]` | Date (lists `['desc', 'asc']`) | `[]` |
 
-  The rule: if the column leads the order, it moves on to the next direction it allows (ascending before
-  descending) and the other columns are dropped; after its last allowed direction it leaves the order. Otherwise it
-  becomes the only sorted column, in the first direction it allows. SORT-04 holds the single-direction rows.
+  The rule: if the column leads the order, it moves on to the next direction in the order its `sortable` lists them
+  and the other columns are dropped; after its last listed direction it leaves the order. Otherwise it becomes the only
+  sorted column, in the first direction its `sortable` lists. SORT-04 holds the single-direction rows.
 - Reason: emitting the whole order means the consumer sends it as is and never merges partial changes.
 - Layer: component.
 - Traces: PRD-B4, PRD-B2.
@@ -1515,9 +1534,10 @@ moved on one step and every other column keeps its relative order and direction.
   | `[name asc, code asc]` | Name | `[name desc, code asc]` |
   | `[name desc, code asc]` | Name | `[code asc]` |
   | `[]` | Name | `[name asc]` |
+  | `[code asc]` | Date (lists `['desc', 'asc']`) | `[code asc, date desc]` |
 
-  A column not yet in the order joins at the end, in the first direction it allows; after its last allowed direction
-  it leaves the order.
+  A column not yet in the order joins at the end, in the first direction its `sortable` lists; it moves on in that
+  order, and after its last listed direction it leaves the order.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1546,7 +1566,7 @@ moved on one step and every other column keeps its relative order and direction.
   | `['asc']` | `[date asc]` | Date | `[]` |
   | `['asc']` | `[code asc, date asc]` | Shift+Date | `[code asc]` |
 
-  Break that turns it red: a press always steps through ascending and descending.
+  Break that turns it red: a press steps through both directions whatever the column lists.
 - Reason: the other direction is one the server would refuse.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1680,7 +1700,12 @@ list.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
+  | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
+  | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', desc: false }`) | `sortInvalid` | "The sort is not valid." |
+  | an entry of `sort` is `null`, an array or not an object (`[null]`, `[['name']]`, `["name"]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `id` is left out or is not a string (`[{ desc: false }]`, `[{ id: 5, desc: false }]`, `[{ id: null, desc: false }]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `desc` is left out or is not a boolean (`[{ id: 'name' }]`, `[{ id: 'name', desc: undefined }]`, `[{ id: 'name', desc: null }]`, `[{ id: 'name', desc: 'true' }]`) | `sortInvalid` | "The sort is not valid." |
   | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
   | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
   | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
@@ -1689,6 +1714,11 @@ list.
   With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
   the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
   empty.").
+
+  `sort` left out, given as `undefined` or `null`, or given as an empty list means no order and is no fault; a press
+  then emits as from `[]`.
+
+  A column's `sortable` given as `null` means the column is not sortable, as when it is left out, and is no fault.
 - Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3, PRD-B4.
@@ -1923,6 +1953,7 @@ current page.
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
   | 90 | 90 | `1 … 5 6 7 8 9` |
+  | 95 | 95 | `1 … 6 7 8 9 10` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -1989,6 +2020,7 @@ offsets on the page grid.
   |---|---|
   | `offset 0, total 95` (first of several pages) | First page, Previous page |
   | `offset 90, total 95` (last of several pages) | Next page, Last page |
+  | `offset 80, total 90` (last page, `total` a multiple of `limit`) | Next page, Last page |
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
@@ -2097,8 +2129,8 @@ new `limit` and offset.
 - Traces: PRD-A3, PRD-B9.
 
 **PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
-- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
-  `listbox` is in the pager.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`; `sizes null` (as left out). In each, no element
+  with role `combobox` or `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -2113,7 +2145,7 @@ new `limit` and offset.
   | `offset` is -25, 2.5, `NaN`, `Infinity` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
   | `limit` is 0, -10, 2.5, `NaN`, `Infinity` or 2^53 | `limitInvalid` | "The page size is not a valid number." |
   | `label` is empty or blank | `labelEmpty` | "Pager label must not be empty." |
-  | `sizes` holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
+  | `sizes` is not a list (a string, a number), or holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
@@ -2121,7 +2153,9 @@ new `limit` and offset.
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
   request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
-  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given. `sizes`
+  given as `null` means no sizes, as when it is left out, and is no fault (PAGE-15). `unfilteredTotal` given as `null`
+  means not given, and is no fault: a JSON answer has no other way to leave the count out.
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.
@@ -2394,7 +2428,8 @@ receives that number.
 ## 11. Filters: the fields and what they emit (FILT, milestone 4)
 
 These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
-`options` a list of `{ value, label }`; `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
+`options` a list of `{ value, label }` and an optional `emptyOption`, a boolean (default `false`, FILT-53);
+`filters`, the applied filter of each column id, `{ kind: 'text', text }` or
 `{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
 with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
 `maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
@@ -2519,7 +2554,8 @@ an alert that says why.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
+**FILT-17** A categorical filter MUST offer exactly its options (with `emptyOption: true`, also the option of
+FILT-53), as checkboxes named by their labels, in the given
 order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
 - Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
   checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
@@ -2631,19 +2667,43 @@ button, then its filter button, and a filter dialog's markup follows its own fil
 - Traces: PRD-B6, PRD-B7, PRD-A1, PRD-B29.
 
 **FILT-52** A categorical filter's dialog MUST show the find field "Find <label> options" above its options exactly
-while the filter has more than 10 options.
+while the filter has more than 10 options, the option of FILT-53 included.
 - Examples (the test runs every row; press the column's filter button):
 
   | Options | Find field |
   |---|---|
   | Status's 2 options | none |
   | Kind's 11 options | "Find Kind options", before the first checkbox in document order |
+  | Kind's options `k1` to `k10` and `emptyOption: true` | "Find Kind options": the option of FILT-53 counts |
 
   Column Kind (id `kind`) has a categorical filter with the options `k1` "Alpha" to `k10` "Kappa" (the Greek letter
   names in order) and `k11` "Inactive".
 - Reason: a long vocabulary needs a way to reach an option, and a short list needs none (PRD-B29).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B29, PRD-B7.
+
+**FILT-53** A categorical filter with `emptyOption: true` MUST offer one more option after its given ones, the
+checkbox named by the `emptyOption` message, whose value in `selected` and in `onfilter` is `''`.
+- Examples (the test runs every row; Status with `emptyOption: true`; press its filter button, then the press):
+
+  | `selected` before | Checkboxes, in order (checked) | Press | `onfilter` call |
+  |---|---|---|---|
+  | `[]` | "Active", "Inactive", "(empty)" (none) | "(empty)" | `('status', { kind: 'categorical', selected: [''] })` |
+  | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `('status', { kind: 'categorical', selected: ['active', ''] })` |
+  | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `('status', { kind: 'categorical', selected: ['active'] })` |
+
+  Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). FILT-18, FILT-22 and FILT-52
+  each hold an example with the option.
+- Reason: rows without a value are part of the data (PRD-B7, the owner's decision of 2026-11-20), and `''` is a value
+  no given option can hold (FILT-32), so "no value" needs no word the server must know. The option is off by default
+  because the table sees one page and cannot know whether any row is empty, while the libraries that list a blank
+  entry derive it from the data they hold (FETCHED 2026-11-20: AG Grid's set filter lists "(Blanks)" when its values
+  hold blanks and keeps it in its filter model as `null`; Excel's "(Blanks)" is "available only if the column that
+  you want to filter contains a blank cell"; SearchPanes shows empty cells as "No Data"). It sits last because Excel's
+  user scrolls down to "(Blanks)" (FETCHED; the bottom implied, not stated; AG Grid and SearchPanes name no place),
+  and so the given vocabulary keeps its order.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
 
 **FILT-18** Typing in a find field MUST narrow the shown options to those whose label contains the text, ignoring
 case, and MUST NOT emit anything or change the selection.
@@ -2656,11 +2716,12 @@ case, and MUST NOT emit anything or change the selection.
   | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
   | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
   | type "xyz" | none; the text "No options match." in their place | no callback called |
+  | with Kind's `emptyOption: true`, type "EMPT" | "(empty)" only, matched by its label | no callback called |
 
 - Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
   dialog (PRD-B29, PRD-B2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B29, PRD-B2.
+- Traces: PRD-B29, PRD-B2, PRD-B7.
 
 **FILT-06** Opening a filter dialog MUST close any other open filter dialog.
 - Example: with "Name filter" open, press "Filter Status": exactly one element with role `dialog` is open, named
@@ -2762,8 +2823,8 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Traces: PRD-B8, PRD-A1.
 
 **FILT-22** A badge of a categorical filter MUST name the selected options by their labels, in the options' order.
-- Example: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
-  Inactive".
+- Examples: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
+  Inactive"; with Status's `emptyOption: true`, `selected: ['', 'active']` gives "Status: Active, (empty)".
 - Reason: values are codes that mean nothing to the user (PRD-B7, PRD-B8).
 - Layer: component.
 - Traces: PRD-B7, PRD-B8.
@@ -2851,12 +2912,13 @@ below list.
   |---|---|---|
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
-  | an option's value or label is empty | `filterInvalid` | "A column filter is not valid." |
-  | two options share a value, or labels equal after trimming | `filterInvalid` | "A column filter is not valid." |
+  | an option's value or label in `options` is empty (the option of FILT-53 is not in `options`) | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `emptyOption` is `'yes'` or `1`, or a text filter's is `true` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
+  | two options share a value, or labels equal after trimming, the option of FILT-53 with its shown label included (Status with an option `none` "(empty)" and `emptyOption: true`) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
-  | `selected` holds a value that is no option, or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
+  | `selected` holds a value that is no option (`''` without `emptyOption: true` included), or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
   | a text entry's `text` is not a string | `filterStateInvalid` | "An applied filter is not valid." |
   | `search` is not a string | `searchInvalid` | "The applied search is not valid." |
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
@@ -2913,6 +2975,7 @@ below list.
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
   | `noOptions` | "No options match." | FILT-18 |
+  | `emptyOption` | "(empty)" | FILT-53, with Status's `emptyOption: true` |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
@@ -2921,7 +2984,7 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1, PRD-I2, PRD-B29.
+- Traces: PRD-I1, PRD-I2, PRD-B29, PRD-B7.
 
 ### The global search (milestone 4)
 
@@ -3257,8 +3320,9 @@ below list.
 These statements add `order` to `columnState`: a list of column ids, the display order (PRD-B11 (a)). The drag grip
 of PRD-B11 (b) states its own statements below. The examples are those of section 12.
 
-**COL-09** The columns MUST appear in the order of `columnState.order`, given columns it does not name following in
-their given order, and the chooser MUST list them in the same order.
+**COL-09** The columns that are not `sticky` MUST appear in the order of `columnState.order`, after the sticky ones
+(section 14), given columns it does not name following in their given order, and the chooser MUST list them in the
+same order.
 - Examples (the test runs every row; the header cells, the cells of each row and the chooser's checkboxes):
 
   | `columnState.order` | Order shown |
@@ -3275,7 +3339,7 @@ their given order, and the chooser MUST list them in the same order.
 - Layer: real browser (Chromium, Firefox, WebKit), since the chooser is among the checks.
 - Traces: PRD-B11, PRD-B2.
 
-**COL-08** Each column's entry in the chooser MUST hold the buttons "Move earlier" and "Move later", each named by its
+**COL-08** The chooser entry of each column that is not `sticky` (section 14) MUST hold the buttons "Move earlier" and "Move later", each named by its
 words and the column's label, and a press MUST emit `oncolumnstate` once with the whole next state.
 - Examples (the test runs every row; `order` not given; one press, as "emits once" defines it):
 
@@ -3291,7 +3355,7 @@ words and the column's label, and a press MUST emit `oncolumnstate` once with th
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-B2, PRD-A1.
 
-**COL-10** "Move earlier" of the first column and "Move later" of the last MUST be `aria-disabled="true"`, and a press
+**COL-10** "Move earlier" of the first column that is not `sticky` and "Move later" of the last MUST be `aria-disabled="true"`, and a press
 on either MUST emit nothing and leave focus on it.
 - Example: `order` not given: "Move earlier Name" and "Move later Date" have `aria-disabled="true"`; a press on each
   calls no callback, and focus stays on the pressed button.
@@ -3352,7 +3416,7 @@ the test runner's mouse in Chromium, Firefox and WebKit; a touch drag is stated 
 `document` listener of COL-16 is added with no options (the bubble phase), as in FILT-36. The examples are those of
 section 12, with each column's grip found as the Conventions say.
 
-**COL-13** Each column's header cell MUST hold a grip that is at least 24 by 24 CSS px, not in the Tab order, and hidden
+**COL-13** The header cell of each column that is not `sticky` MUST hold a grip that is at least 24 by 24 CSS px, not in the Tab order, and hidden
 from assistive technology.
 - Example: for each of Name, Code and Date: its header cell holds one grip; its box is at least 24 by 24 CSS px; Tab
   from the element before the table through the header row never lands on it; it has `aria-hidden="true"`.
@@ -3361,7 +3425,8 @@ from assistive technology.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B11, PRD-A1.
 
-**COL-14** A drag of a column's grip, released over another column (its header cell or any of its cells), MUST emit
+**COL-14** A drag of a column's grip, released over another column that is neither `sticky` nor the box column (its
+header cell or any of its cells), MUST emit
 `oncolumnstate` once, on the release, with the dragged column in the place of the column it was released over.
 - Examples (the test runs every row; `order` not given; no callback is called before the release):
 
@@ -3797,6 +3862,207 @@ the table's width MUST count it.
 - Layer: component.
 - Traces: PRD-I1.
 
+## 14. Sticky header and sticky columns (STK, milestone 6)
+
+These statements add `stickyHeader` (default `false`), `stickyTop` (CSS px, default 0: the height of the application's
+fixed bar) and a column's `sticky` (default `false`) (PRD-B14, design D of PRD section 5.1: the document scrolls, the
+header sticks to the viewport). Sticky columns come first, in their given order, before every other column whatever
+`columnState.order` says, after the box column (selection on) and the details column (child rows on, section 15); the
+box column and the details column are sticky whenever a column is, in that order, before the sticky data columns. The
+component computes their inline-start offsets from the rendered widths. Without `stickyHeader` the region scrolls
+sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements here are tested in a real browser, in
+Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
+zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name (sortable), Code
+and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page `stickyTop` px tall at the
+viewport top. A later branch states the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
+(PRD-B22), the offsets after a viewport resize (STK-05), the order emitted while sticky columns are given, the zoom
+view's 2.4.11 row, and that no listener on `window`, `document` or a media query outlives the table.
+
+**STK-01** With `stickyHeader`, the header row MUST stay at `stickyTop` below the viewport top while the document
+scrolls its body rows under it.
+- Examples (the test runs every row; the window scrolled down 3000 CSS px):
+
+  | `stickyTop` | Header row's top edge |
+  |---|---|
+  | 0 | within 1 px of the viewport top |
+  | 48, with the bar | within 1 px of 48 |
+
+  The first body row visible below the header is not row 1. Without `stickyHeader`, the header row scrolls out of
+  view with the table.
+- Reason: column labels stay readable on long pages, below the application's bar (PRD-B14).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14.
+
+**STK-04** The header MUST be sticky only while `stickyTop` plus the header row's height is at most 30 % of the
+viewport's height; otherwise it scrolls with the table.
+- Examples (the test runs every row; `stickyHeader` and the bar; the test first asserts that the header row is between
+  29 and 191 CSS px high; the window scrolled down 3000 px after the view is set):
+
+  | View | `stickyTop` | Header row |
+  |---|---|---|
+  | 1280 by 800 | 48 | sticks at 48 |
+  | the zoom view (640 by 400; 30 % is 120) | 100 | scrolled out of view with the table |
+  | the 320 view (320 by 256) | 48 | scrolled out of view with the table |
+  | 1280 by 800, then the viewport resized to 1280 by 256 | 48 | scrolled out of view, after the resize |
+  | 1280 by 256, then resized to 1280 by 800 | 48 | sticks at 48, after the resize |
+
+- Reason: on small or zoomed screens a sticky band would take the page (PRD-B14; Understanding Reflow advises static
+  positioning there).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14, PRD-A11.
+
+**STK-09** With `stickyHeader`, the region MUST NOT be a scroll container, and so MUST NOT be a Tab stop, also when the
+table is wider than the viewport.
+- Example: `stickyHeader`, 30 columns of 150 px wide text: the region's computed `overflow-x` and `overflow-y` are
+  "visible", the document scrolls sideways, and Tab from the element before the table lands on the sort button of
+  Name, not on the region.
+- Reason: design D, in which the header sticks to the viewport; a region that scrolled would hold the header instead
+  (PRD section 5.1, PRD-A2).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14, PRD-A2.
+
+**STK-10** With `stickyHeader`, in a development build, the component MUST write one console warning naming the nearest
+ancestor of the table whose computed `overflow-x` or `overflow-y` is neither `visible` nor `clip`, `html` never and
+`body` only while `html`'s computed `overflow-x` and `overflow-y` are not both `visible`; with no such ancestor, or
+without `stickyHeader`, it MUST NOT warn.
+- Examples (the test runs every row; the table inside `<div id="wrap" class="card">` inside `<main>`; a warning is a
+  `console.warn` call; the name is the tag name, then `#` and the `id` if there is one, then `.` and each class):
+
+  | `stickyHeader` | Styles | Warnings, and the text of the one |
+  |---|---|---|
+  | on | `#wrap { overflow: hidden }` | one: "SvelteDT: the sticky header cannot stick inside div#wrap.card, whose overflow is not visible or clip." |
+  | on | `#wrap { overflow: auto }` | one, naming div#wrap.card |
+  | on | `#wrap { overflow-x: hidden }` (its `overflow-y` then computes to `auto`) | one, naming div#wrap.card |
+  | on | `main { overflow: hidden }` | one, naming main |
+  | on | `#wrap` and `main` each `overflow: hidden` | one, naming div#wrap.card (the nearest) |
+  | on | `#wrap { overflow: clip }` | none |
+  | on | `#wrap { overflow-x: clip }` | none |
+  | on | none | none |
+  | on | `body { overflow: hidden }`, `html` left `visible` | none: `body`'s overflow applies to the viewport |
+  | on | `html, body { overflow-x: hidden }` | one, naming body |
+  | off | `#wrap { overflow: hidden }` | none |
+  | off, then on | `#wrap { overflow: hidden }` | one, after the change |
+  | on, then off, then on | `#wrap { overflow: hidden }` | two: one at mount, one after it turns on again |
+  | on, then a sort, the next page and new rows | `#wrap { overflow: hidden }` | one in all |
+  | on, then `#wrap` given `overflow: hidden` after the mount | `#wrap { overflow: hidden }` from then on | none |
+
+  The check runs when the table mounts with `stickyHeader` and when `stickyHeader` turns on, and at no other time: an
+  ancestor whose style changes later is not seen, because the component adds no observer or listener for it
+  (PRD-B19). It is one check with one output, the warning or none. In a production build the warning is absent (CON-14 of
+  `spec/package.md`). The warning is for the developer, not a word the table shows: English only, no prop.
+- Reason: the application must keep every ancestor's `overflow` at `visible` or `clip` (PRD-D3, design D); a warning
+  naming the element finds the cause of a header that does not stick. `html`'s overflow always goes to the viewport,
+  and `body`'s does while `html`'s is `visible`; otherwise `body` is a scroll container that holds the header (the
+  common `html, body { overflow-x: hidden }`).
+- Layer: real browser (Chromium, Firefox, WebKit), on a second build of the site made with the `development` export
+  condition added to the bundler's resolve conditions (as CON-14's second row; the site's usual build resolves
+  `production`, where `esm-env`'s `DEV` is false), written to its own build folder and served by its own start of the
+  site server; every other real-browser statement runs on the usual build. The first row going green on the second
+  build shows that `DEV` is true there.
+- Traces: PRD-B14, PRD-D3.
+
+**STK-03** Each column with `sticky` MUST stay at its inline-start offset while the document scrolls sideways, the
+offset being the sum of the widths of the sticky columns before it.
+- Examples (the test runs every row; `stickyHeader`; 30 columns as in STK-09, Name and Code `sticky`; the window
+  scrolled right 2000 px; offsets measured from the viewport's left edge, within 1 px):
+
+  | Selection, child rows | Left edge of the box column | of the details column | of Name | of Code |
+  |---|---|---|---|---|
+  | off, off | - | - | 0 | Name's width |
+  | on, off | 0 | - | the box column's width | the box column's and Name's widths |
+  | on, on | 0 | the box column's width | the box and details columns' widths | those and Name's width |
+
+- Reason: the identifying columns stay in view beside the values being read; the component computes the offsets, so
+  the application gives none (PRD-B14, section 5.1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14.
+
+**STK-05** The offsets of sticky columns MUST follow a change of their widths, their visibility or their given order.
+- Examples (the test runs every row; as STK-03 without selection; after the change and a new sideways scroll; widths
+  measured):
+
+  | Change | Left edge of Code |
+  |---|---|
+  | `columnState.widths.name` from 200 to 250 (resizable) | 250 |
+  | Name hidden | 0 |
+  | the `sticky` of Name becomes false | 0, and Name scrolls with the rest |
+  | `columns` given with Code before Name, both `sticky` | 0, and Name's left edge is Code's width |
+  | the rows change so that a Name cell holds a longer text and Name grows wider (not resizable) | Name's new width |
+
+- Reason: offsets from stale widths would cover or uncover columns (PRD-B14: correct after resize, reorder and hide).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14.
+
+**STK-06** Under `dir="rtl"`, sticky columns MUST stay at the inline start, the right edge, while the document scrolls
+sideways.
+- Example: as STK-03 without selection, the page's `html` element with `dir="rtl"`, the window scrolled 2000 px
+  towards the inline end: Name's right edge is within 1 px of the viewport's right edge, and Code's right edge is
+  Name's width to the left of it.
+- Reason: logical properties mirror the layout in right-to-left (PRD-B14, PRD-I3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14, PRD-I3.
+
+**STK-07** Sticky columns MUST stay first, in their given order, when columns move: no grip, no move buttons, and no
+move or drop places a column before or between them (COL-08 to COL-14 apply to the other columns).
+- Examples (the test runs every row; Name and Code `sticky`, `oncolumnstate` passed):
+
+  | Steps | Result |
+  |---|---|
+  | Name's and Code's header cells | no grip |
+  | press "Columns" | the entries of Name and Code hold no "Move earlier" or "Move later"; "Move earlier Date" has `aria-disabled="true"` |
+  | drag Date's grip to Name's header cell | no `oncolumnstate` call |
+  | `columnState.order` `['date', 'code', 'name']` | Name, Code, Date |
+
+- Reason: moving a sticky column would break the offsets the user reads by (PRD-B11, PRD-B14).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B11, PRD-B14.
+
+**STK-08** While the document scrolls under the sticky header and sticky columns, a control that receives focus MUST
+NOT be fully hidden by the bar, the sticky header or a sticky column, unless it lies inside that header or column.
+- Examples (the test runs every row; `stickyHeader`, `stickyTop` 48 with the bar, Name and Code `sticky`, 30 columns,
+  selection on; Tab forward from the element before the table through every control, then Shift+Tab back from the
+  last one; after each key, the focused control's box is not fully inside the bar's, the header row's (while it is
+  sticky) or a sticky column's box, except a control inside that header row or column; the links "Go <row>" are the
+  body controls that pass under them):
+
+  | View | Direction |
+  |---|---|
+  | 1280 by 800 (the test first asserts that the header is sticky) | left to right |
+  | 1280 by 800 | `dir="rtl"` on the page's `html` element |
+  | the 320 view (the test first asserts that the header is not sticky) | left to right |
+
+- Reason: WCAG 2.4.11 (PRD-A1, section 4.3); whether an engine honours the component's scroll margins is proved here
+  per engine, and where one does not, the component scrolls the focused control clear itself (PRD section 5.1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14, PRD-A1.
+
+**STK-11** For invalid sticky input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05; the test runs every value in the row):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | `stickyTop` is -1, `NaN` or `Infinity` | `stickyTopInvalid` | "The sticky top offset is not a valid number." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order.
+- Reason: a header stuck at a wrong place hides rows (PRD-B16).
+- Layer: component.
+- Traces: PRD-B16, PRD-B14.
+
+**STK-13** Without `stickyHeader`, each column with `sticky` MUST stay at its inline-start offset inside the region while
+the region scrolls sideways.
+- Example: no `stickyHeader`, 30 columns as in STK-09, Name and Code `sticky`; the region scrolled to `scrollLeft` 2000:
+  Name's left edge is within 1 px of the region's inner left edge, and Code's is Name's width to the right of it.
+- Reason: sticky leading columns serve wide tables in either layout (PRD-B14); without the sticky header the region is
+  the scroll container (A11Y-12).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B14.
+
+**STK-15** Every fixed word this section's table shows MUST come from a prop with an English default.
+- Examples (as RND-06): the alert message of STK-11 (STK-11). STK-10's console warning is not shown by the table.
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
 ## 15. Child rows (CHILD, milestone 6)
 
 These statements add the snippet `detail` (called with a row), `detailName(row)` (the accessible name of that row's
@@ -3991,7 +4257,8 @@ controls of its open detail row, before the next row.
 These statements close PRD-A3 and PRD-A9 for every intent of sections 7 to 15, and state 2.1.4 and 2.4.6 of PRD
 section 4.3. "Every intent" is the list of the intents' examples below, one row each; a table in these examples has
 every feature on: sortable columns, a pager, a text and a categorical filter, the global search, `onreset`, the
-chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows.
+chooser with resizable columns, selection and child rows, `oncancel` and `onretry`, and 30 rows: the site's full
+page (`spec/site.md` FULL-01 and FULL-02).
 
 **A11Y-36** The "Skip past table" link MUST be the component's first focusable element.
 - Example: a `heading` snippet holding the link "All orders" and an `actions` snippet holding "Export": Tab from the
@@ -4069,6 +4336,567 @@ page body.
 
 **A11Y-47** Every fixed word of this section MUST come from a prop with an English default.
 - Examples (as RND-06): `skipTable` "Skip past table" (A11Y-36).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+### The views: target size, zoom, reflow, text spacing, forced colours, focus and right-to-left (milestone 7)
+
+These statements run in the views of PRD section 4.3 on the test site's page with the table of section 16's set-up
+(every feature on), with no dialog open unless a statement opens one: the default view (1280 by 800 CSS px), the zoom
+view (640 by 400 at device scale factor 2, 200 % zoom), the 320 view (320 by 256 at factor 4) and the spacing view (a
+same-origin stylesheet setting the WCAG text-spacing values with `!important`; the test first asserts that a body
+cell's computed `line-height` and `letter-spacing` equal them). "The clipping check" is the algorithm of PRD section
+4.3, in its words: (a) for every text-holding element and control in the component except the scroll region itself,
+where computed overflow is not `visible`, `scrollWidth <= clientWidth + 1` and `scrollHeight <= clientHeight + 1`;
+(b) for every header and body cell, the bounding box of a text range over its contents lies within the cell's border
+box (+-1 px); (c) the bounding boxes of visible controls in the toolbar, header cells, badges and pager intersect by at
+most 1 px; (d) at horizontal scroll 0, every element outside the table lies within the viewport width. One reading
+of (a) this spec fixes, of the PRD's own exception for what is clipped by design: the caption, the live regions and
+the skip link while not focused are visually hidden on purpose, hold no visible text and are left out, and the test
+asserts that each of them is hidden as A11Y-46 states for the skip link (outside the viewport or at most 1 by 1 CSS
+px). A second reading of (a), for a dialog that scrolls by design, is A11Y-49's. "The dialogs" are the filter
+dialog of the text filter's column, the filter dialog of the categorical filter's column and the column chooser. The
+views with density "compact" and the variants are section 18's (THEME-22, THEME-42 to THEME-45).
+
+**A11Y-39** Every pointer target of the component MUST be at least 24 by 24 CSS px while it is shown.
+- Examples (the test runs every row; every button, link, checkbox, field, separator and grip the component renders
+  itself, not the application's snippets; each measured with `getBoundingClientRect` while shown: a dialog's controls
+  while it is open, the skip link while focused):
+
+  | View | Smallest width and height |
+  |---|---|
+  | default | at least 24 by 24 |
+  | 320, no dialog open | at least 24 by 24 |
+
+  Spacing between targets is not relied on, which is stricter than PRD-A6 allows.
+- Reason: WCAG 2.5.8 (PRD-A6, section 4.3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A6, PRD-A1.
+
+**A11Y-40** In the zoom view, the clipping check MUST pass.
+- Example: the zoom view, then the progress indicator with "Still loading" and "Cancel" shown (`oncancel` passed,
+  `status 'loading'` for 6 seconds, fake timers): the clipping check passes in both.
+- Reason: WCAG 1.4.4 (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-41** In the 320 view, the clipping check MUST pass.
+- Example: the 320 view, as A11Y-40: the clipping check passes in both; by its part (d) the toolbar, the badges,
+  the pager, "Still loading" and "Cancel" lie within the viewport's width at a horizontal scroll of 0, while the table
+  scrolls sideways inside the region.
+- Reason: WCAG 1.4.10 exempts the table but not what surrounds it (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-42** In the spacing view, the clipping check MUST pass.
+- Example: the spacing view, as A11Y-40, after the test has asserted the spacing values on a body cell.
+- Reason: WCAG 1.4.12 (PRD-A11).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-49** With each dialog open in turn, the clipping check MUST pass in the zoom, 320 and spacing views.
+- Examples (the test runs every row with each of the dialogs; a dialog is opened by its trigger and left open while
+  the check runs):
+
+  | View | Result |
+  |---|---|
+  | zoom | the clipping check passes, and the open dialog's box lies within the viewport |
+  | 320 | the clipping check passes, and the open dialog's box lies within the viewport |
+  | spacing | the clipping check passes, and the open dialog's box lies within the viewport |
+
+  "Within the viewport": the dialog's `getBoundingClientRect()` has left and top at least 0 and right and bottom at
+  most the viewport's width and height (+-1 px), as FILT-34 states. With a dialog open, part (b) also covers each
+  text-holding element of the dialog (its text range within its own border box) and part (c) also covers the
+  dialog's visible controls. One reading of (a): an open dialog whose computed `overflow-y` is `auto` or `scroll` is
+  left out of (a)'s `scrollHeight` half only (a long chooser scrolls inside a 320 by 256 view by design, its box
+  still within the viewport); its `scrollWidth` half, and every element inside it, are checked as usual.
+- Reason: the dialogs are part of the component that surrounds the table, which WCAG 1.4.4, 1.4.10 and 1.4.12 do not
+  exempt (PRD-A11); a dialog that scrolls vertically is a scroll region, as the region is.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A11, PRD-A1.
+
+**A11Y-45** Every control of the component but the region MUST show a visible focus indicator when it is focused by
+keyboard.
+- Examples (the test runs every row; the default view; Tab through every control, each dialog opened in turn; each
+  control's computed outline, or a box-shadow entry, has a width, spread or blur of at least 1 CSS px with a colour
+  whose alpha is above 0, and differs from its unfocused style, as A11Y-07 states for the region):
+
+  | Rows |
+  |---|
+  | plain rows |
+  | the first row selected (`isSelected` true for it only): its box and the controls in its cells |
+
+  Striped and hovered rows are THEME-43's.
+- Reason: WCAG 2.4.7 (PRD-A1).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A1.
+
+**A11Y-11** In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and
+the "Cancel" and "Try again" buttons MUST stay visible.
+- Examples (the test runs every row; Chromium's forced-colours emulation (`forcedColors: 'active'`), the default
+  view; every screenshot is taken with animations disabled and the mouse outside the component; "drawn" means that a
+  screenshot of the element's box differs from a screenshot of the same box with the element set to
+  `visibility: hidden`; "differ" means that two screenshots of the same box differ; a focus row's box is the
+  control's box grown by 8 CSS px on each side, so a ring drawn outside the control is in the shot):
+
+  | Item | Check |
+  |---|---|
+  | every control A11Y-45 reaches by Tab, the column separators included, but the skip link | focused and unfocused differ |
+  | the region, on A11Y-07's 30-column table in a 600 px viewport, once the test has asserted it is a Tab stop | focused and unfocused differ |
+  | the skip link | focused, and focused with `outline-style: none` and `box-shadow: none` set through the CSSOM, differ (unfocused it is hidden, A11Y-46) |
+  | "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) and "Try again" (`onretry`, `status 'stopped'`) | each: focused and unfocused differ |
+  | a row box | unchecked, checked and, for the header box, mixed differ pairwise |
+  | the mark of a sort with rank "2" | ascending and descending differ |
+  | a column separator | drawn |
+  | the progress indicator, "Still loading" and "Cancel" (`oncancel`, `status 'loading'` for 6 seconds, fake timers) | each drawn |
+  | "Try again" (`onretry`, `status 'stopped'`) | drawn |
+
+- Reason: users of high-contrast modes lose any state shown only by a background, a box-shadow or a custom colour
+  (PRD-A8). Stated limits (PRD section 4.3): Firefox's emulation only flips the media query, so its rendered proof is
+  the release's contrast-theme step (PRD-A5); WebKit has no rendered proof, a limit PRD-D3 states.
+- Layer: real browser (Chromium only, for the reason above).
+- Traces: PRD-A8.
+
+**I18N-02** Under `dir="rtl"`, the component's reading order MUST be its document order and its layout MUST mirror.
+- Examples (the test runs every row; the default view, the page's `html` element with `dir="rtl"`):
+
+  | Check | Result |
+  |---|---|
+  | Tab through the controls but the region; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's |
+  | the box column's header cell | its right edge within 1 px of the region's inner right edge (`clientLeft + clientWidth` from the region's left) |
+  | the pager | "First page" lies right of "Last page" |
+  | the column chooser open: Tab through its controls; for each two in a row whose boxes overlap vertically | the later one's right edge is at or left of the earlier one's ("Move earlier" before "Move later"); at least one such pair exists in each entry, or the row fails |
+
+- Reason: WCAG 1.3.2 in right-to-left, and logical properties mirror the layout (PRD-I3).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I3, PRD-A1.
+
+**I18N-03** Under `dir="rtl"`, the arrow keys on the focused region MUST scroll it the way they point.
+- Example: the 30-column table of A11Y-12 in a 600 px viewport, `dir="rtl"`: Tab to the region; ArrowLeft three times
+  reveals the columns at the inline end (the region's `scrollLeft` moves to more negative values); ArrowRight
+  scrolls back.
+- Reason: arrow keys follow the reading direction (PRD-I3), as A11Y-08 states left to right.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-I3, PRD-A3.
+
+## 17. Class hooks and alignment (THEME, milestone 8)
+
+These statements add a column's `class` and `headerClass` (strings), a column's `align` (`'start'`, the default,
+`'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string, or
+`undefined` or `null` for no class (PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
+only, DEP-36). A hook adds classes: the component's own classes (THEME-09) stay. "Data cells" are the body cells of
+the given columns in data rows. A hook, class or alignment given as
+`undefined` or `null` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
+`{ id: 'r2', name: 'alpha', code: 'A-1' }` and the columns Name and Code.
+
+**THEME-23** A column's `class` MUST appear, as given, on that column's header cell and on each of its data cells.
+- Examples (the test runs every row; the class tokens read with `classList`):
+
+  | Code's `class` | Code's header cell and both data cells | Name's cells |
+  |---|---|---|
+  | `'num wide'` | hold `num` and `wide`, and `sdt-th` or `sdt-cell` | hold neither |
+  | `''` | hold no class but `sdt-th` or `sdt-cell` | as before |
+  | not given, `undefined` or `null` | as for `''` | as before |
+
+- Reason: DataTables users style columns by class (PRD-T7).
+- Layer: component.
+- Traces: PRD-T7.
+
+**THEME-27** A column's `headerClass` MUST appear on that column's header cell only, after the tokens of its `class`.
+- Example: Code's `class` `'num'` and `headerClass` `'head-num'`: the header cell's `classList` holds `num` before
+  `head-num`; Code's data cells hold `num` and not `head-num`.
+- Reason: DataTables' `dt-head-*` classes style a header apart from its body (PRD-T14).
+- Layer: component.
+- Traces: PRD-T14.
+
+**THEME-24** `rowClass(row)` MUST be called for each data row, and its result MUST appear on that row's `tr`.
+- Examples (the test runs every row):
+
+  | `rowClass` | r1's `tr` | r2's `tr` |
+  |---|---|---|
+  | `(r) => r.name === 'Beta' ? 'hot' : ''` | holds `hot` and `sdt-row` | holds `sdt-row` only |
+  | `() => 'x  y'` | holds `x`, `y` and `sdt-row` | the same |
+  | `(r) => r.name === 'Beta' ? 'hot' : undefined` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+  | `(r) => r.name === 'Beta' ? 'hot' : null` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+
+  With `detail` and `expanded` `['r1']`, r1's detail row holds no `hot`; with `status 'ready'` and no rows,
+  `rowClass` is not called.
+- Reason: DataTables' `createdRow` marks rows by their data (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8.
+
+**THEME-28** `cellClass(row, column)` MUST be called for each data cell, with that cell's row and column, and its
+result MUST appear on that cell's `td`, after the column's `class`.
+- Example: Code's `class` `'num'`, `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : ''`:
+  r2's Code cell holds `num` before `low`, and `sdt-cell`; r1's Code cell holds `num` only besides `sdt-cell`; the
+  Name cells hold neither; with `selection` given, the box cells hold no class from `cellClass`, and every call of
+  `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code; compared by `r.id` and `c.id`), each pair at least
+  once. With `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : undefined` the cells hold
+  the same classes, and no alert shows.
+- Reason: DataTables' `createdCell` marks cells by their value (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8.
+
+**THEME-29** The classes from `rowClass` and `cellClass` MUST follow a change of the reactive state the functions read
+and the replacement of a row by a new object, and an unchanged row MUST keep its classes.
+- Examples (the test runs every row; `hot` a `$state` variable of the test's host starting at `'r1'`; `rows` held in
+  `$state.raw`, so "r1 the same object" is the object given before):
+
+  | Hook | Change | r1 | r2 |
+  |---|---|---|---|
+  | `rowClass: (r) => hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its `tr` loses `hot` | its `tr` gains `hot` |
+  | `cellClass: (r, c) => c.id === 'code' && hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its Code cell loses `hot` | its Code cell gains `hot` |
+  | `rowClass: (r) => r.name === 'Beta' ? 'hot' : r.name === 'gamma' ? 'new' : ''` | `rows` given again with r1 the same object and r2 a new object `{ id: 'r2', name: 'gamma', code: 'A-1' }` | its `tr` keeps `hot` | its `tr` gains `new` |
+  | `cellClass: (r, c) => c.id === 'name' && r.name === 'gamma' ? 'new' : ''` | as the row above | its Name cell holds no `new` | its Name cell gains `new` |
+
+- Reason: a changed row is a new row object, and a hook is called again when reactive state it reads changes
+  (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8, PRD-B1.
+
+**THEME-26** A column's `align` MUST set the inline alignment of its header and data cells.
+- Examples (the test runs every row; on the host page "none" of THEME-10; computed `text-align` of the header cell and
+  data cells of Code, and of Name, whose `align` is not given):
+
+  | Code's `align` | Code's `text-align` | Name's `text-align` |
+  |---|---|---|
+  | not given, `undefined` or `null` | `start` | `start` |
+  | `'start'` | `start` | `start` |
+  | `'center'` | `center` | `start` |
+  | `'end'` | `end` | `start` |
+
+- Reason: DataTables' `dt-left`, `dt-center` and `dt-right`; logical values turn with right-to-left (PRD-T14, PRD-I3).
+- Layer: real browser (Chromium, Firefox, WebKit), since the computed style comes from the package's stylesheet.
+- Traces: PRD-T14.
+
+**THEME-30** A sortable column's sort button, holding its text and its mark, MUST sit at the inline edge its `align`
+names.
+- Examples (the test runs every row; Code sortable, 300 CSS px wide while resizable (`columnState.widths`
+  `{ code: 300 }` and `oncolumnstate` passed); `sort` `[code asc]`, so the mark shows; edges of the sort button's
+  border box against "the free span", the part of the header cell's content box on the button's line not covered by
+  the boxes of Code's grip (COL-13) and separator, within 1 px; the test first asserts that the button is at least
+  100 px narrower than the free span, so the check cannot pass by a full-width button):
+
+  | `align` | Direction | Edge |
+  |---|---|---|
+  | `'start'` | left to right | left edges equal |
+  | `'end'` | left to right | right edges equal |
+  | `'center'` | left to right | centres equal |
+  | `'start'` | `dir="rtl"` on the page's `html` element | right edges equal |
+  | `'end'` | `dir="rtl"` | left edges equal |
+
+- Reason: the mark sits at the same inline edge as the header text (PRD-T14), so a right-aligned number column keeps
+  its mark beside its label.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T14, PRD-I3.
+
+**THEME-31** For invalid class or alignment input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05; the test runs every row and every value in it):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | a column's `class` or `headerClass` is given and is not a text (5) | `classInvalid` | "A class setting is not valid." |
+  | `rowClass` or `cellClass` is given and is not a function (the text "hot") | `classInvalid` | "A class setting is not valid." |
+  | `rowClass` or `cellClass` returns a value that is not a text, `undefined` or `null` (5, `false`), or throws, for r1 | `classInvalid` | "A class setting is not valid." |
+  | a column's `align` is given and is not one of `'start'`, `'center'`, `'end'` (`'left'`, 5) | `alignInvalid` | "A column alignment is not valid." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order,
+  then the rows above in their order. The alert holds no value taken from the rows, the columns or a thrown error (as
+  RND-09).
+- Reason: a class the application meant to set and the table silently dropped hides a state from the user (PRD-B16).
+- Layer: component.
+- Traces: PRD-B16, PRD-T7, PRD-T8, PRD-T14.
+
+**THEME-32** Every fixed word of the class hooks MUST come from a prop with an English default.
+- Examples (as RND-06): the alert messages of THEME-31 (THEME-31).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+## 18. Tokens, contrast and variants (THEME, milestone 8)
+
+These statements add `density` (`'normal'`, the default, or `'compact'`) and the booleans `striped`, `hover`,
+`cellBorders` and `orderColumn`, each `false` by default (PRD-T5, T6, T13; DataTables' `compact`, `stripe`, `hover`,
+`cell-border` and `order-column`, FETCHED 2026-11-18 in the PRD), the example token set and the token-pair table
+(PRD-T4, A12). "The example token set" is the stylesheet of `--sdt-*` values the site ships and the documentation shows,
+in a light and a dark set. "The token-pair table" is a table in the documentation, beside the token table of THEME-02,
+with one row per pair: each side's role as THEME-33 names it ("body text", "the stripe") and its token, and the ratio
+its criterion asks (4.5 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours.
+"The compact view" is the view of PRD section 4.3 with `density 'compact'` and every variant on, in a desktop context
+without touch; "the light view", "the dark view" and "the no-token view" are the site's views with the light set, the
+dark set and no `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are
+given by its own parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted
+by Name and then Code where a row says so, with the columns Name, Code and Date and selection on: the site's full page
+(`spec/site.md` FULL-01 to FULL-06), whose list gives the rows, pages and sticky cell these examples name. A prop given
+as `undefined` or `null` counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
+size budgets of the variants (PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the
+hover surface is painted (`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in
+the paint order and THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view
+(PRD-A12) and the no-token view's cell backgrounds (PRD section 4.3).
+
+**THEME-33** The token-pair table MUST hold a row for each of these pairs, in the light and in the dark set.
+- Examples (the check reads the token-pair table and compares its pairs, by the role columns, with this list; a missing
+  pair is a finding, an extra row is not; no table, or 0 rows, is "could not check"; the test plants a table missing one
+  pair as a canary):
+
+  | Foreground | On each of these backgrounds | Ratio |
+  |---|---|---|
+  | body text | the surface, the stripe, the hover surface, the sorted-column surface of rank 1, 2 and 3 or later | 4.5 |
+  | the selected text | the selected surface | 4.5 |
+  | header text | the header surface | 4.5 |
+  | the focus ring, a row box's border and its checked mark | the surface, the stripe, the hover surface, the selected surface, the sorted-column surface of rank 1, 2 and 3 or later | 3 |
+  | a sort mark, a column separator, the focus ring, the header hover outline | the header surface | 3 |
+  | the progress indicator, the boundary of "Cancel" and of "Try again" | the surface | 3 |
+
+- Reason: the PRD names these pairs for 1.4.3 and 1.4.11 (section 4.3); a table that drops one leaves a pair no check
+  reads (PRD-T4, PRD-A12). Each cell shows one opaque surface (THEME-41), so "selected over stripe" is the selected
+  surface's pair.
+- Layer: static check.
+- Traces: PRD-T4, PRD-A12.
+
+**THEME-41** Each body cell of a data row MUST show exactly one opaque surface: the first that applies of the selected
+surface, the hover surface, the sorted-column surface of its rank, the stripe and the surface.
+- Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name; in a
+  desktop context without touch; r2 is on a striped place; the test first asserts that the values of the surface, the
+  stripe, rank 1, hover, the selected surface, body text and selected text colours differ pairwise; each cell's computed
+  background has alpha 1 and equals the named token's value):
+
+  | Cell | Selected | Pointer over its row | Surface shown | Text colour |
+  |---|---|---|---|---|
+  | r1, Code | no | no | the surface | body text |
+  | r2, Code | no | no | the stripe | body text |
+  | r2, Code | no | yes | the hover surface | body text |
+  | r2, Name | no | no | the sorted-column surface of rank 1 | body text |
+  | r2, Name | no | yes | the hover surface | body text |
+  | r2, Name | yes | yes | the selected surface | the selected text |
+  | r1, Code | yes | no | the selected surface | the selected text |
+- Reason: DataTables paints the selected surface over hover, the sorted column and stripes (FETCHED 2026-11-19, the
+  DataTables 2.3.2 stylesheet; the PRD's class names are those of 3.1.5), but as translucent tints that add up; one opaque token per cell lets the token pairs
+  decide contrast (PRD-A12, DEP-48).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T6, PRD-T13, PRD-A12.
+
+**THEME-17** For each row of the token-pair table, the example token set's colours MUST have at least the row's
+contrast, in the light and in the dark set.
+- Examples (the check reads the example token set and the token-pair table and compares the ratio unrounded; the
+  test runs every row against a canary set holding it):
+
+  | Foreground value | Background value | Ratio asked | Result |
+  |---|---|---|---|
+  | `#333333` | `#ffffff` | 4.5 | passes (12.63) |
+  | `#999999` | `#ffffff` | 4.5 | finding (2.85) |
+  | `#777777` | `#ffffff` | 4.5 | finding (4.48) |
+  | `#767676` | `#ffffff` | 3 | passes (4.54) |
+  | `#aaaaaa` | `#ffffff` | 3 | finding (2.32) |
+  | `rgb(0 0 0 / 0.5)` | `#ffffff` | 3 | finding: a colour with alpha below 1 cannot be decided here |
+  | a token the set does not define | `#ffffff` | 4.5 | could not check |
+
+- Reason: A1 is claimed with the example tokens (PRD-T4); a unit check over every pair catches a bad value before any
+  page renders it (PRD-A12).
+- Layer: static check.
+- Traces: PRD-T4, PRD-A12.
+
+**THEME-34** The example token set MUST define every name of THEME-02's token table, in the light and in the dark set.
+- Example: a token table row `--sdt-stripe` with no `--sdt-stripe` in the dark set is a finding; the check reports
+  how many names it read, and 0 is "could not check".
+- Reason: a name the set leaves out falls back to the stylesheet's own value, which no pair or size check read
+  (PRD-T4).
+- Layer: static check.
+- Traces: PRD-T4.
+
+**THEME-47** The styling guide `docs/styling.md` MUST hold the token table and the token-pair table, each a Markdown
+table under its own heading.
+- Example: under "Tokens", the columns Token, Paints and Fallback, one row per `--sdt-*` name (THEME-02); under "Token
+  pairs", the columns Foreground role, Foreground token, Background role, Background token and Ratio (THEME-33). A
+  missing heading or column is a finding of this check and "could not check" for THEME-02 and THEME-33; the headings
+  are level 2 with exactly that text, and the test plants a guide missing "Token pairs" as a canary.
+- Reason: the checks read the tables from one known place; PRD-D9 puts the token table in the styling guide.
+- Layer: static check.
+- Traces: PRD-D9, PRD-T4.
+
+**THEME-19** `density 'compact'` MUST lower the body and header cells' padding and MUST change no other property of
+THEME-10's named set.
+- Examples (the test runs every row; the light view with `density` as given and no variant on):
+
+  | `density` | Body and header cells' padding (block and inline) | Every other property of THEME-10's set, on every element |
+  |---|---|---|
+  | `'normal'` | the normal padding | as THEME-10 states |
+  | `'compact'` | less than the normal padding on each side, read from its own padding tokens | equal to the `'normal'` row |
+
+  No height is fixed: in both densities, a body cell holding five lines of text makes its row taller than a row of
+  one line (this guards against a cell taken out of table layout; a cell `height` acts as a minimum, THEME-37). Its targets keep 24 by 24 CSS px (THEME-22).
+- Reason: compact tables show more rows without shrinking targets or fixing heights (PRD-T5).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T5.
+
+**THEME-20** With `striped`, every second data row MUST have the stripe surface on each of its body cells, counted
+over data rows only, unless a surface of higher precedence applies (THEME-41).
+- Examples (the test runs every row; the light view):
+
+  | Body rows, in order | Cells with the stripe surface |
+  |---|---|
+  | r1 to r4 | the cells of r2 and r4 |
+  | r1, r1's child row, r2, r3 | the cells of r2; the child row's cells keep the surface |
+  | the empty message (`rows []`) | none |
+  | r1 to r4, `striped` not given | none |
+  | page 2 of `pageSize` 3: r4, r5, r6 | the cells of r5 (the count starts on each page) |
+
+  A sticky cell of a striped row shows the stripe: stripe and hover are painted on each body cell (PRD-T6).
+- Reason: DataTables' `stripe`; a message row or a child row is not a data row, so it must not shift the pattern
+  (PRD-T6, STATE-03); the count starts on each page because the table holds one page. Which surface wins on a striped
+  cell is THEME-41's.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T6.
+
+**THEME-36** With `cellBorders`, every body and header cell MUST have a border of at least 1 CSS px on each side it
+shares with another cell.
+- Example: the light view, the cells of r1 to r3 in Name, Code and Date and the header cells above them: each edge
+  between two of them has a computed border width of at least 1 px and a border colour with alpha above 0; without
+  `cellBorders`, the inner edges between columns have none (the column separators of the header are not borders).
+- Reason: DataTables' `cell-border` (PRD-T6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T6.
+
+**THEME-25** With `orderColumn`, the body cells of each sorted column MUST have the sorted-column surface of its rank,
+unless a surface of higher precedence applies (THEME-41).
+- Examples (the test runs every row; the light view):
+
+  | `sort` | Name's body cells | Code's body cells | Date's body cells |
+  |---|---|---|---|
+  | Name ascending | rank 1 surface | the surface | the surface |
+  | Name, then Code, then Date | rank 1 surface | rank 2 surface | rank 3 or later surface |
+  | `[]` | the surface | the surface | the surface |
+  | Name ascending, `orderColumn` not given | the surface | the surface | the surface |
+
+  Header cells are not painted. Which surface wins on a sorted cell is THEME-41's.
+- Reason: DataTables' `order-column`, by rank because ranks are known (PRD-T13, PRD-B5).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T13.
+
+**THEME-21** Each length token of the package's stylesheet MUST fall back to `0` or a `rem` value, and each font-size
+token MUST fall back to `inherit`.
+- Examples (the scan runs every row against a canary stylesheet holding it):
+
+  | Declaration | Result |
+  |---|---|
+  | `padding-block: var(--sdt-cell-padding-block, 0.5rem)` | passes |
+  | `padding-block: var(--sdt-cell-padding-block, 8px)` | finding |
+  | `font-size: var(--sdt-body-font-size, inherit)` | passes |
+  | `font-size: var(--sdt-body-font-size, 0.875rem)` | finding |
+  | `vertical-align: var(--sdt-header-align, bottom)` (a keyword token) | passes |
+  | `height: var(--sdt-row-min-height, 2.5rem)` on a body cell | passes |
+  | `height: var(--sdt-row-min-height)` (no fallback) | finding |
+  | `padding-inline: var(--sdt-cell-padding-inline, 0)` | passes |
+  | `padding-inline: var(--sdt-cell-padding-inline, 1em)` | finding |
+  | `border-radius: var(--sdt-radius, calc(0.25rem + 1px))` | finding |
+
+  A length token is a `--sdt-*` property read in a `padding*`, `height`, `width` or `border*-radius` declaration; a
+  fallback of `0` or in `rem` passes; any other unit, a `calc()` or a missing fallback is a finding. The scan reads the
+  stylesheet as THEME-01 does; a keyword token (as `vertical-align`) is not read; 0 length or font-size declarations is
+  "could not check".
+- Reason: `rem` keeps 1.4.4, and font sizes inherit so the table takes the container's size (PRD-T9, PRD-T11).
+- Layer: static check.
+- Traces: PRD-T9.
+
+**THEME-37** Each size token MUST set its property when the application defines it.
+- Examples (the test runs every row; the no-token view, then the row's one token defined on the component's
+  container through CSSOM `style.setProperty`, which the strict policy allows; for rows 2 on, the test first asserts
+  that the value read without the token differs from the row's value, so a row cannot pass on the fallback; for row 1
+  it first asserts that the container's 20px differs from the browser default 16px):
+
+  | Token defined | Read on | Computed value |
+  |---|---|---|
+  | none, the container's `font-size` 20px | a body cell and a header cell | `font-size` 20px |
+  | the body font size, `1.25rem` | a body cell | `font-size` 20px |
+  | the header font size, `1.25rem` | a header cell | `font-size` 20px |
+  | the cell padding (inline), `1rem` | a body cell and a header cell | `padding-inline-start` 16px |
+  | the cell padding (block), `1rem` | a body cell and a header cell | `padding-block-start` 16px |
+  | the compact cell padding (inline), `0.25rem`, with `density 'compact'` | a body cell | `padding-inline-start` 4px |
+  | the compact cell padding (block), `0.125rem`, with `density 'compact'` | a body cell | `padding-block-start` 2px |
+  | the minimum row height, `3rem` | a body cell of one line | border-box height (`getBoundingClientRect`) 48px (the minimum is the cells' `height`: browsers ignore `min-height` on table rows and cells; taller content still grows the row) |
+  | the corner radius, `0.5rem` | the region, a button, a filter field | `border-top-left-radius` 8px |
+  | the sort-mark size, `1rem` | a sort mark | `width` 16px |
+  | the header vertical alignment, `top` | a header cell | `vertical-align` top |
+  | the input padding, `0.5rem` | a filter field | `padding-inline-start` 8px |
+
+  The tokens' names are those of THEME-02's table.
+- Reason: what grids expose beside colour; the application sizes the table without overriding its rules (PRD-T9).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T9.
+
+**THEME-22** In the compact view, every pointer target of the component MUST be at least 24 by 24 CSS px.
+- Example: as A11Y-39, in the compact view with the light, the dark and the no-token sets: every target at least 24
+  by 24.
+- Reason: compact lowers padding, never a target below WCAG 2.5.8 (PRD-T5, PRD-A6, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A6, PRD-T5.
+
+**THEME-42** In the compact view, the clipping check MUST pass in the zoom, 320 and spacing views, with and without
+a dialog open.
+- Example: as A11Y-40, A11Y-41, A11Y-42 and A11Y-49, in the compact view with the light, the dark and the no-token
+  sets: the clipping check passes, and an open dialog's box lies within the viewport.
+- Reason: every shipped variant meets A1's claims (PRD-T10, PRD-A11; PRD section 4.3's variant views).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A11.
+
+**THEME-43** In the compact view, every control but the region MUST show a visible focus indicator, also under the
+pointer.
+- Example: as A11Y-45, in the compact view with the light, the dark and the no-token sets, with the pointer over a
+  striped row, a plain row, a selected row and a sticky cell in turn, and with one row both focused and hovered: each
+  control's indicator is visible as A11Y-45 measures it.
+- Reason: WCAG 2.4.7 on plain, striped, selected and hovered rows (PRD section 4.3, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A1.
+
+**THEME-44** In the compact view, axe MUST find no serious or critical violation in any state of the table.
+- Example: as A11Y-06's states, in the compact view with the light, the dark and the no-token sets: 0 serious or
+  critical violations.
+- Reason: 1.4.3 with the variants' surfaces, which axe decides on the rendered page (PRD section 4.3, PRD-T10).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T10, PRD-A1.
+
+**THEME-45** In the compact view, the forced-colours checks of A11Y-11 MUST pass.
+- Example: A11Y-11's rows, in the compact view with the light set: each passes.
+- Reason: stripes, hover and the sorted-column surface may vanish under forced colours; states keep their own marks
+  (PRD-A8, PRD-T6).
+- Layer: real browser (Chromium only, as A11Y-11).
+- Traces: PRD-A8, PRD-T10.
+
+**THEME-46** The package's stylesheet MUST NOT define a `--sdt-*` custom property.
+- Examples (the scan reads the stylesheet as THEME-01 does and reports how many declarations it read; with no
+  stylesheet or 0 declarations it reports "could not check"; the test runs every row against a canary stylesheet):
+
+  | Declaration | Result |
+  |---|---|
+  | `.sdt { --sdt-cell-padding-block: 0.25rem }` | finding |
+  | `@property --sdt-x { syntax: '*'; inherits: true; initial-value: 1px }` | finding |
+  | `.sdt-compact td { padding-block: var(--sdt-compact-cell-padding-block, 0.25rem) }` | passes |
+
+- Reason: the tokens are the application's (PRD-T1); a value the package defined would hide a missing token and break
+  the no-token view, where no `--sdt-*` property is defined (PRD section 4.3).
+- Layer: static check.
+- Traces: PRD-T1.
+
+**THEME-38** For invalid variant input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05; the test runs every row and every value in it):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | `density` is given and is not `'normal'` or `'compact'` (`'dense'`, 5) | `densityInvalid` | "The density is not valid." |
+  | `striped`, `hover`, `cellBorders` or `orderColumn` is given and is not `true` or `false` (`'yes'`, 1) | `variantInvalid` | "A table variant setting is not valid." |
+  | `density 'dense'` and `striped 'yes'` | `densityInvalid` | "The density is not valid." |
+  | a column's `align 'left'` and `density 'dense'` | `alignInvalid` | "A column alignment is not valid." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10, CHILD-09 and THEME-31 win, in
+  that order, then the first two rows of this table in their order. `density null` with `striped null` renders no alert,
+  the normal density and no stripe (as not given).
+- Reason: a variant the application meant to set and the table silently dropped changes what users see (PRD-B16).
+- Layer: component.
+- Traces: PRD-B16, PRD-T5, PRD-T6, PRD-T13.
+
+**THEME-39** Every fixed word of the variants MUST come from a prop with an English default.
+- Examples (as RND-06): the alert messages of THEME-38 (THEME-38).
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
 - Traces: PRD-I1.
@@ -4254,7 +5082,8 @@ page body.
 | FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
 | FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
 | FILT-52 | PRD-B29, PRD-B7 |
-| FILT-18 | PRD-B29, PRD-B2 |
+| FILT-53 | PRD-B7 |
+| FILT-18 | PRD-B29, PRD-B2, PRD-B7 |
 | FILT-06 | PRD-B6, PRD-B7 |
 | FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
 | FILT-07 | PRD-B6, PRD-B7, PRD-A1 |
@@ -4274,7 +5103,7 @@ page body.
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
 | FILT-33 | PRD-I1, PRD-B25 |
-| FILT-47 | PRD-I1, PRD-I2, PRD-B29 |
+| FILT-47 | PRD-I1, PRD-I2, PRD-B29, PRD-B7 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
 | FILT-42 | PRD-B25, PRD-B6 |
@@ -4340,6 +5169,18 @@ page body.
 | SEL-12 | PRD-B13, PRD-B12 |
 | SEL-10 | PRD-B16, PRD-B13 |
 | SEL-11 | PRD-I1 |
+| STK-01 | PRD-B14 |
+| STK-04 | PRD-B14, PRD-A11 |
+| STK-09 | PRD-B14, PRD-A2 |
+| STK-10 | PRD-B14, PRD-D3 |
+| STK-03 | PRD-B14 |
+| STK-05 | PRD-B14 |
+| STK-06 | PRD-B14, PRD-I3 |
+| STK-07 | PRD-B11, PRD-B14 |
+| STK-08 | PRD-B14, PRD-A1 |
+| STK-11 | PRD-B16, PRD-B14 |
+| STK-13 | PRD-B14 |
+| STK-15 | PRD-I1 |
 | CHILD-01 | PRD-B27, PRD-A1 |
 | CHILD-02 | PRD-B27 |
 | CHILD-03 | PRD-B27, PRD-B2 |
@@ -4355,9 +5196,46 @@ page body.
 | CHILD-12 | PRD-B27, PRD-B12 |
 | CHILD-16 | PRD-B27, PRD-A3 |
 | CHILD-09 | PRD-B16, PRD-B27 |
-| CHILD-10 | PRD-I1 |
+| CHILD-10 | PRD-I1, PRD-B27 |
 | A11Y-36 | PRD-A9 |
 | A11Y-48 | PRD-A9, PRD-A3 |
+| A11Y-39 | PRD-A6, PRD-A1 |
+| A11Y-40 | PRD-A11, PRD-A1 |
+| A11Y-41 | PRD-A11, PRD-A1 |
+| A11Y-42 | PRD-A11, PRD-A1 |
+| A11Y-49 | PRD-A11, PRD-A1 |
+| A11Y-45 | PRD-A1 |
+| A11Y-11 | PRD-A8 |
+| I18N-02 | PRD-I3, PRD-A1 |
+| I18N-03 | PRD-I3, PRD-A3 |
+| THEME-23 | PRD-T7 |
+| THEME-27 | PRD-T14 |
+| THEME-24 | PRD-T8 |
+| THEME-28 | PRD-T8 |
+| THEME-29 | PRD-T8, PRD-B1 |
+| THEME-26 | PRD-T14 |
+| THEME-30 | PRD-T14, PRD-I3 |
+| THEME-31 | PRD-B16, PRD-T7, PRD-T8, PRD-T14 |
+| THEME-32 | PRD-I1 |
+| THEME-33 | PRD-T4, PRD-A12 |
+| THEME-17 | PRD-T4, PRD-A12 |
+| THEME-34 | PRD-T4 |
+| THEME-47 | PRD-D9, PRD-T4 |
+| THEME-41 | PRD-T6, PRD-T13, PRD-A12 |
+| THEME-19 | PRD-T5 |
+| THEME-20 | PRD-T6 |
+| THEME-36 | PRD-T6 |
+| THEME-25 | PRD-T13 |
+| THEME-21 | PRD-T9 |
+| THEME-37 | PRD-T9 |
+| THEME-22 | PRD-T10, PRD-A6, PRD-T5 |
+| THEME-42 | PRD-T10, PRD-A11 |
+| THEME-43 | PRD-T10, PRD-A1 |
+| THEME-44 | PRD-T10, PRD-A1 |
+| THEME-45 | PRD-A8, PRD-T10 |
+| THEME-46 | PRD-T1 |
+| THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
+| THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
 | A11Y-37 | PRD-A3 |
 | A11Y-38 | PRD-A3 |
@@ -4379,19 +5257,22 @@ state in their own statements.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
+| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06, THEME-29 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
-| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, CHILD-08 | in part: the sticky columns staying in place come with the sticky statements |
+| PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
-| PRD-A6 | COL-33 | in part: the accessibility group states every control's target (milestone 7) |
-| PRD-I3 | COL-22 | in part: the accessibility and internationalisation group states the rest (milestone 7) |
+| PRD-A6 | COL-33, A11Y-39, THEME-22 | in full |
+| PRD-I3 | COL-22, I18N-02, I18N-03, THEME-30, STK-06 | in part: sticky columns at the inline start are the sticky group's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
+| PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
+| PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full, by the clipping check of PRD section 4.3, which tests overlap between controls only |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4399,20 +5280,21 @@ state in their own statements.
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the sticky group; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" arrives with PRD-T4; target size for the sort and pager controls arrives with the PRD-A6 statements; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
-| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35 | in part: the sticky group states the `stickyHeader` case in its own statement |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
-| PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
+| PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, THEME-39, STK-15 | in part: later groups state their own words in their own statements |
+| PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
@@ -4420,26 +5302,32 @@ state in their own statements.
 | PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
-| PRD-T1 | THEME-01, THEME-02 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
-| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the sticky group states "the header is opaque over rows" |
+| PRD-T4 | THEME-33, THEME-17, THEME-34, THEME-47 | in full |
+| PRD-D9 | THEME-11, THEME-47 | in part: the overrides (THEME-11) and the place and form of the token table; the rest of the guide comes with the docs |
+| PRD-A12 | THEME-33, THEME-17, THEME-41 | in part: the browser check of computed colours in each theme view comes with a later theming branch |
+| PRD-T10 | THEME-22, THEME-42, THEME-43, THEME-44, THEME-45 | in part: the P2 and P3 budgets of the variants are the performance group's |
+| PRD-T13 | THEME-25, THEME-38, THEME-41 | in part: the no-token view's sorted cells come with a later theming branch |
+| PRD-T1 | THEME-01, THEME-02, THEME-46 | in part: the built-package half of each scan runs once the package is built (PRD-K2) |
+| PRD-T2 | THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34, PAGE-35, THEME-15 | in part: the later sticky branch states "the header is opaque over rows" |
 | PRD-T3 | THEME-04, FOOT-04 | in part: the export path is PKG-05 and the consumer's layered import CON-10, both of `spec/package.md`; the documented import lines arrive with PRD-D1; the built-package half runs once the package is built (PRD-K2) |
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
 | PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36, THEME-16 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the dialogs (the chooser, the grips and the separators: THEME-16) and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
+| PRD-T7 | THEME-23, THEME-31 | in full |
+| PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
+| PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 
 ### PRD musts not yet traced
 
-- Sticky layout: PRD-B14.
-- Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A11, PRD-A12.
-- Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
+- Accessibility beyond the read-only table: PRD-A5, PRD-A7.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
+- Documentation: PRD-D1, PRD-D2, PRD-D3 and PRD-D9 (in part, see above), PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.

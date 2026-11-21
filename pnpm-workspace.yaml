@@ -11,6 +11,3 @@ strictDepBuilds: true
 # Equal to Dependabot's shortest npm cooldown (semver-patch-days: 3). A younger security fix is listed under
 # minimumReleaseAgeExclude with its GHSA id on the same line.
 minimumReleaseAge: 4320
-# Temporary, for GHSA-g3hv-75wg-m249: decision 001, Overrides, says when it goes.
-overrides:
-  "@typescript-eslint/typescript-estree>minimatch": 11.0.8
