@@ -4626,8 +4626,8 @@ the view of PRD section 4.3 with `density 'compact'` and every variant on, in a 
 light view", "the dark view" and "the no-token view" are the site's views with the light set, the dark set and no
 `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are given by its own
 parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted by Name and then Code
-where a row says so, with the columns Name, Code and Date and selection on. A prop given as `undefined` counts as not
-given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and size budgets of the variants
+where a row says so, with the columns Name, Code and Date and selection on. A prop given as `undefined` or `null`
+counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and size budgets of the variants
 (PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the hover surface is painted
 (`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in the paint order and
 THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view (PRD-A12) and the
@@ -4715,7 +4715,7 @@ THEME-10's named set.
 - Traces: PRD-T5.
 
 **THEME-20** With `striped`, every second data row MUST have the stripe surface on each of its body cells, counted
-over data rows only.
+over data rows only, unless a surface of higher precedence applies (THEME-41).
 - Examples (the test runs every row; the light view):
 
   | Body rows, in order | Cells with the stripe surface |
@@ -4741,7 +4741,8 @@ shares with another cell.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
 
-**THEME-25** With `orderColumn`, the body cells of each sorted column MUST have the sorted-column surface of its rank.
+**THEME-25** With `orderColumn`, the body cells of each sorted column MUST have the sorted-column surface of its rank,
+unless a surface of higher precedence applies (THEME-41).
 - Examples (the test runs every row; the light view):
 
   | `sort` | Name's body cells | Code's body cells | Date's body cells |
@@ -4777,18 +4778,20 @@ MUST fall back to `inherit`.
 
 **THEME-37** Each size token MUST set its property when the application defines it.
 - Examples (the test runs every row; the no-token view, then the row's one token defined on the component's
-  container; the test first asserts that the value read without the token differs from the row's value, so a row
-  cannot pass on the fallback):
+  container through CSSOM `style.setProperty`, which the strict policy allows; for rows 2 on, the test first asserts
+  that the value read without the token differs from the row's value, so a row cannot pass on the fallback; for row 1
+  it first asserts that the container's 20px differs from the browser default 16px):
 
   | Token defined | Read on | Computed value |
   |---|---|---|
   | none, the container's `font-size` 20px | a body cell and a header cell | `font-size` 20px |
   | the body font size, `1.25rem` | a body cell | `font-size` 20px |
   | the header font size, `1.25rem` | a header cell | `font-size` 20px |
-  | the cell padding (inline), `1rem` | a body cell | `padding-inline-start` 16px |
-  | the cell padding (block), `1rem` | a body cell | `padding-block-start` 16px |
+  | the cell padding (inline), `1rem` | a body cell and a header cell | `padding-inline-start` 16px |
+  | the cell padding (block), `1rem` | a body cell and a header cell | `padding-block-start` 16px |
+  | the compact cell padding (inline), `0.25rem`, with `density 'compact'` | a body cell | `padding-inline-start` 4px |
   | the compact cell padding (block), `0.125rem`, with `density 'compact'` | a body cell | `padding-block-start` 2px |
-  | the minimum row height, `3rem` | a body cell of one line | height 48px (the minimum is the cells' `height`: browsers ignore `min-height` on table rows and cells; taller content still grows the row) |
+  | the minimum row height, `3rem` | a body cell of one line | border-box height (`getBoundingClientRect`) 48px (the minimum is the cells' `height`: browsers ignore `min-height` on table rows and cells; taller content still grows the row) |
   | the corner radius, `0.5rem` | the region, a button, a filter field | `border-top-left-radius` 8px |
   | the sort-mark size, `1rem` | a sort mark | `width` 16px |
   | the header vertical alignment, `top` | a header cell | `vertical-align` top |
@@ -4842,10 +4845,13 @@ pointer.
 
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
-  | `density` is given and is not `'normal'` or `'compact'` (`'dense'`, `null`) | `densityInvalid` | "The density is not valid." |
-  | `striped`, `hover`, `cellBorders` or `orderColumn` is given and is not `true` or `false` (`'yes'`, 1, `null`) | `variantInvalid` | "A table variant setting is not valid." |
+  | `density` is given and is not `'normal'` or `'compact'` (`'dense'`, 5) | `densityInvalid` | "The density is not valid." |
+  | `striped`, `hover`, `cellBorders` or `orderColumn` is given and is not `true` or `false` (`'yes'`, 1) | `variantInvalid` | "A table variant setting is not valid." |
+  | `density 'dense'` and `striped 'yes'` | `densityInvalid` | "The density is not valid." |
+  | a column's `align 'left'` and `density 'dense'` | `alignInvalid` | "A column alignment is not valid." |
 
-  With several faults at once, the faults of THEME-31 and those before it win, then the rows above in their order.
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10, CHILD-09 and THEME-31 win, in
+  that order, then the rows above in their order.
 - Reason: a variant the application meant to set and the table silently dropped changes what users see (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-T5, PRD-T6, PRD-T13.
@@ -5225,7 +5231,7 @@ state in their own statements.
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
-| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full, by the clipping check of PRD section 4.3, which tests overlap between controls only |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
