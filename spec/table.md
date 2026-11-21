@@ -4618,24 +4618,25 @@ names.
 These statements add `density` (`'normal'`, the default, or `'compact'`) and the booleans `striped`, `hover`,
 `cellBorders` and `orderColumn`, each `false` by default (PRD-T5, T6, T13; DataTables' `compact`, `stripe`, `hover`,
 `cell-border` and `order-column`, FETCHED 2026-11-18 in the PRD), the example token set and the token-pair table
-(PRD-T4, A12). "The example token set" is the stylesheet of `--sdt-*` values the site ships and the documentation
-shows, in a light and a dark set. "The token-pair table" is a table in the documentation, beside the token table of
-THEME-02, with one row per pair: each side's role as THEME-33 names it ("body text", "the stripe") and its token,
-and the ratio its criterion asks (4.5 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours. "The compact view" is
-the view of PRD section 4.3 with `density 'compact'` and every variant on, in a desktop context without touch; "the
-light view", "the dark view" and "the no-token view" are the site's views with the light set, the dark set and no
-`--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are given by its own
-parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted by Name and then Code
-where a row says so, with the columns Name, Code and Date and selection on. A prop given as `undefined` or `null`
-counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and size budgets of the variants
-(PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the hover surface is painted
-(`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in the paint order and
-THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view (PRD-A12) and the
-no-token view's cell backgrounds (PRD section 4.3).
+(PRD-T4, A12). "The example token set" is the stylesheet of `--sdt-*` values the site ships and the documentation shows,
+in a light and a dark set. "The token-pair table" is a table in the documentation, beside the token table of THEME-02,
+with one row per pair: each side's role as THEME-33 names it ("body text", "the stripe") and its token, and the ratio
+its criterion asks (4.5 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours.
+"The compact view" is the view of PRD section 4.3 with `density 'compact'` and every variant on, in a desktop context
+without touch; "the light view", "the dark view" and "the no-token view" are the site's views with the light set, the
+dark set and no `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are
+given by its own parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted
+by Name and then Code where a row says so, with the columns Name, Code and Date and selection on. A prop given as
+`undefined` or `null` counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
+size budgets of the variants (PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the
+hover surface is painted (`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in
+the paint order and THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view
+(PRD-A12) and the no-token view's cell backgrounds (PRD section 4.3).
 
 **THEME-33** The token-pair table MUST hold a row for each of these pairs, in the light and in the dark set.
-- Examples (the check reads the token-pair table and compares its pairs, by the role columns, with this list; a
-  missing pair is a finding, an extra row is not; no table, or 0 rows, is "could not check"; the test plants a table missing one pair as a canary):
+- Examples (the check reads the token-pair table and compares its pairs, by the role columns, with this list; a missing
+  pair is a finding, an extra row is not; no table, or 0 rows, is "could not check"; the test plants a table missing one
+  pair as a canary):
 
   | Foreground | On each of these backgrounds | Ratio |
   |---|---|---|
@@ -4654,10 +4655,10 @@ no-token view's cell backgrounds (PRD section 4.3).
 
 **THEME-41** Each body cell of a data row MUST show exactly one opaque surface: the first that applies of the selected
 surface, the hover surface, the sorted-column surface of its rank, the stripe and the surface.
-- Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name;
-  in a desktop context without touch; r2 is on a striped place; the test first asserts that the values of the
-  surface, the stripe, rank 1, hover, selected and selected text differ pairwise; each cell's computed background has
-  alpha 1 and equals the named token's value):
+- Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name; in a
+  desktop context without touch; r2 is on a striped place; the test first asserts that the values of the surface, the
+  stripe, rank 1, hover, selected, body text and selected text colours differ pairwise; each cell's computed background
+  has alpha 1 and equals the named token's value):
 
   | Cell | Selected | Pointer over its row | Surface shown | Text colour |
   |---|---|---|---|---|
@@ -4731,15 +4732,16 @@ over data rows only, unless a surface of higher precedence applies (THEME-41).
 
   A sticky cell of a striped row shows the stripe: stripe and hover are painted on each body cell (PRD-T6).
 - Reason: DataTables' `stripe`; a message row or a child row is not a data row, so it must not shift the pattern
-  (PRD-T6, STATE-03); the count starts on each page because the table holds one page. Which surface wins on a striped cell is THEME-41's.
+  (PRD-T6, STATE-03); the count starts on each page because the table holds one page. Which surface wins on a striped
+  cell is THEME-41's.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
 
 **THEME-36** With `cellBorders`, every body and header cell MUST have a border of at least 1 CSS px on each side it
 shares with another cell.
-- Example: the light view, the cells of r1 to r3 in Name, Code and Date: each edge between two of them has a computed
-  border width of at least 1 px and a border colour with alpha above 0; without `cellBorders`, the inner edges between columns have none (the column
-  separators of the header are not borders).
+- Example: the light view, the cells of r1 to r3 in Name, Code and Date and the header cells above them: each edge
+  between two of them has a computed border width of at least 1 px and a border colour with alpha above 0; without
+  `cellBorders`, the inner edges between columns have none (the column separators of the header are not borders).
 - Reason: DataTables' `cell-border` (PRD-T6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
@@ -4773,14 +4775,13 @@ MUST fall back to `inherit`.
   | `vertical-align: var(--sdt-header-align, bottom)` (a keyword token) | passes |
   | `height: var(--sdt-row-min-height, 2.5rem)` on a body cell | passes |
   | `height: var(--sdt-row-min-height)` (no fallback) | finding |
-
   | `padding-inline: var(--sdt-cell-padding-inline, 0)` | passes |
   | `padding-inline: var(--sdt-cell-padding-inline, 1em)` | finding |
   | `border-radius: var(--sdt-radius, calc(0.25rem + 1px))` | finding |
 
   A length token is a `--sdt-*` property read in a `padding*`, `height`, `width` or `border*-radius` declaration; a
-  fallback of `0` passes, any other unit or a `calc()` fallback is a finding. The scan reads the stylesheet as
-  THEME-01 does; 0 length or font-size declarations is "could not check".
+  fallback of `0` or in `rem` passes; any other unit, a `calc()` or a missing fallback is a finding. The scan reads the
+  stylesheet as THEME-01 does; 0 length or font-size declarations is "could not check".
 - Reason: `rem` keeps 1.4.4, and font sizes inherit so the table takes the container's size (PRD-T9, PRD-T11).
 - Layer: static check.
 - Traces: PRD-T9.
@@ -4860,7 +4861,8 @@ pointer.
   | a column's `align 'left'` and `density 'dense'` | `alignInvalid` | "A column alignment is not valid." |
 
   With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10, CHILD-09 and THEME-31 win, in
-  that order, then the rows above in their order.
+  that order, then the first two rows above in their order. `density null` with `striped null` renders no alert,
+  the normal density and no stripe (as not given).
 - Reason: a variant the application meant to set and the table silently dropped changes what users see (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-T5, PRD-T6, PRD-T13.
