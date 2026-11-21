@@ -147,14 +147,20 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   as `test`. A marker whose hash no longer matches its statement, a marked test that is skipped or failing, a marker
   with no test under it, and a marker outside its one position are findings; a marked file absent from the results, a
   marker in a `scripts/` test (node:test results are not read) and a test file outside those folders are could not
-  check; statements no marker names are listed as not yet tested (gates.md G6). On a pull request, and locally against
+  check; statements no marker names are listed as not yet tested (gates.md G6). A marker in a browser spec
+  (`site/browser/**/*.spec.ts`) is checked the same way, but its results are the `browser` step's: trace counts it
+  as left to that step, never as tested, and writes no file to `reports/trace/` for it. The POL-01 and POL-03 tests
+  read the site's build, so a `test` or `trace` run on its own needs `node scripts/check-repo.ts site` first (the gate
+  runs it first); without the build they report skipped and failed. On a pull request, and locally against
   the merge base with `origin/main`, an id marked at the base whose statement still exists and which no marker names
   now is a finding; a base that cannot be named or read is could not check.
 - **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
   `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
   (never one already running), after the test step so that address is never shared. The planted failing spec in
   `scripts/canaries/browser/` must be reported first, through the same reading as the real run. A failed or skipped
-  test, or one marked `test.fail`, is a finding that names its engine. It cannot be checked when a tracked spec did
+  test, or one marked `test.fail`, is a finding that names its engine. Then the specs' `@spec` markers are read with
+  trace's own reading: a marker with no test under it in the report is a finding, and one whose tests did not run in
+  each engine cannot be checked; the planted spec's marker must come back too. It cannot be checked when a tracked spec did
   not run in each of the three engines, 127.0.0.1:4173 is taken, a browser is not installed, the report is unreadable
   or its totals differ from the tests read, or Playwright reports any other error outside the tests. With no tracked
   spec under `site/browser/` the step is NOT APPLICABLE; a spec without `playwright.config.ts` cannot be checked. In
