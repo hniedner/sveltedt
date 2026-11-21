@@ -82,8 +82,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
-  takes the next free number in its group; A11Y-33 and A11Y-34 stay unused (the slow-load group they were reserved
-  for needed neither). A requirement id from `docs/PRD.md` is written `PRD-B1`.
+  takes the next free number in its group; A11Y-33 and A11Y-34 (reserved for the slow-load group, which needed
+  neither), THEME-18, THEME-35 and THEME-40 stay unused. A requirement id from `docs/PRD.md` is written `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
@@ -4620,8 +4620,8 @@ These statements add `density` (`'normal'`, the default, or `'compact'`) and the
 `cell-border` and `order-column`, FETCHED 2026-11-18 in the PRD), the example token set and the token-pair table
 (PRD-T4, A12). "The example token set" is the stylesheet of `--sdt-*` values the site ships and the documentation
 shows, in a light and a dark set. "The token-pair table" is a table in the documentation, beside the token table of
-THEME-02, with one row per pair: the foreground token, the background token and the ratio its criterion asks (4.5
-for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours. "The compact view" is
+THEME-02, with one row per pair: each side's role as THEME-33 names it ("body text", "the stripe") and its token,
+and the ratio its criterion asks (4.5 for text, 1.4.3; 3 for the rest, 1.4.11). Contrast is WCAG's contrast ratio of the two colours. "The compact view" is
 the view of PRD section 4.3 with `density 'compact'` and every variant on, in a desktop context without touch; "the
 light view", "the dark view" and "the no-token view" are the site's views with the light set, the dark set and no
 `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are given by its own
@@ -4634,8 +4634,8 @@ THEME-33 its pairs; that branch also states the browser check of computed colour
 no-token view's cell backgrounds (PRD section 4.3).
 
 **THEME-33** The token-pair table MUST hold a row for each of these pairs, in the light and in the dark set.
-- Examples (the check reads the token-pair table and compares its pairs, by role, with this list; a missing or extra
-  pair is a finding; no table, or 0 rows, is "could not check"; the test plants a table missing one pair as a canary):
+- Examples (the check reads the token-pair table and compares its pairs, by the role columns, with this list; a
+  missing pair is a finding, an extra row is not; no table, or 0 rows, is "could not check"; the test plants a table missing one pair as a canary):
 
   | Foreground | On each of these backgrounds | Ratio |
   |---|---|---|
@@ -4655,18 +4655,19 @@ no-token view's cell backgrounds (PRD section 4.3).
 **THEME-41** Each body cell of a data row MUST show exactly one opaque surface: the first that applies of the selected
 surface, the hover surface, the sorted-column surface of its rank, the stripe and the surface.
 - Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name;
-  r2 is on a striped place; each cell's computed background has alpha 1 and equals the named token's value):
+  in a desktop context without touch; r2 is on a striped place; the test first asserts that the values of the
+  surface, the stripe, rank 1, hover, selected and selected text differ pairwise; each cell's computed background has
+  alpha 1 and equals the named token's value):
 
-  | Cell | Selected | Pointer over its row | Surface shown |
-  |---|---|---|---|
-  | r1, Code | no | no | the surface |
-  | r2, Code | no | no | the stripe |
-  | r2, Name | no | no | the sorted-column surface of rank 1 |
-  | r2, Name | no | yes | the hover surface |
-  | r2, Name | yes | yes | the selected surface |
-  | r1, Code | yes | no | the selected surface |
-
-  A selected row's cells also take the selected text colour.
+  | Cell | Selected | Pointer over its row | Surface shown | Text colour |
+  |---|---|---|---|---|
+  | r1, Code | no | no | the surface | body text |
+  | r2, Code | no | no | the stripe | body text |
+  | r2, Code | no | yes | the hover surface | body text |
+  | r2, Name | no | no | the sorted-column surface of rank 1 | body text |
+  | r2, Name | no | yes | the hover surface | body text |
+  | r2, Name | yes | yes | the selected surface | the selected text |
+  | r1, Code | yes | no | the selected surface | the selected text |
 - Reason: DataTables paints the selected surface over hover, the sorted column and stripes (FETCHED 2026-11-19, the
   DataTables 2.3.2 stylesheet; the PRD's class names are those of 3.1.5), but as translucent tints that add up; one opaque token per cell lets the token pairs
   decide contrast (PRD-A12, DEP-48).
@@ -4675,15 +4676,16 @@ surface, the hover surface, the sorted-column surface of its rank, the stripe an
 
 **THEME-17** For each row of the token-pair table, the example token set's colours MUST have at least the row's
 contrast, in the light and in the dark set.
-- Examples (the check reads the example token set and the token-pair table; the test runs every row against a canary
-  set holding it):
+- Examples (the check reads the example token set and the token-pair table and compares the ratio unrounded; the
+  test runs every row against a canary set holding it):
 
   | Foreground value | Background value | Ratio asked | Result |
   |---|---|---|---|
-  | `#333333` | `#ffffff` | 4.5 | passes (12.6) |
-  | `#999999` | `#ffffff` | 4.5 | finding (2.8) |
-  | `#767676` | `#ffffff` | 3 | passes (4.5) |
-  | `#aaaaaa` | `#ffffff` | 3 | finding (2.3) |
+  | `#333333` | `#ffffff` | 4.5 | passes (12.63) |
+  | `#999999` | `#ffffff` | 4.5 | finding (2.85) |
+  | `#777777` | `#ffffff` | 4.5 | finding (4.48) |
+  | `#767676` | `#ffffff` | 3 | passes (4.54) |
+  | `#aaaaaa` | `#ffffff` | 3 | finding (2.32) |
   | `rgb(0 0 0 / 0.5)` | `#ffffff` | 3 | finding: a colour with alpha below 1 cannot be decided here |
   | a token the set does not define | `#ffffff` | 4.5 | could not check |
 
@@ -4695,7 +4697,8 @@ contrast, in the light and in the dark set.
 **THEME-34** The example token set MUST define every name of THEME-02's token table, in the light and in the dark set.
 - Example: a token table row `--sdt-stripe` with no `--sdt-stripe` in the dark set is a finding; the check reports
   how many names it read, and 0 is "could not check".
-- Reason: a name the set leaves out falls back to a system colour that no pair was checked against (PRD-T4).
+- Reason: a name the set leaves out falls back to the stylesheet's own value, which no pair or size check read
+  (PRD-T4).
 - Layer: static check.
 - Traces: PRD-T4.
 
@@ -4728,14 +4731,14 @@ over data rows only, unless a surface of higher precedence applies (THEME-41).
 
   A sticky cell of a striped row shows the stripe: stripe and hover are painted on each body cell (PRD-T6).
 - Reason: DataTables' `stripe`; a message row or a child row is not a data row, so it must not shift the pattern
-  (PRD-T6, STATE-03). Which surface wins on a striped cell is THEME-41's.
+  (PRD-T6, STATE-03); the count starts on each page because the table holds one page. Which surface wins on a striped cell is THEME-41's.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T6.
 
 **THEME-36** With `cellBorders`, every body and header cell MUST have a border of at least 1 CSS px on each side it
 shares with another cell.
-- Example: the light view, 3 by 3 cells: each inner edge between two cells has a computed border width of at least
-  1 px; without `cellBorders`, the inner edges between columns have none (the column
+- Example: the light view, the cells of r1 to r3 in Name, Code and Date: each edge between two of them has a computed
+  border width of at least 1 px and a border colour with alpha above 0; without `cellBorders`, the inner edges between columns have none (the column
   separators of the header are not borders).
 - Reason: DataTables' `cell-border` (PRD-T6).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -4771,7 +4774,13 @@ MUST fall back to `inherit`.
   | `height: var(--sdt-row-min-height, 2.5rem)` on a body cell | passes |
   | `height: var(--sdt-row-min-height)` (no fallback) | finding |
 
-  The scan reads the stylesheet as THEME-01 does; 0 length or font-size declarations is "could not check".
+  | `padding-inline: var(--sdt-cell-padding-inline, 0)` | passes |
+  | `padding-inline: var(--sdt-cell-padding-inline, 1em)` | finding |
+  | `border-radius: var(--sdt-radius, calc(0.25rem + 1px))` | finding |
+
+  A length token is a `--sdt-*` property read in a `padding*`, `height`, `width` or `border*-radius` declaration; a
+  fallback of `0` passes, any other unit or a `calc()` fallback is a finding. The scan reads the stylesheet as
+  THEME-01 does; 0 length or font-size declarations is "could not check".
 - Reason: `rem` keeps 1.4.4, and font sizes inherit so the table takes the container's size (PRD-T9, PRD-T11).
 - Layer: static check.
 - Traces: PRD-T9.
