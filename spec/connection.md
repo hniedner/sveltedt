@@ -6,14 +6,15 @@
 - **Status:** part 1 of the helper's spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
-- **Scope:** part 1: the request the helper sends (its keys, its three forms, the query's sort, filters, search, offset
-  and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it refuses,
-  `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer, `reload()`,
-  and the empty option of a categorical filter (CONN-11). Later parts: cancel, the stopped state, `onretry` and writing
-  the query (PRD-B23, PRD-B24), which would take this part past its cap of 25 statements; the first page loaded on the
-  server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is silent, DataTables'
-  practice not yet checked); and the contract tests against the recorded backends (PRD-W11), which need fixtures not yet
-  recorded.
+- **Scope:** part 1: the request the helper sends (its keys, its three forms, the query's sort, filters, search,
+  offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
+  refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
+  `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
+  cancel, the stopped state, `onretry` and
+  writing the query (PRD-B23, PRD-B24), which would take this part past its cap of 25 statements; the first page
+  loaded on the server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is
+  silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
+  which need fixtures not yet recorded.
 
 ## Conventions
 
@@ -185,8 +186,12 @@ selected, `""` and `false`.
   | `['a.b', 'x-(1)', 'a/b']` | `^(a\.b\|x\-\(1\)\|a\/b)$` | `true` |
   | one value of the ten characters `*+?[]{}\$^` (in JavaScript `'*+?[]{}\\$^'`) | `^(\*\+\?\[\]\{\}\\\$\^)$` | `true` |
   | `[]` | `""` | `false` |
+  | `['']`, the empty option of FILT-53 in `spec/table.md` | `^()$` | `true` |
+  | `['active', '']` | `^(active\|)$` | `true` |
+  | `['', 'active']` | `^(\|active)$` | `true` |
 
-  A `\|` in a cell is the character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`
+  `['']` is a selection, unlike `[]`: its empty value is sent as an empty alternative. A `\|` in a cell is the
+  character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`
   (backslash, then pipe), `true`.
 
 - Reason: the protocol has one search value per column, so "one of these values" is an anchored alternation that a
@@ -195,25 +200,10 @@ selected, `""` and `false`.
   `LIKE '%value%'` (FETCHED 2026-11-20, its source, master): there a categorical filter matches no row, and the
   server guide (PRD-D6) says so. The escaped characters are those of DataTables' own `escapeRegex` (FETCHED
   2026-11-20, DataTables 2.3.2); a JavaScript backend compiling the value with the `u` or `v` flag rejects `\-`
-  (MEASURED 2026-11-20, Node 26), which the server guide also says.
-- Layer: component.
-- Traces: PRD-B20, PRD-B7.
-
-**CONN-11** The empty option's value `''` (FILT-53 of `spec/table.md`) MUST be sent as an empty alternative in the
-group of CONN-10, in its place in `selected`, with `regex=true`.
-- Examples (the test runs every row; Status's filter):
-
-  | `selected` | `columns[2][search][value]` | `columns[2][search][regex]` |
-  |---|---|---|
-  | `['']` | `^()$` | `true` |
-  | `['active', '']` | `^(active\|)$` | `true` |
-  | `['', 'active']` | `^(\|active)$` | `true` |
-
-  `['']` is a selection, unlike `[]`, which sends `""` and `false` (CONN-10).
-- Reason: in a backend that honours `regex`, the empty alternative adds the empty value, and no other, to what the
-  anchored group matches (PRD-B7); the helper sends no word of its own for "no value", so no server has to know one. That
-  `^()$` with `regex=true` finds exactly the rows without a value is the backend reviewer's claim (2026-11-20), not
-  measured here; whether a server counts a null as empty is the server's, and the server guide (PRD-D6) says so.
+  (MEASURED 2026-11-20, Node 26), which the server guide also says. The empty alternative adds the empty value, and no
+  other, to what the group matches, so "no value" needs no word a server must know; that `^()$` with `regex=true`
+  finds exactly the rows without a value is the backend reviewer's claim (2026-11-20), not measured here, and whether
+  a server counts a null as empty is the server's (PRD-D6).
 - Layer: component.
 - Traces: PRD-B20, PRD-B7.
 
@@ -463,7 +453,6 @@ filters is served (else CONN-16).
 | CONN-08 | PRD-B20, PRD-B4 |
 | CONN-09 | PRD-B20, PRD-B6 |
 | CONN-10 | PRD-B20, PRD-B7 |
-| CONN-11 | PRD-B20, PRD-B7 |
 | CONN-12 | PRD-B20, PRD-B25 |
 | CONN-13 | PRD-B20, PRD-B4, PRD-B8, PRD-B25 |
 | CONN-14 | PRD-B20, PRD-B8 |
@@ -485,10 +474,10 @@ filters is served (else CONN-16).
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B20 | CONN-01 to CONN-27 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, writing the query and the first page loaded on the server come with later parts |
+| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-27 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, writing the query and the first page loaded on the server come with later parts |
 | PRD-B4 | CONN-08, CONN-13 | in part: the rest is `spec/table.md`'s |
 | PRD-B6 | CONN-09 | in part: the rest is `spec/table.md`'s |
-| PRD-B7 | CONN-10, CONN-11 | in part: the rest is `spec/table.md`'s |
+| PRD-B7 | CONN-10 | in part: the rest is `spec/table.md`'s |
 | PRD-B8 | CONN-13, CONN-14 | in part: the rest is `spec/table.md`'s |
 | PRD-B9 | CONN-07, CONN-18, CONN-25, CONN-27 | in part: the rest is `spec/table.md`'s |
 | PRD-B15 | CONN-19, CONN-23 | in part: the rest is `spec/table.md`'s |
@@ -496,4 +485,4 @@ filters is served (else CONN-16).
 | PRD-B26 | CONN-17 | in part: the rest is `spec/table.md`'s |
 | PRD-S4 | CONN-26 | in part: the rest is `spec/table.md`'s |
 
-PRD-D6, the server guide, is cited in the reasons of CONN-09 to CONN-11 and traced by none: its text is the guide's.
+PRD-D6, the server guide, is cited in the reasons of CONN-09 and CONN-10 and traced by none: its text is the guide's.
