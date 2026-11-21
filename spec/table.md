@@ -4628,7 +4628,7 @@ without touch; "the light view", "the dark view" and "the no-token view" are the
 dark set and no `--sdt-*` property defined (PRD-W7, the views of `spec/site.md`); a view's density and variants are
 given by its own parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted
 by Name and then Code where a row says so, with the columns Name, Code and Date and selection on: the site's full page
-(`spec/site.md` FULL-01 to FULL-05), whose list gives the rows, pages and sticky cell these examples name. A prop given
+(`spec/site.md` FULL-01 to FULL-06), whose list gives the rows, pages and sticky cell these examples name. A prop given
 as `undefined` or `null` counts as not given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and
 size budgets of the variants (PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the
 hover surface is painted (`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in
@@ -4709,7 +4709,8 @@ contrast, in the light and in the dark set.
 table under its own heading.
 - Example: under "Tokens", the columns Token, Paints and Fallback, one row per `--sdt-*` name (THEME-02); under "Token
   pairs", the columns Foreground role, Foreground token, Background role, Background token and Ratio (THEME-33). A
-  missing heading or column is "could not check" for THEME-02 and THEME-33.
+  missing heading or column is a finding of this check and "could not check" for THEME-02 and THEME-33; the headings
+  are level 2 with exactly that text, and the test plants a guide missing "Token pairs" as a canary.
 - Reason: the checks read the tables from one known place; PRD-D9 puts the token table in the styling guide.
 - Layer: static check.
 - Traces: PRD-D9, PRD-T4.
