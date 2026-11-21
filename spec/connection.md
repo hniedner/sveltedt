@@ -8,31 +8,35 @@
 - Field names: no
 - **Scope:** part 1: the request the helper sends (its keys, its three forms, the query's sort, filters, search,
   offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
-  refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, and `reload()`. Later parts: the empty
-  alternative of a categorical filter (CONN-11 is reserved for it), cancel, the stopped state and `onretry`
-  (PRD-B23, PRD-B24), the first page loaded on the server, the pager props before the first answer, writing the
-  query, whether a superseded request is aborted, and the contract tests against the recorded backends (PRD-W11).
+  refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
+  and `reload()`. Later parts: the empty alternative of a categorical filter (CONN-11 is reserved for it; the owner
+  decided it on 2026-11-20 as its own branch, with PRD-B7 and FILT-32); cancel, the stopped state, `onretry` and
+  writing the query (PRD-B23, PRD-B24), which would take this part past its cap of 25 statements; the first page
+  loaded on the server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is
+  silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
+  which need fixtures not yet recorded.
 
 ## Conventions
 
 - **Statement form** as in `spec/table.md`: one observable behaviour, an example or example table (the test runs
   every row), the reason, the layer and a `Traces:` line; each test carries its statement's id and a hash.
 - **Layer.** Every statement here is tested at the component layer: a probe component, mounted in the simulated DOM,
-  calls `createConnection` in its script and renders `DataTable` with the returned `table` props and `Pagination`
-  with the returned `pager` props. Its `send` is a fake that records each call and returns a promise the test
+  calls `createConnection` in its script and renders `DataTable` with the returned `table` props and, once `pager`
+  is given, `Pagination` with the returned `pager` props. Its `send` is a fake that records each call and returns a promise the test
   settles. Time is never involved.
 - **The options.** `send(request, signal)`, the application's transport: it returns a promise of the answer body,
   parsed, and rejects for every answer that is not a success (an HTTP status outside 2xx included); `columns`, the
   column map, a list whose entry `i` describes the backend's column `i`: `{ data, name, id, searchable, orderable }`,
   `data` a string, `name` a string (default `""`), `id` the table column id the entry serves (optional),
   `searchable` and `orderable` booleans (default `true`); `form`, `'bracketed'` (default), `'dotted'` or `'json'`;
-  `query`, the initial query; `onerror(error)`.
+  `query`, the initial query (required); `onerror(error)`.
 - **The query** is `{ sort, filters, search, offset, limit }` with the shapes of `spec/table.md`: `sort` a list of
   `{ id, desc }`, lead first (default `[]`); `filters` the applied filter of each column id (default `{}`); `search`
-  the global search text (default `""`); `offset` and `limit` the pager's.
+  the global search text (default `""`); `offset` (default 0) and `limit` (required) the pager's.
 - **What it returns:** `{ table, pager, query, reload }`. `table` holds `rows`, `status`, `busy`, `sort`, `filters`,
   `search`, `onsort`, `onfilter`, `onclearfilter`, `onclearfilters`, `onreset` and `onsearch`; `pager` holds
-  `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`; `query` reads the current query.
+  `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`, or is `undefined` (CONN-25); `query` reads
+  the current query. A column id is "served" when a map entry's `id` is that id; the first such entry serves it.
 - **Examples.** The map M is `[{ data: 'name', name: 'n', id: 'name' }, { data: 'code', name: 'c', id: 'code' },
   { data: 'status', name: 's', id: 'status' }]`; the initial query Q0 is sort `[name asc]`, no filter, search `""`,
   offset 0, limit 10. Status has a categorical filter (`spec/table.md` section 11). A request is written as its
@@ -42,12 +46,13 @@
 
 ## 1. The request (CONN)
 
-**CONN-01** On mount, the helper MUST call `send` exactly once, with the request of the initial query and an
-`AbortSignal` that is not aborted.
+**CONN-01** On mount, with no first page given and every column id of the initial query's sort and filters served,
+the helper MUST call `send` exactly once, with the request of the initial query and an `AbortSignal` that is not
+aborted.
 - Example: Q0, `send` not settled: one call; its request holds `draw=1`, `start=0`, `length=10`, `order[0][column]=0`
   and `order[0][dir]=asc`; its signal is an `AbortSignal`, `aborted` false. No further call while nothing changes.
 - Reason: the table needs its first page, and the application's transport needs the signal to abort the request
-  (PRD-B20, PRD-B23).
+  (PRD-B20).
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -111,20 +116,23 @@ keys that keep the list indexes in brackets and join object keys with a dot.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-06** With `form: 'json'`, `send` MUST receive the plain object a DataTables 2.x client builds, its numbers and
-booleans as such.
+**CONN-06** With `form: 'json'`, `send` MUST receive the plain object a DataTables 2.x client builds, without its
+`fixed` lists, its numbers and booleans as such.
 - Example: M, Q0: the request deep-equals `{ draw: 1, start: 0, length: 10, search: { value: '', regex: false },
   columns: [{ data: 'name', name: 'n', searchable: true, orderable: true, search: { value: '', regex: false } }, …the
   same for code and status], order: [{ column: 0, dir: 'asc', name: 'n' }] }`. It is an object, not a string: the
   application stringifies it and sets its own content type.
 - Reason: a backend that binds a JSON body (spring-data-jpa-datatables' `@RequestBody DataTablesInput`, FETCHED
-  2026-11-20) expects what the client's `JSON.stringify(d)` gives (PRD-B20).
+  2026-11-20) expects what the client's `JSON.stringify(d)` gives (PRD-B20). The client's `search.fixed` and
+  `columns[i].search.fixed` lists (READ, DataTables 2.1.8 source) carry its own fixed searches, which the helper has
+  none of.
 - Layer: component.
 - Traces: PRD-B20.
 
 **CONN-07** `start` MUST be the query's offset and `length` its limit.
 - Examples (the test runs every row): offset 0, limit 10: `start=0`, `length=10`; offset 20, limit 25: `start=20`,
-  `length=25`; the same with `form: 'json'`: `start: 20`, `length: 25`, numbers.
+  `length=25`; the same with `form: 'json'`: `start: 20`, `length: 25`, numbers; from offset 20, limit 10, answered,
+  `pager.onpage(30)`: one request, `start=30`, `length=10`, and `pager.offset` 30 before it is settled.
 - Reason: the pager is offset-based, as the protocol is (PRD-B9, PRD-B20).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
@@ -160,22 +168,28 @@ its direction as `asc` or `desc` and that entry's `name`; an empty sort MUST giv
 - Layer: component.
 - Traces: PRD-B20, PRD-B6.
 
-**CONN-10** A categorical filter with selected values MUST send `^(v1|v2|…)$`, the values in the order selected, each
-with `\ ^ $ . | ? * + ( ) [ ] { } -` escaped by a backslash, and `regex=true`; with none selected, `""` and `false`.
+**CONN-10** A categorical filter with selected values MUST send `^(v1|v2|…)$`, the values in the order of
+`selected`, each with `/ . * + ? | ( ) [ ] { } \ $ ^ -` escaped by a backslash, and `regex=true`; with none
+selected, `""` and `false`.
 - Examples (the test runs every row; Status's filter):
 
   | `selected` | `columns[2][search][value]` | `columns[2][search][regex]` |
   |---|---|---|
   | `['active']` | `^(active)$` | `true` |
-  | `['inactive', 'active']` | `^(inactive|active)$` | `true` |
-  | `['a.b', 'x-(1)']` | `^(a\.b|x\-\(1\))$` | `true` |
+  | `['inactive', 'active']` | `^(inactive\|active)$` | `true` |
+  | `['a.b', 'x-(1)', 'a/b']` | `^(a\.b\|x\-\(1\)\|a\/b)$` | `true` |
+
+  (A `\|` in a cell is the character `|`.)
+
   | `[]` | `""` | `false` |
 
 - Reason: the protocol has one search value per column, so "one of these values" is an anchored alternation that a
   backend honouring `regex` matches exactly (PRD-B7); one value keeps the group form, so the server sees one shape.
   The `ssp.class.php` helper of DataTables' examples reads no `regex` and runs every column search as
   `LIKE '%value%'` (FETCHED 2026-11-20, its source, master): there a categorical filter matches no row, and the
-  server guide (PRD-D6) says so.
+  server guide (PRD-D6) says so. The escaped characters are those of DataTables' own `escapeRegex` (FETCHED
+  2026-11-20, DataTables 2.3.2); a JavaScript backend compiling the value with the `u` or `v` flag rejects `\-`
+  (MEASURED 2026-11-20, Node 26), which the server guide also says.
 - Layer: component.
 - Traces: PRD-B20, PRD-B7.
 
@@ -186,9 +200,11 @@ with `\ ^ $ . | ? * + ( ) [ ] { } -` escaped by a backslash, and `regex=true`; w
 - Layer: component.
 - Traces: PRD-B20, PRD-B25.
 
-**CONN-13** A sort, filter, search or page-size intent MUST send one request with offset 0, and the returned query
-and props MUST show the change.
-- Examples (the test runs every row; from offset 20, limit 10, the first answer settled; one intent each):
+**CONN-13** A sort, filter, search or page-size intent MUST set the query at once and send one request for it, with
+offset 0 after a sort, filter or search, and after a page-size change the offset of the page that holds the first
+row shown.
+- Examples (the test runs every row; from offset 20, limit 10, the first answer settled; one intent each; the props
+  are read before the request is settled):
 
   | Intent | The one request | `table`, `pager` |
   |---|---|---|
@@ -197,23 +213,27 @@ and props MUST show the change.
   | `table.onclearfilter('name')`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
   | `table.onclearfilters()`, Name filtered, search `x` | `start=0`, every column search `""`, `search[value]=x` | `filters` `{}`, `search` `x` |
   | `table.onsearch('beta')` | `start=0`, `search[value]=beta` | `search` `beta` |
-  | `pager.onsize(25)` | `start=0`, `length=25` | `limit` 25 |
-  | `pager.onpage(30)` (not a reset) | `start=30` | `offset` 30 |
+  | `pager.onsize(25)` | `start=0`, `length=25` | `offset` 0, `limit` 25 |
+  | `pager.onsize(25)`, from offset 60 | `start=50`, `length=25` | `offset` 50, `limit` 25 |
+  | `pager.onsize(10)`, from offset 50, limit 25 | `start=50`, `length=10` | `offset` 50, `limit` 10 |
 
 - Reason: after the rows change, the old page may not exist; DataTables' default draw goes back to the first page
-  ("The paging will be reset back to the first page", FETCHED 2026-11-20, datatables.net/reference/api/draw()).
+  ("The paging will be reset back to the first page", FETCHED 2026-11-20, datatables.net/reference/api/draw()); a
+  page-size change keeps the first row shown on screen ("Keep the start record on the current page",
+  `start -= start % len`, READ 2026-11-20, DataTables 2.1.8 source), a whole page back from it (PAGE-27 of
+  `spec/table.md`). The marks and boxes follow the intent before the answer, so the user sees what was asked.
 - Layer: component.
-- Traces: PRD-B20, PRD-B4, PRD-B8, PRD-B25.
+- Traces: PRD-B20, PRD-B4, PRD-B8, PRD-B9, PRD-B25.
 
 **CONN-14** `table.onreset()` MUST send one request with the initial order, no column filter, an empty search, offset
 0 and the current page size.
 - Examples (the test runs every row; the first answer settled, then sort `[code desc]`, Name filtered by "beta", search
   `x`, limit 25, offset 50, each answered):
 
-  | Initial sort | The one request |
-  |---|---|
-  | `[name asc]` (Q0) | `order[0][column]=0`, `order[0][dir]=asc`; every column search `""`; `search[value]=`; `start=0`, `length=25` |
-  | `[]` | no `order` key; the rest as above |
+  | Initial sort | The one request | `table`, `pager`, read before it is settled |
+  |---|---|---|
+  | `[name asc]` (Q0) | `order[0][column]=0`, `order[0][dir]=asc`; every column search `""`; `search[value]=`; `start=0`, `length=25` | `sort` `[name asc]`, `filters` `{}`, `search` `""`, `offset` 0, `limit` 25 |
+  | `[]` | no `order` key; the rest as above | `sort` `[]`; the rest as above |
 
 - Reason: "Reset table" undoes what narrows and orders the rows (PRD-B8); the page size is the user's reading
   preference, not a narrowing, and "Reset table" shows only for sort and filters (FILT-30).
@@ -222,23 +242,25 @@ and props MUST show the change.
 
 **CONN-15** `draw` MUST be 1 in the first request and one more in every later request, whatever sent it.
 - Example: mount, `onsort`, `reload()`, `onpage(10)`, the first two never answered: `draw` 1, 2, 3, 4.
-- Reason: the answer echoes `draw`, so the helper knows which request an answer belongs to (PRD-B20). At ten requests
-  a second a page needs 6.8 years to reach 2^31-1, so a backend that reads `draw` as a 32-bit integer
-  (DataTables.AspNet, spring-data-jpa-datatables) never overflows, and no wrap is stated.
+- Reason: the answer echoes `draw` as a check that it answers the request sent (CONN-18); which request an answer
+  belongs to the helper knows from the call of `send` itself (CONN-22) (PRD-B20). At ten requests a second a page
+  needs 6.8 years to reach 2^31-1, so a backend that reads `draw` as a 32-bit integer never overflows, and no wrap is
+  stated.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-16** A sort or filter intent on a column id that no map entry serves MUST send nothing, keep the query, and
-call `onerror` once with an `Error` naming that column id.
-- Examples (the test runs every row; map M without entry 1's `id`, the first answer settled):
+**CONN-16** A sort or filter on a column id that no map entry serves, in an intent or in the initial query, MUST send
+nothing, keep the query, and call `onerror` once with an `Error` naming that column id.
+- Examples (the test runs every row; map M without entry 1's `id`; for an intent, the first answer settled):
 
   | Intent | `send` calls after it | `table.sort`, `table.filters` | `onerror` |
   |---|---|---|---|
   | `table.onsort([code asc])` | none | `[name asc]`, `{}` | once, message holds `code` |
   | `table.onfilter('code', { kind: 'text', text: 'B' })` | none | `[name asc]`, `{}` | once, message holds `code` |
+  | mount with sort `[code asc]` | none | `[code asc]`, `{}` | once, message holds `code` |
 
 - Reason: without an index the backend cannot be told which column; sending the request without it would show rows
-  that do not match the marks (PRD-B20). A column id is no row value (PRD-S4).
+  that do not match the marks (PRD-B20).
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -252,45 +274,52 @@ call `onerror` once with an `Error` naming that column id.
   | Answer | Result |
   |---|---|
   | A1 | `table.rows === D`; `pager.total` 57, `pager.unfilteredTotal` 1000; `'ready'`, not busy; `onerror` not called |
-  | A1 with `draw: '1'` | the same: `draw` is compared as a number |
-  | A1 with `error: ''`, `error: null` or `error_code: 'X'` | the same: no error |
+  | A1 with `draw: '1'`, or without `draw` | the same: a `draw` given as text is read as its decimal number |
+  | A1 with `recordsFiltered: '57'` and `recordsTotal: '1000'` | the same: `pager.total` the number 57, `pager.unfilteredTotal` 1000 |
+  | A1 with `error: ''`, `error: null`, `error: false`, `error: 0` or `error_code: 'X'` | the same: no error |
   | A1 with an extra field `debug: 1`, each row holding `DT_RowId` | the same; each row as given |
 
-- Reason: rows are passed on as given, never deeply reactive (PRD-B20, MEASURED in the PRD); the filtered count is the
-  total and the unfiltered one is the information line's (PRD-B26).
+- Reason: rows are passed on as given, never deeply reactive (PRD-B20, MEASURED 2026-11-17 in the PRD); the filtered
+  count is the total and the unfiltered one is the information line's (PRD-B26). DataTables reads both counts with
+  `parseInt` and an `error` by its truth (READ 2026-11-20, DataTables 2.1.8 source); a count as text is common (a
+  PostgreSQL `COUNT` arrives as a string through node-postgres, INFERRED).
 - Layer: component.
 - Traces: PRD-B20, PRD-B26.
 
-**CONN-18** An answer it cannot map MUST be a failure: `table.status` `'failed'`, `table.rows` not set to its `data`,
-and `onerror` called once with an `Error`.
+**CONN-18** An answer it cannot map MUST be a failure: `table.status` `'failed'`, `table.busy` `false`, `table.rows`
+as before, and `onerror` called once with an `Error`.
 - Examples (the test runs every row; the request sent `draw=1`):
 
   | Answer | Why |
   |---|---|
   | `null`, `'ok'`, `[]` | not an object |
   | A1 without `recordsTotal`; without `recordsFiltered`; without `data` | a field missing |
-  | A1 with `recordsFiltered` -1, 1.5, `'57'`, 2^53 | not a safe non-negative integer (the same for `recordsTotal`) |
+  | A1 with `recordsFiltered` -1, 1.5, `'5x'`, `'-1'`, `''`, 2^53, `null` | neither a safe non-negative integer nor its decimal text (the same for `recordsTotal`) |
   | A1 with `data: {}` | not a list |
-  | A1 without `draw`; with `draw` 2, `'2'`, `null`, `'1a'` | `draw` not the one sent |
+  | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'` | `draw` given and neither the number sent nor its decimal text |
 
-- Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9), and the
-  manual makes the `draw` echo required (PRD-B20).
+  With A1 on screen, a later request answered by A1 without `data`: `'failed'`, `busy` false.
+
+- Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
+  `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
 
-**CONN-19** An answer holding an `error` that is neither `null` nor `""` MUST be a failure whatever its counts and
+**CONN-19** An answer whose `error` is true as a JavaScript condition MUST be a failure whatever its counts and
 data, and its text MUST appear nowhere on screen or in the `Error` given to `onerror`.
 - Example: A1 with `error: 'SQL near WHERE'`: `table.status` `'failed'`; the document holds no `SQL near WHERE`;
-  `onerror` called once, its argument's message without it; the same with `error: 0`.
-- Reason: the manual's `error` means the script failed, so its counts and rows are not to be trusted; server text
-  reaches screenshots and logs (PRD-S4).
+  `onerror` called once, its argument's message without it; the same with `error: true`. (`error` given as `''`,
+  `null`, `false` or `0` is no error: CONN-17.)
+- Reason: the manual's `error` means the script failed, so its counts and rows are not to be trusted; DataTables
+  tests it by its truth (READ 2026-11-20, 2.1.8 source); server text may hold row values and reaches screenshots and
+  logs (PRD-S4).
 - Layer: component.
 - Traces: PRD-B20, PRD-S4, PRD-B15.
 
 **CONN-20** A `send` that rejects or throws MUST be a failure: `table.status` `'failed'` and `onerror` called once
 with the rejection itself.
 - Examples (the test runs every row): `send` rejects with an `Error` E: `onerror(E)`, the same object; `send` throws E
-  when called: the same.
+  when called: the same; A1 on screen, `onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false.
 - Reason: the application's transport rejects every answer that is not a success (an HTTP status outside 2xx
   included); the application decides what it means (PRD-B20).
 - Layer: component.
@@ -307,8 +336,8 @@ else `null`.
   | A1 with `error: 'x'` | `null` |
   | A1 without `recordsTotal`, with `error_code: 'TIMEOUT'` | `'TIMEOUT'` |
 
-- Reason: the application can tell a refusal it knows from any other without reading server text (PRD-S4); the code
-  is passed as given, the helper maps none.
+- Reason: the application can tell a refusal it knows from any other without reading server text (PRD-B20); the
+  code is passed as given, the helper maps none.
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -342,6 +371,21 @@ else `null`.
 - Layer: component.
 - Traces: PRD-B20, PRD-B15.
 
+**CONN-25** `pager` MUST be `undefined` until the first answer the helper maps, and given from then on.
+- Examples (the test runs every row):
+
+  | After | `pager` | `Pagination` in the probe |
+  |---|---|---|
+  | mount, nothing settled | `undefined` | none |
+  | the first request fails | `undefined` | none |
+  | A1 | `offset` 0, `limit` 10, `total` 57, `unfilteredTotal` 1000 | shown |
+  | A1, then a failed request | as after A1 | shown |
+
+- Reason: the pager has no state for a total not yet known, so the application shows it only once its props exist
+  (PRD-B20, PRD-B9).
+- Layer: component.
+- Traces: PRD-B20, PRD-B9.
+
 **CONN-24** `reload()` MUST send the current query again, with the next `draw`.
 - Example: A1 settled, `reload()`: `send` called a second time; the request holds `draw=2` and every other pair of
   the first request; after a failure, the same.
@@ -366,7 +410,7 @@ else `null`.
 | CONN-09 | PRD-B20, PRD-B6 |
 | CONN-10 | PRD-B20, PRD-B7 |
 | CONN-12 | PRD-B20, PRD-B25 |
-| CONN-13 | PRD-B20, PRD-B4, PRD-B8, PRD-B25 |
+| CONN-13 | PRD-B20, PRD-B4, PRD-B8, PRD-B9, PRD-B25 |
 | CONN-14 | PRD-B20, PRD-B8 |
 | CONN-15 | PRD-B20 |
 | CONN-16 | PRD-B20 |
@@ -377,11 +421,12 @@ else `null`.
 | CONN-21 | PRD-B20 |
 | CONN-22 | PRD-B20 |
 | CONN-23 | PRD-B20, PRD-B15 |
+| CONN-25 | PRD-B20, PRD-B9 |
 | CONN-24 | PRD-B20 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-24 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, the first page loaded on the server, the pager props before the first answer and writing the query come with later parts |
+| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-25 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, writing the query and the first page loaded on the server come with later parts |
 | PRD-B4, PRD-B6, PRD-B7, PRD-B8, PRD-B9, PRD-B15, PRD-B25, PRD-B26, PRD-S4 | as in the table above | in part: the rest is `spec/table.md`'s |
