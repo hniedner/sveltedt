@@ -2438,7 +2438,8 @@ const setting = (root: string, key: string): string =>
   }).stdout.trim();
 
 // The pre-push hook: git names the remote and writes one line per pushed ref on stdin, "<local ref> <local sha>
-// <remote ref> <remote sha>". A pushed secret or private word counts as published, so the scans block here.
+// <remote ref> <remote sha>". A pushed secret or private word counts as published, so the scans block here; the gate
+// runs before a pull request and in CI, not at the push.
 function prePush(remote: string | undefined): Result | Stage[] {
   const root = process.cwd();
   const git = (...args: string[]) =>
@@ -2489,16 +2490,6 @@ function prePush(remote: string | undefined): Result | Stage[] {
     else ranges.push(`${out(base)}..${tip}`);
   }
   if (!ranges.length) return result(NA, skipped.join("; ") || "nothing pushed");
-  // The gate reads the work tree, so it must be the pushed commit.
-  const head = out(git("rev-parse", "HEAD"));
-  if (
-    out(git("status", "--porcelain", "--untracked-files=no")) ||
-    ranges.some((r) => !r.endsWith(`..${head}`))
-  )
-    return result(
-      CANNOT,
-      "the work tree is not the pushed commit: check out the pushed branch and commit or restore every change",
-    );
   return [
     ...ranges.map((r): Stage => [
       `secrets ${r}`,
@@ -2538,7 +2529,6 @@ function prePush(remote: string | undefined): Result | Stage[] {
       },
     ]),
     ...ranges.map((r): Stage => [`words ${r}`, () => words(root, r)]),
-    ["gate", () => gate(root)],
   ];
 }
 
@@ -2577,36 +2567,6 @@ function words(root: string, range: string): Result {
   return result(
     CANNOT,
     `the word scan exited ${r.status ?? errorCode(r.error)}`,
-    out,
-  );
-}
-
-const GATE_LIMIT_MS = 9 * 60_000;
-
-// The whole gate, as a child process. The hook takes no lock: sessions that share a machine take theirs around the push.
-function gate(root: string): Result {
-  const r = spawnSync(
-    process.execPath,
-    [join(root, "scripts", "check-repo.ts"), "all", "--root", root],
-    {
-      encoding: "utf8",
-      env: childEnv(),
-      timeout: GATE_LIMIT_MS,
-      maxBuffer: 1 << 28,
-    },
-  );
-  const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter(Boolean);
-  if (r.status === PASS) return result(PASS, out.at(-1) ?? "", []);
-  if (r.status === FINDING)
-    return result(FINDING, "the gate found a problem", out);
-  const code = errorCode(r.error);
-  return result(
-    CANNOT,
-    code === "ETIMEDOUT"
-      ? `the gate ran over ${GATE_LIMIT_MS / 60_000} minutes`
-      : code
-        ? `the gate could not run: ${code}`
-        : "the gate could not check",
     out,
   );
 }

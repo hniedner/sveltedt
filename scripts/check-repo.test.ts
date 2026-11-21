@@ -3809,7 +3809,7 @@ const rangeScan = (root: string): void =>
   put(
     root,
     "scripts/scan-secrets.ts",
-    // Formatted and typed, since the gate in a pushed fixture checks it like any script.
+    // Formatted and typed like any script of the repository.
     `import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 const [mode, target, range] = process.argv.slice(2) as [string, string, string];
@@ -3861,7 +3861,7 @@ const stages = (out: string): string[] =>
   ].map((m) => m[1]);
 const sha = (root: string, rev = "HEAD"): string =>
   git(root, "rev-parse", rev).trim();
-test("pre-push: a new branch scans its commits after origin/main, runs the gate", () => {
+test("pre-push: a new branch scans its commits after origin/main and runs the scans only", () => {
   const root = pushable();
   const base = sha(root, "origin/main");
   const r = gitPush(root, ["feat/x"]);
@@ -3871,11 +3871,7 @@ test("pre-push: a new branch scans its commits after origin/main, runs the gate"
     r.out,
     /^NOT APPLICABLE words .*: word scan not set up in this clone/m,
   );
-  assert.deepEqual(
-    stages(r.out),
-    ["secrets", "messages", "words", "gate"],
-    r.out,
-  );
+  assert.deepEqual(stages(r.out), ["secrets", "messages", "words"], r.out);
   assert.match(r.out, /^PASS pre-push: /m);
 });
 test("pre-push: an update scans only the commits after the remote's sha", () => {
@@ -3888,14 +3884,14 @@ test("pre-push: an update scans only the commits after the remote's sha", () => 
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, new RegExp(`scan-secrets git ${old}\\.\\.${sha(root)}`));
 });
-test("pre-push: a failing gate blocks the push", () => {
+test("pre-push: a push whose gate would fail goes through after clean scans, the gate is not run", () => {
   const root = pushable();
   const r = gitPush(root, ["feat/x"], { PNPM_BIN: fakePnpm("0.0.1") });
-  assert.notEqual(r.code, 0, r.out);
-  assert.match(r.out, /^COULD NOT CHECK gate: /m);
-  assert.equal(git(root, "ls-remote", "origin", "feat/x"), "");
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /gate/);
+  assert.notEqual(git(root, "ls-remote", "origin", "feat/x"), "");
 });
-test("pre-push: a secret in a pushed commit blocks the push before the gate", () => {
+test("pre-push: a secret in a pushed commit blocks the push", () => {
   const root = pushable();
   put(root, "notes/b.md", "# A leak\n");
   commit(root, "docs: add a note");
@@ -3925,12 +3921,6 @@ test("pre-push: a tag on commits no remote ref holds is scanned, a tag pushed as
     assert.match(r.out, /^FINDING secrets /m);
   }
   assert.equal(git(root, "ls-remote", "origin", "v1", "x"), "");
-});
-test("pre-push: an untracked file does not block the push", () => {
-  const root = pushable();
-  put(root, "scratch.txt", "notes\n");
-  const r = gitPush(root, ["feat/x"]);
-  assert.equal(r.code, 0, r.out);
 });
 test("pre-push: a range that only deletes passes its secret stage and says no text was added", () => {
   const root = pushable();
@@ -4022,38 +4012,42 @@ test("pre-push: a word scan whose list is unset or not a readable file cannot be
     );
   }
 });
-test("pre-push: a work tree with uncommitted changes cannot be checked, since the gate reads it", () => {
+test("pre-push: a changed tracked file or an untracked file does not matter, the scans read the pushed commits", () => {
   const root = pushable();
   put(root, "README.md", "# Changed\n");
+  put(root, "scratch.txt", "notes\n");
   const r = gitPush(root, ["feat/x"]);
-  assert.notEqual(r.code, 0, r.out);
-  assert.match(r.out, /^COULD NOT CHECK pre-push: .*not the pushed commit/m);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^PASS secrets /m);
 });
-test("pre-push: pushing a branch other than the one checked out cannot be checked", () => {
+test("pre-push: a branch other than the one checked out is pushed after its own scans", () => {
   const root = pushable();
+  const pushed = sha(root);
   git(root, "checkout", "-q", "-b", "feat/y", "HEAD~1");
   const r = gitPush(root, ["feat/x"]);
-  assert.notEqual(r.code, 0, r.out);
-  assert.match(r.out, /^COULD NOT CHECK pre-push: .*not the pushed commit/m);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`scan-secrets git \\S+\\.\\.${pushed}`));
 });
-test("pre-push: a push of several refs judges each line: a deletion beside the branch is skipped, a second branch with new commits cannot be checked", () => {
+test("pre-push: a push of several refs judges each line: a deletion beside the branch is skipped, a second branch with new commits is scanned too", () => {
   const root = pushable();
   assert.equal(gitPush(root, ["feat/x", "HEAD:refs/heads/old"]).code, 0);
   put(root, "notes/b.md", "# B note\n");
   commit(root, "docs: add another note");
   let r = gitPush(root, ["feat/x", ":old"]);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /^PASS gate: /m);
+  assert.match(r.out, /^PASS secrets /m);
   assert.equal(git(root, "ls-remote", "origin", "old"), "");
   git(root, "branch", "feat/y", "HEAD~1");
   git(root, "-c", "core.hooksPath=/dev/null", "checkout", "-q", "feat/y");
   put(root, "notes/c.md", "# C note\n");
   commit(root, "docs: add a third note");
   git(root, "checkout", "-q", "feat/x");
+  put(root, "notes/d.md", "# D note\n");
+  commit(root, "docs: add a fourth note");
   r = gitPush(root, ["feat/x", "feat/y"]);
-  assert.notEqual(r.code, 0, r.out);
-  assert.match(r.out, /^COULD NOT CHECK pre-push: .*not the pushed commit/m);
-  assert.equal(git(root, "ls-remote", "origin", "feat/y"), "");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(r.out.match(/^PASS secrets /gm)?.length, 2, r.out);
+  assert.notEqual(git(root, "ls-remote", "origin", "feat/y"), "");
 });
 test("pre-push: a deletion, a tag and a branch with no new commit have nothing to check", () => {
   const root = pushable();
