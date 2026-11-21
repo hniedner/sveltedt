@@ -10,7 +10,7 @@
   PRD-L1), and the consumer project's install, peer check, type check, stylesheet import, server rendering,
   hydration, server HTML and policy header (PRD-K2, PRD-K4, PRD-T3, PRD-W8, part of PRD-S1). The server-rendered
   zero-violation check waits for the owner's decision on PRD-S1 (CON-07 is reserved for it). Part 1 also states the
-  `./styles.css` export (PKG-05). Further `exports` subpaths,
+  `./styles.css` export (PKG-05) and the `./connection` export (PKG-06). Further `exports` subpaths,
   the Svelte peer floor and the README quick start come with later parts. The rule that `svelte` is the only peer
   dependency and that `esm-env` is the only runtime dependency is SUP-04 of `spec/release.md`, not restated here.
   CON-14 states that the component's development warning is absent from the consumer's production build (PRD-D3,
@@ -164,6 +164,25 @@ conditions `style` and `default`, both naming the same file in the tarball.
   runs it there.
 - Layer: pack.
 - Traces: PRD-K2, PRD-T3.
+
+**PKG-06** The packed manifest's `exports` MUST map `./connection` under exactly the conditions `types` and `svelte`,
+each naming a file the tarball holds.
+- Examples (the first row is the real manifest; every other row is a canary planted in a copy of it, which must be
+  found):
+
+  | `exports["./connection"]` | Result |
+  |---|---|
+  | the real manifest's, both files in the tarball | passes |
+  | `{ "svelte": "./dist/connection/index.js" }` | finding: no `types` |
+  | `{ "types": "./dist/connection/index.d.ts", "default": "./dist/connection/index.js" }` | finding: `default` in place of `svelte` |
+  | absent | finding |
+  | both conditions naming files the tarball does not hold | finding |
+
+  When the manifest cannot be read, the check reports "could not check".
+- Reason: the connection helper is on its own export path (PRD-B20) and holds Svelte code (its state is runes), so
+  its path carries `types` and `svelte` like the root (PRD-K2).
+- Layer: pack.
+- Traces: PRD-K2, PRD-B20.
 
 ## 2. The consumer project (CON)
 
@@ -397,6 +416,7 @@ of `spec/table.md`).
 | PKG-03 | PRD-K2 |
 | PKG-04 | PRD-L1, PRD-K2 |
 | PKG-05 | PRD-K2, PRD-T3 |
+| PKG-06 | PRD-K2, PRD-B20 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
 | CON-03 | PRD-S1, PRD-W8 |
@@ -415,11 +435,12 @@ of `spec/table.md`).
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11, CON-12 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-D3 | CON-14 | in part: the development warning is absent from a production build; the warning itself is STK-10 of `spec/table.md` |
 | PRD-B14 | CON-14 | in part: the rest is section 14 of `spec/table.md` |
+| PRD-B20 | PKG-06 | in part: the rest is `spec/connection.md` |
 | PRD-L1 | PKG-04 | in part: the files' presence and text in the repository and `"license"` in `package.json` are not this file's |
 | PRD-T3 | PKG-05, CON-10, CON-13 | in part: the export (PKG-05) and the consumer's layered import (CON-10); one static, unlayered stylesheet is THEME-04 of `spec/table.md`; the import line for an application without Tailwind arrives with PRD-D1 |
 | PRD-T11 | CON-12, CON-13 | in part: the Tailwind 4 host; the none and Bootstrap 5.3 hosts are THEME-10 and THEME-11 of `spec/table.md` |
