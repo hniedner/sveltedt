@@ -296,13 +296,12 @@ before every other script of the page.
 - Traces: PRD-W4, PRD-S1.
 
 **POL-02** On the canary page, the listener's list MUST hold at least one policy violation once the page has loaded.
-- Example: the canary page, whose own script, a file of the build loaded by `src`, calls `setAttribute('style', ...)`
-  on one of its elements when it starts (a write the strict policy blocks; a write to one property of `element.style`
-  is not blocked and would not do). In each engine, in this order: the response carries the strict policy (SRV-02); the
-  listener's list exists; after the page has loaded, the list holds at least one entry. Break that turns it red: the
-  canary's write removed.
-- Reason: it proves the proof can fail. A violation raised by a script that runs as the page starts is in the list once
-  the page has loaded, so a listener that records late, or never, shows up here before it can make POL-04's 0
+- Example: the canary page, whose markup gives one of its elements a `style` attribute (inline style the strict policy
+  blocks). In each engine, in this order: the response carries the strict policy (SRV-02); the listener's list exists;
+  after the page has loaded, the list holds at least one entry. Break that turns it red: the canary's `style`
+  attribute removed.
+- Reason: it proves the proof can fail. A violation raised as the page is parsed and starts is in the list once the
+  page has loaded, so a listener that records late, or never, shows up here before it can make POL-04's 0
   meaningless.
 - Layer: real browser.
 - Traces: PRD-W4, PRD-S1.

@@ -111,21 +111,30 @@ allowed in no job.
 - Layer: static check.
 - Traces: PRD-S5.
 
-**SUP-04** The package MUST have no runtime dependency, and `svelte` MUST be its only peer dependency.
+**SUP-04** The package's `dependencies` MUST be exactly `esm-env`, with the range that the installed Svelte's own
+manifest declares for it, and `svelte` MUST be its only peer dependency.
 - Examples (the scan reads the package manifest among the files git tracks, so copies under `node_modules` or a
-  build folder are never read; no manifest, or more than one, is "could not check"; the test runs every row as a
-  canary):
+  build folder are never read; no manifest, or more than one, is "could not check"; Svelte's manifest is read from
+  the copy the frozen install puts in place, and that manifest missing, or declaring no `esm-env`, is "could not
+  check"; the test runs every row as a canary; Svelte declares `^1.2.1` in each row but the last):
 
   | `package.json` | Result |
   |---|---|
-  | no `dependencies`, `peerDependencies` `{ "svelte": "^5.20.0" }` | passes |
-  | `dependencies` `{}`, the same peer | passes |
-  | `dependencies` `{ "clsx": "^2.0.0" }` | finding |
-  | `peerDependencies` `{ "svelte": "^5.20.0", "tailwindcss": "^4.0.0" }` | finding |
-  | `optionalDependencies` `{ "x": "1.0.0" }` | finding |
-  | no `peerDependencies` | finding |
+  | `dependencies` `{ "esm-env": "^1.2.1" }`, `peerDependencies` `{ "svelte": "^5.20.0" }` | passes |
+  | no `dependencies`, the same peer | finding |
+  | `dependencies` `{ "esm-env": "^1.3.0" }`, the same peer | finding |
+  | `dependencies` `{ "esm-env": "^1.2.1", "clsx": "^2.0.0" }`, the same peer | finding |
+  | `dependencies` `{ "esm-env": "^1.2.1" }`, `peerDependencies` `{ "svelte": "^5.20.0", "tailwindcss": "^4.0.0" }` | finding |
+  | `dependencies` `{ "esm-env": "^1.2.1" }`, `optionalDependencies` `{ "x": "1.0.0" }`, the same peer | finding |
+  | `dependencies` `{ "esm-env": "^1.2.1" }`, no `peerDependencies` | finding |
+  | the first row's manifest, with Svelte's manifest declaring no `esm-env` | could not check |
 
-- Reason: every runtime dependency is code every consumer runs; the PRD allows the Svelte peer only.
+- Reason: every runtime dependency is code every consumer runs; PRD-S5 allows the Svelte peer only, unless the owner
+  decides an exception. The owner took `esm-env` (2026-11-19) for the development-only warning of STK-10 of
+  `spec/table.md`, the route Svelte's packaging guide names for a library. Svelte itself depends on it, so the range
+  Svelte declares adds no package to any consumer's tree (MEASURED 2026-11-19: Svelte 5.57.3 declares `^1.2.1`, and
+  `esm-env` 1.2.2 has no dependencies). Its licence, size and supply-chain exposure are recorded as PRD-S5 asks in the
+  decision record that comes with STK-10's build.
 - Layer: static check.
 - Traces: PRD-S5.
 

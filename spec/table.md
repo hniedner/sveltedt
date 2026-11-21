@@ -37,7 +37,8 @@ to the consumer as one callback (stated with the statements that add user action
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`) and `onsort(next)`; and the props of `Pagination`: `offset`, `limit`, `total`, `label`, `sizes`,
+  `'desc'`; a press steps through them in the order listed) and `onsort(next)`; and the props of `Pagination`:
+  `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
@@ -199,6 +200,7 @@ its cells.
   | `regionLabel` is empty | `regionLabelEmpty` | "Table region label must not be empty." |
   | `columns` is empty | `noColumns` | "Table has no columns." |
   | `columns` is not an array (left out) | `noColumns` | "Table has no columns." |
+  | a column is not an object (`null`, the text "name") | `columnIdEmpty` | "A column id is empty." |
   | a column id is empty | `columnIdEmpty` | "A column id is empty." |
   | a column id is not a string (the number 7) | `columnIdEmpty` | "A column id is empty." |
   | two columns share an id | `columnIdDuplicate` | "Two columns share an id." |
@@ -206,6 +208,9 @@ its cells.
   | a column label is not a string (left out) | `columnLabelEmpty` | "A column label is empty." |
   | two column labels are equal after trimming ("Name" and "Name ") | `columnLabelDuplicate` | "Two columns share a label." |
   | a column has neither `value` nor `cell` | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `value` is given and is not a function (the text "name"), and it has no `cell` snippet | `columnContentMissing` | "A column has no value and no cell." |
+  | a column's `cell` is given and is not a snippet (the text "name"), and it has no `value` function | `columnContentMissing` | "A column has no value and no cell." |
+  | `status` is a value outside its type (the text "done", `null`) | `statusUnknown` | "Table status is not known." |
   | `rows` is not an array (left out), with `status 'ready'` | `rowsNotList` | "Table has no list of rows." |
   | a row id is empty | `rowIdEmpty` | "A row id is empty." |
   | two rows share an id | `rowIdDuplicate` | "Two rows share an id." |
@@ -215,6 +220,15 @@ its cells.
 
   A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
   no alert. `rows` that is not an array is no fault while `status` is `loading` or `failed` (STATE-08).
+
+  `status` left out or given as `undefined` takes its default, `'ready'`, and is no fault.
+
+  A column with a `value` function or a `cell` snippet is valid when its other one is given and is not a function:
+  it renders by RND-08 or RND-02 (a `value` function beside `cell` the text "name" shows the value's text; a `cell`
+  snippet beside `value` the text "name" shows the snippet).
+
+  Stated limits, not detected: a plain function given as `cell` is taken as a snippet (a snippet is a function, and
+  the two cannot be told apart); a `value` function that throws is not caught, unlike `getRowId`.
 
   With several faults at once, the alert shows the message of the first row of this table that applies (for example
   an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
@@ -313,7 +327,7 @@ cells MUST be rendered by the same element as before.
   | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
   | each alert message of RND-05 | its default in RND-05 | RND-05 |
-  | any entry given as `undefined` (a translation lookup that misses) | that entry's English default | the statement that shows the entry |
+  | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
   `rowCount: (n) => n + ' Zeilen'` makes the live count say "2 Zeilen". Later groups state their own words in their own
@@ -1493,15 +1507,19 @@ tests of the statement its marker names red by a failed assertion.
   | Order before | Press | `onsort` receives |
   |---|---|---|
   | `[]` | Name | `[name asc]` |
+  | `null` (counts as `[]`, SORT-15) | Name | `[name asc]` |
   | `[name asc]` | Name | `[name desc]` |
   | `[name desc]` | Name | `[]` |
   | `[code asc]` | Name | `[name asc]` |
   | `[code asc, name desc]` | Name | `[name asc]` |
   | `[name asc, code desc]` | Name | `[name desc]` |
+  | `[]` | Date (lists `['desc', 'asc']`) | `[date desc]` |
+  | `[date desc]` | Date (lists `['desc', 'asc']`) | `[date asc]` |
+  | `[date asc]` | Date (lists `['desc', 'asc']`) | `[]` |
 
-  The rule: if the column leads the order, it moves on to the next direction it allows (ascending before
-  descending) and the other columns are dropped; after its last allowed direction it leaves the order. Otherwise it
-  becomes the only sorted column, in the first direction it allows. SORT-04 holds the single-direction rows.
+  The rule: if the column leads the order, it moves on to the next direction in the order its `sortable` lists them
+  and the other columns are dropped; after its last listed direction it leaves the order. Otherwise it becomes the only
+  sorted column, in the first direction its `sortable` lists. SORT-04 holds the single-direction rows.
 - Reason: emitting the whole order means the consumer sends it as is and never merges partial changes.
 - Layer: component.
 - Traces: PRD-B4, PRD-B2.
@@ -1518,9 +1536,10 @@ moved on one step and every other column keeps its relative order and direction.
   | `[name asc, code asc]` | Name | `[name desc, code asc]` |
   | `[name desc, code asc]` | Name | `[code asc]` |
   | `[]` | Name | `[name asc]` |
+  | `[code asc]` | Date (lists `['desc', 'asc']`) | `[code asc, date desc]` |
 
-  A column not yet in the order joins at the end, in the first direction it allows; after its last allowed direction
-  it leaves the order.
+  A column not yet in the order joins at the end, in the first direction its `sortable` lists; it moves on in that
+  order, and after its last listed direction it leaves the order.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1549,7 +1568,7 @@ moved on one step and every other column keeps its relative order and direction.
   | `['asc']` | `[date asc]` | Date | `[]` |
   | `['asc']` | `[code asc, date asc]` | Shift+Date | `[code asc]` |
 
-  Break that turns it red: a press always steps through ascending and descending.
+  Break that turns it red: a press steps through both directions whatever the column lists.
 - Reason: the other direction is one the server would refuse.
 - Layer: component.
 - Traces: PRD-B4.
@@ -1683,7 +1702,12 @@ list.
   | Invalid input | Message key | Alert text (default) |
   |---|---|---|
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
+  | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
+  | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', desc: false }`) | `sortInvalid` | "The sort is not valid." |
+  | an entry of `sort` is `null`, an array or not an object (`[null]`, `[['name']]`, `["name"]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `id` is left out or is not a string (`[{ desc: false }]`, `[{ id: 5, desc: false }]`, `[{ id: null, desc: false }]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `desc` is left out or is not a boolean (`[{ id: 'name' }]`, `[{ id: 'name', desc: undefined }]`, `[{ id: 'name', desc: null }]`, `[{ id: 'name', desc: 'true' }]`) | `sortInvalid` | "The sort is not valid." |
   | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
   | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
   | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
@@ -1692,6 +1716,11 @@ list.
   With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
   the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
   empty.").
+
+  `sort` left out, given as `undefined` or `null`, or given as an empty list means no order and is no fault; a press
+  then emits as from `[]`.
+
+  A column's `sortable` given as `null` means the column is not sortable, as when it is left out, and is no fault.
 - Reason: a sort the table cannot show is a wrong table; the user would believe an order the rows do not have.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3, PRD-B4.
@@ -1926,6 +1955,7 @@ current page.
   |---|---|---|
   | 100 | 95 | `1 … 6 7 8 9 10` |
   | 90 | 90 | `1 … 5 6 7 8 9` |
+  | 95 | 95 | `1 … 6 7 8 9 10` |
   | 25 | 0 | `1` |
 
 - Reason: rows deleted between two requests leave an offset past the end; the pager shows where the data ends
@@ -1992,6 +2022,7 @@ offsets on the page grid.
   |---|---|
   | `offset 0, total 95` (first of several pages) | First page, Previous page |
   | `offset 90, total 95` (last of several pages) | Next page, Last page |
+  | `offset 80, total 90` (last page, `total` a multiple of `limit`) | Next page, Last page |
   | `offset 40, total 95` (a middle page) | none |
   | `offset 0, total 7` (the only page) | all four |
   | `offset 0, total 0` | all four |
@@ -2100,8 +2131,8 @@ new `limit` and offset.
 - Traces: PRD-A3, PRD-B9.
 
 **PAGE-15** Without `sizes`, or with `sizes []`, the pager MUST show no page-size select.
-- Examples (the test runs every row): no `sizes` prop; `sizes []`. In both, no element with role `combobox` or
-  `listbox` is in the pager.
+- Examples (the test runs every row): no `sizes` prop; `sizes []`; `sizes null` (as left out). In each, no element
+  with role `combobox` or `listbox` is in the pager.
 - Reason: a fixed page size needs no control.
 - Layer: component.
 - Traces: PRD-B9.
@@ -2116,7 +2147,7 @@ new `limit` and offset.
   | `offset` is -25, 2.5, `NaN`, `Infinity` or 2^53 | `offsetInvalid` | "The page offset is not a valid number." |
   | `limit` is 0, -10, 2.5, `NaN`, `Infinity` or 2^53 | `limitInvalid` | "The page size is not a valid number." |
   | `label` is empty or blank | `labelEmpty` | "Pager label must not be empty." |
-  | `sizes` holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
+  | `sizes` is not a list (a string, a number), or holds 0, 2.5 or the same size twice | `sizesInvalid` | "The page sizes are not valid." |
   | `sizes` is not empty and does not hold `limit` | `limitNotInSizes` | "The page size is not one of the offered sizes." |
   | `onpage` is not given | `pageHandlerMissing` | "The pager has no page handler." |
   | `sizes` is not empty and `onsize` is not given | `sizeHandlerMissing` | "The page-size select has no handler." |
@@ -2124,7 +2155,9 @@ new `limit` and offset.
 
   A valid number here is a safe non-negative integer (`limit`: a safe positive integer). `unfilteredTotal` sends no
   request; it is refused because the information line (PAGE-38) would show a count that is none. An `unfilteredTotal`
-  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given.
+  below `total` is no fault: a server's unfiltered count can be an estimate, and PAGE-38 shows it as given. `sizes`
+  given as `null` means no sizes, as when it is left out, and is no fault (PAGE-15). `unfilteredTotal` given as `null`
+  means not given, and is no fault: a JSON answer has no other way to leave the count out.
 - Reason: a wrong pager is worse than none; a stray NaN or a page 0 would send a wrong request, and a control with
   no handler does nothing.
 - Layer: component.
@@ -3814,8 +3847,7 @@ sideways (A11Y-12) and sticky columns stick inside it (STK-13). All statements h
 Chromium, Firefox and WebKit, on a page whose document scrolls, in a 1280 by 800 CSS px viewport unless a row names the
 zoom or the 320 view of PRD section 4.3. In the examples the table has 200 rows and the columns Name (sortable), Code
 and Date, each Date cell holding a link "Go <row>"; "the bar" is a fixed element of the page `stickyTop` px tall at the
-viewport top. A later branch states the development warning for an ancestor that stops the header from sticking
-(PRD-D3), the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
+viewport top. A later branch states the paint order and opacity of the stuck parts (PRD-T2), the progress indicator beside the stuck header
 (PRD-B22), the offsets after a viewport resize (STK-05), the order emitted while sticky columns are given, the zoom
 view's 2.4.11 row, and that no listener on `window`, `document` or a media query outlives the table.
 
@@ -3861,6 +3893,46 @@ table is wider than the viewport.
   (PRD section 5.1, PRD-A2).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14, PRD-A2.
+
+**STK-10** With `stickyHeader`, in a development build, the component MUST write one console warning naming the nearest
+ancestor of the table whose computed `overflow-x` or `overflow-y` is neither `visible` nor `clip`, `html` never and
+`body` only while `html`'s computed `overflow-x` and `overflow-y` are not both `visible`; with no such ancestor, or
+without `stickyHeader`, it MUST NOT warn.
+- Examples (the test runs every row; the table inside `<div id="wrap" class="card">` inside `<main>`; a warning is a
+  `console.warn` call; the name is the tag name, then `#` and the `id` if there is one, then `.` and each class):
+
+  | `stickyHeader` | Styles | Warnings, and the text of the one |
+  |---|---|---|
+  | on | `#wrap { overflow: hidden }` | one: "SvelteDT: the sticky header cannot stick inside div#wrap.card, whose overflow is not visible or clip." |
+  | on | `#wrap { overflow: auto }` | one, naming div#wrap.card |
+  | on | `#wrap { overflow-x: hidden }` (its `overflow-y` then computes to `auto`) | one, naming div#wrap.card |
+  | on | `main { overflow: hidden }` | one, naming main |
+  | on | `#wrap` and `main` each `overflow: hidden` | one, naming div#wrap.card (the nearest) |
+  | on | `#wrap { overflow: clip }` | none |
+  | on | `#wrap { overflow-x: clip }` | none |
+  | on | none | none |
+  | on | `body { overflow: hidden }`, `html` left `visible` | none: `body`'s overflow applies to the viewport |
+  | on | `html, body { overflow-x: hidden }` | one, naming body |
+  | off | `#wrap { overflow: hidden }` | none |
+  | off, then on | `#wrap { overflow: hidden }` | one, after the change |
+  | on, then off, then on | `#wrap { overflow: hidden }` | two: one at mount, one after it turns on again |
+  | on, then a sort, the next page and new rows | `#wrap { overflow: hidden }` | one in all |
+  | on, then `#wrap` given `overflow: hidden` after the mount | `#wrap { overflow: hidden }` from then on | none |
+
+  The check runs when the table mounts with `stickyHeader` and when `stickyHeader` turns on, and at no other time: an
+  ancestor whose style changes later is not seen, because the component adds no observer or listener for it
+  (PRD-B19). It is one check with one output, the warning or none. In a production build the warning is absent (CON-14 of
+  `spec/package.md`). The warning is for the developer, not a word the table shows: English only, no prop.
+- Reason: the application must keep every ancestor's `overflow` at `visible` or `clip` (PRD-D3, design D); a warning
+  naming the element finds the cause of a header that does not stick. `html`'s overflow always goes to the viewport,
+  and `body`'s does while `html`'s is `visible`; otherwise `body` is a scroll container that holds the header (the
+  common `html, body { overflow-x: hidden }`).
+- Layer: real browser (Chromium, Firefox, WebKit), on a second build of the site made with the `development` export
+  condition added to the bundler's resolve conditions (as CON-14's second row; the site's usual build resolves
+  `production`, where `esm-env`'s `DEV` is false), written to its own build folder and served by its own start of the
+  site server; every other real-browser statement runs on the usual build. The first row going green on the second
+  build shows that `DEV` is true there.
+- Traces: PRD-B14, PRD-D3.
 
 **STK-03** Each column with `sticky` MUST stay at its inline-start offset while the document scrolls sideways, the
 offset being the sum of the widths of the sticky columns before it.
@@ -3958,8 +4030,8 @@ the region scrolls sideways.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B14.
 
-**STK-15** Every fixed word of this section MUST come from a prop with an English default.
-- Examples (as RND-06): the alert message of STK-11 (STK-11).
+**STK-15** Every fixed word this section's table shows MUST come from a prop with an English default.
+- Examples (as RND-06): the alert message of STK-11 (STK-11). STK-10's console warning is not shown by the table.
 - Reason: consumers translate and reword without forking the component (PRD-I1).
 - Layer: component.
 - Traces: PRD-I1.
@@ -4727,6 +4799,7 @@ names.
 | STK-01 | PRD-B14 |
 | STK-04 | PRD-B14, PRD-A11 |
 | STK-09 | PRD-B14, PRD-A2 |
+| STK-10 | PRD-B14, PRD-D3 |
 | STK-03 | PRD-B14 |
 | STK-05 | PRD-B14 |
 | STK-06 | PRD-B14, PRD-I3 |
@@ -4803,8 +4876,9 @@ state in their own statements.
 | PRD-A6 | COL-33, A11Y-39 | in part: the compact density's row is the theming milestone's |
 | PRD-I3 | COL-22, I18N-02, I18N-03, THEME-30, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
-| PRD-B14 | STK-01, STK-04, STK-09, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
-| PRD-A11 | STK-04 | in part: the accessibility group states the zoom, 320 and spacing views (milestone 7) |
+| PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
+| PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
+| PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
 | PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
@@ -4823,7 +4897,6 @@ state in their own statements.
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
-| PRD-A11 | A11Y-40, A11Y-41, A11Y-42 | in part: the views with density "compact" and the variants are the theming milestone's; the views with each dialog open are a later branch's |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
 | PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, STK-15 | in part: later groups state their own words in their own statements |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
@@ -4855,7 +4928,7 @@ state in their own statements.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
 - Gate: PRD-G1, PRD-G3 (PRD-G2 in part, see above).
-- Documentation: PRD-D1, PRD-D2, PRD-D3, PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
+- Documentation: PRD-D1, PRD-D2, PRD-D3 (in part, see above), PRD-D4, PRD-D5, PRD-D6, PRD-D7, PRD-D8, PRD-D9.
 - Licence: PRD-L1.
 - Supply chain and publishing: PRD-S5, PRD-S7.
 - Test site and consumer project: PRD-W1, PRD-W2, PRD-W3, PRD-W4, PRD-W5, PRD-W6, PRD-W7, PRD-W8, PRD-W9, PRD-W10.
