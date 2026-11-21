@@ -2430,7 +2430,8 @@ receives that number.
 ## 11. Filters: the fields and what they emit (FILT, milestone 4)
 
 These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
-`options` a list of `{ value, label }`; `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
+`options` a list of `{ value, label }` and an optional `emptyOption`, a boolean (default `false`, FILT-53);
+`filters`, the applied filter of each column id, `{ kind: 'text', text }` or
 `{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
 with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
 `maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
@@ -2680,6 +2681,28 @@ while the filter has more than 10 options.
 - Reason: a long vocabulary needs a way to reach an option, and a short list needs none (PRD-B29).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B29, PRD-B7.
+
+**FILT-53** A categorical filter with `emptyOption: true` MUST offer one more option after its given ones, the
+checkbox named by the `emptyOption` message, whose value in `selected` and in `onfilter` is `''`.
+- Examples (the test runs every row; Status with `emptyOption: true`; press its filter button, then the press):
+
+  | `selected` before | Checkboxes, in order (checked) | Press | `onfilter` call |
+  |---|---|---|---|
+  | `[]` | "Active", "Inactive", "(empty)" (none) | "(empty)" | `('status', { kind: 'categorical', selected: [''] })` |
+  | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `('status', { kind: 'categorical', selected: ['active', ''] })` |
+  | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `('status', { kind: 'categorical', selected: ['active'] })` |
+
+  Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). For every other statement the
+  option is one of the filter's options, last in their order (FILT-04, FILT-18, FILT-22, FILT-52).
+- Reason: rows without a value are part of the data (PRD-B7, the owner's decision of 2026-11-20), and `''` is a value
+  no given option can hold (FILT-32), so "no value" needs no word the server must know. The option is off by default
+  because the table sees one page and cannot know whether any row is empty, while AG Grid's set filter, Excel's
+  filter and SearchPanes list their blank entry only when the data they hold has a blank (FETCHED 2026-11-20: AG
+  Grid's "(Blanks)", held in its filter model as `null`; Excel's "(Blanks)", "available only if the column that you
+  want to filter contains a blank cell"; SearchPanes' "No Data"). It sits last, as Excel's "(Blanks)" sits below
+  the values (FETCHED; AG Grid and SearchPanes name no place), so the given vocabulary keeps its order.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7.
 
 **FILT-18** Typing in a find field MUST narrow the shown options to those whose label contains the text, ignoring
 case, and MUST NOT emit anything or change the selection.
@@ -2949,6 +2972,7 @@ below list.
   | `filterText` (a function of the label) | "Filter Name text" | FILT-12 |
   | `findOptions` (a function of the label) | "Find Kind options" for "Kind" | FILT-52 |
   | `noOptions` | "No options match." | FILT-18 |
+  | `emptyOption` | "(empty)" | FILT-53 |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
   | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
@@ -2957,7 +2981,7 @@ below list.
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-I2).
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-I1, PRD-I2, PRD-B29.
+- Traces: PRD-I1, PRD-I2, PRD-B29, PRD-B7.
 
 ### The global search (milestone 4)
 
@@ -4713,6 +4737,7 @@ names.
 | FILT-11 | PRD-B6, PRD-B7, PRD-A1 |
 | FILT-12 | PRD-B6, PRD-B7, PRD-A1, PRD-B29 |
 | FILT-52 | PRD-B29, PRD-B7 |
+| FILT-53 | PRD-B7 |
 | FILT-18 | PRD-B29, PRD-B2 |
 | FILT-06 | PRD-B6, PRD-B7 |
 | FILT-19 | PRD-B6, PRD-B7, PRD-B19 |
@@ -4733,7 +4758,7 @@ names.
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
 | FILT-33 | PRD-I1, PRD-B25 |
-| FILT-47 | PRD-I1, PRD-I2, PRD-B29 |
+| FILT-47 | PRD-I1, PRD-I2, PRD-B29, PRD-B7 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
 | FILT-42 | PRD-B25, PRD-B6 |
@@ -4872,7 +4897,7 @@ state in their own statements.
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
