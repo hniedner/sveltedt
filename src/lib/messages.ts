@@ -15,6 +15,7 @@ export const defaultMessages: DataTableMessages = {
   columnLabelEmpty: "A column label is empty.",
   columnLabelDuplicate: "Two columns share a label.",
   columnContentMissing: "A column has no value and no cell.",
+  statusUnknown: "Table status is not known.",
   rowsNotList: "Table has no list of rows.",
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",
@@ -30,8 +31,33 @@ export const defaultMessages: DataTableMessages = {
   },
   sortableInvalid: "A column's sort directions are invalid.",
   sortHandlerMissing: "A sortable column has no sort handler.",
+  sortInvalid: "The sort is not valid.",
   sortColumnUnknown: "The sort names an unknown column.",
   sortColumnNotSortable: "The sort names a column that cannot be sorted.",
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
   sortColumnDuplicate: "The sort names a column twice.",
+};
+
+// Numbers group the English way whatever the runtime's locale
+const number = new Intl.NumberFormat("en-US");
+
+// The pager's English words and the alert texts of PAGE-16
+export const pagerWords = {
+  firstPage: "First page",
+  previousPage: "Previous page",
+  nextPage: "Next page",
+  lastPage: "Last page",
+  pageLabel: (page: number) => `Page ${number.format(page)}`,
+  pageNumber: (page: number) => number.format(page),
+  sizeLabel: "rows per page",
+  sizeOption: (size: number) => number.format(size),
+  totalInvalid: "The row total is not a valid number.",
+  offsetInvalid: "The page offset is not a valid number.",
+  limitInvalid: "The page size is not a valid number.",
+  labelEmpty: "Pager label must not be empty.",
+  sizesInvalid: "The page sizes are not valid.",
+  limitNotInSizes: "The page size is not one of the offered sizes.",
+  pageHandlerMissing: "The pager has no page handler.",
+  sizeHandlerMissing: "The page-size select has no handler.",
+  unfilteredTotalInvalid: "The unfiltered row total is not a valid number.",
 };
