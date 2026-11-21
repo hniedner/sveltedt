@@ -4657,8 +4657,8 @@ the paint order and THEME-33 its pairs; that branch also states the browser chec
 surface, the hover surface, the sorted-column surface of its rank, the stripe and the surface.
 - Examples (the test runs every row in the light view with `striped`, `hover` and `orderColumn` on, sorted by Name; in a
   desktop context without touch; r2 is on a striped place; the test first asserts that the values of the surface, the
-  stripe, rank 1, hover, selected, body text and selected text colours differ pairwise; each cell's computed background
-  has alpha 1 and equals the named token's value):
+  stripe, rank 1, hover, the selected surface, body text and selected text colours differ pairwise; each cell's computed
+  background has alpha 1 and equals the named token's value):
 
   | Cell | Selected | Pointer over its row | Surface shown | Text colour |
   |---|---|---|---|---|
@@ -4762,8 +4762,8 @@ unless a surface of higher precedence applies (THEME-41).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-T13.
 
-**THEME-21** Each length token of the package's stylesheet MUST fall back to a `rem` value, and each font-size token
-MUST fall back to `inherit`.
+**THEME-21** Each length token of the package's stylesheet MUST fall back to `0` or a `rem` value, and each font-size
+token MUST fall back to `inherit`.
 - Examples (the scan runs every row against a canary stylesheet holding it):
 
   | Declaration | Result |
@@ -4781,7 +4781,8 @@ MUST fall back to `inherit`.
 
   A length token is a `--sdt-*` property read in a `padding*`, `height`, `width` or `border*-radius` declaration; a
   fallback of `0` or in `rem` passes; any other unit, a `calc()` or a missing fallback is a finding. The scan reads the
-  stylesheet as THEME-01 does; 0 length or font-size declarations is "could not check".
+  stylesheet as THEME-01 does; a keyword token (as `vertical-align`) is not read; 0 length or font-size declarations is
+  "could not check".
 - Reason: `rem` keeps 1.4.4, and font sizes inherit so the table takes the container's size (PRD-T9, PRD-T11).
 - Layer: static check.
 - Traces: PRD-T9.
@@ -4861,7 +4862,7 @@ pointer.
   | a column's `align 'left'` and `density 'dense'` | `alignInvalid` | "A column alignment is not valid." |
 
   With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10, CHILD-09 and THEME-31 win, in
-  that order, then the first two rows above in their order. `density null` with `striped null` renders no alert,
+  that order, then the first two rows of this table in their order. `density null` with `striped null` renders no alert,
   the normal density and no stripe (as not given).
 - Reason: a variant the application meant to set and the table silently dropped changes what users see (PRD-B16).
 - Layer: component.
