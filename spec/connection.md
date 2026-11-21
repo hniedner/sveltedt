@@ -184,10 +184,11 @@ selected, `""` and `false`.
   | `['active']` | `^(active)$` | `true` |
   | `['inactive', 'active']` | `^(inactive\|active)$` | `true` |
   | `['a.b', 'x-(1)', 'a/b']` | `^(a\.b\|x\-\(1\)\|a\/b)$` | `true` |
-  | `['*+?[]{}\$^']` | `^(\*\+\?\[\]\{\}\\\$\^)$` | `true` |
+  | one value of the ten characters `*+?[]{}\$^` (in JavaScript `'*+?[]{}\\$^'`) | `^(\*\+\?\[\]\{\}\\\$\^)$` | `true` |
   | `[]` | `""` | `false` |
 
-  A `\|` in a cell is the character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`, `true`.
+  A `\|` in a cell is the character `|`. A value holding the character itself: `['a|b']` sends `^(a\|b)$`
+  (backslash, then pipe), `true`.
 
 - Reason: the protocol has one search value per column, so "one of these values" is an anchored alternation that a
   backend honouring `regex` matches exactly (PRD-B7); one value keeps the group form, so the server sees one shape.
@@ -343,7 +344,7 @@ data.
   | Failure | Text the document does not hold |
   |---|---|
   | A1 with `error: 'SQL near WHERE'` | `SQL near WHERE` |
-  | the body `'ok'` (CONN-18) | `ok` as the failed notice's or the alert's text |
+  | the body `'ok-7731'` (not an object, CONN-18) | `ok-7731` |
   | `send` rejects with `new Error('boom: row 7')` | `boom`, `row 7` |
 
 - Reason: server text and error messages may hold row values and reach screenshots (PRD-S4, PRD-B20); what
