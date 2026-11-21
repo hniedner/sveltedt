@@ -234,6 +234,11 @@ global `core.hooksPath`, and there is no supported place for a hook of your own 
   word scan when this clone names it. The hook runs the scans only: they read the pushed commits, so the work tree
   may be on another branch or have changes. The gate runs before a pull request is opened, and CI's `gate` check is
   required on main. A pushed secret or private word counts as published, so these scans block the push.
+  - Limits: a new branch, a tag with new commits or a force-push to a remote with no fetched `main` (an empty new
+    repository, a default branch of another name, a push to a URL) is blocked, and fetching does not help; an update
+    of a branch the remote already has goes through. The message of an annotated tag is not scanned, only the commits
+    it brings and their messages. The scanner, its configuration and the pinned program are those of the checked-out
+    tree, not of the pushed commits.
 
 Maintainers' clones also name, in git config, the owner-only word scan (`sveltedt.wordScan`, the scan program;
 `sveltedt.wordList` and `sveltedt.wordAllow`, its lists). A clone without it skips the word scan.
