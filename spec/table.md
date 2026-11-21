@@ -4628,9 +4628,10 @@ light view", "the dark view" and "the no-token view" are the site's views with t
 parameters, so a view may set one prop alone. In the examples the table has 30 rows r1 to r30, sorted by Name and then Code
 where a row says so, with the columns Name, Code and Date and selection on. A prop given as `undefined` counts as not
 given. Cell borders are not claimed under 1.4.11 (PRD section 4.3). The time and size budgets of the variants
-(PRD-T10 with P2, P3) are the performance group's. A later theming branch states the hover surface (PRD-T6),
-the browser check of computed colours in each theme view (PRD-A12) and the no-token view's cell backgrounds
-(PRD section 4.3).
+(PRD-T10 with P2, P3) are the performance group's. A later theming branch states when the hover surface is painted
+(`hover` off, and devices that cannot hover; PRD-T6), while THEME-41 states only its place in the paint order and
+THEME-33 its pairs; that branch also states the browser check of computed colours in each theme view (PRD-A12) and the
+no-token view's cell backgrounds (PRD section 4.3).
 
 **THEME-33** The token-pair table MUST hold a row for each of these pairs, in the light and in the dark set.
 - Examples (the check reads the token-pair table and compares its pairs, by role, with this list; a missing or extra
