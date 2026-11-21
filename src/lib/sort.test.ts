@@ -80,7 +80,7 @@ describe("SORT-10", () => {
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
-// @spec("SORT-01", "792165c5")
+// @spec("SORT-01", "83f710c0")
 describe("SORT-01", () => {
   it.each([
     ["", "name asc"],
@@ -97,6 +97,28 @@ describe("SORT-01", () => {
       expect(onsort.mock.calls).toEqual([[order(after)]]);
     },
   );
+
+  it.each([
+    ["", "date desc"],
+    ["date desc", "date asc"],
+    ["date asc", ""],
+  ])(
+    "a press on Date, listing ['desc', 'asc'], with the order [%s] emits [%s] once",
+    async (before, after) => {
+      const { onsort } = mount({
+        columns: [code, name, sortable("date", "Date", ["desc", "asc"])],
+        sort: order(before),
+      });
+      await fireEvent.click(sortButton("Date"));
+      expect(onsort.mock.calls).toEqual([[order(after)]]);
+    },
+  );
+
+  it("a press on Name with the order null (counts as []) emits [name asc] once", async () => {
+    const { onsort } = mount({ sort: null });
+    await fireEvent.click(sortButton("Name"));
+    expect(onsort.mock.calls).toEqual([[order("name asc")]]);
+  });
 });
 // SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are owed to the real-browser sort step, so the
 // statement carries no marker until then.
@@ -116,6 +138,15 @@ describe("SORT-02, Shift+click rows", () => {
       expect(onsort.mock.calls).toEqual([[order(after)]]);
     },
   );
+
+  it("a Shift+click on Date, listing ['desc', 'asc'], with the order [code asc] emits [code asc, date desc] once", async () => {
+    const { onsort } = mount({
+      columns: [code, name, sortable("date", "Date", ["desc", "asc"])],
+      sort: order("code asc"),
+    });
+    await fireEvent.click(sortButton("Date"), { shiftKey: true });
+    expect(onsort.mock.calls).toEqual([[order("code asc, date desc")]]);
+  });
 });
 // SORT-03's click row. Its Enter and Space rows are owed to the real-browser sort step, so the statement carries no
 // marker until then.
@@ -126,7 +157,7 @@ describe("SORT-03, click row", () => {
     expect(onsort).toHaveBeenCalledTimes(1);
   });
 });
-// @spec("SORT-04", "6386c5a1")
+// @spec("SORT-04", "a2edd1fa")
 describe("SORT-04", () => {
   it.each<[SortDirection[], string, boolean, string]>([
     [["desc"], "", false, "date desc"],
@@ -297,6 +328,7 @@ describe("SORT-06", () => {
 const SORT_ALERTS = {
   sortableInvalid: "A column's sort directions are invalid.",
   sortHandlerMissing: "A sortable column has no sort handler.",
+  sortInvalid: "The sort is not valid.",
   sortColumnUnknown: "The sort names an unknown column.",
   sortColumnNotSortable: "The sort names a column that cannot be sorted.",
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
@@ -309,6 +341,10 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortableInvalid", { columns: [sortable("name", "Name", [])] }],
     [
       "sortableInvalid",
+      { columns: [sortable("name", "Name", ["asc", "asc"])] },
+    ],
+    [
+      "sortableInvalid",
       {
         columns: [
           sortable("name", "Name", ["up"] as unknown as SortDirection[]),
@@ -316,6 +352,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
       },
     ],
     ["sortHandlerMissing", { onsort: undefined }],
+    ["sortInvalid", { sort: [null] as unknown as DataTableSortEntry[] }],
     ["sortColumnUnknown", { sort: order("zzz asc") }],
     [
       "sortColumnNotSortable",
@@ -331,7 +368,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
-// @spec("SORT-15", "fea0df3f")
+// @spec("SORT-15", "8ac55f94")
 describe("SORT-15", () => {
   it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
     const { container } = mount(props);
@@ -365,9 +402,62 @@ describe("SORT-15", () => {
       },
       "sortDirectionNotAllowed",
     ],
+    [
+      "no onsort and a sort that is the text name",
+      { onsort: undefined, sort: "name" as unknown as DataTableSortEntry[] },
+      "sortHandlerMissing",
+    ],
+    [
+      "a sort entry whose id is the number 5",
+      { sort: [{ id: 5, desc: true }] as unknown as DataTableSortEntry[] },
+      "sortInvalid",
+    ],
   ])("lets the first row that applies win: %s", (_faults, props, key) => {
     mount(props);
     expect(screen.getByRole("alert").textContent).toBe(SORT_ALERTS[key]);
+  });
+
+  // A caller the type does not reach (plain JavaScript, untyped state) passes these
+  it.each<[string, unknown]>([
+    ["not an array", "name"],
+    ["not an array", { id: "name", desc: false }],
+    ["an entry that is null", [null]],
+    ["an entry that is an array", [["name"]]],
+    ["an entry that is not an object", ["name"]],
+    ["an entry's id left out", [{ desc: false }]],
+    ["an entry's id not a string", [{ id: 5, desc: false }]],
+    ["an entry's id null", [{ id: null, desc: false }]],
+    ["an entry's desc left out", [{ id: "name" }]],
+    ["an entry's desc undefined", [{ id: "name", desc: undefined }]],
+    ["an entry's desc null", [{ id: "name", desc: null }]],
+    ["an entry's desc not a boolean", [{ id: "name", desc: "true" }]],
+  ])("shows only the alert sortInvalid, no table, for %s: %j", (_row, sort) => {
+    const { container } = mount({ sort: sort as DataTableSortEntry[] });
+    expect(
+      screen.getAllByRole("alert").map((alert) => alert.textContent),
+    ).toEqual([SORT_ALERTS.sortInvalid]);
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  it.each([undefined, null])(
+    "takes sort given as %s as no order and no fault",
+    (sort) => {
+      mount({ sort: sort as unknown as DataTableSortEntry[] });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("table").isConnected).toBe(true);
+    },
+  );
+
+  it("takes a column's sortable given as null as not sortable, and no fault", () => {
+    mount({
+      columns: [
+        code,
+        { ...name, sortable: null } as unknown as DataTableColumn<Item>,
+      ],
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sort by Name" })).toBeNull();
+    expect(sortButton("Code").isConnected).toBe(true);
   });
 
   it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {

@@ -1,15 +1,23 @@
 // The trace step (G6): reads the spec statements, the @spec markers in the tests and the shared test run's results,
 // and says which statements have a passing test, which fail the check, and which no marker names (listed, exit 0).
+// It also compares the ids marked at the base commit (a pull request's, or the merge base with origin/main locally)
+// with the ids marked now, so a deleted test is a finding. It writes the shared test run's report to reports/test/
+// and each marked test file's results to reports/trace/.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import {
+  baseCommit,
   canaries,
+  childEnv,
+  freshReports,
   HERE,
   isResult,
   NA,
   NO_CACHE,
+  reportFile,
   result,
   tail,
   testRun,
@@ -245,7 +253,7 @@ export function readMarkers(
 
 /** A test source: `.test.` or `.spec.` JavaScript or TypeScript. */
 const TEST_SOURCE = /\.(?:test|spec)\.[cm]?[jt]s$/;
-/** The folders the gate expects Vitest to run; a test file there that the run misses is reported, not assumed. */
+/** The folders the gate expects Vitest to run; a marker in a test file there that the run misses cannot be checked. */
 const COVERED = /^(?:src|site|test)\//;
 
 /**
@@ -388,6 +396,79 @@ function canary(): Result | null {
   return flagged ? null : bad("no finding named it");
 }
 
+/** The ids a commit's specs hold and its test markers name, read from git: what that commit's trace would have listed. */
+export function baseSets(
+  root: string,
+  base: string,
+): Result | { held: Set<string>; named: Set<string> } {
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      env: childEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  if (git("cat-file", "-e", `${base}^{commit}`).status !== 0)
+    return result(CANNOT, `the base commit ${base} cannot be read`);
+  const tree = git("ls-tree", "-r", "--name-only", "-z", base);
+  if (tree.status !== 0)
+    return result(CANNOT, `cannot read the file list at ${base}`);
+  const files = new Set(tree.stdout.split("\0").filter(Boolean));
+  // A file the reader cannot take at the base makes its set unreliable: never an empty set that passes
+  let unread: Result | null = null;
+  const read = <T extends { problems: string[] }>(
+    f: string,
+    parse: (f: string, text: string) => T,
+  ): T | null => {
+    const shown = git("show", `${base}:${f}`);
+    if (shown.status !== 0) {
+      unread ??= result(CANNOT, `cannot read ${f} at ${base}`);
+      return null;
+    }
+    const parsed = parse(f, shown.stdout);
+    if (parsed.problems.length)
+      unread ??= result(
+        CANNOT,
+        `${f} at ${base} has ${parsed.problems.length} problem(s) for the reader: ${parsed.problems[0]}`,
+      );
+    return parsed;
+  };
+  const src = traceSources(files);
+  const held = [...files]
+    .filter((f) => SPEC_FILE.test(f))
+    .flatMap((f) => read(f, parseSpec)?.statements.map((s) => s.id) ?? []);
+  const named = [...src.read, ...src.scripts].flatMap(
+    (f) => read(f, readMarkers)?.markers.map((m) => m.id) ?? [],
+  );
+  return unread ?? { held: new Set(held), named: new Set(named) };
+}
+
+/**
+ * A pull request, and locally: an id a marker named at the base and now without a marker, while its
+ * statement still exists, is a deleted test. On a push to main there is no such comparison; the list is all.
+ */
+function deletedTests(
+  root: string,
+  hashes: Map<string, string | null>,
+  named: Set<string>,
+): { findings: string[]; cannot: string[] } {
+  const base = baseCommit(root);
+  if (isResult(base))
+    return {
+      findings: [],
+      cannot: [`no base to compare with: ${base.summary}`],
+    };
+  if (base.kind === "push" || !base.base) return { findings: [], cannot: [] };
+  const was = baseSets(root, base.base);
+  if (isResult(was)) return { findings: [], cannot: [was.summary] };
+  return {
+    cannot: [],
+    findings: [...was.named]
+      .sort()
+      .filter((id) => was.held.has(id) && hashes.has(id) && !named.has(id))
+      .map((id) => `${id}: marked at the base, no marker names it now`),
+  };
+}
+
 /** A statement id defined twice: both places are named. */
 function duplicateIds(statements: Statement[]): string[] {
   const first = new Map<string, Statement>();
@@ -406,8 +487,44 @@ function duplicateIds(statements: Statement[]): string[] {
 /** A spec file the step reads: top level of spec/, Markdown. */
 const SPEC_FILE = /^spec\/[^/]+\.md$/;
 
-/** The step: spec statements and markers read, results judged, untested statements listed. */
+/** The marked tests' results: the shared run judged against the markers, its per-file results written to `reports`. */
+function judgeRun(
+  root: string,
+  list: Set<string>,
+  read: Marker[],
+  reports: string,
+): Result | (ReturnType<typeof judgeResults> & { total: number }) {
+  if (!list.has("vitest.config.ts"))
+    return result(CANNOT, "vitest.config.ts is not tracked");
+  const run = testRun(root);
+  if (isResult(run)) return run;
+  if (run.error) return result(CANNOT, run.error);
+  if (!run.report)
+    return result(CANNOT, "vitest wrote no report", tail(run.out));
+  // Same detection as the test step, but a trace that cannot trust the run says COULD NOT CHECK: an error outside any
+  // test (unhandled) fails the run though the report counts no failed test
+  if (run.status !== 0 && run.report.numFailedTests === 0)
+    return result(
+      CANNOT,
+      `vitest exited ${run.status} though no test failed`,
+      tail(run.out),
+    );
+  const ran = testsByFile(run.report, root);
+  for (const f of new Set(read.map((m) => m.file)))
+    writeFileSync(
+      reportFile(reports, `${f}.json`),
+      JSON.stringify(ran.get(f) ?? [], null, 2),
+    );
+  return { ...judgeResults(read, ran), total: run.report.numTotalTests };
+}
+
+/**
+ * The step: spec statements and markers read, results judged, untested statements listed, and the ids marked at the
+ * base commit compared with those marked now. The marked files' results go to reports/trace/.
+ */
 function trace(root: string, list: Set<string>): Result {
+  // This run's reports only: the folder is reset first, whatever the step then finds
+  const reports = freshReports(root, "trace");
   const specFiles = [...list].filter((f) => SPEC_FILE.test(f)).sort();
   const statements: Statement[] = [];
   const findings: string[] = [];
@@ -463,23 +580,9 @@ function trace(root: string, list: Set<string>): Result {
   let results = 0;
   let ok: Marker[] = [];
   if (read.length) {
-    if (!list.has("vitest.config.ts"))
-      return result(CANNOT, "vitest.config.ts is not tracked");
-    const run = testRun(root);
-    if (isResult(run)) return run;
-    if (run.error) return result(CANNOT, run.error);
-    if (!run.report)
-      return result(CANNOT, "vitest wrote no report", tail(run.out));
-    // Same detection as the test step, but a trace that cannot trust the run says COULD NOT CHECK: an error outside any
-    // test (unhandled) fails the run though the report counts no failed test
-    if (run.status !== 0 && run.report.numFailedTests === 0)
-      return result(
-        CANNOT,
-        `vitest exited ${run.status} though no test failed`,
-        tail(run.out),
-      );
-    results = run.report.numTotalTests;
-    const judged = judgeResults(read, testsByFile(run.report, root));
+    const judged = judgeRun(root, list, read, reports);
+    if (isResult(judged)) return judged;
+    results = judged.total;
     findings.push(...judged.findings);
     cannot.push(...judged.cannot);
     ok = judged.ok;
@@ -490,6 +593,9 @@ function trace(root: string, list: Set<string>): Result {
   const tested = new Set(
     ok.filter((m) => hashes.get(m.id) === m.hash).map((m) => m.id),
   );
+  const was = deletedTests(root, hashes, named);
+  findings.push(...was.findings);
+  cannot.push(...was.cannot);
   const listed = untested.length
     ? [
         `not yet tested (${untested.length}):`,
@@ -503,7 +609,7 @@ function trace(root: string, list: Set<string>): Result {
       ...listed,
     ]);
   if (cannot.length)
-    return result(CANNOT, `${cannot.length} marker(s) or file(s) not checked`, [
+    return result(CANNOT, `${cannot.length} item(s) not checked`, [
       ...cannot,
       ...listed,
     ]);

@@ -25,6 +25,16 @@ function firstDuplicate(values: readonly string[]): string | undefined {
 const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
+// undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
+const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
+
+// An entry of the order as its type says: an object with a string id and a boolean desc (SORT-15)
+const isSortEntry = (entry: unknown): boolean =>
+  typeof entry === "object" &&
+  entry !== null &&
+  typeof (entry as { id?: unknown }).id === "string" &&
+  typeof (entry as { desc?: unknown }).desc === "boolean";
+
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
 
@@ -47,7 +57,13 @@ export function validateTable<Row>(
   if (isEmpty(caption)) return "captionEmpty";
   if (isEmpty(regionLabel)) return "regionLabelEmpty";
   if (!isList(columns) || columns.length === 0) return "noColumns";
-  if (columns.some((column) => isEmpty(column.id))) return "columnIdEmpty";
+  // A column that is not an object has no id (RND-05)
+  if (
+    columns.some((column) =>
+      isEmpty((column as Partial<typeof column> | null)?.id),
+    )
+  )
+    return "columnIdEmpty";
   const duplicateId = firstDuplicate(columns.map((column) => column.id));
   if (duplicateId !== undefined) return "columnIdDuplicate";
   if (columns.some((column) => isEmpty(column.label)))
@@ -57,8 +73,15 @@ export function validateTable<Row>(
     columns.map((column) => column.label.trim()),
   );
   if (duplicateLabel !== undefined) return "columnLabelDuplicate";
-  if (columns.some((column) => !column.value && !column.cell))
+  // A cell snippet is a function too
+  if (
+    columns.some(
+      (column) =>
+        typeof column.value !== "function" && typeof column.cell !== "function",
+    )
+  )
     return "columnContentMissing";
+  if (!STATUSES.includes(status)) return "statusUnknown";
   // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
   if (!isList(rows)) {
     if (status !== "loading" && status !== "failed") return "rowsNotList";
@@ -103,12 +126,23 @@ function sortFault<Row>(
   const invalid = (sortable: unknown): boolean =>
     !isList(sortable) ||
     (sortable as unknown[]).length === 0 ||
-    (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc");
-  const sortables = columns.filter((column) => column.sortable !== undefined);
+    (sortable as unknown[]).some((d) => d !== "asc" && d !== "desc") ||
+    // A direction named twice would make a press repeat it, and the column would never leave the order
+    new Set(sortable as unknown[]).size !== (sortable as unknown[]).length;
+  // A sortable given as null is not sortable, as left out (SORT-15)
+  const sortables = columns.filter(
+    (column) => (column.sortable ?? undefined) !== undefined,
+  );
   if (sortables.some((column) => invalid(column.sortable)))
     return "sortableInvalid";
   if (sortables.length > 0 && typeof onsort !== "function")
     return "sortHandlerMissing";
+  if (
+    sort !== undefined &&
+    sort !== null &&
+    (!isList(sort) || !(sort as unknown[]).every(isSortEntry))
+  )
+    return "sortInvalid";
   const order = sort ?? [];
   const columnOf = (id: string) => columns.find((column) => column.id === id);
   if (order.some((entry) => !columnOf(entry.id))) return "sortColumnUnknown";

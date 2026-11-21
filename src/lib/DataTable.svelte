@@ -17,20 +17,27 @@
     status = "ready",
     busy = false,
     messages,
-    sort = [],
+    sort,
     onsort,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
-  // An entry given as undefined keeps its default, as a translation lookup that misses gives it
+  // An entry that is undefined, null, not of its default's type or a blank text keeps the default (RND-06)
   const words = $derived({
     ...defaultMessages,
     ...(Object.fromEntries(
-      Object.entries(messages ?? {}).filter(([, word]) => word !== undefined),
+      Object.entries(messages ?? {}).filter(
+        ([key, word]) =>
+          typeof word ===
+            typeof defaultMessages[key as keyof DataTableMessages] &&
+          !(typeof word === "string" && word.trim() === ""),
+      ),
     ) as Partial<DataTableMessages>),
   });
+  // null is no order (SORT-15)
+  const order = $derived(sort ?? []);
   const fault = $derived(
     validateTable({
       rows,
@@ -54,12 +61,12 @@
     direction: SortDirection | null;
     rank: number | null;
   } {
-    const place = sort.findIndex((entry) => entry.id === id);
-    const entry = sort[place];
+    const place = order.findIndex((entry) => entry.id === id);
+    const entry = order[place];
     if (!entry) return { direction: null, rank: null };
     return {
       direction: entry.desc ? "desc" : "asc",
-      rank: sort.length > 1 ? place + 1 : null,
+      rank: order.length > 1 ? place + 1 : null,
     };
   }
 </script>
@@ -90,7 +97,7 @@
             <!-- aria-sort on the lead column's header only (A11Y-03) -->
             <th
               scope="col"
-              aria-sort={sort[0]?.id !== column.id
+              aria-sort={order[0]?.id !== column.id
                 ? undefined
                 : state.direction === "asc"
                   ? "ascending"
@@ -105,7 +112,7 @@
                   onclick={(event) =>
                     onsort?.(
                       nextOrder(
-                        sort,
+                        order,
                         column.id,
                         column.sortable ?? [],
                         event.shiftKey,
@@ -129,7 +136,7 @@
             <tr>
               {#each columns as column (column.id)}
                 <td
-                  >{#if column.cell}{@render column.cell(
+                  >{#if typeof column.cell === "function"}{@render column.cell(
                       row,
                       column.id,
                     )}{:else}{column.value?.(row)}{/if}</td
