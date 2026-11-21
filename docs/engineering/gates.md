@@ -65,8 +65,15 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G6. `trace`
 
-- Reads test results, not test names (JUnit XML, Vitest JSON). Every statement has at least one test that ran and
-  passed, except one reported as *not yet tested*.
+- Reads test results, not test names (JUnit XML, Vitest JSON; for browser specs the `browser` step reads
+  Playwright JSON, below). Every statement has at least one test that ran and passed, except one reported as
+  *not yet tested*.
+- The results of a marker in a browser spec (`site/browser/**/*.spec.ts`) are judged by the `browser` step, in the
+  job that ran Playwright, with the same marker reading: no test under the marker or a test that did not pass fails
+  there, and a marked test missing in an engine is could not check. `trace` checks such a marker's statement, hash
+  and position and counts it as left to the `browser` step, never as tested. `--close` and `--release` (not built
+  yet) must, when built, count a browser marker as tested only with a `browser` pass on the same commit; until then
+  a statement proven only in a browser spec is left to the `browser` step for them too.
 - *Not yet tested* means that no `@spec` marker in the test sources names the statement; the check reads those
   markers as well as the results. A skipped, stale or failing test is never this state; it fails. A protected
   statement is never this state; with no test it fails.
@@ -192,7 +199,8 @@ $0 budget, no self-hosted runners.
   - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI
     *(inferred: G7 needs only the parent commit and that commit's test files)*.
   - `mutation` (G8) on the step diff, Linux only.
-  - `trace` (G6) over the result files of the jobs above.
+  - `trace` (G6) in the `static` job over the Vitest results; the markers of browser specs are judged by the
+    `browser` step in the `browser` job, from its own Playwright report (no result file passes between jobs).
   - `gate`: `needs:` every job above, `if: always()`. It passes only when every needed job's result is `success`;
     `failure` is a finding; `cancelled` or `skipped` is *could not check* (method §6). `gate` is the one `ci.yml` check
     the ruleset requires, so a matrix change never touches the ruleset.

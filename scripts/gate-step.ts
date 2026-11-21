@@ -108,6 +108,11 @@ export interface VitestReport {
 /** Flags for a canary run: Vitest's two caches would write under the canaries folder, which a run must leave as is. */
 export const NO_CACHE = ["--cache=false", "--fsModuleCache=false"];
 
+export const BROWSER_DIR = "site/browser/";
+/** A spec the browser step runs and judges, markers included: one rule for that step and for trace's hand-off. */
+export const isBrowserSpec = (f: string): boolean =>
+  f.startsWith(BROWSER_DIR) && f.endsWith(".spec.ts");
+
 export interface VitestRun {
   report: VitestReport | null;
   status: number | null;

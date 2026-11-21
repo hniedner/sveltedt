@@ -1618,12 +1618,13 @@ const browserSite =
     );
   };
 // A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
-// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
-// the real run's exit code
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary` at `canaryLine`
+// (the marked test( line of canary.spec.ts); FAKE_EXIT sets the real run's exit code
 function fakePlaywright(
   report: object | string,
   version = PINS["@playwright/test"],
   canary = "unexpected",
+  canaryLine = 4,
 ): string {
   const bin = join(tempDir(), "playwright");
   const planted = {
@@ -1635,6 +1636,7 @@ function fakePlaywright(
         specs: [
           {
             title: "fails on purpose",
+            line: canaryLine,
             tests: [{ projectName: "", status: canary, results: [{}] }],
           },
         ],
@@ -1656,12 +1658,13 @@ if (process.argv[2] === "test" && !process.cwd().includes("canaries")) process.e
 }
 // Playwright's messages are coloured and span lines; the step shows them without the colour codes
 const BOOM = "\u001b[31mError: boom\u001b[39m\n\nExpected: 1\nReceived: 2";
-/** A report of the spec file `a.spec.ts` whose test "opens" ended with `status` in each of `engines`. */
+/** A report of the spec file `a.spec.ts` whose test "opens" (at `line`) ended with `status` in each of `engines`. */
 const pwReport = (
   status: string,
   errors: object[] = [],
   file = "a.spec.ts",
   engines = ["chromium", "firefox", "webkit"],
+  line = 3,
 ) => ({
   stats: { [status]: engines.length },
   errors,
@@ -1671,6 +1674,7 @@ const pwReport = (
       specs: [
         {
           title: "opens",
+          line,
           tests: engines.map((projectName) => ({
             projectName,
             status,
@@ -1685,8 +1689,11 @@ const withPw = (
   report: object | string,
   version?: string,
   canary?: string,
+  canaryLine?: number,
 ) => ({
-  extraEnv: { PLAYWRIGHT_BIN: fakePlaywright(report, version, canary) },
+  extraEnv: {
+    PLAYWRIGHT_BIN: fakePlaywright(report, version, canary, canaryLine),
+  },
 });
 test("browser: without a tracked spec the step is not applicable; a spec without the config cannot be checked", () => {
   const r = run(["browser", "--root", repo()]);
@@ -1727,7 +1734,93 @@ test("browser: passes when every tracked spec ran and passed in each engine, and
     0,
     withPw(pwReport("expected")),
   );
-  assert.match(out, /3 test\(s\) in 1 file\(s\) passed/);
+  assert.match(
+    out,
+    /3 test\(s\) in 1 file\(s\) passed; 0 marker\(s\) with passing tests in every engine \(ids and hashes: trace\)$/m,
+  );
+});
+// a.spec.ts with a marked test: the marker on line 2, its test( on line 3
+const markedSite = (root: string): void => {
+  browserSite()(root);
+  put(
+    root,
+    "site/browser/a.spec.ts",
+    'import { expect, test } from "@playwright/test";\n// @spec("TST-01", "aaaaaaaa")\ntest("opens", () => {\n  expect(1).toBe(1);\n});\n',
+  );
+};
+test("browser: a marked test that passed in every engine counts its marker", () => {
+  const out = expect(
+    "browser",
+    repo(markedSite),
+    0,
+    withPw(pwReport("expected")),
+  );
+  assert.match(
+    out,
+    /3 test\(s\) in 1 file\(s\) passed; 1 marker\(s\) with passing tests in every engine \(ids and hashes: trace\)$/m,
+  );
+});
+test("browser: a tracked helper under site/browser/ is not a spec, so it need not be in the report", () => {
+  const site = (root: string): void => {
+    markedSite(root);
+    put(root, "site/browser/helper.ts", "export const one = 1;\n");
+  };
+  assert.match(
+    expect("browser", repo(site), 0, withPw(pwReport("expected"))),
+    /3 test\(s\) in 1 file\(s\) passed; 1 marker\(s\)/,
+  );
+});
+test("browser: a marker with no test under it in the report is a finding", () => {
+  const report = pwReport("expected", [], "a.spec.ts", undefined, 9);
+  assert.match(
+    expect("browser", repo(markedSite), 1, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:2: TST-01: no test ran under the marker \(lines 3-5\)$/m,
+  );
+});
+test("browser: a marker without a test is a finding even beside one whose tests missed an engine", () => {
+  const site = (root: string): void => {
+    markedSite(root);
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { expect, test } from "@playwright/test";\n// @spec("TST-01", "aaaaaaaa")\ntest("opens", () => {\n  expect(1).toBe(1);\n});\n// @spec("TST-02", "aaaaaaaa")\ntest("closes", () => {\n  expect(1).toBe(1);\n});\n',
+    );
+  };
+  // TST-01's test ran in chromium only; TST-02's not at all; a test on line 20 keeps the file in every engine
+  const marked = pwReport("expected", [], "a.spec.ts", ["chromium"]);
+  const other = pwReport("expected", [], "a.spec.ts", undefined, 20);
+  const report = {
+    ...marked,
+    stats: { expected: 4 },
+    suites: [
+      {
+        file: "a.spec.ts",
+        specs: [...marked.suites[0].specs, ...other.suites[0].specs],
+      },
+    ],
+  };
+  assert.match(
+    expect("browser", repo(site), 1, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:6: TST-02: no test ran under the marker \(lines 7-9\)$/m,
+  );
+});
+test("browser: a marker whose tests did not run in every engine cannot be checked, though its file did", () => {
+  const marked = pwReport("expected", [], "a.spec.ts", ["chromium"]);
+  const other = pwReport("expected", [], "a.spec.ts", undefined, 9);
+  const report = {
+    ...marked,
+    stats: { expected: 4 },
+    suites: [
+      {
+        file: "a.spec.ts",
+        specs: [...marked.suites[0].specs, ...other.suites[0].specs],
+      },
+    ],
+  };
+  assert.match(
+    expect("browser", repo(markedSite), 3, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:2: TST-01: not in firefox, webkit$/m,
+  );
 });
 test("browser: a failed or skipped test is a finding that names it, its engine and its reason", () => {
   for (const status of ["unexpected", "skipped"]) {
@@ -1793,6 +1886,16 @@ test("browser: a spec that did not run in every engine, a canary that passed or 
       withPw(pwReport("unexpected"), undefined, "expected"),
     ),
     /did not report the planted failing test/,
+  );
+  // A marker reading that finds no test under the canary's marker would pass every marker
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("expected"), undefined, undefined, 9),
+    ),
+    /the planted failing test's marker was not reported \(canary\.spec\.ts\)/,
   );
 });
 test("browser: a report whose totals differ from its tests, or that cannot be read, cannot be checked", () => {

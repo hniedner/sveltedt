@@ -14,6 +14,7 @@ import {
   childEnv,
   freshReports,
   HERE,
+  isBrowserSpec,
   isResult,
   NA,
   NO_CACHE,
@@ -257,11 +258,12 @@ const TEST_SOURCE = /\.(?:test|spec)\.[cm]?[jt]s$/;
 const COVERED = /^(?:src|site|test)\//;
 
 /**
- * The tracked test sources, sorted by what the trace does with them: `read` (results are read), `scripts` (the gate's
- * own node:test files, whose markers are read but whose results this step does not read) and `stray` (outside the
- * covered folders and scripts/: the trace cannot say it ran them; their markers are not read). Canary fixtures are
- * inputs, never tests, and appear nowhere. Stated limit: a marker in a stray test file, a helper, a .tsx or a .svelte
- * file is not seen: the step reads markers only in files TEST_SOURCE matches, under src/, site/, test/ or scripts/.
+ * The tracked test sources, sorted by what the trace does with them: `read` (results are read, except a browser
+ * spec's, which are the browser step's), `scripts` (the gate's own node:test files, whose markers are read but whose
+ * results this step does not read) and `stray` (outside the covered folders and scripts/: the trace cannot say it ran
+ * them; their markers are not read). Canary fixtures are inputs, never tests, and appear nowhere. Stated limit: a
+ * marker in a stray test file, a helper, a .tsx or a .svelte file is not seen: the step reads markers only in files
+ * TEST_SOURCE matches, under src/, site/, test/ or scripts/.
  */
 export function traceSources(list: Set<string>): {
   read: string[];
@@ -576,7 +578,12 @@ function trace(root: string, list: Set<string>): Result {
         `${m.file}:${m.line}: ${m.id}: node:test results are not read by this step`,
     ),
   );
-  const read = markers.filter((m) => src.read.includes(m.file));
+  // A browser spec's results are the browser step's, from its own Playwright run (in CI, in its own job): its markers
+  // are checked here like any other, but this step never counts them as tested, and reports/trace/ gets no file
+  const left = markers.filter((m) => isBrowserSpec(m.file));
+  const read = markers.filter(
+    (m) => src.read.includes(m.file) && !isBrowserSpec(m.file),
+  );
   let results = 0;
   let ok: Marker[] = [];
   if (read.length) {
@@ -615,7 +622,7 @@ function trace(root: string, list: Set<string>): Result {
     ]);
   return result(
     PASS,
-    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} test result(s) read; ${tested.size} of ${statements.length} statements tested`,
+    `${specFiles.length} spec file(s), ${statements.length} statement(s), ${markers.length} marker(s), ${results} test result(s) read; ${tested.size} of ${statements.length} statements tested${left.length ? `; ${left.length} marker(s) left to the browser step` : ""}`,
     listed,
   );
 }

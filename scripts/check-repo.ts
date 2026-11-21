@@ -37,8 +37,10 @@ import {
   childEnv,
   commitRange,
   errorCode,
+  BROWSER_DIR,
   HERE,
   inCI,
+  isBrowserSpec,
   isResult,
   NA,
   NO_CACHE,
@@ -49,7 +51,8 @@ import {
   vitestBin,
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
-import { check as trace } from "./trace.ts";
+import { check as trace, judgeResults, readMarkers } from "./trace.ts";
+import type { Ran } from "./trace.ts";
 
 const WORD: Record<number, string> = {
   [PASS]: "PASS",
@@ -1810,7 +1813,6 @@ function svelte(root: string, list: Set<string>): Result {
   );
 }
 
-const BROWSER_DIR = "site/browser/";
 const viteBin = (): string =>
   process.env.VITE_BIN || join(HERE, "..", "node_modules", ".bin", "vite");
 const SITE_CONFIG = "site/vite.config.ts";
@@ -2269,7 +2271,7 @@ interface PwTest {
 }
 interface PwSuite {
   file: string;
-  specs?: { title: string; tests: PwTest[] }[];
+  specs?: { title: string; line: number; tests: PwTest[] }[];
   suites?: PwSuite[];
 }
 interface PwReport {
@@ -2315,11 +2317,13 @@ function playwright(cwd: string): PwRun {
   }
 }
 
-/** Every test of a report as [file, title, test], describe blocks flattened. */
-const pwTests = (suites: PwSuite[]): [string, string, PwTest][] =>
+/** One test of a report: its file, its title, the test, and the line of its `test(` call. */
+type PwRow = [string, string, PwTest, number];
+/** Every test of a report as a row, describe blocks flattened. */
+const pwTests = (suites: PwSuite[]): PwRow[] =>
   suites.flatMap((s) => [
     ...(s.specs ?? []).flatMap((spec) =>
-      spec.tests.map((t): [string, string, PwTest] => [s.file, spec.title, t]),
+      spec.tests.map((t): PwRow => [s.file, spec.title, t, spec.line]),
     ),
     ...pwTests(s.suites ?? []),
   ]);
@@ -2352,7 +2356,7 @@ function pwCannot(run: PwRun): Result | null {
  * A test that did not pass, or passed only as an expected failure (test.fail): one line, the first three lines of
  * its reason as tail() keeps them (error lines first, no stack frames), joined by " / ".
  */
-const pwBad = ([file, title, t]: [string, string, PwTest]): string[] => {
+const pwBad = ([file, title, t]: PwRow): string[] => {
   const head = `${file} > ${title} [${t.projectName}]`;
   if (t.annotations?.some((a) => a.type === "fail"))
     return [`${head}: marked test.fail`];
@@ -2363,9 +2367,7 @@ const pwBad = ([file, title, t]: [string, string, PwTest]): string[] => {
 };
 
 function browser(root: string, list: Set<string>): Result {
-  const specs = [...list].filter(
-    (f) => f.startsWith(BROWSER_DIR) && f.endsWith(".spec.ts"),
-  );
+  const specs = [...list].filter(isBrowserSpec);
   if (!specs.length)
     return result(
       NA,
@@ -2402,11 +2404,72 @@ function browser(root: string, list: Set<string>): Result {
       CANNOT,
       "playwright did not report the planted failing test (canary.spec.ts)",
     );
-  return pwJudge(playwright(root), specs);
+  // Its marker must come back through the marker reading as not passed: a reading that found nothing would pass all
+  const marker = pwMarkers(
+    canaries("browser"),
+    ["canary.spec.ts"],
+    planted,
+    "",
+  );
+  if (!marker.findings.some((f) => f.includes("not passed")))
+    return result(
+      CANNOT,
+      "the planted failing test's marker was not reported (canary.spec.ts)",
+    );
+  return pwJudge(playwright(root), specs, root);
 }
 
-/** The real run's result: every tracked spec in each engine, the report's totals, then each test, then the exit. */
-function pwJudge(run: PwRun, specs: string[]): Result {
+/**
+ * The markers of `files` (read in `dir`, a report file being `prefix` + its name) judged with trace's own reading: a
+ * marker counts when tests ran under it and each passed as pwBad judges. The markers' own problems (no such statement,
+ * a stale hash, a marker out of place) are trace's to report, so readMarkers' problems are not read here.
+ */
+function pwMarkers(
+  dir: string,
+  files: string[],
+  rows: PwRow[],
+  prefix: string,
+) {
+  const ran = new Map<string, Ran[]>();
+  for (const row of rows) {
+    const [file, title, t, line] = row;
+    // "not passed" is matched by the canary check in browser()
+    const status = pwBad(row).length ? "not passed" : "passed";
+    const name = `${title} [${t.projectName}]`;
+    const key = `${prefix}${file}`;
+    ran.set(key, [...(ran.get(key) ?? []), { line, name, status }]);
+  }
+  const markers = files.flatMap(
+    (f) => readMarkers(f, readFileSync(join(dir, f), "utf8")).markers,
+  );
+  const judged = judgeResults(markers, ran);
+  // A marker counts only when its tests ran in each engine, as every spec must
+  const thin = judged.ok.flatMap((m) => {
+    const engines = new Set(
+      rows
+        .filter(
+          ([f, , , line]) =>
+            `${prefix}${f}` === m.file && line >= m.from && line <= m.to,
+        )
+        .map(([, , t]) => t.projectName),
+    );
+    const not = ENGINES.filter((e) => !engines.has(e));
+    return not.length
+      ? [`${m.file}:${m.line}: ${m.id}: not in ${not.join(", ")}`]
+      : [];
+  });
+  return {
+    ...judged,
+    cannot: [...judged.cannot, ...thin],
+    total: markers.length,
+  };
+}
+
+/**
+ * The real run's result: every tracked spec in each engine, the report's totals, then each test, then the exit, then
+ * the specs' markers.
+ */
+function pwJudge(run: PwRun, specs: string[], root: string): Result {
   const stopped = pwCannot(run);
   if (stopped) return stopped;
   // pwCannot answers for a run without a report
@@ -2447,9 +2510,22 @@ function pwJudge(run: PwRun, specs: string[]): Result {
       `playwright exited ${run.status} with every test passed`,
       tail(run.out),
     );
+  const marked = pwMarkers(root, specs, tests, BROWSER_DIR);
+  if (marked.findings.length)
+    return result(
+      FINDING,
+      `${marked.findings.length} browser marker(s) without a passing test`,
+      marked.findings,
+    );
+  if (marked.cannot.length)
+    return result(
+      CANNOT,
+      `${marked.cannot.length} browser marker(s) not checked`,
+      marked.cannot,
+    );
   return result(
     PASS,
-    `playwright failed the canary; ${tests.length} test(s) in ${specs.length} file(s) passed`,
+    `playwright failed the canary; ${tests.length} test(s) in ${specs.length} file(s) passed; ${marked.total} marker(s) with passing tests in every engine (ids and hashes: trace)`,
   );
 }
 
