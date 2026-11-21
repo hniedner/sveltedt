@@ -2404,6 +2404,18 @@ function browser(root: string, list: Set<string>): Result {
       CANNOT,
       "playwright did not report the planted failing test (canary.spec.ts)",
     );
+  // Its marker must come back through the marker reading as not passed: a reading that found nothing would pass all
+  const marker = pwMarkers(
+    canaries("browser"),
+    ["canary.spec.ts"],
+    planted,
+    "",
+  );
+  if (!marker.findings.some((f) => f.includes("not passed")))
+    return result(
+      CANNOT,
+      "the planted failing test's marker was not reported (canary.spec.ts)",
+    );
   return pwJudge(playwright(root), specs, root);
 }
 

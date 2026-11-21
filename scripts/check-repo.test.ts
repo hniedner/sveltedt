@@ -1618,12 +1618,13 @@ const browserSite =
     );
   };
 // A fake playwright that writes `report` (or, given a string, that text) for the real run, and for the canary run
-// (told apart by a working folder whose path holds "canaries") its one test with the status `canary`; FAKE_EXIT sets
-// the real run's exit code
+// (told apart by a working folder whose path holds "canaries") its one test with the status `canary` at `canaryLine`
+// (the marked test( line of canary.spec.ts); FAKE_EXIT sets the real run's exit code
 function fakePlaywright(
   report: object | string,
   version = PINS["@playwright/test"],
   canary = "unexpected",
+  canaryLine = 4,
 ): string {
   const bin = join(tempDir(), "playwright");
   const planted = {
@@ -1635,6 +1636,7 @@ function fakePlaywright(
         specs: [
           {
             title: "fails on purpose",
+            line: canaryLine,
             tests: [{ projectName: "", status: canary, results: [{}] }],
           },
         ],
@@ -1687,8 +1689,11 @@ const withPw = (
   report: object | string,
   version?: string,
   canary?: string,
+  canaryLine?: number,
 ) => ({
-  extraEnv: { PLAYWRIGHT_BIN: fakePlaywright(report, version, canary) },
+  extraEnv: {
+    PLAYWRIGHT_BIN: fakePlaywright(report, version, canary, canaryLine),
+  },
 });
 test("browser: without a tracked spec the step is not applicable; a spec without the config cannot be checked", () => {
   const r = run(["browser", "--root", repo()]);
@@ -1841,6 +1846,16 @@ test("browser: a spec that did not run in every engine, a canary that passed or 
       withPw(pwReport("unexpected"), undefined, "expected"),
     ),
     /did not report the planted failing test/,
+  );
+  // A marker reading that finds no test under the canary's marker would pass every marker
+  assert.match(
+    expect(
+      "browser",
+      site,
+      3,
+      withPw(pwReport("expected"), undefined, undefined, 9),
+    ),
+    /the planted failing test's marker was not reported \(canary\.spec\.ts\)/,
   );
 });
 test("browser: a report whose totals differ from its tests, or that cannot be read, cannot be checked", () => {
