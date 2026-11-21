@@ -210,8 +210,8 @@ group of CONN-10, in its place in `selected`, with `regex=true`.
   | `['', 'active']` | `^(\|active)$` | `true` |
 
   `['']` is a selection, unlike `[]`, which sends `""` and `false` (CONN-10).
-- Reason: an anchored group with an empty alternative matches an empty value, and only that, in a backend that
-  honours `regex` (PRD-B7); the helper sends no word of its own for "no value", so no server has to know one. That
+- Reason: in a backend that honours `regex`, the empty alternative adds the empty value, and no other, to what the
+  anchored group matches (PRD-B7); the helper sends no word of its own for "no value", so no server has to know one. That
   `^()$` with `regex=true` finds exactly the rows without a value is the backend reviewer's claim (2026-11-20), not
   measured here; whether a server counts a null as empty is the server's, and the server guide (PRD-D6) says so.
 - Layer: component.
