@@ -65,8 +65,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G6. `trace`
 
-- Reads test results, not test names (JUnit XML, Vitest JSON, Playwright JSON). Every statement has at least one
-  test that ran and passed, except one reported as *not yet tested*.
+- Reads test results, not test names (JUnit XML, Vitest JSON; for browser specs the `browser` step reads
+  Playwright JSON, below). Every statement has at least one test that ran and passed, except one reported as
+  *not yet tested*.
 - The results of a marker in a browser spec (`site/browser/**/*.spec.ts`) are judged by the `browser` step, in the
   job that ran Playwright, with the same marker reading: no test under the marker or a test that did not pass fails
   there, and a marked test missing in an engine is could not check. `trace` checks such a marker's statement, hash

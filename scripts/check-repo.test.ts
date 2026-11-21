@@ -1748,7 +1748,7 @@ const markedSite = (root: string): void => {
     'import { expect, test } from "@playwright/test";\n// @spec("TST-01", "aaaaaaaa")\ntest("opens", () => {\n  expect(1).toBe(1);\n});\n',
   );
 };
-test("browser: a marked test that passed in every engine proves its marker", () => {
+test("browser: a marked test that passed in every engine counts its marker", () => {
   const out = expect(
     "browser",
     repo(markedSite),

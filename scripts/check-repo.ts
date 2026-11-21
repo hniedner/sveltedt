@@ -2433,6 +2433,7 @@ function pwMarkers(
   const ran = new Map<string, Ran[]>();
   for (const row of rows) {
     const [file, title, t, line] = row;
+    // "not passed" is matched by the canary check in browser()
     const status = pwBad(row).length ? "not passed" : "passed";
     const name = `${title} [${t.projectName}]`;
     const key = `${prefix}${file}`;
