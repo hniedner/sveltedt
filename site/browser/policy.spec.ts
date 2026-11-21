@@ -29,6 +29,7 @@ async function open(page: Page, path: string): Promise<void> {
   expect(await listOf(page)).toEqual(expect.any(Array));
 }
 
+// @spec("POL-02", "552af556")
 test("POL-02: the canary page's list holds a violation once the page has loaded", async ({
   page,
 }) => {
@@ -45,6 +46,7 @@ test("POL-02: the canary page's list holds a violation once the page has loaded"
     .toBe(true);
 });
 
+// @spec("POL-04", "235dc0cc")
 test.describe("POL-04", () => {
   for (const file of pages.filter((p) => p !== "canary.html")) {
     test(`${file} raises no violation once loaded and what it shows rendered`, async ({
