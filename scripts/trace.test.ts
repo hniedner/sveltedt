@@ -448,9 +448,31 @@ test("trace: a marker in a browser spec is left to the browser step and not coun
     out,
     /1 marker\(s\), 0 test result\(s\) read; 0 of 2 statements tested; 1 marker\(s\) left to the browser step$/m,
   );
+  // Named, so not listed as untested
+  assert.match(out, /^ {2}not yet tested \(1\):\n {4}TST-02$/m);
 });
-test("trace: a marker in another test file under site/browser/ expects a Vitest result, so it cannot be checked", () => {
-  for (const f of ["site/browser/a.test.ts", "site/browser/a.spec.mts"])
+test("trace: beside a browser marker a Vitest marker is judged and counted, and only its file is reported", () => {
+  const root = fixture({
+    "site/browser/a.spec.ts": PW(),
+    "src/b.test.ts": ONE("TST-02"),
+  });
+  assert.match(
+    expectTrace(root, 0),
+    /2 marker\(s\), 1 test result\(s\) read; 1 of 2 statements tested; 1 marker\(s\) left to the browser step$/m,
+  );
+  assert.ok(existsSync(join(root, "reports/trace/src__b.test.ts.json")));
+  assert.ok(
+    !existsSync(join(root, "reports/trace/site__browser__a.spec.ts.json")),
+  );
+});
+test("trace: a marker in any other test file, under site/browser/ or not, expects a Vitest result, so it cannot be checked", () => {
+  // the fixture's Vitest runs src/**/*.test.ts only, so none of these is in the results
+  for (const f of [
+    "site/browser/a.test.ts",
+    "site/browser/a.spec.mts",
+    "src/a.spec.ts",
+    "site/browserx/a.spec.ts",
+  ])
     assert.match(
       // src/b.test.ts gives Vitest a file to run
       expectTrace(fixture({ [f]: PW(), "src/b.test.ts": ONE("TST-02") }), 3),

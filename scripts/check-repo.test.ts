@@ -1734,7 +1734,10 @@ test("browser: passes when every tracked spec ran and passed in each engine, and
     0,
     withPw(pwReport("expected")),
   );
-  assert.match(out, /3 test\(s\) in 1 file\(s\) passed/);
+  assert.match(
+    out,
+    /3 test\(s\) in 1 file\(s\) passed; 0 marker\(s\) with passing tests in every engine \(ids and hashes: trace\)$/m,
+  );
 });
 // a.spec.ts with a marked test: the marker on line 2, its test( on line 3
 const markedSite = (root: string): void => {
@@ -1762,6 +1765,33 @@ test("browser: a marker with no test under it in the report is a finding", () =>
   assert.match(
     expect("browser", repo(markedSite), 1, withPw(report)),
     /^ {2}site\/browser\/a\.spec\.ts:2: TST-01: no test ran under the marker \(lines 3-5\)$/m,
+  );
+});
+test("browser: a marker without a test is a finding even beside one whose tests missed an engine", () => {
+  const site = (root: string): void => {
+    markedSite(root);
+    put(
+      root,
+      "site/browser/a.spec.ts",
+      'import { expect, test } from "@playwright/test";\n// @spec("TST-01", "aaaaaaaa")\ntest("opens", () => {\n  expect(1).toBe(1);\n});\n// @spec("TST-02", "aaaaaaaa")\ntest("closes", () => {\n  expect(1).toBe(1);\n});\n',
+    );
+  };
+  // TST-01's test ran in chromium only; TST-02's not at all; a test on line 20 keeps the file in every engine
+  const marked = pwReport("expected", [], "a.spec.ts", ["chromium"]);
+  const other = pwReport("expected", [], "a.spec.ts", undefined, 20);
+  const report = {
+    ...marked,
+    stats: { expected: 4 },
+    suites: [
+      {
+        file: "a.spec.ts",
+        specs: [...marked.suites[0].specs, ...other.suites[0].specs],
+      },
+    ],
+  };
+  assert.match(
+    expect("browser", repo(site), 1, withPw(report)),
+    /^ {2}site\/browser\/a\.spec\.ts:6: TST-02: no test ran under the marker \(lines 7-9\)$/m,
   );
 });
 test("browser: a marker whose tests did not run in every engine cannot be checked, though its file did", () => {
