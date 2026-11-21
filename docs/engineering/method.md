@@ -225,7 +225,8 @@ practice is found, the proposal says so. A probe's own result is marked measured
 - **The gate record cannot be forged by the person it gates.** The record that counts is CI's `gate` check, which
   GitHub writes and the main ruleset requires (G9, G13).
 - **CI is on in every repo and uses Actions and Dependabot fully** (owner, 2026-11-17 11:06; G10, G11). Its `gate`
-  check is required on main from the first workflow on; the local gate still runs before every push. Standard runners
+  check is required on main from the first workflow on; the local gate runs before a pull request is opened, and
+  every push is scanned first (section 9). Standard runners
   are free on public repos *(fetched, docs.github.com/en/actions/reference/runners/github-hosted-runners)*; larger
   runners are billed and not used. Every repo is set up by one fail-closed script, `repo-setup`, with read-back (G13).
 - **Every change is reviewed against this method** before merge. A finding gives its severity by impact, the rule it
@@ -293,3 +294,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-19 | Section 10: the secret scan is listed directly after the toolchain step (list order only; companion G2 says where it runs) | The gate stops at the first non-pass, so the scan runs right after the toolchain check for a change that fails a later check to still be scanned. Reviewer ruling under the owner's rule, 2026-11-19 (order only) |
 | 2026-11-19 | Companion G6: locally the check compares the untested ids with the merge base of `origin/main` and `HEAD`, as it does on a pull request; only a push to main prints the list alone | A local run now fails on a deleted test before the pull request does. Owner's decision, 2026-11-18 |
 | 2026-11-19 | Companion G10: the steps' reports are uploaded from the existing static job, also when it fails; the job is split into the listed jobs when the job's time on main passes 12 of its 15 minutes in three runs in a row, and with mutation testing at the latest | Owner's decision, 2026-11-18: the shared test run stays in one job until its time says otherwise, and the time is read from the run, never guessed |
+| 2026-11-21 | Section 10: the local gate runs before a pull request is opened (CI's `gate` check is required on main) and every push is scanned first, instead of the local gate running before every push | Owner's decision, 2026-11-19: a branch may be pushed as a backup at any time once the scans pass |

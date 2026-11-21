@@ -15,7 +15,7 @@ option covers only the command it precedes: every later git command in that clon
 hooks of the checked-out tree again. With the setting in place, git runs any hook the branch puts in `.githooks/`, such
 as post-checkout on a checkout or post-merge on any merge or pull, a fast-forward included (measured), and commit-msg
 on a merge commit (Git hooks and commit headers). A tracked hooks folder runs what the checked-out tree holds, as in
-every project that tracks its hooks; the gate's `hooks` step refuses a file there that is not one of the two shims, in
+every project that tracks its hooks; the gate's `hooks` step refuses a file there that is not one of the three shims, in
 CI too.
 
 One command runs every check that exists today, in order, stopping at the first finding or could-not-check:
@@ -188,7 +188,7 @@ trailing blanks and carriage return.
 - Locally the range starts after the merge base with `origin/main`: fetch first, or commits already on main are judged
   as the branch's own.
 
-The hooks run before each commit once this clone has been set up, which the gate's `hooks` step checks:
+The hooks run before each commit and push once this clone has been set up, which the gate's `hooks` step checks:
 
 ```sh
 ./scripts/setup
@@ -221,11 +221,27 @@ global `core.hooksPath`, and there is no supported place for a hook of your own 
     (`commit -v`). A message with nothing else is refused as empty.
   - A header starting with `Merge ` or with `fixup! `, `squash! ` or `amend! ` passes the hook, whatever its length;
     the `commits` step refuses the autosquash ones at the pull request.
+  - The message, comment lines included, is also scanned for secrets with gitleaks (the range scan of a push reads
+    messages through gitleaks' git mode, which was measured to miss a token in a body); a finding blocks the commit.
   - Limits, caught only by the `commits` step: the hook does not tell git's own `Merge ...` header from a typed one
     on an ordinary commit; `git revert`, `git cherry-pick` and `git rebase --autosquash` run no commit-msg hook
     (measured); git keeps a `#` line of a message given with `-m` or `-F`, so `git commit -m "# x" -m "feat: y"`
     passes the hook (which judges `feat: y`) while git stores `# x` as the header; a comment character other than `#`
     (`core.commentChar`) is not known to the hook.
+- **pre-push**, for each pushed ref with new commits (a new branch, a tag with commits no remote ref holds, or an update
+  whose old tip is not an ancestor: those after the remote's `main`; an update: those after the remote's commit; a
+  deletion or a tag with nothing new: nothing): gitleaks on those commits and on their messages, then the private
+  word scan when this clone names it. The hook runs the scans only: they read the pushed commits, so the work tree
+  may be on another branch or have changes. The gate runs before a pull request is opened, and CI's `gate` check is
+  required on main. A pushed secret or private word counts as published, so these scans block the push.
+  - Limits: a new branch, a tag with new commits or a force-push to a remote with no fetched `main` (an empty new
+    repository, a default branch of another name, a push to a URL) is blocked, and fetching does not help; an update
+    of a branch the remote already has goes through. The message of an annotated tag is not scanned, only the commits
+    it brings and their messages. The scanner, its configuration and the pinned program are those of the checked-out
+    tree, not of the pushed commits.
+
+Maintainers' clones also name, in git config, the owner-only word scan (`sveltedt.wordScan`, the scan program;
+`sveltedt.wordList` and `sveltedt.wordAllow`, its lists). A clone without it skips the word scan.
 
 A hook that refuses is answered by fixing what it names (rewording the message, or correcting the staged files),
 never by skipping the hook (`--no-verify`). The path is
@@ -247,7 +263,6 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- the pre-push hook (issue #6); until it exists, maintainers run the private word scan by hand before every push;
 - `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the first code that needs them).
 
 ## Known limits of the merge rules
