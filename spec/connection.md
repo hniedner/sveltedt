@@ -203,8 +203,8 @@ selected, `""` and `false`.
 **CONN-13** A sort, filter, search or page-size intent MUST set the query at once and send one request for it, with
 offset 0 after a sort, filter or search, and after a page-size change the offset of the page that holds the first
 row shown.
-- Examples (the test runs every row; from offset 20, limit 10, the first answer settled; one intent each; the props
-  are read before the request is settled):
+- Examples (the test runs every row; from offset 20, limit 10, the first answer settled unless a row says otherwise;
+  one intent each; the props are read before the request is settled):
 
   | Intent | The one request | `table`, `pager` |
   |---|---|---|
@@ -213,7 +213,7 @@ row shown.
   | `table.onclearfilter('name')`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
   | `table.onclearfilters()`, Name filtered, search `x` | `start=0`, every column search `""`, `search[value]=x` | `filters` `{}`, `search` `x` |
   | `table.onsearch('beta')` | `start=0`, `search[value]=beta` | `search` `beta` |
-  | `table.onsearch('beta')` before the first answer (request 1 running) | `start=0`, `search[value]=beta` | `search` `beta`; `pager` still `undefined` |
+  | `table.onsearch('beta')` before the first answer (from Q0, request 1 running) | `start=0`, `search[value]=beta` | `search` `beta`; `pager` still `undefined` |
   | `pager.onsize(25)` | `start=0`, `length=25` | `offset` 0, `limit` 25 |
   | `pager.onsize(25)`, from offset 60, limit 10 | `start=50`, `length=25` | `offset` 50, `limit` 25 |
   | `pager.onsize(10)`, from offset 50, limit 25 | `start=50`, `length=10` | `offset` 50, `limit` 10 |
@@ -250,18 +250,19 @@ row shown.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-16** A sort or filter on a column id that no map entry serves, in an intent or in the initial query, MUST send
-nothing, keep the query, and call `onerror` once with an `Error` naming that column id.
+**CONN-16** A sort or filter on a column id that no map entry serves, in an intent, in the initial query or in the
+query of a `reload()`, MUST send nothing, keep the query, and call `onerror` once with an `Error` naming that column
+id.
 - Examples (the test runs every row; map M without entry 1's `id`; for an intent, the first answer settled):
 
-  | Intent | `send` calls after it | `table.sort`, `table.filters` | `onerror` |
+  | Intent or mount | `send` calls after it | `table.sort`, `table.filters` | `onerror` |
   |---|---|---|---|
   | `table.onsort([code asc])` | none | `[name asc]`, `{}` | once, message holds `code` |
   | `table.onfilter('code', { kind: 'text', text: 'B' })` | none | `[name asc]`, `{}` | once, message holds `code` |
   | mount with sort `[code asc]` | none | `[code asc]`, `{}` | once, message holds `code` |
+  | `reload()` after that mount | none | `[code asc]`, `{}` | once more, message holds `code` |
 
-  After the refused mount, `table.status` is `'failed'`; `onerror` is called on mount, never during server rendering;
-  a later `reload()` is refused the same way.
+  After the refused mount, `table.status` is `'failed'`.
 
 - Reason: without an index the backend cannot be told which column; sending the request without it would show rows
   that do not match the marks (PRD-B20).
@@ -302,7 +303,7 @@ as before, and `onerror` called once with an `Error`.
   | A1 with `data: {}` | not a list |
   | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'` | `draw` given and neither the number sent nor its decimal text |
 
-  With A1 on screen, a later request answered by A1 without `data`: `'failed'`, `busy` false.
+  With A1 on screen, a later request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false.
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
   `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20).
@@ -375,7 +376,8 @@ else `null`.
 - Layer: component.
 - Traces: PRD-B20, PRD-B15.
 
-**CONN-24** `reload()` MUST send the current query again, with the next `draw`.
+**CONN-24** `reload()` MUST send the current query again, with the next `draw`, when every column id of its sort and
+filters is served (else CONN-16).
 - Example: A1 settled, `reload()`: `send` called a second time; the request holds `draw=2` and every other pair of
   the first request; after a failure, the same.
 - Reason: the application retries a failed or stale page without changing what the user chose (PRD-B20).
