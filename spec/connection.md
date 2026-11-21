@@ -22,8 +22,8 @@
   every row), the reason, the layer and a `Traces:` line; each test carries its statement's id and a hash.
 - **Layer.** Every statement here is tested at the component layer: a probe component, mounted in the simulated DOM,
   calls `createConnection` in its script and renders `DataTable` with the returned `table` props and, once `pager`
-  is given, `Pagination` with the returned `pager` props. Its `send` is a fake that records each call and returns a promise the test
-  settles. Time is never involved.
+  is given, `Pagination` with the returned `pager` props. Its `send` is a fake that records each call and returns a
+  promise the test settles. Time is never involved.
 - **The options.** `send(request, signal)`, the application's transport: it returns a promise of the answer body,
   parsed, and rejects for every answer that is not a success (an HTTP status outside 2xx included); `columns`, the
   column map, a list whose entry `i` describes the backend's column `i`: `{ data, name, id, searchable, orderable }`,
@@ -37,6 +37,7 @@
   `search`, `onsort`, `onfilter`, `onclearfilter`, `onclearfilters`, `onreset` and `onsearch`; `pager` holds
   `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`, or is `undefined` (CONN-25); `query` reads
   the current query. A column id is "served" when a map entry's `id` is that id; the first such entry serves it.
+  The "decimal text" of a number is its digits only, without sign, space, point or exponent (`'57'`, `'057'`).
 - **Examples.** The map M is `[{ data: 'name', name: 'n', id: 'name' }, { data: 'code', name: 'c', id: 'code' },
   { data: 'status', name: 's', id: 'status' }]`; the initial query Q0 is sort `[name asc]`, no filter, search `""`,
   offset 0, limit 10. Status has a categorical filter (`spec/table.md` section 11). A request is written as its
@@ -178,10 +179,9 @@ selected, `""` and `false`.
   | `['active']` | `^(active)$` | `true` |
   | `['inactive', 'active']` | `^(inactive\|active)$` | `true` |
   | `['a.b', 'x-(1)', 'a/b']` | `^(a\.b\|x\-\(1\)\|a\/b)$` | `true` |
-
-  (A `\|` in a cell is the character `|`.)
-
   | `[]` | `""` | `false` |
+
+  A `\|` in a cell is the character `|`.
 
 - Reason: the protocol has one search value per column, so "one of these values" is an anchored alternation that a
   backend honouring `regex` matches exactly (PRD-B7); one value keeps the group form, so the server sees one shape.
@@ -213,15 +213,16 @@ row shown.
   | `table.onclearfilter('name')`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
   | `table.onclearfilters()`, Name filtered, search `x` | `start=0`, every column search `""`, `search[value]=x` | `filters` `{}`, `search` `x` |
   | `table.onsearch('beta')` | `start=0`, `search[value]=beta` | `search` `beta` |
+  | `table.onsearch('beta')` before the first answer (request 1 running) | `start=0`, `search[value]=beta` | `search` `beta`; `pager` still `undefined` |
   | `pager.onsize(25)` | `start=0`, `length=25` | `offset` 0, `limit` 25 |
-  | `pager.onsize(25)`, from offset 60 | `start=50`, `length=25` | `offset` 50, `limit` 25 |
+  | `pager.onsize(25)`, from offset 60, limit 10 | `start=50`, `length=25` | `offset` 50, `limit` 25 |
   | `pager.onsize(10)`, from offset 50, limit 25 | `start=50`, `length=10` | `offset` 50, `limit` 10 |
 
 - Reason: after the rows change, the old page may not exist; DataTables' default draw goes back to the first page
   ("The paging will be reset back to the first page", FETCHED 2026-11-20, datatables.net/reference/api/draw()); a
   page-size change keeps the first row shown on screen ("Keep the start record on the current page",
-  `start -= start % len`, READ 2026-11-20, DataTables 2.1.8 source), a whole page back from it (PAGE-27 of
-  `spec/table.md`). The marks and boxes follow the intent before the answer, so the user sees what was asked.
+  `start -= start % len`, READ 2026-11-20, DataTables 2.1.8 source), so the offset stays a whole number of pages of
+  the new size. The marks and boxes follow the intent before the answer, so the user sees what was asked.
 - Layer: component.
 - Traces: PRD-B20, PRD-B4, PRD-B8, PRD-B9, PRD-B25.
 
@@ -241,7 +242,7 @@ row shown.
 - Traces: PRD-B20, PRD-B8.
 
 **CONN-15** `draw` MUST be 1 in the first request and one more in every later request, whatever sent it.
-- Example: mount, `onsort`, `reload()`, `onpage(10)`, the first two never answered: `draw` 1, 2, 3, 4.
+- Example: mount, `table.onsort([code desc])`, `reload()`, `table.onsearch('x')`, none answered: `draw` 1, 2, 3, 4.
 - Reason: the answer echoes `draw` as a check that it answers the request sent (CONN-18); which request an answer
   belongs to the helper knows from the call of `send` itself (CONN-22) (PRD-B20). At ten requests a second a page
   needs 6.8 years to reach 2^31-1, so a backend that reads `draw` as a 32-bit integer never overflows, and no wrap is
@@ -258,6 +259,9 @@ nothing, keep the query, and call `onerror` once with an `Error` naming that col
   | `table.onsort([code asc])` | none | `[name asc]`, `{}` | once, message holds `code` |
   | `table.onfilter('code', { kind: 'text', text: 'B' })` | none | `[name asc]`, `{}` | once, message holds `code` |
   | mount with sort `[code asc]` | none | `[code asc]`, `{}` | once, message holds `code` |
+
+  After the refused mount, `table.status` is `'failed'`; `onerror` is called on mount, never during server rendering;
+  a later `reload()` is refused the same way.
 
 - Reason: without an index the backend cannot be told which column; sending the request without it would show rows
   that do not match the marks (PRD-B20).
@@ -371,6 +375,13 @@ else `null`.
 - Layer: component.
 - Traces: PRD-B20, PRD-B15.
 
+**CONN-24** `reload()` MUST send the current query again, with the next `draw`.
+- Example: A1 settled, `reload()`: `send` called a second time; the request holds `draw=2` and every other pair of
+  the first request; after a failure, the same.
+- Reason: the application retries a failed or stale page without changing what the user chose (PRD-B20).
+- Layer: component.
+- Traces: PRD-B20.
+
 **CONN-25** `pager` MUST be `undefined` until the first answer the helper maps, and given from then on.
 - Examples (the test runs every row):
 
@@ -385,13 +396,6 @@ else `null`.
   (PRD-B20, PRD-B9).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
-
-**CONN-24** `reload()` MUST send the current query again, with the next `draw`.
-- Example: A1 settled, `reload()`: `send` called a second time; the request holds `draw=2` and every other pair of
-  the first request; after a failure, the same.
-- Reason: the application retries a failed or stale page without changing what the user chose (PRD-B20).
-- Layer: component.
-- Traces: PRD-B20.
 
 ## Trace
 
@@ -421,8 +425,8 @@ else `null`.
 | CONN-21 | PRD-B20 |
 | CONN-22 | PRD-B20 |
 | CONN-23 | PRD-B20, PRD-B15 |
-| CONN-25 | PRD-B20, PRD-B9 |
 | CONN-24 | PRD-B20 |
+| CONN-25 | PRD-B20, PRD-B9 |
 
 ### PRD must -> statements
 
