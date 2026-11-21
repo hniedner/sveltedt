@@ -2556,7 +2556,8 @@ an alert that says why.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-17** A categorical filter MUST offer exactly its options, as checkboxes named by their labels, in the given
+**FILT-17** A categorical filter MUST offer exactly its options (with `emptyOption: true`, also the option of
+FILT-53), as checkboxes named by their labels, in the given
 order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
 - Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
   checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
@@ -2675,6 +2676,7 @@ while the filter has more than 10 options.
   |---|---|
   | Status's 2 options | none |
   | Kind's 11 options | "Find Kind options", before the first checkbox in document order |
+  | Kind's options `k1` to `k10` and `emptyOption: true` | "Find Kind options": the option of FILT-53 counts |
 
   Column Kind (id `kind`) has a categorical filter with the options `k1` "Alpha" to `k10` "Kappa" (the Greek letter
   names in order) and `k11` "Inactive".
@@ -2692,8 +2694,8 @@ checkbox named by the `emptyOption` message, whose value in `selected` and in `o
   | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `('status', { kind: 'categorical', selected: ['active', ''] })` |
   | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `('status', { kind: 'categorical', selected: ['active'] })` |
 
-  Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). For every other statement the
-  option is one of the filter's options, last in their order (FILT-04, FILT-18, FILT-22, FILT-52).
+  Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). FILT-18, FILT-22 and FILT-52
+  each hold an example with the option.
 - Reason: rows without a value are part of the data (PRD-B7, the owner's decision of 2026-11-20), and `''` is a value
   no given option can hold (FILT-32), so "no value" needs no word the server must know. The option is off by default
   because the table sees one page and cannot know whether any row is empty, while the libraries that list a blank
@@ -2716,6 +2718,7 @@ case, and MUST NOT emit anything or change the selection.
   | type "inact", then clear the field | all 11, "Alpha" still checked | no callback called |
   | type "inact", press Escape, press "Filter Kind" | all 11, and the find field is empty | no callback called |
   | type "xyz" | none; the text "No options match." in their place | no callback called |
+  | with Kind's `emptyOption: true`, type "EMPT" | "(empty)" only, matched by its label | no callback called |
 
 - Reason: the find field helps the user reach an option; it is not a filter of its own, and its text goes with the
   dialog (PRD-B29, PRD-B2).
@@ -2822,8 +2825,8 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Traces: PRD-B8, PRD-A1.
 
 **FILT-22** A badge of a categorical filter MUST name the selected options by their labels, in the options' order.
-- Example: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
-  Inactive".
+- Examples: `status: { kind: 'categorical', selected: ['inactive', 'active'] }` gives the badge text "Status: Active,
+  Inactive"; with Status's `emptyOption: true`, `selected: ['', 'active']` gives "Status: Active, (empty)".
 - Reason: values are codes that mean nothing to the user (PRD-B7, PRD-B8).
 - Layer: component.
 - Traces: PRD-B7, PRD-B8.
