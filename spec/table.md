@@ -2910,8 +2910,9 @@ below list.
   |---|---|---|
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
-  | an option's value or label is empty | `filterInvalid` | "A column filter is not valid." |
-  | two options share a value, or labels equal after trimming | `filterInvalid` | "A column filter is not valid." |
+  | an option's value or label in `options` is empty (the option of FILT-53 is not in `options`) | `filterInvalid` | "A column filter is not valid." |
+  | a categorical filter's `emptyOption` is given and is neither `true` nor `false` | `filterInvalid` | "A column filter is not valid." |
+  | two options share a value, or labels equal after trimming (the option of FILT-53 and its label included) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
