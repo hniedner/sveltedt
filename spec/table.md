@@ -47,7 +47,8 @@ to the consumer as one callback (stated with the statements that add user action
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
   statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
   sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
-  snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15).
+  snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
+  a column's `class`, `headerClass` and `align`, `rowClass(row)` and `cellClass(row, column)` (section 17).
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
   Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -76,7 +77,8 @@ to the consumer as one callback (stated with the statements that add user action
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
   id or a class, except THEME-09, which tests the public classes
-  of PRD-K3 themselves.
+  of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
+  hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
@@ -4396,6 +4398,140 @@ keyboard.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-I3, PRD-A3.
 
+## 17. Class hooks and alignment (THEME, milestone 8)
+
+These statements add a column's `class` and `headerClass` (strings), a column's `align` (`'start'`, the default,
+`'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string, or
+`undefined` or `null` for no class (PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
+only, DEP-36). A hook adds classes: the component's own classes (THEME-09) stay. "Data cells" are the body cells of
+the given columns in data rows. A hook, class or alignment given as
+`undefined` or `null` counts as not given. In the examples the rows are r1 `{ id: 'r1', name: 'Beta', code: 'B-2' }` and r2
+`{ id: 'r2', name: 'alpha', code: 'A-1' }` and the columns Name and Code.
+
+**THEME-23** A column's `class` MUST appear, as given, on that column's header cell and on each of its data cells.
+- Examples (the test runs every row; the class tokens read with `classList`):
+
+  | Code's `class` | Code's header cell and both data cells | Name's cells |
+  |---|---|---|
+  | `'num wide'` | hold `num` and `wide`, and `sdt-th` or `sdt-cell` | hold neither |
+  | `''` | hold no class but `sdt-th` or `sdt-cell` | as before |
+  | not given, `undefined` or `null` | as for `''` | as before |
+
+- Reason: DataTables users style columns by class (PRD-T7).
+- Layer: component.
+- Traces: PRD-T7.
+
+**THEME-27** A column's `headerClass` MUST appear on that column's header cell only, after the tokens of its `class`.
+- Example: Code's `class` `'num'` and `headerClass` `'head-num'`: the header cell's `classList` holds `num` before
+  `head-num`; Code's data cells hold `num` and not `head-num`.
+- Reason: DataTables' `dt-head-*` classes style a header apart from its body (PRD-T14).
+- Layer: component.
+- Traces: PRD-T14.
+
+**THEME-24** `rowClass(row)` MUST be called for each data row, and its result MUST appear on that row's `tr`.
+- Examples (the test runs every row):
+
+  | `rowClass` | r1's `tr` | r2's `tr` |
+  |---|---|---|
+  | `(r) => r.name === 'Beta' ? 'hot' : ''` | holds `hot` and `sdt-row` | holds `sdt-row` only |
+  | `() => 'x  y'` | holds `x`, `y` and `sdt-row` | the same |
+  | `(r) => r.name === 'Beta' ? 'hot' : undefined` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+  | `(r) => r.name === 'Beta' ? 'hot' : null` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+
+  With `detail` and `expanded` `['r1']`, r1's detail row holds no `hot`; with `status 'ready'` and no rows,
+  `rowClass` is not called.
+- Reason: DataTables' `createdRow` marks rows by their data (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8.
+
+**THEME-28** `cellClass(row, column)` MUST be called for each data cell, with that cell's row and column, and its
+result MUST appear on that cell's `td`, after the column's `class`.
+- Example: Code's `class` `'num'`, `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : ''`:
+  r2's Code cell holds `num` before `low`, and `sdt-cell`; r1's Code cell holds `num` only besides `sdt-cell`; the
+  Name cells hold neither; with `selection` given, the box cells hold no class from `cellClass`, and every call of
+  `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code; compared by `r.id` and `c.id`), each pair at least
+  once. With `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : undefined` the cells hold
+  the same classes, and no alert shows.
+- Reason: DataTables' `createdCell` marks cells by their value (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8.
+
+**THEME-29** The classes from `rowClass` and `cellClass` MUST follow a change of the reactive state the functions read
+and the replacement of a row by a new object, and an unchanged row MUST keep its classes.
+- Examples (the test runs every row; `hot` a `$state` variable of the test's host starting at `'r1'`; `rows` held in
+  `$state.raw`, so "r1 the same object" is the object given before):
+
+  | Hook | Change | r1 | r2 |
+  |---|---|---|---|
+  | `rowClass: (r) => hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its `tr` loses `hot` | its `tr` gains `hot` |
+  | `cellClass: (r, c) => c.id === 'code' && hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its Code cell loses `hot` | its Code cell gains `hot` |
+  | `rowClass: (r) => r.name === 'Beta' ? 'hot' : r.name === 'gamma' ? 'new' : ''` | `rows` given again with r1 the same object and r2 a new object `{ id: 'r2', name: 'gamma', code: 'A-1' }` | its `tr` keeps `hot` | its `tr` gains `new` |
+  | `cellClass: (r, c) => c.id === 'name' && r.name === 'gamma' ? 'new' : ''` | as the row above | its Name cell holds no `new` | its Name cell gains `new` |
+
+- Reason: a changed row is a new row object, and a hook is called again when reactive state it reads changes
+  (PRD-T8).
+- Layer: component.
+- Traces: PRD-T8, PRD-B1.
+
+**THEME-26** A column's `align` MUST set the inline alignment of its header and data cells.
+- Examples (the test runs every row; on the host page "none" of THEME-10; computed `text-align` of the header cell and
+  data cells of Code, and of Name, whose `align` is not given):
+
+  | Code's `align` | Code's `text-align` | Name's `text-align` |
+  |---|---|---|
+  | not given, `undefined` or `null` | `start` | `start` |
+  | `'start'` | `start` | `start` |
+  | `'center'` | `center` | `start` |
+  | `'end'` | `end` | `start` |
+
+- Reason: DataTables' `dt-left`, `dt-center` and `dt-right`; logical values turn with right-to-left (PRD-T14, PRD-I3).
+- Layer: real browser (Chromium, Firefox, WebKit), since the computed style comes from the package's stylesheet.
+- Traces: PRD-T14.
+
+**THEME-30** A sortable column's sort button, holding its text and its mark, MUST sit at the inline edge its `align`
+names.
+- Examples (the test runs every row; Code sortable, 300 CSS px wide while resizable (`columnState.widths`
+  `{ code: 300 }` and `oncolumnstate` passed); `sort` `[code asc]`, so the mark shows; edges of the sort button's
+  border box against "the free span", the part of the header cell's content box on the button's line not covered by
+  the boxes of Code's grip (COL-13) and separator, within 1 px; the test first asserts that the button is at least
+  100 px narrower than the free span, so the check cannot pass by a full-width button):
+
+  | `align` | Direction | Edge |
+  |---|---|---|
+  | `'start'` | left to right | left edges equal |
+  | `'end'` | left to right | right edges equal |
+  | `'center'` | left to right | centres equal |
+  | `'start'` | `dir="rtl"` on the page's `html` element | right edges equal |
+  | `'end'` | `dir="rtl"` | left edges equal |
+
+- Reason: the mark sits at the same inline edge as the header text (PRD-T14), so a right-aligned number column keeps
+  its mark beside its label.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-T14, PRD-I3.
+
+**THEME-31** For invalid class or alignment input the table MUST render the alert of RND-05 with the fixed message below.
+- Examples (as RND-05; the test runs every row and every value in it):
+
+  | Invalid input | Message key | Alert text (default) |
+  |---|---|---|
+  | a column's `class` or `headerClass` is given and is not a text (5) | `classInvalid` | "A class setting is not valid." |
+  | `rowClass` or `cellClass` is given and is not a function (the text "hot") | `classInvalid` | "A class setting is not valid." |
+  | `rowClass` or `cellClass` returns a value that is not a text, `undefined` or `null` (5, `false`), or throws, for r1 | `classInvalid` | "A class setting is not valid." |
+  | a column's `align` is given and is not one of `'start'`, `'center'`, `'end'` (`'left'`, 5) | `alignInvalid` | "A column alignment is not valid." |
+
+  With several faults at once, the faults of RND-05, SORT-15, FILT-32, COL-25, SEL-10 and CHILD-09 win, in that order,
+  then the rows above in their order. The alert holds no value taken from the rows, the columns or a thrown error (as
+  RND-09).
+- Reason: a class the application meant to set and the table silently dropped hides a state from the user (PRD-B16).
+- Layer: component.
+- Traces: PRD-B16, PRD-T7, PRD-T8, PRD-T14.
+
+**THEME-32** Every fixed word of the class hooks MUST come from a prop with an English default.
+- Examples (as RND-06): the alert messages of THEME-31 (THEME-31).
+- Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
 ## Trace
 
 ### Statement -> PRD
@@ -4690,7 +4826,7 @@ keyboard.
 | CHILD-12 | PRD-B27, PRD-B12 |
 | CHILD-16 | PRD-B27, PRD-A3 |
 | CHILD-09 | PRD-B16, PRD-B27 |
-| CHILD-10 | PRD-I1 |
+| CHILD-10 | PRD-I1, PRD-B27 |
 | A11Y-36 | PRD-A9 |
 | A11Y-48 | PRD-A9, PRD-A3 |
 | A11Y-39 | PRD-A6, PRD-A1 |
@@ -4700,6 +4836,15 @@ keyboard.
 | A11Y-45 | PRD-A1 |
 | I18N-02 | PRD-I3, PRD-A1 |
 | I18N-03 | PRD-I3, PRD-A3 |
+| THEME-23 | PRD-T7 |
+| THEME-27 | PRD-T14 |
+| THEME-24 | PRD-T8 |
+| THEME-28 | PRD-T8 |
+| THEME-29 | PRD-T8, PRD-B1 |
+| THEME-26 | PRD-T14 |
+| THEME-30 | PRD-T14, PRD-I3 |
+| THEME-31 | PRD-B16, PRD-T7, PRD-T8, PRD-T14 |
+| THEME-32 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
 | A11Y-37 | PRD-A3 |
 | A11Y-38 | PRD-A3 |
@@ -4721,7 +4866,7 @@ state in their own statements.
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
+| PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06, THEME-29 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
@@ -4732,7 +4877,7 @@ state in their own statements.
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |
 | PRD-A6 | COL-33, A11Y-39 | in part: the compact density's row is the theming milestone's |
-| PRD-I3 | COL-22, I18N-02, I18N-03, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
+| PRD-I3 | COL-22, I18N-02, I18N-03, THEME-30, STK-06 | in part: sticky columns at the inline start are the sticky group's; the move buttons under right-to-left are a later branch's |
 | PRD-B13 | SEL-01, SEL-06, SEL-02, SEL-03, SEL-07, SEL-08, SEL-04, SEL-05, SEL-09, SEL-10, SEL-12 | in full |
 | PRD-B14 | STK-01, STK-04, STK-09, STK-10, STK-03, STK-05, STK-06, STK-07, STK-08, STK-11, STK-13 | in part: the later sticky branch states the rest (section 14's set-up) |
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
@@ -4744,7 +4889,7 @@ state in their own statements.
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, STK-11, CHILD-09 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
@@ -4756,7 +4901,7 @@ state in their own statements.
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, STK-15, CHILD-10, A11Y-47 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, STK-15 | in part: later groups state their own words in their own statements |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
@@ -4771,6 +4916,9 @@ state in their own statements.
 | PRD-T15 | THEME-04, THEME-08, FOOT-04 | in part: the built-package half runs once the package is built (PRD-K2); the hook props' own classes are stated with PRD-T7, PRD-T8 and PRD-T14 |
 | PRD-T11 | THEME-10, THEME-11, SORT-25, PAGE-36, THEME-16 | in part: the Tailwind 4 host is CON-12 and CON-13 of `spec/package.md`, which land with the consumer project's build step, after the first stylesheet commit; the sort buttons (SORT-25) and the pager (PAGE-36) land with their own milestones; the fields, the sort marks, the dialogs (the chooser, the grips and the separators: THEME-16) and the progress indicator add their own statements as THEME-10 for them; the owner's checkpoint at the end of the walking-skeleton milestone is the plan's |
 | PRD-T16 | THEME-12 | in full |
+| PRD-T7 | THEME-23, THEME-31 | in full |
+| PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
+| PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
 | PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
@@ -4778,7 +4926,7 @@ state in their own statements.
 ### PRD musts not yet traced
 
 - Accessibility beyond the read-only table: PRD-A5, PRD-A7, PRD-A8, PRD-A12.
-- Theming: PRD-T4 (the example token set, light and dark), PRD-T7, PRD-T8, PRD-T10, PRD-T13, PRD-T14.
+- Theming: PRD-T4 (the example token set, light and dark), PRD-T10, PRD-T13.
 - Large pages, size and memory: PRD-P1, PRD-P3, PRD-P4, PRD-P5.
 - Browsers: PRD-E1.
 - Packaging: PRD-K1, PRD-K2 (in part in `spec/package.md`).
