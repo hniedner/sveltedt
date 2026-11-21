@@ -444,13 +444,13 @@ row, and r2's Code cell holds five lines of text.
 
 **FULL-01** The full page MUST show one table holding the second fixed list, with every feature of `spec/table.md`
 section 16's list on.
-- Examples (the test runs every row on `/full.html`):
+- Examples (the test runs every row on the full page component mounted):
 
   | Feature | The table shows |
   |---|---|
   | rows | 30 body rows, r1 to r30, in the list's order |
   | sort | "Sort by Name", "Sort by Code" and "Sort by Date" |
-  | pager | the pager, with its page-size choice |
+  | pager | the pager at 30 rows per page of 30 in all, offering the page sizes 3 and 30 |
   | filters | "Filter Name text", a categorical filter on Code and the search field |
   | reset and chooser | "Reset table" and "Columns" |
   | selection | a row box on each row and the header box |
@@ -463,7 +463,7 @@ section 16's list on.
 - Traces: PRD-W6.
 
 **FULL-02** The full page MUST sort its own list as the table's sort asks, by one column or more.
-- Examples (the test runs every row from `/full.html`):
+- Examples (the test runs every row on the full page component mounted; rows with equal keys keep the list's order):
 
   | Presses | Body rows |
   |---|---|
