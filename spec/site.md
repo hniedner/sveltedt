@@ -2,15 +2,16 @@
 
 - **Name:** the test site in `site/`, a private package that shows SvelteDT on pages a real browser can open. It is
   served by a TypeScript server on Node that uses only `node:http` (PRD section 5.3).
-- **Status:** parts 1 to 4 of the site spec. Later parts add their statements to this file; the trace at the end says
+- **Status:** parts 1 to 5 of the site spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
   shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, SRV-02; the listener,
   the canary page, no inline bootstrap, no violation on any page of the build). Part 3: the site server's start
   (SRV-05 to SRV-07). Part 4: the views by URL parameter for the token set, the density and the variants (PRD-W7, in
-  part). Other request methods (beyond the header SRV-02 puts on every response), the JSON endpoint, the dataset and
-  the other views of PRD-W7 come with later parts.
+  part). Part 5: the full page, in part: the table that `spec/table.md` sections 16 and 18 run on. Other request
+  methods (beyond the header SRV-02 puts on every response), the JSON endpoint, the dataset and the other views of
+  PRD-W7 come with later parts.
 
 ## Conventions
 
@@ -433,6 +434,102 @@ table.
 - Layer: real browser.
 - Traces: PRD-W7, PRD-S1, PRD-W4.
 
+## 6. The full page, in part (FULL, milestones 7 and 8)
+
+The full page is page "full" of PRD-W6, the build's `full.html`, served at `/full.html`. This part gives it the table
+that `spec/table.md` section 16 (milestone 7: FULL-01, FULL-02) and section 18 (milestone 8: FULL-03 to FULL-06) run
+on; the rest of PRD-W6 comes later. "The second fixed list" is the site's list of 30 rows r1 to r30 (rk is its k-th
+row) with the columns Name, Code and Date, sorted by no column; Name holds 10 values three times each; r1 has a child
+row, r1 and r2 hold the smallest Name (so a sort by Name keeps them first, THEME-41), and r2's Code cell holds five
+lines of text.
+
+**FULL-01** The full page MUST show one table holding the second fixed list, with every feature of `spec/table.md`
+section 16's list on.
+- Examples (the test runs every row on the full page component mounted):
+
+  | Feature | The table shows |
+  |---|---|
+  | rows | 30 body rows, r1 to r30, in the list's order |
+  | sort | "Sort by Name", "Sort by Code" and "Sort by Date" |
+  | pager | the pager at 30 rows per page of 30 in all, offering the page sizes 3 and 30 |
+  | filters | "Filter Name text", a categorical filter on Code and the search field |
+  | reset and chooser | "Reset table" and "Columns" |
+  | selection | a row box on each row and the header box |
+  | child rows | a details button on r1 only |
+
+- Reason: section 16's examples assume one table with every feature on and 30 rows (PRD-W6); a fixed list makes them
+  exact. `oncancel` and `onretry` show only in the loading and failed states, which the page reaches in a later part
+  (the PRD-W6 row of the trace).
+- Layer: component.
+- Traces: PRD-W6.
+
+**FULL-02** The full page MUST sort its own list as the table's sort asks, by one column or more.
+- Examples (the test runs every row on the full page component mounted; rows with equal keys keep the list's order):
+
+  | Presses | Body rows |
+  |---|---|
+  | "Sort by Name" | by Name ascending |
+  | "Sort by Name" twice | by Name descending |
+  | "Sort by Name", then "Sort by Code" with Shift | by Name ascending, then by Code ascending among equal Names |
+
+- Reason: the site's server answers files only (SRV-01), so the page sorts, as LIST-03; section 16's sort intents and
+  THEME-25's sorts by more than one column need a table that follows (PRD-W6).
+- Layer: component.
+- Traces: PRD-W6.
+
+**FULL-03** The full page MUST take `tokens`, `density`, `striped`, `hover`, `cellBorders` and `orderColumn` from its
+URL as VIEW-01 to VIEW-03 state them for the list page.
+- Examples (the test runs every row with the check of the statement it names):
+
+  | URL, then | The page shows |
+  |---|---|
+  | `/full.html` | the light set's values (VIEW-01) |
+  | `/full.html?tokens=dark` | the dark set's values (VIEW-01) |
+  | `/full.html?tokens=none` | the empty string for each name (VIEW-01) |
+  | `/full.html?density=compact&striped&cellBorders` | the compact padding, the stripe and the borders (VIEW-02) |
+  | `/full.html?orderColumn`, then "Sort by Name" | the rank 1 surface on Name's body cells (THEME-25) |
+  | `/full.html?hover=yes` | the alert of THEME-38 for the variants (VIEW-02) |
+  | `/full.html?tokens=sepia` | "Unknown tokens value: sepia", and no `table` element (VIEW-03) |
+
+- Reason: section 18's views run on this page (PRD-W7); THEME-25 sorts by Name, Code and Date, which the list page
+  cannot (LIST-03), so `orderColumn` on shows its surface here. `hover` on shows its surface once a later theming
+  branch states it.
+- Layer: real browser.
+- Traces: PRD-W7, PRD-W6.
+
+**FULL-04** The full page MUST show the rows its `rows`, `pageSize` and `page` parameters ask for.
+- Examples (the test runs every row; THEME-20 needs the first two):
+
+  | URL | Body rows |
+  |---|---|
+  | `/full.html?rows=none` | the empty message (the table is given `rows []`) |
+  | `/full.html?pageSize=3&page=2` | r4, r5, r6 |
+  | `/full.html?pageSize=3` | r1, r2, r3 |
+  | `/full.html?rows=some` | none: the page shows "Unknown rows value: some", and no `table` element (as VIEW-03) |
+  | `/full.html?pageSize=4` | r1 to r4, and the pager shows the alert of PAGE-16 for `limitNotInSizes` |
+
+  `rows` takes only `none`; `pageSize` and `page` reach the table and the pager unchecked, so a typo shows by their own
+  fault handling, as the `pageSize=4` row shows.
+
+- Reason: THEME-20 counts stripes on an empty page and on page 2 of `pageSize` 3; a URL reaches them in one step.
+- Layer: real browser.
+- Traces: PRD-W6.
+
+**FULL-05** The full page MUST give its Name column `sticky`.
+- Example: the 320 view of PRD section 4.3, the full page leaving `stickyHeader` at its default `false` (section 14's
+  intro); the test first asserts that the region's `scrollWidth` exceeds its `clientWidth`, then scrolls it sideways to
+  its end: Name's header and body cells keep their inline-start offset, within 1 px of the width of the box and details
+  columns before them (STK-13, section 14's intro), while Date's cells have moved.
+- Reason: THEME-43 checks focus under the pointer on a sticky cell; PRD-W6 asks for sticky leading columns.
+- Layer: real browser.
+- Traces: PRD-W6.
+
+**FULL-06** Each URL in the examples of FULL-03 and FULL-04 MUST raise no policy violation.
+- Example: as VIEW-04, for each such URL, read after the row's last step. The list is empty for each.
+- Reason: the full page switches tokens, props and rows without inline styles or scripts (PRD-W4, PRD-S1).
+- Layer: real browser.
+- Traces: PRD-W6, PRD-S1, PRD-W4.
+
 ## Trace
 
 ### Statement -> PRD
@@ -458,17 +555,25 @@ table.
 | VIEW-02 | PRD-W7 |
 | VIEW-03 | PRD-W7 |
 | VIEW-04 | PRD-W7, PRD-S1, PRD-W4 |
+| FULL-01 | PRD-W6 |
+| FULL-02 | PRD-W6 |
+| FULL-03 | PRD-W7, PRD-W6 |
+| FULL-04 | PRD-W6 |
+| FULL-05 | PRD-W6 |
+| FULL-06 | PRD-W6, PRD-S1, PRD-W4 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
-| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
+| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04, FULL-06 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
 | PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03 | in part: sort by more than one column, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
-| PRD-S1 | POL-01, POL-02, POL-04, VIEW-04 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
-| PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04 | in part: the token set, the density and the variants; `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
+| PRD-S1 | POL-01, POL-02, POL-04, VIEW-04, FULL-06 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
+| PRD-W6 | FULL-01, FULL-02, FULL-03, FULL-04, FULL-05, FULL-06 | in part: the table that `spec/table.md` sections 16 and 18 run on; the page's answers to intents other than the sort and its loading and failed states come with the part that brings the JSON endpoint and the dataset; the rest of PRD-W6 comes later |
+| PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04, FULL-03 | in part: the token set, the density and the variants (`hover` on shows its surface once a later theming branch states it); `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
 | PRD-T4 | VIEW-01 | in part: the site ships the set; its values and pairs are `spec/table.md`'s THEME-17, THEME-33 and THEME-34 |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 
-PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6, PRD-W7 (in part, see above), PRD-W8, PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.
+PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
+PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.
