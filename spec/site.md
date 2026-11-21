@@ -403,8 +403,9 @@ table.
 
 - Reason: one page serves every variant view, normal and compact (PRD-W7, PRD section 4.3's variant views); passing
   a value unchanged lets the table's own fault handling show a typo instead of the page hiding it. The surfaces of
-  `hover` and `orderColumn` are shown by their own statements (a later theming branch; THEME-25 needs a sort, which
-  the list page gains with its sort part); here their alert rows show that each reaches the table.
+  `hover` and `orderColumn` are shown by their own statements (a later theming branch; THEME-25's examples sort by
+  Name, Code and Date, while the list page sorts only its Order column, LIST-03); here their alert rows show that each
+  reaches the table.
 - Layer: real browser.
 - Traces: PRD-W7.
 

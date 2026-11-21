@@ -4852,7 +4852,8 @@ pointer.
 - Traces: PRD-A8, PRD-T10.
 
 **THEME-46** The package's stylesheet MUST NOT define a `--sdt-*` custom property.
-- Examples (the scan reads the stylesheet as THEME-01 does; the test runs every row against a canary stylesheet):
+- Examples (the scan reads the stylesheet as THEME-01 does and reports how many declarations it read; with no
+  stylesheet or 0 declarations it reports "could not check"; the test runs every row against a canary stylesheet):
 
   | Declaration | Result |
   |---|---|
