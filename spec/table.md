@@ -82,10 +82,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
-  takes the next free number in its group; SORT-07 and SORT-08 are reserved for the draft statements of
-  those numbers, which later groups write, and A11Y-20, A11Y-21 and A11Y-23 to A11Y-34 for the slow-load group's
-  draft (progress, Cancel, the stopped state and "Try again"). A requirement id from `docs/PRD.md` is written
-  `PRD-B1`.
+  takes the next free number in its group; A11Y-33 and A11Y-34 stay unused (the slow-load group they were reserved
+  for needed neither). A requirement id from `docs/PRD.md` is written `PRD-B1`.
 - **Before its test.** A statement may land before the test that proves it; what an untested statement blocks is
   the method's rule (section 2, step 7).
 - **One milestone per statement.** Every example of a statement can be run inside the milestone that owns the
