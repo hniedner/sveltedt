@@ -1,4 +1,4 @@
-name: scorecard
+name: Scorecard
 
 on:
   push:

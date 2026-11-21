@@ -1,6 +1,6 @@
 # SvelteDT
 
-[![ci](https://github.com/hniedner/sveltedt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hniedner/sveltedt/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI](https://github.com/hniedner/sveltedt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hniedner/sveltedt/actions/workflows/ci.yml?query=branch%3Amain)
 [![CodeQL](https://github.com/hniedner/sveltedt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/hniedner/sveltedt/actions/workflows/github-code-scanning/codeql)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hniedner/sveltedt/badge)](https://scorecard.dev/viewer/?uri=github.com/hniedner/sveltedt)
 [![licence](https://img.shields.io/github/license/hniedner/sveltedt)](LICENSE)
