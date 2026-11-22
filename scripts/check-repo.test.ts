@@ -1209,7 +1209,7 @@ test("selftest: as many test files run at once as the machine has cores", () => 
   assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
 });
 test("selftest: no more test files run at once than the machine has cores", () => {
-  // One file more than the cores, each needing all the others beside it: with the bound, none can have them all
+  // One file more than the cores, each needing all the others beside it: the first to end cannot have had them all
   const out = expect(
     "selftest",
     repo(meeting(availableParallelism() + 1, 10_000)),
