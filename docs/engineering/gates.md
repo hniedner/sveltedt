@@ -49,7 +49,21 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 ## G4. `diff-coverage`
 
 - Python: coverage.py with `source = ["src"]`, so never-imported files appear at 0 %, then diff-cover.
-- TypeScript: Vitest V8 coverage with `include` set, then diff-cover on the lcov report.
+- TypeScript (built): the shared Vitest run of `test` and `trace` writes V8 coverage as an lcov report, `include` set to
+  `src/**/*.{ts,svelte}` without test files, so a file no test imports is listed at 0 %. `scripts/diff-coverage.ts`
+  reads it with `git diff -U0 -M` from the base of G6 (a pull request's merge parent; locally the merge base with
+  `origin/main`) to the working tree. A changed line is a line on the new side of a hunk, as Codecov's patch status and
+  diff-cover count it; it counts when the report has data for it. At least 95 % must be covered, every uncovered line is
+  named, and the changed lines without data are counted in the output. A push is checked on its pull request. Chosen
+  over diff-cover, which passes a missing file and an empty report and would add Python for the smaller half of the
+  check, and over the Node tools, none of which reports *could not check* (evaluated 2026-11-22). The `text` step
+  refuses the coverage hints (`v8`, `c8`, `istanbul` ignore comments) that take a line out of the count.
+- Limits, measured on 2026-11-22. Only `src/` counts: the test site's pages are proven by the `browser` step, which has
+  no coverage (site/src/SortPage.svelte reads 0/25 lines under Vitest). A `src/` line proven only in a real browser
+  reads as uncovered. The gate's own `scripts/` are left out: their tests (`selftest`) took 8 min 28 s of the `static`
+  job's 15 minutes, and Node's coverage of two of them took 411 s (2026-11-18). A Svelte markup line carries data only
+  when it holds an expression or a block, so a change to static markup alone is *not applicable*. Locally, a new file
+  counts once it is tracked; CI's checkout has no untracked file.
 - Rust: cargo-llvm-cov.
 - The wrapper returns *could not check* when a changed or added source file is missing from the report, or the
   report is empty. Probe: diff-cover alone passed both.

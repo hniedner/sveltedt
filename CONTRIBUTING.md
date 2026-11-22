@@ -272,17 +272,17 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the first code that needs them).
+- `red-check`, `mutation` and `release-links` (they arrive with the first code that needs them).
 
 ## Known limits of the merge rules
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
-  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
-  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
-  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
-  a workflow is not yet refused.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`,
+  `prettier-ignore` and the coverage hints `v8 ignore`, `c8 ignore` and `istanbul ignore` in code; typescript-eslint's
+  `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants one); ESLint ignores its inline configuration (HTML
+  comments in components included), gitleaks ignores its allow comments, and the scan refuses a folder holding a
+  `.gitleaksignore`. A zizmor ignore comment in a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.
