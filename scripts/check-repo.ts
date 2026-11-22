@@ -854,7 +854,7 @@ function ofClass(
 // The opening and closing markers only: a line of seven "=" is also a Markdown heading underline.
 const CONFLICT = /^(<{7}|>{7})( |$)/;
 // Comments that switch a check off; refused in code (the files ESLint lints). Built from parts, or this file would
-// hold them.
+// hold them. The parts are regular-expression source.
 const SUPPRESSION = new RegExp(
   [
     ["svelte-", "ignore"],
@@ -862,10 +862,9 @@ const SUPPRESSION = new RegExp(
     ["@ts-", "nocheck"],
     ["jscpd:", "ignore"],
     ["prettier-", "ignore"],
-    // coverage hints, which take a line out of diff-coverage's count (G4)
-    ["v8 ", "ignore"],
-    ["c8 ", "ignore"],
-    ["istanbul ", "ignore"],
+    // the coverage hints Vitest's V8 provider reads (ast-v8-to-istanbul), which take a line out of diff-coverage's
+    // count (G4)
+    ["(?:istanbul|[cv]8|node:coverage)\\s+", "ignore"],
   ]
     .map((parts) => parts.join(""))
     .join("|"),

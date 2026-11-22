@@ -466,6 +466,8 @@ export const SUPPRESSIONS = [
   ["v8 ", "ignore"],
   ["c8 ", "ignore"],
   ["istanbul ", "ignore"],
+  ["node:coverage ", "ignore"],
+  ["v8  ", "ignore"],
 ].map((parts) => parts.join(""));
 
 /** A fixture whose branch holds one commit per subject after origin/main. */
