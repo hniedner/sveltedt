@@ -57,7 +57,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   named, and the changed lines without data are counted in the output. A push is checked on its pull request. Chosen
   over diff-cover, which passes a missing file and an empty report and would add Python for the smaller half of the
   check, and over the Node tools, none of which reports *could not check* (evaluated 2026-11-22). The `text` step
-  refuses the coverage hints (`v8`, `c8`, `istanbul` ignore comments) that take a line out of the count.
+  refuses the coverage hints the V8 provider reads (`v8`, `c8`, `istanbul` or `node:coverage`, then `ignore`), and the
+  shared run refuses a Vitest config that sets coverage options: either would take a line out of the count.
 - Limits, measured on 2026-11-22. Only `src/` counts: the test site's pages are proven by the `browser` step, which has
   no coverage (site/src/SortPage.svelte reads 0/25 lines under Vitest). A `src/` line proven only in a real browser
   reads as uncovered. The gate's own `scripts/` are left out: their tests (`selftest`) took 8 min 28 s of the `static`
@@ -340,7 +341,9 @@ Sources (2026-11-17): *dbot-ecosystems* docs.github.com/en/code-security/dependa
   - Weekly schedule. `open-pull-requests-limit` stays at its default of 5 *(fetched, dbot-options)*.
   - Groups per ecosystem: one for minor and patch version updates (`update-types: [minor, patch]`), and one with
     `applies-to: security-updates` *(fetched, dbot-options; dbot-security)*. A major update stays its own pull
-    request, because it may break and needs its own upgrade note.
+    request, because it may break and needs its own upgrade note. npm has one more group, first because a dependency
+    goes to the first group it matches *(fetched, dbot-options)*: `vitest`, for vitest and @vitest/coverage-v8 in every
+    update type, majors included, since the provider pins vitest's exact version.
   - Cooldown: `default-days: 7`, `semver-major-days: 30`, `semver-minor-days: 7`, `semver-patch-days: 3` *(syntax
     fetched, dbot-optimize)*. It delays version updates only; security updates are never delayed *(fetched,
     dbot-options)*. Reason: a hijacked release is usually found and pulled within days *(inferred)*.
