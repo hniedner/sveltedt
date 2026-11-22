@@ -230,6 +230,10 @@ export function testRun(root: string): Result | VitestRun {
       "projects",
       `names "projects" (read as text), which two of the step's flags do not reach`,
     ],
+    [
+      "coverage",
+      "sets coverage options (read as text), which could take lines out of diff-coverage's count",
+    ],
   ].filter(([name]) => readFileSync(config, "utf8").includes(name));
   const run = unchecked.length
     ? result(

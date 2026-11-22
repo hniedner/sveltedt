@@ -172,6 +172,13 @@ test("test: a config with projects cannot be checked (the step's flags do not re
   };
   assert.match(expect("test", repo(projects), 3), /names "projects"/);
 });
+test("test: a config that sets coverage options cannot be checked (they could take lines out of diff-coverage)", () => {
+  const options = (root: string): void => {
+    vitestTest(PASSING_VITEST)(root);
+    vitestConfig('coverage: { ignoreClassMethods: ["render"] }')(root);
+  };
+  assert.match(expect("test", repo(options), 3), /sets coverage options/);
+});
 test("test: a snapshot with nothing stored is a finding, and the run writes no file", () => {
   const root = repo(
     vitestTest(
