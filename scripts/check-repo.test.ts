@@ -10,6 +10,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
@@ -1158,6 +1159,80 @@ test("selftest: a second test file that holds no test cannot be checked", () => 
     "selftest",
     repo((root) => put(root, "scripts/other.test.mjs", "// empty\n")),
     3,
+  );
+});
+/**
+ * A test file that marks itself as running, then waits, at most `ms`, until every file in `others` has marked itself:
+ * it passes only while they all run at the same time. The bound ends a wait that can never be met; no row passes by it.
+ */
+const meets = (
+  name: string,
+  others: string[],
+  ms: number,
+) => `import assert from "node:assert/strict";
+import { existsSync, writeFileSync } from "node:fs";
+import { test } from "node:test";
+const mark = (n) => new URL(\`./\${n}.running\`, import.meta.url);
+test("${name} runs beside the others", () => {
+  writeFileSync(mark("${name}"), "");
+  const all = () => ${JSON.stringify(others)}.every((n) => existsSync(mark(n)));
+  const end = Date.now() + ${ms};
+  while (!all() && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  assert.ok(all(), "the other test files did not run at the same time");
+});
+`;
+test("selftest: the test files run side by side, each with its own count", () => {
+  const out = expect(
+    "selftest",
+    repo((root) => {
+      put(root, "scripts/a.test.mjs", meets("a", ["b"], 30_000));
+      put(root, "scripts/b.test.mjs", meets("b", ["a"], 30_000));
+    }),
+    0,
+  );
+  assert.match(out, /scripts\/a\.test\.mjs: 1 passed/);
+  assert.match(out, /scripts\/b\.test\.mjs: 1 passed/);
+});
+test("selftest: no more test files run at once than the machine has cores", () => {
+  // One file more than the cores, each waiting for all the others: with the bound, none can meet them all
+  const names = Array.from(
+    { length: availableParallelism() + 1 },
+    (_, i) => `f${i}`,
+  );
+  expect(
+    "selftest",
+    repo((root) => {
+      for (const n of names)
+        put(
+          root,
+          `scripts/${n}.test.mjs`,
+          meets(
+            n,
+            names.filter((o) => o !== n),
+            10_000,
+          ),
+        );
+    }),
+    1,
+  );
+});
+test("selftest: a failing file among several is named, the others counted, in the order of their names", () => {
+  const failing = PASSING_TEST.replace(
+    "() => {}",
+    '() => { throw new Error("planted"); }',
+  );
+  const out = expect(
+    "selftest",
+    repo((root) => {
+      put(root, "scripts/a.test.mjs", PASSING_TEST);
+      put(root, "scripts/b.test.mjs", failing);
+      put(root, "scripts/c.test.mjs", PASSING_TEST);
+    }),
+    1,
+  );
+  assert.match(
+    out,
+    /scripts\/a\.test\.mjs: 1 passed\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed/,
   );
 });
 
