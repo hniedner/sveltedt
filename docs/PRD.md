@@ -38,6 +38,8 @@
   consequence, decided by the reviewer, what PRD-B21's local data source matches when it is selected.
   Amended by the owner on 2026-11-21 ("You got my yes on the PRD-B6 wording"): PRD-B6 emits search and filter text
   without its leading and trailing white space, a quoted phrase keeps it, with no message and no quote escape.
+  Amended by the owner on 2026-11-21 ("yes"): PRD-S7's publish runs from the version tag in the `npm` environment (the
+  environment he created admits only `v*` tags); releases stay automatic.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -829,13 +831,15 @@ release, except a break-glass, is published only by the release workflow, with p
 and package).
 
 **Releases are automatic (owner, 2026-11-17, amending REV 7):** after CI has passed on a push to `main`, the release
-workflow works out the next version from the conventional commit messages, creates the version tag and the GitHub
-release with the changelog generated from those commits, and publishes that tag's build; it pushes no commit to `main`.
-The publish job runs in the `release` environment and waits for the owner's approval: a fix release may be approved at
-once, a minor or major release only after the PRD-A5 protocol record for it exists. Versions stay at 0.x until the owner
-decides on 1.0. The tool that computes the version is chosen by a library-first evaluation that includes the owner's
-existing release workflow; whichever it is, it runs only `npm publish` (with `--tag` for a prerelease) and moves no
-dist-tag. The workflow files reference no npm token (static check); the npm setting is recorded in the release record.
+workflow works out the next version from the conventional commit messages, creates the version tag `v<version>` and the
+GitHub release with the changelog generated from those commits; it pushes no commit to `main`. The publish happens in a
+workflow run on that version tag, never in a run on `main`, and publishes the build of that tag. Its publish job runs in
+the `npm` environment, which admits only `v*` tags and has the owner as required reviewer, and waits for the owner's
+approval: a fix release may be approved at once, a minor or major release only after the PRD-A5 protocol record for it
+exists. Versions stay at 0.x until the owner decides on 1.0. The tool that computes the version is chosen by a
+library-first evaluation that includes the owner's existing release workflow; whichever it is, it runs only `npm
+publish` (with `--tag` for a prerelease) and moves no dist-tag. The workflow files reference no npm token (static
+check); the npm setting is recorded in the release record.
 
 **Break-glass:** if the workflow cannot publish and a security fix cannot wait, the owner publishes by hand with
 two-factor authentication (the setting "only affects traditional token authentication", and under it maintainers publish
