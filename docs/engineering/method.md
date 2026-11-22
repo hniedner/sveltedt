@@ -239,12 +239,14 @@ practice is found, the proposal says so. A probe's own result is marked measured
   A change of spec or docs text alone, with no code, test, script or workflow in it, gets one review read instead of
   rounds of review agents.
 - **Each repo has its own issues and milestones.** A statement is tracked in the repo that holds its spec; there is
-  no shared tracker and no cross-repo numbering. A cross-repo dependency is one linked issue in each repo. An issue is
-  scoped to one day of work, two at most: a larger one is split before it starts, and a written issue that proves too
-  large is narrowed to its first part while the rest gets new issues. A milestone lasts a week, ten days at most, and
-  carries a target date. Every milestone ends with a focus checkpoint, a short issue of its own that measures the
-  product against the tooling and the dates against the plan; when it finds the work off course, no new branch starts
-  until the owner has a new plan.
+  no shared tracker and no cross-repo numbering. A cross-repo dependency is one linked issue in each repo. An issue or a
+  milestone is written as soon as its scope is clear and the work is wanted or required, and stays open as long as it
+  needs. An issue is scoped so an LLM coding agent finishes it in one day, two at most: a larger one is split before it
+  starts, and a written issue that proves too large is narrowed to its first part while the rest gets new issues. A
+  milestone is done within seven to ten days from the start of its work, time in which the work stops not counted, and
+  carries a target date only when there is reasonable intel for one. Every milestone ends with a focus checkpoint, a
+  short issue of its own that measures the product against the tooling and the dates against the plan; when it finds the
+  work off course, no new branch starts until the owner has a new plan.
 
 ## 11. Rust only where it is an advantage
 
@@ -305,4 +307,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-19 | Companion G10: the steps' reports are uploaded from the existing static job, also when it fails; the job is split into the listed jobs when the job's time on main passes 12 of its 15 minutes in three runs in a row, and with mutation testing at the latest | Owner's decision, 2026-11-18: the shared test run stays in one job until its time says otherwise, and the time is read from the run, never guessed |
 | 2026-11-21 | Section 10: the local gate runs before a pull request is opened (CI's `gate` check is required on main) and every push is scanned first, instead of the local gate running before every push | Owner's decision, 2026-11-19: a branch may be pushed as a backup at any time once the scans pass |
 | 2026-11-21 | Section 2 step 1: a statement is written when its build is next, its example names what is observed; section 10: a change of spec or docs text alone gets one review read | Owner's decision, 2026-11-21: keep the spec investment, raise its return, align with what other top projects do |
-| 2026-11-22 | Section 10: issue and milestone size, target dates and the focus checkpoint | Owner 2026-11-22 |
+| 2026-11-22 | Section 10: issue and milestone size, target dates only with reasonable intel, and the focus checkpoint | Owner 2026-11-22 |
