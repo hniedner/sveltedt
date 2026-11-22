@@ -453,7 +453,10 @@ describe("PAGE-16", () => {
   it("takes an unfilteredTotal given as null as not given", () => {
     mount({ unfilteredTotal: null as unknown as number });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(nav().isConnected).toBe(true);
+    // Not given: the information line has no filtered note (PAGE-38)
+    expect(
+      within(nav()).getByText("Showing 1 to 10 of 95 rows").isConnected,
+    ).toBe(true);
   });
 
   it("takes an unfilteredTotal below total as no fault", () => {
@@ -512,7 +515,7 @@ const FAULTS: Record<keyof typeof PAGER_ALERTS, Partial<PaginationProps>> = {
   unfilteredTotalInvalid: { unfilteredTotal: -1 },
 };
 
-// @spec("PAGE-19", "d34a47bf")
+// @spec("PAGE-19", "5de7e31c")
 describe("PAGE-19", () => {
   const foreign: PaginationMessages = {
     firstPage: "Erste Seite",
@@ -536,7 +539,6 @@ describe("PAGE-19", () => {
     "rows per page",
     "Showing",
     "filtered from",
-    ...Object.values(PAGER_ALERTS),
   ];
   // Page 6 of 10 with sizes and an unfiltered total: every word but the alerts is on show
   const onShow: Partial<PaginationProps> = {
@@ -610,7 +612,7 @@ describe("PAGE-19", () => {
 
 // @spec("PAGE-20", "5b2aca46")
 describe("PAGE-20", () => {
-  // Each entry of `messages`, given as a text or as a function returning it, and the input that shows it
+  // The input that makes the pager show an entry: an alert key's fault, else page 6 with sizes and a filtered total
   const shownBy = (key: keyof PaginationMessages): Partial<PaginationProps> =>
     key in FAULTS
       ? FAULTS[key as keyof typeof PAGER_ALERTS]
@@ -655,6 +657,9 @@ describe("PAGE-39", () => {
       if (at === nav()) break;
     }
     expect(chain.at(-1)).toBe(nav());
+    // No element of the pager has a live role, given or implicit (an output element is a status)
+    for (const role of ["status", "alert", "log"])
+      expect(within(nav()).queryAllByRole(role)).toEqual([]);
     for (const element of chain) {
       expect(element.hasAttribute("aria-live")).toBe(false);
       expect(["status", "alert", "log"]).not.toContain(

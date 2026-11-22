@@ -2183,6 +2183,8 @@ new `limit` and offset.
   | each alert message of PAGE-16 | its default in PAGE-16 | PAGE-16 |
   | any entry given as `undefined` or `null`, or not of its type (the number 5 for a word; a text for `pageLabel`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
+  The last row is run apart from the full object: one entry of each kind given alone (`undefined`, `null`, a number
+  for a word, a text for a function, an empty and a blank text) shows that entry's English default.
   The gap mark "…" is a symbol hidden from assistive technology (PAGE-11), not a word.
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
