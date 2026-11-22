@@ -131,7 +131,7 @@ export interface PaginationProps {
   // Called with the size chosen; required while `sizes` is not empty (PAGE-16)
   onsize?: (size: number) => void;
   // The row count before filtering, as the server reports it; the information line names it when it differs from
-  // `total` (PAGE-38); null is not given
+  // `total` (PAGE-38); null (from a JSON answer) is taken as not given
   unfilteredTotal?: number;
   // Replaces any of the English defaults; an entry that is undefined, null, not of its default's type or a blank
   // text keeps the default (PAGE-19)
