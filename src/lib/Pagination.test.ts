@@ -642,3 +642,24 @@ describe("PAGE-20", () => {
     expect(document.body.querySelector("img, none")).toBeNull();
   });
 });
+
+// @spec("PAGE-39", "19afc27d")
+describe("PAGE-39", () => {
+  it("holds the line in an element that, up to the nav, has no aria-live and no live role", async () => {
+    const { rerender } = mount({ offset: 0, limit: 10, total: 57 });
+    await rerender({ offset: 10 });
+    const line = within(nav()).getByText("Showing 11 to 20 of 57 rows");
+    const chain: Element[] = [];
+    for (let at: Element | null = line; at !== null; at = at.parentElement) {
+      chain.push(at);
+      if (at === nav()) break;
+    }
+    expect(chain.at(-1)).toBe(nav());
+    for (const element of chain) {
+      expect(element.hasAttribute("aria-live")).toBe(false);
+      expect(["status", "alert", "log"]).not.toContain(
+        element.getAttribute("role"),
+      );
+    }
+  });
+});
