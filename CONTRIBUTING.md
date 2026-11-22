@@ -131,13 +131,16 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   tracked file whose tests were all skipped cannot be checked. The step overrides four config settings on the
   command line (each flag wins, measured with Vitest 5.1.0): an unhandled error fails the run, a test with no
   assertion fails, the tests run rather than only being type-checked, and a snapshot with nothing stored fails
-  instead of being written (outside CI, vitest would write it and pass). A stored snapshot that a file still in the
+  instead of being written (outside CI, vitest would write it and pass). The same run writes V8 coverage as an lcov
+  report to `reports/test/coverage` for `diff-coverage` (provider, reporter, `src/**/*.{ts,svelte}` and the folder
+  set on the command line). A stored snapshot that a file still in the
   run no longer uses fails too; a limit, measured: an orphan `.snap` whose test file is gone passes. The expect and
   typecheck flags do not reach a project in `test.projects` (measured), so the step refuses a `vitest.config.ts`
-  that names `projects`. The lint step adds Vitest's `expect-expect`, `valid-expect`,
+  that names `projects`; it also refuses one that names `coverage`, whose options could take lines out of
+  `diff-coverage`'s count. The lint step adds Vitest's `expect-expect`, `valid-expect`,
   `no-focused-tests` and `no-disabled-tests`; a bare `expect(a === b)` counts as an assertion at run time, so only
   `valid-expect` catches it. Limits, measured: no flag overrides an `onUnhandledError` function, so the step refuses
-  a `vitest.config.ts` that names it. Both names are read as text in that file only, so a name in a module it
+  a `vitest.config.ts` that names it. The names are read as text in that file only, so a name in a module it
   imports (such as `vite.config.ts` through `mergeConfig`) or built at run time is not seen; a process-level
   `unhandledRejection` listener in a setup file still hides an unhandled error; and a `test.each` table that is empty
   at run time makes no test and fails nothing. A test from a `test.extend` fixture imported from another module is
@@ -156,6 +159,15 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   failed. On a pull request, and locally against the merge base with `origin/main`, an id marked at the base whose
   statement still exists and which no marker names now is a finding; a base that cannot be named or read is could not
   check.
+- **diff-coverage:** at least 95 % of the changed lines under `src/` (`.ts` and `.svelte`, test files left out) that the
+  test run's lcov report has data for must be covered; the finding names every uncovered `file:line`, and the output
+  counts the changed lines without data. The changed lines are the new side of `git diff -U0 -M` from the base `trace`
+  uses to the working tree, so a new file counts once it is tracked. A changed file missing from the report, a report
+  that lists no file, no report, or a path the reader cannot read is could not check; with no changed line under `src/`,
+  and on a push to `main` (checked on its pull request), the step is NOT APPLICABLE. Its planted diff in
+  `scripts/canaries/diff-coverage/` must first give a finding. Limits, measured (gates.md G4): `site/` and `scripts/`
+  are not counted, a line proven only in a real browser reads as uncovered, and a change to static Svelte markup alone
+  carries no data.
 - **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
   `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
   (never one already running), after the test step so that address is never shared. The planted failing spec in
@@ -272,17 +284,17 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- `red-check`, `diff-coverage`, `mutation` and `release-links` (they arrive with the first code that needs them).
+- `red-check`, `mutation` and `release-links` (they arrive with the first code that needs them).
 
 ## Known limits of the merge rules
 
 - A pull request can change its own gate: the workflow and the scripts it runs come from the pull request. Review
   and code ownership cover it; a check that the gate job runs the gate unchanged is planned.
-- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`
-  and `prettier-ignore` in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants
-  one); ESLint ignores its inline configuration (HTML comments in components included), gitleaks
-  ignores its allow comments, and the scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in
-  a workflow is not yet refused.
+- Inline suppressions: the `text` step refuses `svelte-ignore`, `@ts-expect-error`, `@ts-nocheck`, `jscpd:ignore`,
+  `prettier-ignore` and the coverage hints the V8 provider reads (`v8`, `c8`, `istanbul` or `node:coverage`, then
+  `ignore`) in code; typescript-eslint's `ban-ts-comment` refuses `@ts-ignore` (its lint canary plants one); ESLint
+  ignores its inline configuration (HTML comments in components included), gitleaks ignores its allow comments, and the
+  scan refuses a folder holding a `.gitleaksignore`. A zizmor ignore comment in a workflow is not yet refused.
 
 - CodeQL merge protection does not apply to Dependabot pull requests analysed by CodeQL default setup.
 - CodeQL default setup does not scan pull requests from forks.

@@ -136,6 +136,11 @@ Development dependencies, exact versions, MIT, no install script (`allowBuilds: 
 picomatch entry below.
 
 - **vitest 5.1.0:** runs PRD-G1 and G2 and the companion's component layer (gates.md).
+- **@vitest/coverage-v8 5.1.0:** the Vitest team's V8 coverage provider, exact peer `vitest` 5.1.0; the shared test
+  run writes the lcov report `diff-coverage` reads (gates.md G4). It adds ten packages, all MIT and none with an
+  install script: @babel/parser, @babel/types and @babel/helper-string-parser 7.29.14, @bcoe/v8-coverage 1.0.2,
+  @vitest/istanbul-lib-coverage and @vitest/istanbul-lib-report 2.1.1, ast-v8-to-istanbul 1.0.8, js-tokens 10.0.0,
+  magicast 0.5.5, tinyrainbow 3.2.0. Dependabot moves it with vitest in one group (G11).
 - **@vitest/eslint-plugin 1.6.28:** the Vitest team's lint rules; four are used (no test without an assertion, no
   expect without a matcher, no focused and no skipped test), each with a canary.
 
@@ -191,9 +196,10 @@ Development dependencies on the same terms as the test toolchain.
   effect is at most a hung test step, bounded by the job timeout, which that pull request can already cause. How it
   was measured: a module hook that replaced `picomatch` with a wrapper logging every pattern, its `noextglob` flag,
   its caller and any match slower than 50 ms, run with a test run, the site build and the dev server. Not run under
-  it, and inferred to take their patterns from the same tracked config: coverage and a mutation runner once they are
-  added, and vite's server-side resolve paths. A bump of vite, vitest, @sveltejs/vite-plugin-svelte or
-  @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
+  it, and inferred to take their patterns from the same tracked config: coverage (its include is the gate's fixed
+  `src/**/*.{ts,svelte}`, no extglob), a mutation runner once it is added, and vite's server-side resolve paths. A
+  bump of vite, vitest, @sveltejs/vite-plugin-svelte or @tailwindcss/vite re-opens this claim: before it merges,
+  picomatch is logged again the same way.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.
@@ -252,8 +258,6 @@ The owner's public repository github.com/hniedner/ontoprism (Apache-2.0) was rea
 - The split into a Node and a jsdom project: the site server's test file names the Node environment in its first
   line (`// @vitest-environment node`).
 - The jest-dom matchers: the tests assert with Vitest's own `expect`.
-- A Dependabot group for `vitest` and `@vitest/*`: the only direct `@vitest/*` package, the ESLint plugin, is
-  versioned on its own.
 - ESLint ignores read from `.gitignore`: here the class table alone selects files.
 - The `globals` package: a hand list is enough.
 - Cooldowns of 14 and 7 days: the companion's G11 values and the 3-day release age decided in the review of this change stand.

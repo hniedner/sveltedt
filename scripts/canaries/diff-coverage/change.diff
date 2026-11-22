@@ -1,0 +1,7 @@
+diff --git a/src/canary.ts b/src/canary.ts
+index 0000000..1111111 100644
+--- a/src/canary.ts
++++ b/src/canary.ts
+@@ -2,0 +3,2 @@ export const canary = (on: boolean): number => {
++  if (on) return 1;
++  return 0;

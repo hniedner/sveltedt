@@ -197,16 +197,28 @@ export function commitRange(root: string): Result | { range: string } {
   return { range: `${r.stdout.trim()}..HEAD` };
 }
 
+/**
+ * Where the shared test run writes its lcov report, and which files it measures: TypeScript and components under src/
+ * (G4). The report leaves out the files the config's `test.include` runs as tests (measured with the
+ * `.test.ts` files under src/); `isCovered` is the same rule for a path, so the report and the diff agree while tests
+ * end in `.test.ts`.
+ */
+export const COVERAGE_DIR = "reports/test/coverage";
+const COVERAGE_INCLUDE = "src/**/*.{ts,svelte}";
+export const isCovered = (f: string): boolean =>
+  /^src\/.+\.(?:ts|svelte)$/.test(f) && !f.endsWith(".test.ts");
+
 let shared: { root: string; run: Result | VitestRun } | undefined;
 
 /**
- * The Vitest run of the gate process (one per root; the last root is kept), shared by `test` and `trace`: the first
- * caller starts it, the next gets the same answer. Flags win over the config (measured): unhandled errors fail the
- * run, a test without an assertion fails, the tests run rather than only being type-checked, a snapshot with nothing
- * stored fails instead of being written (outside CI vitest writes it and passes), and every test carries its own line
- * for the trace. `vitest.config.ts` must be tracked (the callers check). No flag overrides onUnhandledError, and two
- * flags do not reach a project (measured): a config that names either cannot be checked. Read as text: a name in a
- * module the config imports or built at run time is not seen (CONTRIBUTING.md).
+ * The Vitest run of the gate process (one per root; the last root is kept), shared by `test`, `trace` and
+ * `diff-coverage`: the first caller starts it, the next gets the same answer. Flags win over the config (measured):
+ * unhandled errors fail the run, a test without an assertion fails, the tests run rather than only being
+ * type-checked, a snapshot with nothing stored fails instead of being written (outside CI vitest writes it and
+ * passes), and every test carries its own line for the trace; with V8 coverage, its lcov report under COVERAGE_DIR.
+ * `vitest.config.ts` must be tracked (the callers check). No flag overrides onUnhandledError, and two flags do not
+ * reach a project (measured): a config that names either cannot be checked. Read as text: a name in a module the
+ * config imports or built at run time is not seen (CONTRIBUTING.md).
  */
 export function testRun(root: string): Result | VitestRun {
   if (shared?.root === root) return shared.run;
@@ -218,6 +230,10 @@ export function testRun(root: string): Result | VitestRun {
     [
       "projects",
       `names "projects" (read as text), which two of the step's flags do not reach`,
+    ],
+    [
+      "coverage",
+      "sets coverage options (read as text), which could take lines out of diff-coverage's count",
     ],
   ].filter(([name]) => readFileSync(config, "utf8").includes(name));
   const run = unchecked.length
@@ -236,6 +252,12 @@ export function testRun(root: string): Result | VitestRun {
           "--typecheck.enabled=false",
           "--update=none",
           "--includeTaskLocation",
+          // The lcov report diff-coverage reads; a file of the include glob that no test imports is listed at 0 %
+          "--coverage.enabled",
+          "--coverage.provider=v8",
+          "--coverage.reporter=lcov",
+          `--coverage.include=${COVERAGE_INCLUDE}`,
+          `--coverage.reportsDirectory=${join(root, COVERAGE_DIR)}`,
         ],
         reports,
       );
@@ -250,8 +272,8 @@ export interface Base {
 const COMMIT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 /**
- * The commit a step compares its answer with, one truth table for the steps that compare with a base (`trace` today;
- * `diff-coverage` will). A pull request is checked out as the merge of its head, so the base is that merge's first
+ * The commit a step compares its answer with, one truth table for the steps that compare with a base (`trace` and
+ * `diff-coverage`). A pull request is checked out as the merge of its head, so the base is that merge's first
  * parent; else the merge base of GATE_BASE and GATE_HEAD. A push has GATE_BASE (the commits before it) or none. Locally
  * it is the merge base with origin/main. Anything else, in CI, has no base: the step says so, never guesses.
  */
