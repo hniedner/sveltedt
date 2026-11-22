@@ -165,6 +165,20 @@ describe("SORT-02, key-click rows", () => {
       expect(onsort.mock.calls).toEqual([withShift]);
     },
   );
+  // What Chromium and WebKit do when Shift goes down after the Space keydown: Space's click carries shiftKey
+  it.each(["Enter", " "])(
+    "a keydown of %j without Shift, Shift down, then a click with no pointer carrying Shift emits without Shift",
+    async (key) => {
+      const { onsort } = mount({ sort: order("code asc") });
+      await fireEvent.keyDown(sortButton("Name"), { key });
+      await fireEvent.keyDown(sortButton("Name"), {
+        key: "Shift",
+        shiftKey: true,
+      });
+      await fireEvent.click(sortButton("Name"), { detail: 0, shiftKey: true });
+      expect(onsort.mock.calls).toEqual([withoutShift]);
+    },
+  );
   it("a Shift keydown of another key then a click with no pointer emits without Shift", async () => {
     const { onsort } = mount({ sort: order("code asc") });
     await keyDown("a");

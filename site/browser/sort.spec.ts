@@ -170,6 +170,19 @@ test.describe("SORT-02, Shift+Enter and Shift+Space rows", () => {
     await page.keyboard.up("Space");
     await emitted(page, ["code asc, name asc"]);
   });
+
+  // The mirror: Chromium and WebKit give Space's click the Shift held at its keyup, Firefox does not
+  test("Shift pressed after the Space keydown and held at its keyup emits without Shift", async ({
+    page,
+  }) => {
+    await start(page, "code asc");
+    await focus(page, "Name");
+    await page.keyboard.down("Space");
+    await page.keyboard.down("Shift");
+    await page.keyboard.up("Space");
+    await page.keyboard.up("Shift");
+    await emitted(page, ["name asc"]);
+  });
 });
 
 // @spec("SORT-03", "8c10d2f7")

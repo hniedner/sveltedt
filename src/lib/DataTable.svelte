@@ -24,14 +24,16 @@
   }: DataTableProps<Row> = $props();
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
-  // Shift held at the Enter or Space keydown, read by the next click with no pointer; the click or a blur clears it
-  let keyShift = false;
+  // Shift held at the Enter or Space keydown (null: no such key pending) decides the next click with no pointer,
+  // whatever Shift that click carries or another key changes; the click or a blur clears it
+  let keyShift: boolean | null = null;
   function sortKey(event: KeyboardEvent): void {
-    keyShift = event.shiftKey && (event.key === "Enter" || event.key === " ");
+    if (event.key === "Enter" || event.key === " ") keyShift = event.shiftKey;
   }
   function shiftOf(event: MouseEvent): boolean {
-    const shift = event.shiftKey || (event.detail === 0 && keyShift);
-    keyShift = false;
+    const shift =
+      event.detail === 0 && keyShift !== null ? keyShift : event.shiftKey;
+    keyShift = null;
     return shift;
   }
   // An entry that is undefined, null, not of its default's type or a blank text keeps the default (RND-06)
@@ -120,7 +122,7 @@
                   aria-label={words.sortBy(column.label)}
                   aria-describedby={`${uid}-sort-${index}`}
                   onkeydown={sortKey}
-                  onblur={() => (keyShift = false)}
+                  onblur={() => (keyShift = null)}
                   onclick={(event) =>
                     onsort?.(
                       nextOrder(
