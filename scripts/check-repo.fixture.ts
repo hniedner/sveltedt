@@ -185,6 +185,8 @@ export function repo(change: (root: string) => void = () => {}): string {
     "scripts/check-repo-tools.test.ts": PASSING_TEST,
     "scripts/scan-secrets.ts": TOOL_TS,
     "scripts/scan-secrets.test.ts": PASSING_TEST,
+    "scripts/setup.test.ts": PASSING_TEST,
+    "scripts/trace.test.ts": PASSING_TEST,
     "scripts/gitleaks.toml": "",
     "scripts/gitleaks.version": "version 9.9.9\n",
     "scripts/tool.mjs": TOOL,

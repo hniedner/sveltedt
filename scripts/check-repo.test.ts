@@ -85,9 +85,13 @@ test("files: a .gitignore without /reports/ or /coverage/ is a finding", () => {
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
 });
-const GATE_TESTS = ["", "-hooks", "-lint", "-site", "-tools"].map(
-  (s) => `scripts/check-repo${s}.test.ts`,
-);
+const GATE_TESTS = [
+  ...["", "-hooks", "-lint", "-site", "-tools"].map(
+    (s) => `scripts/check-repo${s}.test.ts`,
+  ),
+  "scripts/setup.test.ts",
+  "scripts/trace.test.ts",
+];
 for (const file of GATE_TESTS)
   test(`files: a deleted ${file} is a finding`, () => {
     const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));

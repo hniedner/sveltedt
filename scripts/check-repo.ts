@@ -93,6 +93,8 @@ const REQUIRED = [
   "scripts/check-repo-tools.test.ts",
   "scripts/scan-secrets.ts",
   "scripts/scan-secrets.test.ts",
+  "scripts/setup.test.ts",
+  "scripts/trace.test.ts",
   "scripts/gitleaks.toml",
   "scripts/gitleaks.version",
 ];
