@@ -1162,8 +1162,9 @@ test("selftest: a second test file that holds no test cannot be checked", () => 
   );
 });
 /**
- * A test file that marks itself as running, then waits, at most `ms`, until every file in `others` has marked itself:
- * it passes only while they all run at the same time. The bound ends a wait that can never be met; no row passes by it.
+ * A test file that passes only if every file in `others` ran while it ran: each marks `<name>.running` when it starts
+ * and `<name>.ended` when its process exits, and one that had ended before this one began does not count. The wait is
+ * bounded by `ms` only to end a wait that can never be met; no row passes by it.
  */
 const meets = (
   name: string,
@@ -1172,51 +1173,62 @@ const meets = (
 ) => `import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
-const mark = (n) => new URL(\`./\${n}.running\`, import.meta.url);
+const at = (n, s) => new URL(\`./\${n}.\${s}\`, import.meta.url);
+const others = ${JSON.stringify(others)};
+writeFileSync(at("${name}", "running"), "");
+process.on("exit", () => writeFileSync(at("${name}", "ended"), ""));
+const gone = others.filter((n) => existsSync(at(n, "ended")));
 test("${name} runs beside the others", () => {
-  writeFileSync(mark("${name}"), "");
-  const all = () => ${JSON.stringify(others)}.every((n) => existsSync(mark(n)));
+  const all = () => !gone.length && others.every((n) => existsSync(at(n, "running")));
   const end = Date.now() + ${ms};
-  while (!all() && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  while (!all() && !gone.length && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
   assert.ok(all(), "the other test files did not run at the same time");
 });
 `;
-test("selftest: the test files run side by side, each with its own count", () => {
+/** `count` files named f0, f1, ..., each meeting all the others. */
+const meeting = (count: number, ms: number) => (root: string) => {
+  const names = Array.from({ length: count }, (_, i) => `f${i}`);
+  for (const n of names)
+    put(
+      root,
+      `scripts/${n}.test.mjs`,
+      meets(
+        n,
+        names.filter((o) => o !== n),
+        ms,
+      ),
+    );
+};
+test("selftest: as many test files run at once as the machine has cores, each with its own count", () => {
+  // One core gives one lane, and one file meets no other: the row still holds
   const out = expect(
     "selftest",
-    repo((root) => {
-      put(root, "scripts/a.test.mjs", meets("a", ["b"], 30_000));
-      put(root, "scripts/b.test.mjs", meets("b", ["a"], 30_000));
-    }),
+    repo(meeting(availableParallelism(), 30_000)),
     0,
   );
-  assert.match(out, /scripts\/a\.test\.mjs: 1 passed/);
-  assert.match(out, /scripts\/b\.test\.mjs: 1 passed/);
+  assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
 });
 test("selftest: no more test files run at once than the machine has cores", () => {
-  // One file more than the cores, each waiting for all the others: with the bound, none can meet them all
-  const names = Array.from(
-    { length: availableParallelism() + 1 },
-    (_, i) => `f${i}`,
-  );
-  expect(
+  // One file more than the cores, each needing all the others beside it: with the bound, none can have them all
+  const out = expect(
     "selftest",
-    repo((root) => {
-      for (const n of names)
-        put(
-          root,
-          `scripts/${n}.test.mjs`,
-          meets(
-            n,
-            names.filter((o) => o !== n),
-            10_000,
-          ),
-        );
-    }),
+    repo(meeting(availableParallelism() + 1, 10_000)),
     1,
   );
+  assert.match(out, /not ok 1 - f\d+ runs beside the others/);
 });
 test("selftest: a failing file among several is named, the others counted, in the order of their names", () => {
+  // a ends last on purpose (it waits, bounded, for b and c to end), so the order of the lines is not the order of ends
+  const ended = (name: string, body: string) =>
+    `import { writeFileSync as w } from "node:fs";\nprocess.on("exit", () => w(new URL("./${name}.ended", import.meta.url), ""));\n${body}`;
+  const last = `import { existsSync } from "node:fs";
+import { test } from "node:test";
+test("a ends last", () => {
+  const done = () => ["b", "c"].every((n) => existsSync(new URL(\`./\${n}.ended\`, import.meta.url)));
+  const end = Date.now() + 10_000;
+  while (!done() && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+});
+`;
   const failing = PASSING_TEST.replace(
     "() => {}",
     '() => { throw new Error("planted"); }',
@@ -1224,15 +1236,32 @@ test("selftest: a failing file among several is named, the others counted, in th
   const out = expect(
     "selftest",
     repo((root) => {
-      put(root, "scripts/a.test.mjs", PASSING_TEST);
-      put(root, "scripts/b.test.mjs", failing);
-      put(root, "scripts/c.test.mjs", PASSING_TEST);
+      put(root, "scripts/a.test.mjs", last);
+      put(root, "scripts/b.test.mjs", ended("b", failing));
+      put(root, "scripts/c.test.mjs", ended("c", PASSING_TEST));
     }),
     1,
   );
   assert.match(
     out,
     /scripts\/a\.test\.mjs: 1 passed\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed/,
+  );
+});
+test("selftest: a test file killed by a signal cannot be checked, and its line names the signal", () => {
+  const out = expect(
+    "selftest",
+    repo((root) =>
+      put(
+        root,
+        "scripts/other.test.mjs",
+        'process.kill(process.pid, "SIGKILL");\n',
+      ),
+    ),
+    3,
+  );
+  assert.match(
+    out,
+    /scripts\/other\.test\.mjs: no test ran \(killed by SIGKILL\)/,
   );
 });
 

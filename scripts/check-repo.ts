@@ -403,24 +403,28 @@ async function runTestFile(
   if (!existsSync(join(root, file)))
     return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
-  const r = await new Promise<{ status: number | null; stdout: string }>(
-    (resolve) => {
-      const child = spawn(
-        process.execPath,
-        ["--test-reporter=tap", join(root, file)],
-        { cwd: root, env: childEnv(), stdio: ["ignore", "pipe", "ignore"] },
-      );
-      let stdout = "";
-      child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
-      child.on("error", () => resolve({ status: null, stdout }));
-      child.on("close", (status) => resolve({ status, stdout }));
-    },
-  );
+  const r = await new Promise<{
+    status: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+  }>((resolve) => {
+    const child = spawn(
+      process.execPath,
+      ["--test-reporter=tap", join(root, file)],
+      { cwd: root, env: childEnv(), stdio: ["ignore", "pipe", "ignore"] },
+    );
+    let stdout = "";
+    child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
+    child.on("error", () => resolve({ status: null, signal: null, stdout }));
+    child.on("close", (status, signal) => resolve({ status, signal, stdout }));
+  });
   const count = (name: string): number =>
     Number(new RegExp(`^# ${name} (\\d+)$`, "m").exec(r.stdout)?.[1] ?? NaN);
   const [tests, pass, fail] = [count("tests"), count("pass"), count("fail")];
+  // A file killed by a signal (out of memory on a busy runner) says so instead of "exit null"
+  const end = r.signal ? `killed by ${r.signal}` : `exit ${r.status}`;
   if (!(tests > 0))
-    return { code: CANNOT, line: `${file}: no test ran (exit ${r.status})` };
+    return { code: CANNOT, line: `${file}: no test ran (${end})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
     const failed = r.stdout
       .split("\n")
@@ -428,10 +432,9 @@ async function runTestFile(
       .map((l) => `  ${l.trim()}`);
     return {
       code: FINDING,
-      line: [
-        `${file}: ${fail} of ${tests} failed (exit ${r.status})`,
-        ...failed,
-      ].join("\n"),
+      line: [`${file}: ${fail} of ${tests} failed (${end})`, ...failed].join(
+        "\n",
+      ),
     };
   }
   return { code: PASS, line: `${file}: ${tests} passed` };
