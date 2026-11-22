@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import { defaultPagerMessages } from "./messages.ts";
 import Pagination from "./Pagination.svelte";
-import type { PaginationProps } from "./types.ts";
+import type { PaginationMessages, PaginationProps } from "./types.ts";
 
 // Mounts the pager over `offset 0, limit 10, total 95`, labelled "Pages of orders", with handlers that record their
 // calls and pass nothing back
@@ -66,6 +67,12 @@ function expectNoBrokenNumber(): void {
   for (const bad of ["NaN", "Infinity", "Page 0"])
     expect(words).not.toContain(bad);
 }
+
+// The element whose text is exactly the information line, spaces as written (testing-library's default matcher
+// collapses white space)
+const lineElement = (line: string): HTMLElement =>
+  within(nav()).getByText(line, { normalizer: (text) => text });
+const hasNote = (): boolean => nav().textContent.includes("filtered from");
 
 const STEPS = ["First page", "Previous page", "Next page", "Last page"];
 
@@ -452,7 +459,9 @@ describe("PAGE-16", () => {
   it("takes an unfilteredTotal given as null as not given", () => {
     mount({ unfilteredTotal: null as unknown as number });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(nav().isConnected).toBe(true);
+    // Not given: the information line has no filtered note (PAGE-38)
+    expect(lineElement("Showing 1 to 10 of 95 rows").isConnected).toBe(true);
+    expect(hasNote()).toBe(false);
   });
 
   it("takes an unfilteredTotal below total as no fault", () => {
@@ -460,4 +469,236 @@ describe("PAGE-16", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(nav().isConnected).toBe(true);
   });
+});
+
+// @spec("PAGE-37", "2fc2897d")
+describe("PAGE-37", () => {
+  it.each<[number, number, string]>([
+    [0, 57, "Showing 1 to 10 of 57 rows"],
+    [50, 57, "Showing 51 to 57 of 57 rows"],
+    [0, 1, "Showing 1 to 1 of 1 row"],
+    [0, 0, "Showing 0 to 0 of 0 rows"],
+    [90, 90, "Showing 0 to 0 of 90 rows"],
+    [100, 95, "Showing 0 to 0 of 95 rows"],
+    [1000, 12345, "Showing 1,001 to 1,010 of 12,345 rows"],
+  ])(
+    "at offset %i of total %i shows the line %j as visible text",
+    (offset, total, line) => {
+      mount({ offset, limit: 10, total });
+      expect(
+        lineElement(line).closest("[hidden], [aria-hidden='true']"),
+      ).toBeNull();
+    },
+  );
+});
+
+// @spec("PAGE-38", "66cd1522")
+describe("PAGE-38", () => {
+  it.each<[number, number | undefined, string]>([
+    [57, 1000, "Showing 1 to 10 of 57 rows (filtered from 1,000 total rows)"],
+    [57, 57, "Showing 1 to 10 of 57 rows"],
+    [57, undefined, "Showing 1 to 10 of 57 rows"],
+    [0, 1, "Showing 0 to 0 of 0 rows (filtered from 1 total row)"],
+    [57, 50, "Showing 1 to 10 of 57 rows (filtered from 50 total rows)"],
+  ])(
+    "with total %i and unfilteredTotal %s shows the line %j",
+    (total, unfilteredTotal, line) => {
+      mount({ offset: 0, limit: 10, total, unfilteredTotal });
+      expect(lineElement(line).isConnected).toBe(true);
+      expect(hasNote()).toBe(line.includes("filtered from"));
+    },
+  );
+});
+
+// One input per alert key of PAGE-16, for the rows that show an alert
+const FAULTS: Record<keyof typeof PAGER_ALERTS, Partial<PaginationProps>> = {
+  totalInvalid: { total: -1 },
+  offsetInvalid: { offset: -1 },
+  limitInvalid: { limit: 0 },
+  labelEmpty: { label: "" },
+  sizesInvalid: { sizes: [0] },
+  limitNotInSizes: { sizes: [25] },
+  pageHandlerMissing: { onpage: undefined },
+  sizeHandlerMissing: { sizes: [10], onsize: undefined },
+  unfilteredTotalInvalid: { unfilteredTotal: -1 },
+};
+
+// @spec("PAGE-19", "edda19c9")
+describe("PAGE-19", () => {
+  const foreign: PaginationMessages = {
+    firstPage: "Erste Seite",
+    previousPage: "Vorherige Seite",
+    nextPage: "Nächste Seite",
+    lastPage: "Letzte Seite",
+    pageLabel: (page) => `Seite ${page}`,
+    pageNumber: (page) => `#${page}`,
+    sizeLabel: "Zeilen pro Seite",
+    sizeOption: (size) => `${size} Zeilen`,
+    info: ({ first, last, total }) =>
+      `Zeilen ${first} bis ${last} von ${total}`,
+    infoFiltered: (total) => `(gefiltert aus ${total})`,
+    ...(Object.fromEntries(
+      Object.keys(PAGER_ALERTS).map((key) => [key, `F-${key}`]),
+    ) as typeof PAGER_ALERTS),
+  };
+  const english = [
+    ...STEPS,
+    "Page ",
+    "rows per page",
+    "Showing",
+    "filtered from",
+  ];
+  // Page 6 of 10 with sizes and an unfiltered total: every word but the alerts is on show
+  const onShow: Partial<PaginationProps> = {
+    offset: 50,
+    sizes: [10, 25],
+    unfilteredTotal: 1000,
+  };
+  const everything = (): string =>
+    [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+        [...element.attributes].map((attribute) => attribute.value),
+      ),
+    ].join("\n");
+
+  it("shows each given word where its statement says, and no English default", () => {
+    mount({ ...onShow, messages: foreign });
+    for (const name of [
+      "Erste Seite",
+      "Vorherige Seite",
+      "Nächste Seite",
+      "Letzte Seite",
+    ])
+      expect(button(name).isConnected).toBe(true);
+    expect(button("Seite 6").textContent.trim()).toBe("#6");
+    const select = within(nav()).getByRole<HTMLSelectElement>("combobox", {
+      name: "Zeilen pro Seite",
+    });
+    expect([...select.options].map((option) => option.text)).toEqual([
+      "10 Zeilen",
+      "25 Zeilen",
+    ]);
+    expect(
+      within(nav()).getByText("Zeilen 51 bis 60 von 95 (gefiltert aus 1000)")
+        .isConnected,
+    ).toBe(true);
+    for (const word of english) expect(everything()).not.toContain(word);
+  });
+
+  it.each(Object.keys(FAULTS) as (keyof typeof PAGER_ALERTS)[])(
+    "shows the given alert word for %s",
+    (key) => {
+      mount({ ...FAULTS[key], messages: foreign });
+      expect(screen.getByRole("alert").textContent).toBe(`F-${key}`);
+    },
+  );
+
+  // A caller the type does not reach: untyped translation data, one entry of each kind
+  it.each<[string, keyof PaginationMessages, unknown, string]>([
+    ["undefined", "firstPage", undefined, "First page"],
+    ["null", "previousPage", null, "Previous page"],
+    ["a number for a word", "nextPage", 5, "Next page"],
+    ["a text for a function", "pageLabel", "Seite", "Page 6"],
+    ["an empty text", "lastPage", "", "Last page"],
+    ["a blank text", "sizeLabel", "  ", "rows per page"],
+  ])(
+    "keeps the English default when an entry is %s (%s)",
+    (_kind, key, entry, name) => {
+      mount({
+        ...onShow,
+        messages: { [key]: entry } as unknown as Partial<PaginationMessages>,
+      });
+      expect(
+        within(nav()).getByRole(key === "sizeLabel" ? "combobox" : "button", {
+          name,
+        }).isConnected,
+      ).toBe(true);
+    },
+  );
+});
+
+// @spec("PAGE-20", "5b2aca46")
+describe("PAGE-20", () => {
+  // The input that makes the pager show an entry: an alert key's fault, else page 6 with sizes and a filtered total
+  const shownBy = (key: keyof PaginationMessages): Partial<PaginationProps> =>
+    key in FAULTS
+      ? FAULTS[key as keyof typeof PAGER_ALERTS]
+      : { offset: 50, sizes: [10, 25], unfilteredTotal: 1000 };
+  const keys = Object.keys(
+    defaultPagerMessages,
+  ) as (keyof PaginationMessages)[];
+
+  it.each(
+    keys.flatMap((key) =>
+      ["<img src=x onerror=alert(1)>", "<none>"].map(
+        (text): [keyof PaginationMessages, string] => [key, text],
+      ),
+    ),
+  )("renders %s given as %j as text", (key, text) => {
+    const entry =
+      typeof defaultPagerMessages[key] === "function" ? () => text : text;
+    mount({
+      ...shownBy(key),
+      messages: { [key]: entry },
+    });
+    const words = [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("[aria-label]")].map(
+        (element) => element.getAttribute("aria-label") ?? "",
+      ),
+    ].join("\n");
+    expect(words).toContain(text);
+    expect(document.body.querySelector("img, none")).toBeNull();
+  });
+});
+
+// @spec("PAGE-39", "19afc27d")
+describe("PAGE-39", () => {
+  it("holds the line in an element that, up to the nav, has no aria-live and no live role", async () => {
+    const { rerender } = mount({ offset: 0, limit: 10, total: 57 });
+    await rerender({ offset: 10 });
+    const line = within(nav()).getByText("Showing 11 to 20 of 57 rows");
+    const chain: Element[] = [];
+    for (let at: Element | null = line; at !== null; at = at.parentElement) {
+      chain.push(at);
+      if (at === nav()) break;
+    }
+    expect(chain.at(-1)).toBe(nav());
+    // No element of the pager has a live role, given or implicit (an output element is a status)
+    for (const role of ["status", "alert", "log"])
+      expect(within(nav()).queryAllByRole(role)).toEqual([]);
+    for (const element of chain) {
+      expect(element.hasAttribute("aria-live")).toBe(false);
+      expect(["status", "alert", "log"]).not.toContain(
+        element.getAttribute("role"),
+      );
+    }
+  });
+});
+
+// @spec("PAGE-40", "e030c81e")
+describe("PAGE-40", () => {
+  it.each<[string, number[]]>([
+    ["sizes [10, 25]", [10, 25]],
+    ["sizes []", []],
+  ])(
+    "with %s puts the line after the page-size select, if any, and before First page",
+    (_case, sizes) => {
+      mount({ offset: 100, limit: 10, total: 200, sizes });
+      const line = within(nav()).getByText("Showing 101 to 110 of 200 rows");
+      expect(follows(line, button("First page"))).toBe(true);
+      const select = within(nav()).queryByRole("combobox");
+      if (sizes.length > 0) expect(follows(select!, line)).toBe(true);
+      else
+        expect(
+          [...nav().querySelectorAll("*")].every(
+            (element) =>
+              element === line ||
+              follows(line, element) ||
+              element.contains(line),
+          ),
+        ).toBe(true);
+    },
+  );
 });

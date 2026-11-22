@@ -1,4 +1,4 @@
-import type { DataTableMessages } from "./types.ts";
+import type { DataTableMessages, PaginationMessages } from "./types.ts";
 
 // The English default of every fixed word the table shows or announces (RND-06, SORT-17). The alert texts hold no
 // value taken from the input (RND-09).
@@ -41,16 +41,20 @@ export const defaultMessages: DataTableMessages = {
 // Numbers group the English way whatever the runtime's locale
 const number = new Intl.NumberFormat("en-US");
 
-// The pager's English words and the alert texts of PAGE-16
-export const pagerWords = {
+// The pager's English words, the information line's included (PAGE-37, PAGE-38), and the alert texts of PAGE-16
+export const defaultPagerMessages: PaginationMessages = {
   firstPage: "First page",
   previousPage: "Previous page",
   nextPage: "Next page",
   lastPage: "Last page",
-  pageLabel: (page: number) => `Page ${number.format(page)}`,
-  pageNumber: (page: number) => number.format(page),
+  pageLabel: (page) => `Page ${number.format(page)}`,
+  pageNumber: (page) => number.format(page),
   sizeLabel: "rows per page",
-  sizeOption: (size: number) => number.format(size),
+  sizeOption: (size) => number.format(size),
+  info: ({ first, last, total }) =>
+    `Showing ${number.format(first)} to ${number.format(last)} of ${number.format(total)} ${total === 1 ? "row" : "rows"}`,
+  infoFiltered: (total) =>
+    `(filtered from ${number.format(total)} total ${total === 1 ? "row" : "rows"})`,
   totalInvalid: "The row total is not a valid number.",
   offsetInvalid: "The page offset is not a valid number.",
   limitInvalid: "The page size is not a valid number.",
@@ -61,3 +65,21 @@ export const pagerWords = {
   sizeHandlerMissing: "The page-size select has no handler.",
   unfilteredTotalInvalid: "The unfiltered row total is not a valid number.",
 };
+
+// The defaults with each given entry that is of its default's type and not a blank text; an undefined, null,
+// wrongly typed or blank entry keeps the default (RND-06, PAGE-19)
+export function mergeMessages<Words extends object>(
+  defaults: Words,
+  given: Partial<Words> | undefined,
+): Words {
+  return {
+    ...defaults,
+    ...Object.fromEntries(
+      Object.entries(given ?? {}).filter(
+        ([key, word]) =>
+          typeof word === typeof defaults[key as keyof Words] &&
+          !(typeof word === "string" && word.trim() === ""),
+      ),
+    ),
+  };
+}

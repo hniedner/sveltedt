@@ -16,6 +16,7 @@ export function pageNumbers(current: number, pages: number): PageItem[] {
   return [0, "gap-start", current - 1, current, current + 1, "gap-end", last];
 }
 
+// Every field is meaningful only for input validatePager accepts
 export interface PagerState {
   // The number of pages, at least 1
   pages: number;
@@ -28,6 +29,9 @@ export interface PagerState {
   previous: number;
   next: number;
   last: number;
+  // The information line's first and last row, counted from 1; both 0 with no row on the page (PAGE-37)
+  firstRow: number;
+  lastRow: number;
 }
 
 // Where the pager stands, from the section 8 preamble: every target is on the page grid (PAGE-27)
@@ -39,6 +43,9 @@ export function pagerState(
   const pages = Math.max(1, Math.ceil(total / limit));
   const past = offset > 0 && offset >= total;
   const page = past ? pages : Math.floor(offset / limit) + 1;
+  // No rows are passed in, so the last row is the smaller of offset + limit and total (PAGE-37); with no row on the
+  // page, first and last are 0
+  const lastRow = past ? 0 : Math.min(offset + limit, total);
   return {
     pages,
     page,
@@ -50,6 +57,8 @@ export function pagerState(
     previous: past ? (pages - 1) * limit : Math.max(0, (page - 2) * limit),
     next: page * limit,
     last: (pages - 1) * limit,
+    firstRow: lastRow === 0 ? 0 : offset + 1,
+    lastRow,
   };
 }
 

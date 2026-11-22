@@ -1,11 +1,7 @@
 <script lang="ts" generics="Row">
-  import { defaultMessages } from "./messages.ts";
+  import { defaultMessages, mergeMessages } from "./messages.ts";
   import { nextOrder } from "./sort.ts";
-  import type {
-    DataTableMessages,
-    DataTableProps,
-    SortDirection,
-  } from "./types.ts";
+  import type { DataTableProps, SortDirection } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
   const {
@@ -36,18 +32,8 @@
     keyShift = null;
     return shift;
   }
-  // An entry that is undefined, null, not of its default's type or a blank text keeps the default (RND-06)
-  const words = $derived({
-    ...defaultMessages,
-    ...(Object.fromEntries(
-      Object.entries(messages ?? {}).filter(
-        ([key, word]) =>
-          typeof word ===
-            typeof defaultMessages[key as keyof DataTableMessages] &&
-          !(typeof word === "string" && word.trim() === ""),
-      ),
-    ) as Partial<DataTableMessages>),
-  });
+  // The given words over the English defaults (RND-06)
+  const words = $derived(mergeMessages(defaultMessages, messages));
   // null is no order (SORT-15)
   const order = $derived(sort ?? []);
   const fault = $derived(

@@ -2164,9 +2164,9 @@ new `limit` and offset.
 - Traces: PRD-B9, PRD-S4, PRD-B26.
 
 **PAGE-19** Every fixed word the pager shows or announces MUST come from its `messages` prop with an English default.
-- Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
-  replacement appears where the row says and that no English default is left in the pager's text or accessible
-  names):
+- Examples (the test runs every row but the last through a full `messages` object of non-English words, then checks
+  that each replacement appears where the row says and that no English default is left in the pager's text or
+  accessible names; the last row is run apart, below):
 
   | Message | English default | Shown by |
   |---|---|---|
@@ -2181,7 +2181,10 @@ new `limit` and offset.
   | `info` (a function of `{ first, last, total }`) | "Showing 1 to 10 of 57 rows" | PAGE-37, I18N-01 |
   | `infoFiltered` (a function of the unfiltered total) | "(filtered from 1,000 total rows)" for 1000 | PAGE-38, I18N-01 |
   | each alert message of PAGE-16 | its default in PAGE-16 | PAGE-16 |
+  | any entry given as `undefined` or `null`, or not of its type (the number 5 for a word; a text for `pageLabel`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
+  The last row is run apart from the full object: one entry of each kind given alone (`undefined`, `null`, a number
+  for a word, a text for a function, an empty and a blank text) shows that entry's English default.
   The gap mark "…" is a symbol hidden from assistive technology (PAGE-11), not a word.
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
@@ -2252,7 +2255,7 @@ unchanged.
 those Svelte adds for any component.
 - Example (as FOOT-02, for the pager): before the first mount, wrap `addEventListener` and `removeEventListener` on
   `document` and `window`; mount and unmount a control component that handles every event type the pager's own
-  elements handle (`click`, `keydown` and `change`) to measure the listeners Svelte itself delegates to the document,
+  elements handle (`click` and `change`) to measure the listeners Svelte itself delegates to the document,
   which are excluded. Then take a `Pagination` with `sizes` through the steps of PAGE-31: while it is mounted, the
   listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener outlives the component or fights the app's own handlers.
@@ -2309,6 +2312,7 @@ the computed value that the literal table of its test states.
   | 50 | 57 | "Showing 51 to 57 of 57 rows" |
   | 0 | 1 | "Showing 1 to 1 of 1 row" |
   | 0 | 0 | "Showing 0 to 0 of 0 rows" |
+  | 90 | 90 | "Showing 0 to 0 of 90 rows" |
   | 100 | 95 | "Showing 0 to 0 of 95 rows" |
   | 1000 | 12345 | "Showing 1,001 to 1,010 of 12,345 rows" |
 

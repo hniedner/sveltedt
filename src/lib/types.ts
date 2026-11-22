@@ -86,6 +86,35 @@ export interface DataTableProps<Row> {
   actions?: Snippet;
 }
 
+// Every fixed word of the pager (PAGE-19): the step names, the page and size words, the information line and the
+// alert texts of PAGE-16
+export interface PaginationMessages {
+  readonly firstPage: string;
+  readonly previousPage: string;
+  readonly nextPage: string;
+  readonly lastPage: string;
+  readonly pageLabel: (page: number) => string;
+  readonly pageNumber: (page: number) => string;
+  readonly sizeLabel: string;
+  readonly sizeOption: (size: number) => string;
+  // `first` and `last` are 0 when the page holds no row (PAGE-37)
+  readonly info: (range: {
+    first: number;
+    last: number;
+    total: number;
+  }) => string;
+  readonly infoFiltered: (unfilteredTotal: number) => string;
+  readonly totalInvalid: string;
+  readonly offsetInvalid: string;
+  readonly limitInvalid: string;
+  readonly labelEmpty: string;
+  readonly sizesInvalid: string;
+  readonly limitNotInSizes: string;
+  readonly pageHandlerMissing: string;
+  readonly sizeHandlerMissing: string;
+  readonly unfilteredTotalInvalid: string;
+}
+
 export interface PaginationProps {
   // Where the shown page starts, a row index
   offset: number;
@@ -101,6 +130,10 @@ export interface PaginationProps {
   onpage: (offset: number) => void;
   // Called with the size chosen; required while `sizes` is not empty (PAGE-16)
   onsize?: (size: number) => void;
-  // The row count before filtering, as the server reports it
+  // The row count before filtering, as the server reports it; the information line names it when it differs from
+  // `total` (PAGE-38); null (from a JSON answer) is taken as not given
   unfilteredTotal?: number;
+  // Replaces any of the English defaults; an entry that is undefined, null, not of its default's type or a blank
+  // text keeps the default (PAGE-19)
+  messages?: Partial<PaginationMessages>;
 }
