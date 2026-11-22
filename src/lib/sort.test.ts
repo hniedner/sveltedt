@@ -120,8 +120,7 @@ describe("SORT-01", () => {
     expect(onsort.mock.calls).toEqual([[order("name asc")]]);
   });
 });
-// SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are owed to the real-browser sort step, so the
-// statement carries no marker until then.
+// SORT-02's Shift+click rows. Its Shift+Enter and Shift+Space rows are in site/browser/sort.spec.ts (a real browser).
 describe("SORT-02, Shift+click rows", () => {
   it.each([
     ["code asc", "code asc, name asc"],
@@ -148,8 +147,53 @@ describe("SORT-02, Shift+click rows", () => {
     expect(onsort.mock.calls).toEqual([[order("code asc, date desc")]]);
   });
 });
-// SORT-03's click row. Its Enter and Space rows are owed to the real-browser sort step, so the statement carries no
-// marker until then.
+// What Firefox does for Shift+Enter and Shift+Space: a keydown with Shift, then a click with no pointer (detail 0)
+// and no shiftKey. The order is [code asc]: with Shift Name joins it, without Shift Name replaces it.
+// @spec("SORT-02", "71005ae9")
+describe("SORT-02, key-click rows", () => {
+  const withShift = [order("code asc, name asc")];
+  const withoutShift = [order("name asc")];
+  const keyDown = (key: string) =>
+    fireEvent.keyDown(sortButton("Name"), { key, shiftKey: true });
+  const keyClick = () => fireEvent.click(sortButton("Name"), { detail: 0 });
+  it.each(["Enter", " "])(
+    "a Shift keydown of %j then a click with no pointer emits the Shift order",
+    async (key) => {
+      const { onsort } = mount({ sort: order("code asc") });
+      await keyDown(key);
+      await keyClick();
+      expect(onsort.mock.calls).toEqual([withShift]);
+    },
+  );
+  it("a Shift keydown of another key then a click with no pointer emits without Shift", async () => {
+    const { onsort } = mount({ sort: order("code asc") });
+    await keyDown("a");
+    await keyClick();
+    expect(onsort.mock.calls).toEqual([withoutShift]);
+  });
+  it("a Shift+Enter keydown, a blur, then a click with no pointer emits without Shift", async () => {
+    const { onsort } = mount({ sort: order("code asc") });
+    await keyDown("Enter");
+    await fireEvent.blur(sortButton("Name"));
+    await keyClick();
+    expect(onsort.mock.calls).toEqual([withoutShift]);
+  });
+  it("a Shift+Enter keydown and its click, then a second click with no pointer, emits the second without Shift", async () => {
+    const { onsort } = mount({ sort: order("code asc") });
+    await keyDown("Enter");
+    await keyClick();
+    await keyClick();
+    expect(onsort.mock.calls).toEqual([withShift, withoutShift]);
+  });
+  it("a Shift+Enter keydown then a pointer click (detail 1, no Shift) emits without Shift", async () => {
+    const { onsort } = mount({ sort: order("code asc") });
+    await keyDown("Enter");
+    await fireEvent.click(sortButton("Name"), { detail: 1 });
+    expect(onsort.mock.calls).toEqual([withoutShift]);
+  });
+});
+// SORT-03's click row. Its Enter and Space rows are in site/browser/sort.spec.ts (a real browser), so the statement
+// carries no marker here.
 describe("SORT-03, click row", () => {
   it("one click on Name with the order [] emits exactly one onsort", async () => {
     const { onsort } = mount();
