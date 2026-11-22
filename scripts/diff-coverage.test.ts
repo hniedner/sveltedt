@@ -115,7 +115,10 @@ test("diff-coverage: deleted lines and a deleted file never count and need no re
     "-four",
     "-five",
   ].join("\n");
-  assert.equal(judge(diff, lcovOf("src/a.ts", { 4: 0, 5: 0 }), ROOT).code, NA);
+  assert.equal(
+    judge(diff, lcovOf("src/a.ts", { 3: 0, 4: 0, 5: 0 }), ROOT).code,
+    NA,
+  );
 });
 test("diff-coverage: a renamed file counts only its changed lines", () => {
   const diff = [
@@ -182,12 +185,16 @@ test("diff-coverage: a path git quoted cannot be checked, a path with a space an
   );
 });
 
-// The step on a fixture repository: origin/main is the first commit, the change is staged on top.
+// The step on a fixture repository: origin/main is the first commit (with `base` on top of the defaults), the change
+// is staged on top.
 const MODULE =
   "export function f(a: number): number {\n  if (a > 1) {\n    return 2;\n  }\n  return 1;\n}\n";
 const TEST =
   'import { expect, test } from "vitest";\nimport { f } from "./a.ts";\ntest("f", () => {\n  expect(f(0)).toBe(1);\n});\n';
-function fixture(files: Record<string, string>): string {
+function fixture(
+  files: Record<string, string>,
+  base: Record<string, string> = {},
+): string {
   const root = tempDir();
   put(
     root,
@@ -201,6 +208,7 @@ function fixture(files: Record<string, string>): string {
     "src/a.ts",
     "export const f = (a: number): number => (a ? 1 : 1);\n",
   );
+  for (const [path, text] of Object.entries(base)) put(root, path, text);
   symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
   git(root, "init", "-q");
   commit(root, "chore: the fixture's first commit");
@@ -213,6 +221,52 @@ function fixture(files: Record<string, string>): string {
 test("diff-coverage step: a changed line the tests do not reach is a finding", () => {
   const out = expect("diff-coverage", fixture({ "src/a.ts": MODULE }), FINDING);
   assert.match(out, /src\/a\.ts:3$/m);
+});
+test("diff-coverage step: only the changed lines of committed work count, not their unchanged neighbours", () => {
+  // Line 3 (`return 2;`) is uncovered and unchanged; the branch changes line 5 in one commit, then a file outside src/
+  const root = fixture({}, { "src/a.ts": MODULE });
+  put(root, "src/a.ts", MODULE.replace("return 1;", "return 0 + 1;"));
+  commit(root, "feat: one line");
+  put(root, "README.md", "# Fixture\n");
+  commit(root, "docs: a readme");
+  const out = expect("diff-coverage", root, PASS);
+  assert.match(out, /^PASS diff-coverage: 1\/1 changed lines covered/m);
+});
+const SVELTE_CONFIG = `import { svelte } from "@sveltejs/vite-plugin-svelte";
+export default {
+  plugins: [svelte()],
+  resolve: { conditions: ["browser"] },
+  test: { environment: "jsdom", include: ["src/**/*.test.ts"] },
+};
+`;
+const COUNT = `<script lang="ts">
+  const { n }: { n: number } = $props();
+  const label = n > 1 ? "many" : "one";
+</script>
+
+<p>{label}</p>
+{#if n > 5}
+  <b>{n}</b>
+{/if}
+`;
+const COUNT_TEST = `import { mount } from "svelte";
+import { expect, test } from "vitest";
+import Count from "./Count.svelte";
+test("count", () => {
+  const target = document.createElement("div");
+  mount(Count, { target, props: { n: 1 } });
+  expect(target.textContent).toContain("one");
+});
+`;
+test("diff-coverage step: a component's script and markup lines are read from the real report", () => {
+  const root = fixture({
+    "vitest.config.ts": SVELTE_CONFIG,
+    "src/Count.svelte": COUNT,
+    "src/count.test.ts": COUNT_TEST,
+  });
+  const out = expect("diff-coverage", root, FINDING);
+  assert.match(out, /^ {2}src\/Count\.svelte:8$/m);
+  assert.doesNotMatch(out, /Count\.svelte:(?:2|3|6)$/m);
 });
 test("diff-coverage step: a contributor's diff prefix setting does not hide a changed file", () => {
   const root = fixture({ "src/a.ts": MODULE });
