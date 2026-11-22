@@ -85,12 +85,16 @@ test("files: a .gitignore without /reports/ or /coverage/ is a finding", () => {
 test("files: a folder that is not a git repository cannot be checked", () => {
   expect("files", tempDir(), 3);
 });
-test("files: a deleted test file is a finding", () => {
-  const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));
-  rmSync(join(root, "scripts/check-repo.test.ts"));
-  execFileSync("git", ["-C", root, "add", "-A"]);
-  assert.match(expect("files", root, 1), /scripts\/check-repo\.test\.ts/);
-});
+const GATE_TESTS = ["", "-hooks", "-lint", "-site", "-tools"].map(
+  (s) => `scripts/check-repo${s}.test.ts`,
+);
+for (const file of GATE_TESTS)
+  test(`files: a deleted ${file} is a finding`, () => {
+    const root = repo((r) => put(r, "scripts/other.test.mjs", PASSING_TEST));
+    rmSync(join(root, file));
+    execFileSync("git", ["-C", root, "add", "-A"]);
+    assert.ok(expect("files", root, 1).includes(file), file);
+  });
 
 test("toolchain: passes when node's major and pnpm's version match the pins", () => {
   expect("toolchain", repo(), 0);
@@ -1129,8 +1133,8 @@ test("selftest: a test file that holds no test cannot be checked", () => {
 });
 test("selftest: a repository without any test file cannot be checked", () => {
   const none = (root: string): void =>
-    ["scripts/check-repo.test.ts", "scripts/scan-secrets.test.ts"].forEach(
-      (f) => rmSync(join(root, f)),
+    [...GATE_TESTS, "scripts/scan-secrets.test.ts"].forEach((f) =>
+      rmSync(join(root, f)),
     );
   expect("selftest", repo(none), 3);
 });
