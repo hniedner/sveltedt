@@ -84,7 +84,9 @@ describe("LIST-04", () => {
       screen.getByRole("table").compareDocumentPosition(pager) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    const size = within(pager).getByRole("combobox", { name: "rows per page" });
+    const size = within(pager).getByRole<HTMLSelectElement>("combobox", {
+      name: "rows per page",
+    });
     const shown = (): [string[], string] => [
       firstCells(),
       within(pager).getByText(/^Showing /).textContent ?? "",
