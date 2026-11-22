@@ -1,4 +1,5 @@
 import { render } from "@testing-library/svelte";
+import type { Component } from "svelte";
 import { vi } from "vitest";
 import type { DataTableProps } from "../src/lib/types.ts";
 import ListenerControl from "./ListenerControl.svelte";
@@ -43,10 +44,13 @@ export const footprintStates: Partial<DataTableProps<FootprintRow>>[] = [
 ];
 
 // Wraps addEventListener and removeEventListener on document and window, then mounts and unmounts the control to
-// measure what Svelte itself delegates to the document. Returns a reader of the listeners held beyond those, per
-// target and event type. The caller restores the wrapped methods (vi.restoreAllMocks). Stated limit: a document
-// listener of a type the control handles (click) counts as Svelte's own, so one the table added would not show.
-export function watchListeners(): () => string[] {
+// measure what Svelte itself delegates to the document; the control handles every event type the measured component
+// handles. Returns a reader of the listeners held beyond those, per target and event type. The caller restores the
+// wrapped methods (vi.restoreAllMocks). Stated limit: a document listener of a type the control handles counts as
+// Svelte's own, so one the component added would not show.
+export function watchListeners(
+  control: Component = ListenerControl,
+): () => string[] {
   // Listeners added minus removed, per target and event type
   const held = new Map<string, number>();
   const count = (key: string, step: number): void => {
@@ -71,7 +75,7 @@ export function watchListeners(): () => string[] {
       },
     );
   }
-  render(ListenerControl).unmount();
+  render(control).unmount();
   const svelte = new Set(held.keys());
   return () =>
     [...held]

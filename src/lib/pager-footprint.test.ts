@@ -1,5 +1,7 @@
 import { render } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { watchListeners } from "../../test/footprint.ts";
+import PagerListenerControl from "../../test/PagerListenerControl.svelte";
 import Pagination from "./Pagination.svelte";
 import type { PaginationProps } from "./types.ts";
 
@@ -30,5 +32,22 @@ describe("PAGE-31", () => {
     expect(snapshot()).toEqual(before);
     unmount();
     expect(snapshot()).toEqual(before);
+  });
+});
+
+// @spec("PAGE-32", "3e6a8fe9")
+describe("PAGE-32", () => {
+  it("holds no listener of its own on document or window while mounted or after unmount", async () => {
+    try {
+      const own = watchListeners(PagerListenerControl);
+      const { rerender, unmount } = render(Pagination, pager);
+      expect(own()).toEqual([]);
+      await rerender(nextOffset);
+      expect(own()).toEqual([]);
+      unmount();
+      expect(own()).toEqual([]);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
