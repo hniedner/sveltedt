@@ -57,6 +57,9 @@ function pager(props: Partial<PaginationProps>, messages?: Words): HTMLElement {
   });
   return screen.getByRole("navigation", { name: "Pages" });
 }
+// The page buttons, between the four step buttons: their names are not the step words
+const pageButtons = (nav: HTMLElement): HTMLElement[] =>
+  within(nav).getAllByRole("button").slice(2, -2);
 const nameButton = (): HTMLElement =>
   screen.getByRole("button", { name: "Sort by Name" });
 const described = (element: HTMLElement): string =>
@@ -132,20 +135,18 @@ const ROWS: Row[] = [
     1234,
     "1,234",
     (messages) =>
-      within(pager({ offset: 12330, total: 20000 }, messages))
-        .getAllByRole("button")
-        .find((element) => element.getAttribute("aria-current") === "page")
-        ?.textContent.trim() ?? "",
+      pageButtons(pager({ offset: 12330, total: 20000 }, messages))
+        .map((element) => element.textContent.trim())
+        .join(" "),
   ],
   [
     "pageLabel",
     1234,
     "Page 1,234",
     (messages) =>
-      within(pager({ offset: 12330, total: 20000 }, messages))
-        .getAllByRole("button")
-        .find((element) => element.getAttribute("aria-current") === "page")
-        ?.getAttribute("aria-label") ?? "",
+      pageButtons(pager({ offset: 12330, total: 20000 }, messages))
+        .map((element) => element.getAttribute("aria-label"))
+        .join(" "),
   ],
   [
     "sizeOption",
@@ -154,7 +155,8 @@ const ROWS: Row[] = [
     (messages) =>
       within(pager({ sizes: [10, 1000] }, messages))
         .getAllByRole("option")
-        .at(-1)?.textContent ?? "",
+        .map((element) => element.textContent)
+        .join(" "),
   ],
   [
     "info",
@@ -198,14 +200,8 @@ const ARABIC: Words = {
     `${arabic(first)} - ${arabic(last)} / ${arabic(total)}`,
   infoFiltered: (total) => `(${arabic(total)})`,
 };
-// The Western forms of the numbers a row's function receives
-const western = (value: unknown): string[] =>
-  (typeof value === "number"
-    ? [value]
-    : Object.values(value as object).filter((v) => typeof v === "number")
-  ).flatMap((n: number) => [String(n), n.toLocaleString("en-US")]);
 
-// The German run: a child process started with a German default locale reads every default of the table
+// The German run: a child process started with a German default locale calls each row's default function
 const GERMAN = `
 const m = await import(process.argv[1]);
 const d = m.defaultMessages, p = m.defaultPagerMessages;
@@ -219,7 +215,7 @@ console.log(JSON.stringify({
 }));
 `;
 
-// @spec("I18N-01", "e20600f8")
+// @spec("I18N-01", "f3ba2b4e")
 describe("I18N-01", () => {
   it.each(ROWS)(
     "%s(%j) shows its English default %j",
@@ -229,12 +225,12 @@ describe("I18N-01", () => {
   );
 
   it.each(ROWS)(
-    "%s(%j) shows the replacement's Eastern Arabic digits and none of the Western ones",
+    "%s(%j) shows the replacement's Eastern Arabic digits and no Western digit",
     (name, value, _english, shown) => {
       const replacement = (ARABIC[name] as (input: unknown) => string)(value);
       const text = shown(ARABIC);
       expect(text).toContain(replacement);
-      for (const digits of western(value)) expect(text).not.toContain(digits);
+      expect(text).not.toMatch(/[0-9]/);
     },
   );
 
