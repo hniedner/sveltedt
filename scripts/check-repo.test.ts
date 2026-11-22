@@ -1175,9 +1175,9 @@ import { existsSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 const at = (n, s) => new URL(\`./\${n}.\${s}\`, import.meta.url);
 const others = ${JSON.stringify(others)};
+const gone = others.filter((n) => existsSync(at(n, "ended")));
 writeFileSync(at("${name}", "running"), "");
 process.on("exit", () => writeFileSync(at("${name}", "ended"), ""));
-const gone = others.filter((n) => existsSync(at(n, "ended")));
 test("${name} runs beside the others", () => {
   const all = () => !gone.length && others.every((n) => existsSync(at(n, "running")));
   const end = Date.now() + ${ms};
@@ -1199,7 +1199,7 @@ const meeting = (count: number, ms: number) => (root: string) => {
       ),
     );
 };
-test("selftest: as many test files run at once as the machine has cores, each with its own count", () => {
+test("selftest: as many test files run at once as the machine has cores", () => {
   // One core gives one lane, and one file meets no other: the row still holds
   const out = expect(
     "selftest",
@@ -1221,12 +1221,17 @@ test("selftest: a failing file among several is named, the others counted, in th
   // a ends last on purpose (it waits, bounded, for b and c to end), so the order of the lines is not the order of ends
   const ended = (name: string, body: string) =>
     `import { writeFileSync as w } from "node:fs";\nprocess.on("exit", () => w(new URL("./${name}.ended", import.meta.url), ""));\n${body}`;
-  const last = `import { existsSync } from "node:fs";
+  const last = `import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { test } from "node:test";
 test("a ends last", () => {
+  // One lane runs the files in turn: the order of ends is then the order of names anyway
+  if (availableParallelism() < 2) return;
   const done = () => ["b", "c"].every((n) => existsSync(new URL(\`./\${n}.ended\`, import.meta.url)));
-  const end = Date.now() + 10_000;
+  const end = Date.now() + 30_000;
   while (!done() && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  assert.ok(done(), "b and c did not end while a ran");
 });
 `;
   const failing = PASSING_TEST.replace(
