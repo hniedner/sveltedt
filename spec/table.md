@@ -1538,8 +1538,10 @@ moved on one step and every other column keeps its relative order and direction.
 
   A column not yet in the order joins at the end, in the first direction its `sortable` lists; it moves on in that
   order, and after its last listed direction it leaves the order.
+  Also: after a Shift+Enter whose click was taken, a scripted click (`click()`, no key) emits as without Shift.
+  Also: Shift held at the Enter or Space keydown decides, also when Shift is released before the key comes up.
 - Reason: a user adds or removes a tie-breaker without losing the primary order.
-- Layer: component.
+- Layer: component; the Enter and Space rows in a real browser (Chromium, Firefox, WebKit), since an engine makes that key's click itself.
 - Traces: PRD-B4.
 
 **SORT-03** One press on a sort button without Shift MUST emit exactly one `onsort`.
@@ -1552,7 +1554,7 @@ moved on one step and every other column keeps its relative order and direction.
   | Space on the focused button | 1 |
 
 - Reason: two emits are two server requests whose answers can arrive in either order.
-- Layer: component.
+- Layer: component; the Enter and Space rows in a real browser (Chromium, Firefox, WebKit), since an engine makes that key's click itself.
 - Traces: PRD-B2, PRD-B4.
 
 **SORT-04** A press on a column that allows only one direction MUST NOT emit the direction it does not allow.
