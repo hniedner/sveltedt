@@ -33,7 +33,7 @@ There is nothing to install yet. What is on `main` today:
   button), and invalid sort input gets the alert; the test site's list page sorts its Order column;
 - sort by keyboard: Enter and Space press the focused sort button, Shift+Enter and Shift+Space add a column, and
   focus stays on the button while the new order loads, proved in Chromium, Firefox and WebKit on the test site's
-  sort page (`/sort.html`) with an axe check of the sort controls.
+  sort page (`/sort.html`) with an axe check of the sort controls;
 - the pager core, a separate `Pagination` component: a labelled `nav` with step buttons and at most seven page
   places (gaps hidden from assistive technology), `aria-current` on the current page, steps that cannot move
   marked `aria-disabled`, a press emitting the page's offset through `onpage`, an optional page-size select
