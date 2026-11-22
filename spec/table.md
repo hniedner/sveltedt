@@ -2423,10 +2423,11 @@ receives that number.
   | `infoFiltered` | 1000 | "(filtered from 1,000 total rows)" | PAGE-38 |
   | `infoFiltered` | 1 | "(filtered from 1 total row)" | PAGE-38 |
 
-  The defaults group digits the English way whatever the runtime's default locale: the test runs once more with a
-  German default locale and still expects "1,000"; that run sets `navigator.language` and `navigator.languages` to
-  German as well, and first asserts both and that the runtime's own default formatting gives "1.000", so a locale
-  that did not take effect fails instead of passing.
+  The defaults group digits the English way whatever the runtime's default locale: the test runs every default of
+  the table once more in a process started with a German default locale (`LANG` and `LC_ALL` `de_DE.UTF-8`) and
+  expects the English column; that run first asserts that the runtime's own default formatting gives "1.000" and
+  that `navigator.language` and `navigator.languages` are German, so a locale that did not take effect fails instead
+  of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
 - Traces: PRD-I2, PRD-I1, PRD-B26.
