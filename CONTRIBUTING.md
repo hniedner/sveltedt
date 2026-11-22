@@ -50,7 +50,8 @@ The checks today:
   CI too); in a clone, `core.hooksPath` is `.githooks` as well (in CI, where no clone-local git config exists, that part
   is not checked, and the pass line says so).
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
-- **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs and must pass, each with its own count.
+- **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs in its own process and must pass, each with its
+  own count; as many files run at once as the machine has cores.
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
   each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
   as dependencies, optional or peer dependencies, and exact development versions;
