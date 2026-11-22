@@ -30,6 +30,8 @@ Cost is measured (section 12) only to plan; it is never a reason to skip a check
    statement is ONE observable behaviour, in one sentence a user or caller can see, using MUST or MUST NOT, with the
    reason and one example, or an example table when it is a rule over many cases (the test runs every row). A
    statement holding more than one behaviour is split. It says what happens, never how.
+   A statement is written when its build is next, not ahead of it; its example names what is observed (the text shown,
+   the callback and its argument), not a state inside the code.
    Specs are written in our own words. The owner's own earlier work (code, tests, project set-up, workflows) may be
    ported instead of rebuilt where it fits; it enters like new work, through its tests first and every gate and scan,
    and loses every private name, host and path. Code from anyone else enters only through a library-first decision
@@ -234,6 +236,8 @@ practice is found, the proposal says so. A probe's own result is marked measured
   opens grouped pull requests, the `gate` check runs, and a reviewed merge follows (reviewer ruling 2026-11-17; the owner
   may overturn it). The main ruleset binds admins too; it needs 0 approvals while the owner is the only maintainer and
   1 from the day a second maintainer exists (G13).
+  A change of spec or docs text alone, with no code, test, script or workflow in it, gets one review read instead of
+  rounds of review agents.
 - **Each repo has its own issues and milestones.** A statement is tracked in the repo that holds its spec; there is
   no shared tracker and no cross-repo numbering. A cross-repo dependency is one linked issue in each repo.
 
@@ -295,3 +299,4 @@ the work keeps fighting is raised with the owner, never bent silently.
 | 2026-11-19 | Companion G6: locally the check compares the untested ids with the merge base of `origin/main` and `HEAD`, as it does on a pull request; only a push to main prints the list alone | A local run now fails on a deleted test before the pull request does. Owner's decision, 2026-11-18 |
 | 2026-11-19 | Companion G10: the steps' reports are uploaded from the existing static job, also when it fails; the job is split into the listed jobs when the job's time on main passes 12 of its 15 minutes in three runs in a row, and with mutation testing at the latest | Owner's decision, 2026-11-18: the shared test run stays in one job until its time says otherwise, and the time is read from the run, never guessed |
 | 2026-11-21 | Section 10: the local gate runs before a pull request is opened (CI's `gate` check is required on main) and every push is scanned first, instead of the local gate running before every push | Owner's decision, 2026-11-19: a branch may be pushed as a backup at any time once the scans pass |
+| 2026-11-21 | Section 2 step 1: a statement is written when its build is next, its example names what is observed; section 10: a change of spec or docs text alone gets one review read | Owner's decision, 2026-11-21: keep the spec investment, raise its return, align with what other top projects do |
