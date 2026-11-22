@@ -89,6 +89,7 @@ const GATE_TESTS = [
   ...["", "-hooks", "-lint", "-site", "-tools"].map(
     (s) => `scripts/check-repo${s}.test.ts`,
   ),
+  "scripts/scan-secrets.test.ts",
   "scripts/setup.test.ts",
   "scripts/trace.test.ts",
 ];
@@ -1137,9 +1138,7 @@ test("selftest: a test file that holds no test cannot be checked", () => {
 });
 test("selftest: a repository without any test file cannot be checked", () => {
   const none = (root: string): void =>
-    [...GATE_TESTS, "scripts/scan-secrets.test.ts"].forEach((f) =>
-      rmSync(join(root, f)),
-    );
+    GATE_TESTS.forEach((f) => rmSync(join(root, f)));
   expect("selftest", repo(none), 3);
 });
 test("selftest: every test file runs and is named with its count", () => {
