@@ -72,3 +72,52 @@ describe("LIST-03", () => {
     expect(firstCells()).toEqual(fixed);
   });
 });
+
+// @spec("LIST-04", "9bab45c0")
+describe("LIST-04", () => {
+  it("pages its rows, back to page 1 on a sort, on a size change to the page that holds the first row shown", async () => {
+    render(ListPage);
+    const fixed = orders.map((order) => order.name);
+    const pager = screen.getByRole("navigation", { name: "Orders pages" });
+    // The pager comes after the table
+    expect(
+      screen.getByRole("table").compareDocumentPosition(pager) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const size = within(pager).getByRole<HTMLSelectElement>("combobox", {
+      name: "rows per page",
+    });
+    const shown = (): [string[], string] => [
+      firstCells(),
+      within(pager).getByText(/^Showing /).textContent ?? "",
+    ];
+    expect(shown()).toEqual([fixed, "Showing 1 to 20 of 20 rows"]);
+    expect([
+      size.value,
+      within(size)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ]).toEqual(["25", ["5", "10", "25"]]);
+    await fireEvent.change(size, { target: { value: "5" } });
+    expect(shown()).toEqual([fixed.slice(0, 5), "Showing 1 to 5 of 20 rows"]);
+    await fireEvent.click(
+      within(pager).getByRole("button", { name: "Page 4" }),
+    );
+    expect(shown()).toEqual([
+      fixed.slice(15, 20),
+      "Showing 16 to 20 of 20 rows",
+    ]);
+    await fireEvent.change(size, { target: { value: "10" } });
+    expect(shown()).toEqual([
+      fixed.slice(10, 20),
+      "Showing 11 to 20 of 20 rows",
+    ]);
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Sort by Order" }),
+    );
+    expect(shown()).toEqual([
+      fixed.toSorted().slice(0, 10),
+      "Showing 1 to 10 of 20 rows",
+    ]);
+  });
+});
