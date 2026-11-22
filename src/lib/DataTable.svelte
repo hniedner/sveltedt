@@ -32,7 +32,7 @@
     keyShift = null;
     return shift;
   }
-  // An entry that is undefined, null, not of its default's type or a blank text keeps the default (RND-06)
+  // The given words over the English defaults (RND-06)
   const words = $derived(mergeMessages(defaultMessages, messages));
   // null is no order (SORT-15)
   const order = $derived(sort ?? []);

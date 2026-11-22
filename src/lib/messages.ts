@@ -41,7 +41,7 @@ export const defaultMessages: DataTableMessages = {
 // Numbers group the English way whatever the runtime's locale
 const number = new Intl.NumberFormat("en-US");
 
-// The pager's English words and the alert texts of PAGE-16
+// The pager's English words, the information line's included (PAGE-37, PAGE-38), and the alert texts of PAGE-16
 export const defaultPagerMessages: PaginationMessages = {
   firstPage: "First page",
   previousPage: "Previous page",
