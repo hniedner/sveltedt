@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import { defaultPagerMessages } from "./messages.ts";
 import Pagination from "./Pagination.svelte";
 import type { PaginationMessages, PaginationProps } from "./types.ts";
 
@@ -605,4 +606,39 @@ describe("PAGE-19", () => {
       ).toBe(true);
     },
   );
+});
+
+// @spec("PAGE-20", "5b2aca46")
+describe("PAGE-20", () => {
+  // Each entry of `messages`, given as a text or as a function returning it, and the input that shows it
+  const shownBy = (key: keyof PaginationMessages): Partial<PaginationProps> =>
+    key in FAULTS
+      ? FAULTS[key as keyof typeof PAGER_ALERTS]
+      : { offset: 50, sizes: [10, 25], unfilteredTotal: 1000 };
+  const keys = Object.keys(
+    defaultPagerMessages,
+  ) as (keyof PaginationMessages)[];
+
+  it.each(
+    keys.flatMap((key) =>
+      ["<img src=x onerror=alert(1)>", "<none>"].map(
+        (text): [keyof PaginationMessages, string] => [key, text],
+      ),
+    ),
+  )("renders %s given as %j as text", (key, text) => {
+    const entry =
+      typeof defaultPagerMessages[key] === "function" ? () => text : text;
+    mount({
+      ...shownBy(key),
+      messages: { [key]: entry },
+    });
+    const words = [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("[aria-label]")].map(
+        (element) => element.getAttribute("aria-label") ?? "",
+      ),
+    ].join("\n");
+    expect(words).toContain(text);
+    expect(document.body.querySelector("img, none")).toBeNull();
+  });
 });
