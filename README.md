@@ -37,9 +37,12 @@ There is nothing to install yet. What is on `main` today:
 - the pager core, a separate `Pagination` component: a labelled `nav` with step buttons and at most seven page
   places (gaps hidden from assistive technology), `aria-current` on the current page, steps that cannot move
   marked `aria-disabled`, a press emitting the page's offset through `onpage`, an optional page-size select
-  emitting through `onsize`, and the alert for invalid input. It is not yet on the test site.
+  emitting through `onsize`, and the alert for invalid input. It is not yet on the test site;
+- the pager's information line ("Showing 1 to 10 of 57 rows", with "(filtered from 1,000 total rows)" when an
+  unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
+  announced, and every fixed word of the pager as a `messages` prop with an English default.
 
-Not yet: the pager's info line and remaining words, search,
+Not yet: search,
 filters, column features,
 selection, the connection helper and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
