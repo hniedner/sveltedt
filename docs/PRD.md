@@ -43,7 +43,10 @@
 - **Date:** 2026-11-17.
 - **Priority (owner, binding):** quality over speed: architecture and engineering quality, accessibility,
   correctness, a clean public interface, documentation. Effort is reported, never a reason to cut scope.
-- **Settled (owner):** licence Apache-2.0, "Copyright 2026 R. Hannes Niedner"; npm package `@hniedner/sveltedt` (npm refuses the bare name `sveltedt` as too similar to `svelte`, MEASURED 2026-11-17; the bare name is the one the owner wants and asks npm support for later; if granted, it is published and the scoped package deprecated with a pointer; repo and brand are unchanged);
+- **Settled (owner):** licence Apache-2.0, "Copyright 2026 R. Hannes Niedner"; npm package `@hniedner/sveltedt` (npm
+  refuses the bare name `sveltedt` as too similar to `svelte`, MEASURED 2026-11-17; the bare name is the one the owner
+  wants and asks npm support for later; if granted, it is published and the scoped package deprecated with a pointer;
+  repo and brand are unchanged);
   repo `hniedner/sveltedt` (public, under a personal account: GitHub-hosted standard runners are free for public repos
   and draw on no organisation's minutes); CI on: GitHub Actions in full and every Dependabot option; releases through a
   CI workflow with npm provenance (PRD-S7 gives the one-time first-publish order and the break-glass).
@@ -134,38 +137,390 @@ cannot decide a criterion, the check does not run there; the criterion is assign
 and the release record holds that step's pass or fail. A manual step not recorded is *could not check*.
 
 ### 4.1 Behaviour (B)
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-B1 | Rows render in exactly the given order; the table never sorts, filters or slices them; when the same row ids come in another order, each row keeps its element, and when the same column ids come in another order, each column keeps its header cell and cells. | The data source (a server, the connection helper or the local data source) pages by its own order; focus, a text selection and a cell snippet's own state never pass to another row's or column's data when the same rows, or the same columns, come in another order (a new sort of the same page, from any data source); keeping focus on a moved element is not promised here. A row's id is the one the consumer's `getRowId` prop gives and a column's is its `id`; an empty or duplicate row or column id is invalid input (PRD-B16), refused with the alert, never shown. | must |
-| PRD-B2 | Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the open dialog and its trigger; unsent filter and search text, its error and its pause timer (PRD-B6); the find text of an open filter dialog (PRD-B29); which rows of the page are added so far (PRD-P6); whether the chooser is open; an active drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay timer, its minimum display time and whether it shows the still-loading text (B22); the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page) and after a control goes while focused (Cancel when the answer or a cancel removes it, Try again; PRD-B23, PRD-B24). It resets on remount and is documented. | One source of truth; two emits are two requests that can race. | must |
-| PRD-B3 | A column has a label and either a text value or the consumer's cell snippet; sort and filter controls appear only where configured. | Links and badges are the consumer's; a control that does nothing misleads. | must |
-| PRD-B4 | Multi-column sort: a press emits the whole next order; Shift adds or advances a column; single-direction columns are honoured; hidden columns keep their place. | The consumer sends the order as is. | must |
-| PRD-B5 | The whole sort order is legible: rank marks, descriptions, and a toolbar summary while a sorted column is hidden. | `aria-sort` names one column only. | must |
-| PRD-B6 | A text filter, and the global search of PRD-B25, applies while the user types, once typing pauses for `searchDelay` ms (a prop, default 400; the local data source's wrapper passes 0, as DataTables does client-side), and at once on Enter; `searchOnEnter` (a prop, false by default) makes both apply on Enter only. Text with a control character or longer than `maxLength` (a prop, default 255) sets `aria-invalid`, shows a described error, and emits nothing. The text is emitted without its leading and trailing white space; the field keeps what the user typed. White space inside a quoted phrase (PRD-B21's smart search) is kept, so a quoted phrase is the way to search for a leading or trailing space. No message is shown for the trimming, and there is no escape for a quote. Newer typing survives an older answer. | DataTables' global search box searches while typing by default, waiting for a pause (`searchDelay`: 400 ms under server-side processing, none client-side; `search.return` makes it Enter only; FETCHED 2026-11-18, datatables.net/reference/option/searchDelay and search.return); the owner chose that default (2026-11-18); DataTables has no built-in column search input, so one setting for both is SvelteDT's addition (`docs/departures.md`); the pause sends one query per pause, not one per key; the user learns at the field. The owner decided (2026-11-21) that white space around search text is accidental; trimming is the norm in form frameworks and public-sector guidance, quotes are DataTables' own phrase syntax, and no grid checked has a quote escape or a trimmed-input message (practice check, 2026-11-21). | must |
-| PRD-B7 | A categorical filter offers only the given options and emits only their values; the application may add one option that means "no value". | The data source accepts only its own vocabulary. Owner, 2026-11-20: "yes for 1.0 on the empty row filter", so rows without a value can be found too. | must |
-| PRD-B8 | Each column filter shows a clearable badge; "Clear column filters" and "Reset table" emit one call each; "Reset table" covers the global search (PRD-B25), "Clear column filters" leaves it; a `criteria` snippet places the consumer's own criteria after the badges (section 5.2). | The user sees and undoes what narrows the rows. | must |
-| PRD-B9 | A separate pager: offset-based, at most seven numbered places, page sizes from the consumer. For totals 0, 1, limit, limit + 1 and 2^53 - 1 it shows no NaN and never "Page 0"; a total or offset that is not a safe non-negative integer renders an alert instead. | Stores reach billions of rows; a wrong pager is worse than none. | must |
-| PRD-B10 | A built-in column chooser shows and hides columns, cannot hide the last one, and keeps hidden columns' sort and filter. | A view change must not cost a query or drop criteria. | must |
-| PRD-B11 | Columns can be reordered in two ways; the order is app state; each move emits once. (a) "Move earlier" / "Move later" buttons per column in the chooser, each move announced: the keyboard and single-pointer way. (b) A drag grip in each header: a drag starts only on the grip and works with pointer and touch; a press anywhere else on the header keeps its one meaning (sort). The grip is a pointer target of at least 24 by 24 CSS px and no Tab stop (the buttons are the keyboard way); the drag captures the pointer and emits once on release; Escape or a cancelled pointer emits nothing; the drop is announced like a button move. The box column and sticky columns stay in place; sort is unchanged; no modifier key; no "Reset columns" in the component (reset is the consumer's intent). | Users rearrange wide tables; a grip keeps sort and reorder apart on every input device (owner, 2026-11-17, Q1). | must |
-| PRD-B12 | Columns can be resized on the APG window-splitter model; widths are app state. Each column edge has a focusable `separator` with a name, `aria-valuenow`, minimum and maximum; arrow keys step the width, Home and End go to minimum and maximum; each keyboard step emits once. A pointer drag on the separator captures the pointer and emits once on release, wherever the pointer is; Escape or a cancelled pointer during the drag emits nothing. "Narrower" / "Wider" buttons in the chooser are the single-pointer way. The layout is fixed with wrapping cells, never an ellipsis; there is a minimum width; widths are kept while a column is hidden. | Per-pixel emits flood the consumer; Escape is the 2.5.2 way out; every part answers a named criterion (owner, 2026-11-17, Q2). | must |
-| PRD-B13 | Row selection: a box per row and one for the page, a range intent on Shift; the consumer owns the set and the range. | Only the consumer sees selection across pages. | must |
-| PRD-B14 | A sticky header that stays visible below the consumer's fixed app bar (`stickyTop`), and sticky leading columns, in design D of section 5.1 (the document scrolls; owner, 2026-11-17, Q7), correct after resize, reorder, hide and in right-to-left (section 5.1). The header is sticky only while `stickyTop` plus the header's height is at most 30 % of the viewport height; above that it scrolls with the table (proven in the 320 and zoom views, with the 2.4.11 check). | Labels stay readable on long and wide pages; on small or zoomed screens a sticky band would take the page (Understanding Reflow advises static positioning there, per a review of an earlier draft; 30 % is INFERRED). | must |
-| PRD-B15 | States: loading shows the loading text, never the empty text, with `aria-busy`; failed shows the failed text in an alert and no count; stopped shows the stopped text instead of rows, as failed does, not as an alert, with no count and no empty text (PRD-B24); ready with 0 rows shows the empty text across all columns. | A false "no data" is wrong data. | must |
-| PRD-B16 | Invalid input renders a fixed alert instead of the table and keeps the heading and actions. | A wrong table is worse than none. | must |
-| PRD-B17 | An actions snippet shows in every state; there is no built-in export. | Export policy is the consumer's. | must |
-| PRD-B18 | Two or more tables on one page work independently: every id is unique per instance and stable across server rendering and hydration. | Shared ids cross-wire labels and descriptions. | must |
-| PRD-B19 | No global footprint. Oracle: before the first mount, a test wraps `addEventListener` and `removeEventListener` on `document` and `window`; a control mount of an empty Svelte component with the same event types measures Svelte's own delegated listeners, which are excluded. It snapshots the root element's attributes and inline style and the window scroll position; after mount and unmount all equal the snapshot; while a dialog is open the listener delta against the closed state is at most one passive outside-press listener. Escape: a consumer-side `document` keydown spy receives no Escape that closed a SvelteDT dialog and receives every other Escape. | A component must not fight the app's modals or layout. | must |
-| PRD-B20 | A connection helper on its own export path connects the table and the pager to a server that speaks the DataTables server-side protocol in its 1.10-and-later parameter form (a backend that speaks only the 1.9 legacy form is out of scope): one factory, called in a component's script, given the application's `send(request, signal)` and a column map giving, per backend column index, the `data` and `name` the backend reads, optionally `searchable` and `orderable` (default true) and the table column id it serves, independent of display order and hiding (a sort or filter on a column id that no entry serves sends nothing and reaches the application through `onerror`); it sends the request in the bracketed form (default), the dotted form or a JSON body (the nested object a 2.x client builds, without its `fixed` lists, its numbers and booleans as JSON values), chosen by the application, and it sends `order[i][name]` beside `order[i][column]`, as a 2.x client does; it returns the table's props, the pager's props, a readable and writable query, and `reload()`; the query carries the global search text (PRD-B25), sent as `search[value]`; a sort, filter or search change returns to the first page, a page-size change to the page that holds the first row shown (as DataTables does), and "Reset table" restores the initial order, clears the column filters and the search, returns to the first page and keeps the page size; the answer's `recordsFiltered` is the table's and the pager's total and its `recordsTotal` the pager's unfiltered total (PRD-B26); a first page loaded on the server, with the query from the same call, can be passed in so the server's HTML already shows rows and no request goes out on mount; without it the helper gives no pager props until the first answer, so the application shows the pager only once they exist (the pager has no state for a total not yet known, PRD-B9); rows are passed on as given, never made deeply reactive (MEASURED 2026-11-17 with Svelte 5.57.3 in a probe of the helper: a deeply reactive array of 100,000 rows sorted 3.4 times slower); only the latest request's answer is used; an answer it cannot map is a failure, never shown as rows (a count or `draw` given as decimal text is read as its number), and so is an answer holding a truthy `error` (whatever its counts and rows) and one whose `draw`, when given, is not the one sent; a failure reaches the application through `onerror` (a cancelled request's rejection excepted; an answer's failure carries the answer's `error_code` when it is a string) and never shows server text on screen (PRD-S4); it passes `oncancel` and `onretry` in the table's props (PRD-B23, PRD-B24): a cancel aborts the request in flight through its signal and the helper records that it cancelled it, so that request's later answer or rejection is dropped (never shown, `onerror` not called) whatever error the application's `send` raises; when an earlier answer is on screen (the request runs as `busy`, an answer of 0 rows included) it clears `busy` and its query returns to the last answered one, so the sort and filter marks and the filter boxes match the rows, and this return sends no request; when no answer is on screen (none yet, or after a failure; the request runs as `loading`) it sets `status` to `stopped` and keeps the query; `onretry` and `reload()` send the current query again; the local data source's wrapper passes no `oncancel` (it answers synchronously). | A project leaving DataTables keeps its backend; the helper owns what is easy to get wrong while the component stays transport-free. | must |
-| PRD-B21 | A local data source shipped beside the table, in two parts on two export paths: a pure query function (rows, query, column map, locale in; the page of rows, the total and the filtered count out; no runes, no DOM, under a `default` condition (PRD-K2), so the same function runs in the browser, on a Node server and in tests), and a reactive wrapper (under a `svelte` condition) returning the same table props, pager props and query as PRD-B20 (without its transport parts), so a page switches between server and local data without changing the table; the filtered count it returns is the table's and the pager's total, and the total is the pager's unfiltered total (PRD-B26). The column map gives per column id an optional type and optional sort and filter values. Order and search follow DataTables (READ, DataTables 3.1.5): a column's text filter matches that column's search text as DataTables' smart search (words in any order, quoted phrases, a leading `!` excludes; case-insensitive, diacritics removed); a categorical filter matches only its given values (PRD-B7), and, with the empty option selected, the rows whose value is empty (`''`, null or undefined); the global search (PRD-B25) matches a row by the same smart search over the search text of all its columns; descending order is the exact reverse of ascending, ties within one column included, and empty values sort first ascending. Four differences, each listed with its reason in the departure list of PRD-D8 (`docs/departures.md`): (1) text in every column is compared by a collator for an explicitly given locale that orders digit groups by value and ignores case, width and kana differences (the exact list, compatibility forms such as ligatures included, in B21's spec) (DataTables uses a collator only for columns holding non-ASCII text, with the browser's locale, `numeric: true` and `ignorePunctuation: true`, and plain lowercased order otherwise; READ, DataTables 3.1.5), so ASCII text also orders by digit groups while spaces, punctuation and accents still count ("item2" before "item10", where DataTables puts "item10" first; "a b" before "ab", where DataTables' non-ASCII rule ties them; "e" before "é"), and values differing in case, width or kana (the full list in B21's spec) tie in that locale ("Apple" and "apple"; "１０" and "10"; in Turkish "IŞIK" and "ışık", while "Istanbul" and "istanbul" differ, because a capital I pairs with the dotless ı), all MEASURED 2026-11-18, and server and browser order alike where their ICU data agree (INFERRED); (2) nothing is detected from strings: a column without a declared type is compared by each value's own type (numbers and bigints by value, dates by time, booleans, strings by that collator), and a declared type or a sort value is needed only where the value to sort by is not the value held; a string is compared as text whatever it holds, so a column of numbers held as text needs a declared type or a sort value; (3) search treats the dotted and the dotless i alike in every locale, so "ışık" finds "IŞIK" and "DIYARBAKIR" finds "Diyarbakır" (MEASURED 2026-11-18 on the probe's search); (4) newlines and the Unicode line and paragraph separators become spaces in search text (in DataTables 3.1.5 a row holding U+2029 never matches, MEASURED 2026-11-17). The exact rules (the types, the order between values of different types, ties across several sort columns, empty values in search) are stated in B21's spec; the source keeps the order of its sorted and filtered rows (positions, not rows; PRD-P4's memory sentence) between page changes and recomputes what depends on a changed input (a change of the rows: all of it; of the sort: the order, the ranks of a newly sorted column, and the positions; of the filters: the positions) (this is the local data source's own cache, not a response cache of the component). | The browser holds all rows and sorts, filters and pages them itself, with no server call per click. The empty option's rows: a consequence of the owner's decision of 2026-11-20 (PRD-B7), decided by the reviewer. | must |
-| PRD-B22 | Once `status` has been `loading`, or `busy` has been true, for 1 second without a gap (a change from loading to busy is no gap), a visual progress indicator appears, and it goes when neither holds. It is decorative and hidden from assistive technology, covers no control and is none (PRD-B23's Cancel button sits beside the still-loading text, outside the indicator), and moves nothing (the table region's bounding box is the same with and without it, the still indicator's text and PRD-B23's button included, so nothing appears under a pointer); the indicator, its text and the button sit outside the region's horizontal scroll area, never scrolled horizontally out of view, nor under the sticky header. Once shown, it stays at least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for at most 5 seconds counted from when it appears; under `prefers-reduced-motion` it is shown still from the start; 5 seconds after it appears, whether or not it was already still, it shows a visible text ("Still loading", a prop with that English default), which the polite status of PRD-A4 also says once, so a screen-reader user hears what a sighted user reads. Its colours come from tokens. | A slow answer must be visibly in progress; a fast one must not flash; a long one must not move forever beside content a user is reading (WCAG 2.2.2). | must |
-| PRD-B23 | When the still-loading text of PRD-B22 shows and the application passes `oncancel`, a "Cancel" button (a prop with that English default) shows beside it, in the space B22 reserves; each press reports the cancel intent once, and the component stops nothing itself. It never takes focus when it appears; when it goes (the answer came, or the user cancelled) while it has focus, focus moves to the table itself without scrolling. | A user who decides an answer is not worth waiting for can stop waiting without reloading the page; the component stays transport-free, so it asks and the transport acts. | must |
-| PRD-B24 | A `status` value `stopped` (set by the application or the connection helper after a cancelled load with no answer on screen) shows the stopped text ("Loading stopped", a prop) where the rows would be, says it once in the polite status of PRD-A4 (not an alert: the user chose it), shows no count and no empty text, and, when the application passes `onretry`, a "Try again" button (a prop) that reports the retry intent. With rows on screen a cancel needs no new state: the application clears `busy`, the rows stay and the row count returns (PRD-A4). When a retry turns `status` to `loading` and the Try again button goes while it has focus, focus moves to the table itself without scrolling; Try again never takes focus when it appears or returns. A failed load shows the same Try again button when `onretry` is given, outside the failed alert and after it in reading order (the alert holds only the failed text); Try again never shows while the invalid-input alert of PRD-B16 is shown. | A load stopped with nothing on screen must say so, not show an empty table or an error; a control that does nothing misleads (PRD-B3), so Try again shows only when someone acts on it. | must |
-| PRD-B25 | A global search box shows when the application passes its callback: a labelled search field (its label a prop, "Search" by default) that emits the search text by PRD-B6's rules; the applied search text is a prop and the field shows it. What matches is the data source's: the server's (PRD-D6), the connection helper's request (PRD-B20) or the local data source's (PRD-B21). | It is a control of DataTables' default layout, at the top end (FETCHED 2026-11-18, datatables.net/reference/option/layout); a user finds a row without knowing its column. | must |
-| PRD-B26 | The pager shows an information line from the offset, the number of rows given, the total (the filtered count) and, when given, the unfiltered total: "Showing 1 to 10 of 57 rows", "Showing 0 to 0 of 0 rows" for a total of 0, and, when the application also passes the unfiltered total and it differs, "(filtered from 1,000 total rows)" after it; its words are props (PRD-I1) and its numbers go through PRD-I2. It is visible text, not a status message: the row count of PRD-A4 stays the announcement. | DataTables' default layout shows it (`info`, `language.info`; READ 2026-11-17); a user reads where they are and how many rows matched. | must |
-| PRD-B27 | Child rows: shown only when the application gives a detail snippet; each row then has a disclosure button (`aria-expanded`) with an accessible name that names its row; the open rows are a prop the application owns, as with selection (PRD-B13), and a press emits one callback; an open row is followed by one detail row filled by the snippet, and a row keeps its detail row when rows come in another order (PRD-B1). | DataTables' `row().child()` and its row-details examples (READ 2026-11-17); owner, 2026-11-18: in for 1.0, built in a milestone after the core table. | must |
-| PRD-B28 | A column definition may give a footer (text or a snippet); when any column has one, the table shows one footer row with each column's footer in that column's place, hidden, moved and resized with its column. The application fills it; the table computes nothing for it (no totals). | DataTables' footer is the application's markup and callbacks (`footerCallback`, READ 2026-11-17); totals stay the application's, so the non-goal on aggregation rows stands. | must |
-| PRD-B29 | A categorical filter with more than 10 options shows a find field above its options in its dialog: typing narrows the options shown to those whose label contains the text, ignoring case; it emits nothing, changes no selection, and its text is dropped when the dialog closes; its label is a prop. | A long vocabulary needs a way to reach an option; the earlier table had this field (owner, 2026-11-19: "yes, put the find field in"); a short list needs none. | must |
-| PRD-B30 | The local data source (PRD-B21) offers a helper that, for a column the application marks as a vocabulary column, returns the column's distinct values as categorical filter options (PRD-B7) when they number at most a limit (a parameter, default 20), and no options otherwise, so that column keeps a text filter. In server mode the application passes the options as before (PRD-B7). | Owner, 2026-11-19, a nice-to-have: a multiselect for a column with few distinct values; only a source that holds all rows knows them, since the table sees one page; owner, 2026-11-19: "keep the row in the PRD but not in scope for 1.0". | later |
+
+#### PRD-B1
+
+Rows render in exactly the given order; the table never sorts, filters or slices them; when the same row ids come in
+another order, each row keeps its element, and when the same column ids come in another order, each column keeps its
+header cell and cells.
+
+- **Reason:** The data source (a server, the connection helper or the local data source) pages by its own order; focus,
+  a text selection and a cell snippet's own state never pass to another row's or column's data when the same rows, or
+  the same columns, come in another order (a new sort of the same page, from any data source); keeping focus on a moved
+  element is not promised here. A row's id is the one the consumer's `getRowId` prop gives and a column's is its `id`;
+  an empty or duplicate row or column id is invalid input (PRD-B16), refused with the alert, never shown.
+- **Priority:** must
+
+#### PRD-B2
+
+Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the
+open dialog and its trigger; unsent filter and search text, its error and its pause timer (PRD-B6); the find text of an
+open filter dialog (PRD-B29); which rows of the page are added so far (PRD-P6); whether the chooser is open; an active
+drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether
+the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay
+timer, its minimum display time and whether it shows the still-loading text (B22); the focus target pending after any
+intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page) and after a
+control goes while focused (Cancel when the answer or a cancel removes it, Try again; PRD-B23, PRD-B24). It resets on
+remount and is documented.
+
+- **Reason:** One source of truth; two emits are two requests that can race.
+- **Priority:** must
+
+#### PRD-B3
+
+A column has a label and either a text value or the consumer's cell snippet; sort and filter controls appear only where
+configured.
+
+- **Reason:** Links and badges are the consumer's; a control that does nothing misleads.
+- **Priority:** must
+
+#### PRD-B4
+
+Multi-column sort: a press emits the whole next order; Shift adds or advances a column; single-direction columns are
+honoured; hidden columns keep their place.
+
+- **Reason:** The consumer sends the order as is.
+- **Priority:** must
+
+#### PRD-B5
+
+The whole sort order is legible: rank marks, descriptions, and a toolbar summary while a sorted column is hidden.
+
+- **Reason:** `aria-sort` names one column only.
+- **Priority:** must
+
+#### PRD-B6
+
+A text filter, and the global search of PRD-B25, applies while the user types, once typing pauses for `searchDelay` ms
+(a prop, default 400; the local data source's wrapper passes 0, as DataTables does client-side), and at once on Enter;
+`searchOnEnter` (a prop, false by default) makes both apply on Enter only. Text with a control character or longer than
+`maxLength` (a prop, default 255) sets `aria-invalid`, shows a described error, and emits nothing. The text is emitted
+without its leading and trailing white space; the field keeps what the user typed. White space inside a quoted phrase
+(PRD-B21's smart search) is kept, so a quoted phrase is the way to search for a leading or trailing space. No message is
+shown for the trimming, and there is no escape for a quote. Newer typing survives an older answer.
+
+- **Reason:** DataTables' global search box searches while typing by default, waiting for a pause (`searchDelay`: 400 ms
+  under server-side processing, none client-side; `search.return` makes it Enter only; FETCHED 2026-11-18,
+  datatables.net/reference/option/searchDelay and search.return); the owner chose that default (2026-11-18); DataTables
+  has no built-in column search input, so one setting for both is SvelteDT's addition (`docs/departures.md`); the pause
+  sends one query per pause, not one per key; the user learns at the field. The owner decided (2026-11-21) that white
+  space around search text is accidental; trimming is the norm in form frameworks and public-sector guidance, quotes are
+  DataTables' own phrase syntax, and no grid checked has a quote escape or a trimmed-input message (practice check,
+  2026-11-21).
+- **Priority:** must
+
+#### PRD-B7
+
+A categorical filter offers only the given options and emits only their values; the application may add one option that
+means "no value".
+
+- **Reason:** The data source accepts only its own vocabulary. Owner, 2026-11-20: "yes for 1.0 on the empty row filter",
+  so rows without a value can be found too.
+- **Priority:** must
+
+#### PRD-B8
+
+Each column filter shows a clearable badge; "Clear column filters" and "Reset table" emit one call each; "Reset table"
+covers the global search (PRD-B25), "Clear column filters" leaves it; a `criteria` snippet places the consumer's own
+criteria after the badges (section 5.2).
+
+- **Reason:** The user sees and undoes what narrows the rows.
+- **Priority:** must
+
+#### PRD-B9
+
+A separate pager: offset-based, at most seven numbered places, page sizes from the consumer. For totals 0, 1, limit,
+limit + 1 and 2^53 - 1 it shows no NaN and never "Page 0"; a total or offset that is not a safe non-negative integer
+renders an alert instead.
+
+- **Reason:** Stores reach billions of rows; a wrong pager is worse than none.
+- **Priority:** must
+
+#### PRD-B10
+
+A built-in column chooser shows and hides columns, cannot hide the last one, and keeps hidden columns' sort and filter.
+
+- **Reason:** A view change must not cost a query or drop criteria.
+- **Priority:** must
+
+#### PRD-B11
+
+Columns can be reordered in two ways; the order is app state; each move emits once.
+
+(a) "Move earlier" / "Move later" buttons per column in the chooser, each move announced: the keyboard and
+single-pointer way.
+
+(b) A drag grip in each header: a drag starts only on the grip and works with pointer and touch; a press anywhere else
+on the header keeps its one meaning (sort). The grip is a pointer target of at least 24 by 24 CSS px and no Tab stop
+(the buttons are the keyboard way); the drag captures the pointer and emits once on release; Escape or a cancelled
+pointer emits nothing; the drop is announced like a button move. The box column and sticky columns stay in place; sort
+is unchanged; no modifier key; no "Reset columns" in the component (reset is the consumer's intent).
+
+- **Reason:** Users rearrange wide tables; a grip keeps sort and reorder apart on every input device (owner, 2026-11-17,
+  Q1).
+- **Priority:** must
+
+#### PRD-B12
+
+Columns can be resized on the APG window-splitter model; widths are app state. Each column edge has a focusable
+`separator` with a name, `aria-valuenow`, minimum and maximum; arrow keys step the width, Home and End go to minimum and
+maximum; each keyboard step emits once. A pointer drag on the separator captures the pointer and emits once on release,
+wherever the pointer is; Escape or a cancelled pointer during the drag emits nothing. "Narrower" / "Wider" buttons in
+the chooser are the single-pointer way. The layout is fixed with wrapping cells, never an ellipsis; there is a minimum
+width; widths are kept while a column is hidden.
+
+- **Reason:** Per-pixel emits flood the consumer; Escape is the 2.5.2 way out; every part answers a named criterion
+  (owner, 2026-11-17, Q2).
+- **Priority:** must
+
+#### PRD-B13
+
+Row selection: a box per row and one for the page, a range intent on Shift; the consumer owns the set and the range.
+
+- **Reason:** Only the consumer sees selection across pages.
+- **Priority:** must
+
+#### PRD-B14
+
+A sticky header that stays visible below the consumer's fixed app bar (`stickyTop`), and sticky leading columns, in
+design D of section 5.1 (the document scrolls; owner, 2026-11-17, Q7), correct after resize, reorder, hide and in
+right-to-left (section 5.1). The header is sticky only while `stickyTop` plus the header's height is at most 30 % of the
+viewport height; above that it scrolls with the table (proven in the 320 and zoom views, with the 2.4.11 check).
+
+- **Reason:** Labels stay readable on long and wide pages; on small or zoomed screens a sticky band would take the page
+  (Understanding Reflow advises static positioning there, per a review of an earlier draft; 30 % is INFERRED).
+- **Priority:** must
+
+#### PRD-B15
+
+States: loading shows the loading text, never the empty text, with `aria-busy`; failed shows the failed text in an alert
+and no count; stopped shows the stopped text instead of rows, as failed does, not as an alert, with no count and no
+empty text (PRD-B24); ready with 0 rows shows the empty text across all columns.
+
+- **Reason:** A false "no data" is wrong data.
+- **Priority:** must
+
+#### PRD-B16
+
+Invalid input renders a fixed alert instead of the table and keeps the heading and actions.
+
+- **Reason:** A wrong table is worse than none.
+- **Priority:** must
+
+#### PRD-B17
+
+An actions snippet shows in every state; there is no built-in export.
+
+- **Reason:** Export policy is the consumer's.
+- **Priority:** must
+
+#### PRD-B18
+
+Two or more tables on one page work independently: every id is unique per instance and stable across server rendering
+and hydration.
+
+- **Reason:** Shared ids cross-wire labels and descriptions.
+- **Priority:** must
+
+#### PRD-B19
+
+No global footprint. Oracle: before the first mount, a test wraps `addEventListener` and `removeEventListener` on
+`document` and `window`; a control mount of an empty Svelte component with the same event types measures Svelte's own
+delegated listeners, which are excluded. It snapshots the root element's attributes and inline style and the window
+scroll position; after mount and unmount all equal the snapshot; while a dialog is open the listener delta against the
+closed state is at most one passive outside-press listener. Escape: a consumer-side `document` keydown spy receives no
+Escape that closed a SvelteDT dialog and receives every other Escape.
+
+- **Reason:** A component must not fight the app's modals or layout.
+- **Priority:** must
+
+#### PRD-B20
+
+A connection helper on its own export path connects the table and the pager to a server that speaks the DataTables
+server-side protocol in its 1.10-and-later parameter form (a backend that speaks only the 1.9 legacy form is out of
+scope): one factory, called in a component's script, given the application's `send(request, signal)` and a column map
+giving, per backend column index, the `data` and `name` the backend reads, optionally `searchable` and `orderable`
+(default true) and the table column id it serves, independent of display order and hiding (a sort or filter on a column
+id that no entry serves sends nothing and reaches the application through `onerror`); it sends the request in the
+bracketed form (default), the dotted form or a JSON body (the nested object a 2.x client builds, without its `fixed`
+lists, its numbers and booleans as JSON values), chosen by the application, and it sends `order[i][name]` beside
+`order[i][column]`, as a 2.x client does; it returns the table's props, the pager's props, a readable and writable
+query, and `reload()`; the query carries the global search text (PRD-B25), sent as `search[value]`; a sort, filter or
+search change returns to the first page, a page-size change to the page that holds the first row shown (as DataTables
+does), and "Reset table" restores the initial order, clears the column filters and the search, returns to the first page
+and keeps the page size; the answer's `recordsFiltered` is the table's and the pager's total and its `recordsTotal` the
+pager's unfiltered total (PRD-B26); a first page loaded on the server, with the query from the same call, can be passed
+in so the server's HTML already shows rows and no request goes out on mount; without it the helper gives no pager props
+until the first answer, so the application shows the pager only once they exist (the pager has no state for a total not
+yet known, PRD-B9); rows are passed on as given, never made deeply reactive (MEASURED 2026-11-17 with Svelte 5.57.3 in a
+probe of the helper: a deeply reactive array of 100,000 rows sorted 3.4 times slower); only the latest request's answer
+is used; an answer it cannot map is a failure, never shown as rows (a count or `draw` given as decimal text is read as
+its number), and so is an answer holding a truthy `error` (whatever its counts and rows) and one whose `draw`, when
+given, is not the one sent; a failure reaches the application through `onerror` (a cancelled request's rejection
+excepted; an answer's failure carries the answer's `error_code` when it is a string) and never shows server text on
+screen (PRD-S4); it passes `oncancel` and `onretry` in the table's props (PRD-B23, PRD-B24): a cancel aborts the request
+in flight through its signal and the helper records that it cancelled it, so that request's later answer or rejection is
+dropped (never shown, `onerror` not called) whatever error the application's `send` raises; when an earlier answer is on
+screen (the request runs as `busy`, an answer of 0 rows included) it clears `busy` and its query returns to the last
+answered one, so the sort and filter marks and the filter boxes match the rows, and this return sends no request; when
+no answer is on screen (none yet, or after a failure; the request runs as `loading`) it sets `status` to `stopped` and
+keeps the query; `onretry` and `reload()` send the current query again; the local data source's wrapper passes no
+`oncancel` (it answers synchronously).
+
+- **Reason:** A project leaving DataTables keeps its backend; the helper owns what is easy to get wrong while the
+  component stays transport-free.
+- **Priority:** must
+
+#### PRD-B21
+
+A local data source shipped beside the table, in two parts on two export paths: a pure query function (rows, query,
+column map, locale in; the page of rows, the total and the filtered count out; no runes, no DOM, under a `default`
+condition (PRD-K2), so the same function runs in the browser, on a Node server and in tests), and a reactive wrapper
+(under a `svelte` condition) returning the same table props, pager props and query as PRD-B20 (without its transport
+parts), so a page switches between server and local data without changing the table; the filtered count it returns is
+the table's and the pager's total, and the total is the pager's unfiltered total (PRD-B26). The column map gives per
+column id an optional type and optional sort and filter values. Order and search follow DataTables (READ, DataTables
+3.1.5): a column's text filter matches that column's search text as DataTables' smart search (words in any order, quoted
+phrases, a leading `!` excludes; case-insensitive, diacritics removed); a categorical filter matches only its given
+values (PRD-B7), and, with the empty option selected, the rows whose value is empty (`''`, null or undefined); the
+global search (PRD-B25) matches a row by the same smart search over the search text of all its columns; descending order
+is the exact reverse of ascending, ties within one column included, and empty values sort first ascending. Four
+differences, each listed with its reason in the departure list of PRD-D8 (`docs/departures.md`): (1) text in every
+column is compared by a collator for an explicitly given locale that orders digit groups by value and ignores case,
+width and kana differences (the exact list, compatibility forms such as ligatures included, in B21's spec) (DataTables
+uses a collator only for columns holding non-ASCII text, with the browser's locale, `numeric: true` and
+`ignorePunctuation: true`, and plain lowercased order otherwise; READ, DataTables 3.1.5), so ASCII text also orders by
+digit groups while spaces, punctuation and accents still count ("item2" before "item10", where DataTables puts "item10"
+first; "a b" before "ab", where DataTables' non-ASCII rule ties them; "e" before "é"), and values differing in case,
+width or kana (the full list in B21's spec) tie in that locale ("Apple" and "apple"; "１０" and "10"; in Turkish "IŞIK"
+and "ışık", while "Istanbul" and "istanbul" differ, because a capital I pairs with the dotless ı), all MEASURED
+2026-11-18, and server and browser order alike where their ICU data agree (INFERRED); (2) nothing is detected from
+strings: a column without a declared type is compared by each value's own type (numbers and bigints by value, dates by
+time, booleans, strings by that collator), and a declared type or a sort value is needed only where the value to sort by
+is not the value held; a string is compared as text whatever it holds, so a column of numbers held as text needs a
+declared type or a sort value; (3) search treats the dotted and the dotless i alike in every locale, so "ışık" finds
+"IŞIK" and "DIYARBAKIR" finds "Diyarbakır" (MEASURED 2026-11-18 on the probe's search); (4) newlines and the Unicode
+line and paragraph separators become spaces in search text (in DataTables 3.1.5 a row holding U+2029 never matches,
+MEASURED 2026-11-17). The exact rules (the types, the order between values of different types, ties across several sort
+columns, empty values in search) are stated in B21's spec; the source keeps the order of its sorted and filtered rows
+(positions, not rows; PRD-P4's memory sentence) between page changes and recomputes what depends on a changed input (a
+change of the rows: all of it; of the sort: the order, the ranks of a newly sorted column, and the positions; of the
+filters: the positions) (this is the local data source's own cache, not a response cache of the component).
+
+- **Reason:** The browser holds all rows and sorts, filters and pages them itself, with no server call per click. The
+  empty option's rows: a consequence of the owner's decision of 2026-11-20 (PRD-B7), decided by the reviewer.
+- **Priority:** must
+
+#### PRD-B22
+
+Once `status` has been `loading`, or `busy` has been true, for 1 second without a gap (a change from loading to busy is
+no gap), a visual progress indicator appears, and it goes when neither holds. It is decorative and hidden from assistive
+technology, covers no control and is none (PRD-B23's Cancel button sits beside the still-loading text, outside the
+indicator), and moves nothing (the table region's bounding box is the same with and without it, the still indicator's
+text and PRD-B23's button included, so nothing appears under a pointer); the indicator, its text and the button sit
+outside the region's horizontal scroll area, never scrolled horizontally out of view, nor under the sticky header. Once
+shown, it stays at least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for
+at most 5 seconds counted from when it appears; under `prefers-reduced-motion` it is shown still from the start; 5
+seconds after it appears, whether or not it was already still, it shows a visible text ("Still loading", a prop with
+that English default), which the polite status of PRD-A4 also says once, so a screen-reader user hears what a sighted
+user reads. Its colours come from tokens.
+
+- **Reason:** A slow answer must be visibly in progress; a fast one must not flash; a long one must not move forever
+  beside content a user is reading (WCAG 2.2.2).
+- **Priority:** must
+
+#### PRD-B23
+
+When the still-loading text of PRD-B22 shows and the application passes `oncancel`, a "Cancel" button (a prop with that
+English default) shows beside it, in the space B22 reserves; each press reports the cancel intent once, and the
+component stops nothing itself. It never takes focus when it appears; when it goes (the answer came, or the user
+cancelled) while it has focus, focus moves to the table itself without scrolling.
+
+- **Reason:** A user who decides an answer is not worth waiting for can stop waiting without reloading the page; the
+  component stays transport-free, so it asks and the transport acts.
+- **Priority:** must
+
+#### PRD-B24
+
+A `status` value `stopped` (set by the application or the connection helper after a cancelled load with no answer on
+screen) shows the stopped text ("Loading stopped", a prop) where the rows would be, says it once in the polite status of
+PRD-A4 (not an alert: the user chose it), shows no count and no empty text, and, when the application passes `onretry`,
+a "Try again" button (a prop) that reports the retry intent. With rows on screen a cancel needs no new state: the
+application clears `busy`, the rows stay and the row count returns (PRD-A4). When a retry turns `status` to `loading`
+and the Try again button goes while it has focus, focus moves to the table itself without scrolling; Try again never
+takes focus when it appears or returns. A failed load shows the same Try again button when `onretry` is given, outside
+the failed alert and after it in reading order (the alert holds only the failed text); Try again never shows while the
+invalid-input alert of PRD-B16 is shown.
+
+- **Reason:** A load stopped with nothing on screen must say so, not show an empty table or an error; a control that
+  does nothing misleads (PRD-B3), so Try again shows only when someone acts on it.
+- **Priority:** must
+
+#### PRD-B25
+
+A global search box shows when the application passes its callback: a labelled search field (its label a prop, "Search"
+by default) that emits the search text by PRD-B6's rules; the applied search text is a prop and the field shows it. What
+matches is the data source's: the server's (PRD-D6), the connection helper's request (PRD-B20) or the local data
+source's (PRD-B21).
+
+- **Reason:** It is a control of DataTables' default layout, at the top end (FETCHED 2026-11-18,
+  datatables.net/reference/option/layout); a user finds a row without knowing its column.
+- **Priority:** must
+
+#### PRD-B26
+
+The pager shows an information line from the offset, the number of rows given, the total (the filtered count) and, when
+given, the unfiltered total: "Showing 1 to 10 of 57 rows", "Showing 0 to 0 of 0 rows" for a total of 0, and, when the
+application also passes the unfiltered total and it differs, "(filtered from 1,000 total rows)" after it; its words are
+props (PRD-I1) and its numbers go through PRD-I2. It is visible text, not a status message: the row count of PRD-A4
+stays the announcement.
+
+- **Reason:** DataTables' default layout shows it (`info`, `language.info`; READ 2026-11-17); a user reads where they
+  are and how many rows matched.
+- **Priority:** must
+
+#### PRD-B27
+
+Child rows: shown only when the application gives a detail snippet; each row then has a disclosure button
+(`aria-expanded`) with an accessible name that names its row; the open rows are a prop the application owns, as with
+selection (PRD-B13), and a press emits one callback; an open row is followed by one detail row filled by the snippet,
+and a row keeps its detail row when rows come in another order (PRD-B1).
+
+- **Reason:** DataTables' `row().child()` and its row-details examples (READ 2026-11-17); owner, 2026-11-18: in for 1.0,
+  built in a milestone after the core table.
+- **Priority:** must
+
+#### PRD-B28
+
+A column definition may give a footer (text or a snippet); when any column has one, the table shows one footer row with
+each column's footer in that column's place, hidden, moved and resized with its column. The application fills it; the
+table computes nothing for it (no totals).
+
+- **Reason:** DataTables' footer is the application's markup and callbacks (`footerCallback`, READ 2026-11-17); totals
+  stay the application's, so the non-goal on aggregation rows stands.
+- **Priority:** must
+
+#### PRD-B29
+
+A categorical filter with more than 10 options shows a find field above its options in its dialog: typing narrows the
+options shown to those whose label contains the text, ignoring case; it emits nothing, changes no selection, and its
+text is dropped when the dialog closes; its label is a prop.
+
+- **Reason:** A long vocabulary needs a way to reach an option; the earlier table had this field (owner, 2026-11-19:
+  "yes, put the find field in"); a short list needs none.
+- **Priority:** must
+
+#### PRD-B30
+
+The local data source (PRD-B21) offers a helper that, for a column the application marks as a vocabulary column, returns
+the column's distinct values as categorical filter options (PRD-B7) when they number at most a limit (a parameter,
+default 20), and no options otherwise, so that column keeps a text filter. In server mode the application passes the
+options as before (PRD-B7).
+
+- **Reason:** Owner, 2026-11-19, a nice-to-have: a multiselect for a column with few distinct values; only a source that
+  holds all rows knows them, since the table sees one page; owner, 2026-11-19: "keep the row in the PRD but not in scope
+  for 1.0".
+- **Priority:** later
 
 **Slow data sources** (explanatory: it restates PRD-B15, PRD-A4, PRD-B20, PRD-B22 to PRD-B24 and PRD-D6 in one place,
 and adds no requirement). Loading shows the loading text, never the empty text, with `aria-busy` (PRD-B15) and a polite
@@ -182,22 +537,133 @@ APG: a table "is not an interactive widget"; the pattern defines no keyboard mod
 shortens the Tab sequence when a table holds many widgets (READ, APG table pattern). We keep the table pattern for the
 screen reader's table commands, and add a skip link (PRD-A9) for the Tab cost.
 
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-A1 | Every applicable WCAG 2.2 A and AA criterion is met with the proof path of section 4.3, with the example tokens and with none. | The public claim must be true and checkable. | must |
-| PRD-A2 | Native `table`, `caption`, `th scope="col"`, `aria-sort` on the lead column only, a named region. The region is in the Tab order exactly while it is a scroll container whose content overflows (section 5.1). | Keeps table navigation; a focus stop that scrolls nothing is noise. | must |
-| PRD-A3 | Every function works by keyboard in reading order. After every intent the focused element is not the page body and is within the component or the control that acted; when focus has no control left to land on (a cleared badge of a hidden column), it goes to the table itself (focusable by script only) without scrolling. A new page moves no focus. No intent except the skip link scrolls the window: a BT records the window's scroll position before and after every intent and asserts it unchanged. Scenario, so that scroll anchoring and clamping cannot turn it red: the window starts mid-page (well away from both ends), the site's test switch keeps the row count constant across the intent, and the site's page sets `overflow-anchor: none`. | WCAG 2.1.1, 2.4.3; users keep their place. | must |
-| PRD-A4 | Status messages from inside the component: loading in a polite status, failure in an alert, the row count in a polite region whose node is empty while status is not ready or busy, each column move announced, the still-loading text once, when the progress indicator shows it (B22), and the stopped text once when `status` becomes `stopped` (B24); each change to `failed` is announced, a failure after a retry included. | WCAG 4.1.3. | must |
-| PRD-A5 | Screen-reader protocol before each minor release and 1.0: a written task script with the expected announcements, recorded at the first pass and compared after; a blocker is a task that cannot be done or an AA failure. **NVDA + Firefox:** run by the maintainer on the Windows host of Q6; additionally driven in CI by Guidepup on a GitHub-hosted Windows runner if a spec-time probe proves it reliable (Guidepup supports NVDA on Windows Server 2022 and 2025, READ; no official hosted-runner workflow found and its Firefox runs headed, per a review of an earlier draft, so INFERRED). **Windows contrast theme (always, whatever route NVDA takes):** the maintainer checks A8 in Firefox on the same host. **VoiceOver + Safari:** run by the maintainer on macOS. Versions recorded; records live in the repo. | Automated checks cannot hear what is announced. | must |
-| PRD-A6 | Every pointer target is at least 24 by 24 CSS px or spaced as WCAG 2.5.8 allows. | AA since 2.2 (READ). | must |
-| PRD-A7 | Every drag has a single-pointer alternative and a keyboard way. | WCAG 2.5.7, AA (READ). | must |
-| PRD-A8 | In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and the Cancel and Try again buttons stay visible. | `box-shadow` is forced to none there (READ, MDN). | must |
-| PRD-A9 | A "Skip past table" link, visible on focus, is the component's first focusable item, before the region, and moves focus to the end of the table (a target focusable by script only). | With selection a 1000-row page has over 1000 Tab stops; 15 columns add up to 45 header stops: a sort button, a filter button and a resize separator each (the reorder grip is no Tab stop). | must |
-| PRD-A10 | No content appears on hover or focus alone, other than a focused control's own focus indicator and the skip link becoming visible; dialogs open on press. | WCAG 1.4.13 met by design. | must |
-| PRD-A11 | At 200 % zoom, at 320 CSS px width and with the WCAG text-spacing values nothing is clipped or overlaps, and at horizontal scroll 0 nothing outside the table needs horizontal scrolling (a wide table still scrolls the page sideways in design D; algorithm in section 4.3). | 1.4.4, 1.4.12; 1.4.10 exempts the table but not the toolbar, badges or pager around it (READ, Understanding Reflow). | must |
-| PRD-A12 | Focus indicators, box borders, separators, sort marks, the progress indicator and the Cancel and Try again buttons' boundaries have at least 3:1 contrast with adjacent colours: a unit check over the token-pair table of the example tokens, and a browser check of computed colours in each theme view. | 1.4.11; axe has no rule for it (READ by a review of an earlier draft). | must |
-| PRD-A13 | The protocol also runs with JAWS + Chrome. | A widely used Windows reader; needs a licensed Windows host (Q6). | should |
-| PRD-A14 | The protocol also runs with VoiceOver on iOS and TalkBack on Android. | Touch screen-reader users. | should |
+#### PRD-A1
+
+Every applicable WCAG 2.2 A and AA criterion is met with the proof path of section 4.3, with the example tokens and with
+none.
+
+- **Reason:** The public claim must be true and checkable.
+- **Priority:** must
+
+#### PRD-A2
+
+Native `table`, `caption`, `th scope="col"`, `aria-sort` on the lead column only, a named region. The region is in the
+Tab order exactly while it is a scroll container whose content overflows (section 5.1).
+
+- **Reason:** Keeps table navigation; a focus stop that scrolls nothing is noise.
+- **Priority:** must
+
+#### PRD-A3
+
+Every function works by keyboard in reading order. After every intent the focused element is not the page body and is
+within the component or the control that acted; when focus has no control left to land on (a cleared badge of a hidden
+column), it goes to the table itself (focusable by script only) without scrolling. A new page moves no focus. No intent
+except the skip link scrolls the window: a BT records the window's scroll position before and after every intent and
+asserts it unchanged. Scenario, so that scroll anchoring and clamping cannot turn it red: the window starts mid-page
+(well away from both ends), the site's test switch keeps the row count constant across the intent, and the site's page
+sets `overflow-anchor: none`.
+
+- **Reason:** WCAG 2.1.1, 2.4.3; users keep their place.
+- **Priority:** must
+
+#### PRD-A4
+
+Status messages from inside the component: loading in a polite status, failure in an alert, the row count in a polite
+region whose node is empty while status is not ready or busy, each column move announced, the still-loading text once,
+when the progress indicator shows it (B22), and the stopped text once when `status` becomes `stopped` (B24); each change
+to `failed` is announced, a failure after a retry included.
+
+- **Reason:** WCAG 4.1.3.
+- **Priority:** must
+
+#### PRD-A5
+
+Screen-reader protocol before each minor release and 1.0: a written task script with the expected announcements,
+recorded at the first pass and compared after; a blocker is a task that cannot be done or an AA failure.
+
+**NVDA + Firefox:** run by the maintainer on the Windows host of Q6; additionally driven in CI by Guidepup on a
+GitHub-hosted Windows runner if a spec-time probe proves it reliable (Guidepup supports NVDA on Windows Server 2022 and
+2025, READ; no official hosted-runner workflow found and its Firefox runs headed, per a review of an earlier draft, so
+INFERRED).
+
+**Windows contrast theme (always, whatever route NVDA takes):** the maintainer checks A8 in Firefox on the same host.
+
+**VoiceOver + Safari:** run by the maintainer on macOS. Versions recorded; records live in the repo.
+
+- **Reason:** Automated checks cannot hear what is announced.
+- **Priority:** must
+
+#### PRD-A6
+
+Every pointer target is at least 24 by 24 CSS px or spaced as WCAG 2.5.8 allows.
+
+- **Reason:** AA since 2.2 (READ).
+- **Priority:** must
+
+#### PRD-A7
+
+Every drag has a single-pointer alternative and a keyboard way.
+
+- **Reason:** WCAG 2.5.7, AA (READ).
+- **Priority:** must
+
+#### PRD-A8
+
+In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and the Cancel and
+Try again buttons stay visible.
+
+- **Reason:** `box-shadow` is forced to none there (READ, MDN).
+- **Priority:** must
+
+#### PRD-A9
+
+A "Skip past table" link, visible on focus, is the component's first focusable item, before the region, and moves focus
+to the end of the table (a target focusable by script only).
+
+- **Reason:** With selection a 1000-row page has over 1000 Tab stops; 15 columns add up to 45 header stops: a sort
+  button, a filter button and a resize separator each (the reorder grip is no Tab stop).
+- **Priority:** must
+
+#### PRD-A10
+
+No content appears on hover or focus alone, other than a focused control's own focus indicator and the skip link
+becoming visible; dialogs open on press.
+
+- **Reason:** WCAG 1.4.13 met by design.
+- **Priority:** must
+
+#### PRD-A11
+
+At 200 % zoom, at 320 CSS px width and with the WCAG text-spacing values nothing is clipped or overlaps, and at
+horizontal scroll 0 nothing outside the table needs horizontal scrolling (a wide table still scrolls the page sideways
+in design D; algorithm in section 4.3).
+
+- **Reason:** 1.4.4, 1.4.12; 1.4.10 exempts the table but not the toolbar, badges or pager around it (READ,
+  Understanding Reflow).
+- **Priority:** must
+
+#### PRD-A12
+
+Focus indicators, box borders, separators, sort marks, the progress indicator and the Cancel and Try again buttons'
+boundaries have at least 3:1 contrast with adjacent colours: a unit check over the token-pair table of the example
+tokens, and a browser check of computed colours in each theme view.
+
+- **Reason:** 1.4.11; axe has no rule for it (READ by a review of an earlier draft).
+- **Priority:** must
+
+#### PRD-A13
+
+The protocol also runs with JAWS + Chrome.
+
+- **Reason:** A widely used Windows reader; needs a licensed Windows host (Q6).
+- **Priority:** should
+
+#### PRD-A14
+
+The protocol also runs with VoiceOver on iOS and TalkBack on Android.
+
+- **Reason:** Touch screen-reader users.
+- **Priority:** should
 
 ### 4.3 WCAG 2.2 AA conformance: criterion -> proof path
 CT = component test (simulated DOM); BT = component in a real browser, Chromium, Firefox and WebKit unless marked;
@@ -274,69 +740,692 @@ may add nonces for its own scripts. A framework's own markup may need an allowan
 announcer does, PRD-W8); that allowance is the consumer's, never the component's, and the component and the site run
 under the strict policy as defined.
 
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-S1 | Client-rendered (the site, without nonces) and server-rendered (the consumer project, under the policy of PRD-W8: the strict policy, SvelteKit's nonces and the one allowance for SvelteKit's route announcer): 0 `securitypolicyviolation` events on every page, after its first load and after a client-side navigation, in Chromium, Firefox and WebKit, recorded by a listener script loaded before the bundle; the consumer project's server HTML holds 0 `style=` attributes; the component injects no `style`, `link` or `script`; its build holds no `eval`, `new Function` or string timers. The stylesheet is a static same-origin file allowed by `style-src 'self'`; neither the component nor the stylesheet needs a nonce, a hash or `'unsafe-inline'`; PRD-T11's hosts run under the policy with 0 violations. | A static `style="..."` raises a report (MEASURED, Chromium), and server-rendered HTML can carry style attributes (INFERRED). The stylesheet route held under the policy (MEASURED 2026-11-18 in Chromium on the seed table: 0 violations on 56 pages, while the canary caught 2). | must |
-| PRD-S2 | Every given text renders as text; the source has no raw-HTML path. | Values may hold anything. | must |
-| PRD-S3 | The component and the local data source make no network request; the connection helper makes none except through the application's `send`; none of them sets a cookie, uses web storage or starts a download. | Data and its destinations are the consumer's. | must |
-| PRD-S4 | Error messages never contain row values. | Messages reach screenshots and logs. | must |
-| PRD-S5 | Supply chain: no runtime dependency besides the Svelte peer, the connection helper and the local data source included (they are part of the package); an exception is the owner's decision, taken on a library-first evaluation that shows building it ourselves would cost many times the effort of a well-vetted library and add a lasting maintenance burden, and it is recorded with the library's licence, size and supply-chain exposure; development dependencies locked, installs frozen, install scripts off except an allow-list; Dependabot alerts, security updates and grouped version updates for npm and GitHub Actions with a cooldown; dependency review on every pull request; actions pinned by commit SHA; secret scanning with push protection; workflow tokens read-only by default. The repo-file parts (lockfile, workflows, Dependabot config, pinned SHAs) are checked by static scans; repository settings need an admin credential, which is never stored, so the owner records them in the release record (rule 4.0). | Every dependency and workflow is exposure for every consumer. | must |
-| PRD-S6 | Behaviour under Trusted Types enforcement is measured, then claimed or documented as a limit. | Svelte's template code sets `innerHTML` (READ by an evaluation done before this document). | should |
-| PRD-S7 | Publishing, in this order (npm facts READ, docs.npmjs.com trusted publishers, 2026-11-17). (1) DONE 2026-11-17: the owner published the placeholder `@hniedner/sveltedt@0.0.0` by hand (MEASURED by `npm view`: on `latest`, Apache-2.0, maintainer `hniedner`). It stays on `latest` until the first real release replaces it. (2) The release workflow is merged: GitHub-hosted runner, npm CLI 11.5.1+, Node 22.14.0+, `repository.url` matching the repo exactly, the workflow file name recorded exactly (both case-sensitive). (3) The owner configures the trusted publisher on npmjs.com with "Allow npm dist-tag" left off (its default, READ): the workflow runs only `npm publish`, with `--tag rehearsal` for the rehearsal, and a publish without `--tag` sets `latest` itself (READ, docs.npmjs.com npm-dist-tag), which moves it off the placeholder. For the same reason the workflow passes `--tag` for every prerelease version, and a static check fails any workflow path that could publish a prerelease without it. The npm docs do not say whether `--tag` at publish needs the dist-tag option (INFERRED that it does not). If the rehearsal publish is refused for lack of it, the configuration is deleted and recreated with the option on (npm CLI 11.21.0+ then, READ), the 2-day window starts again (INFERRED: a refused publish does not bind the configuration), and the release record says so. npm does not validate the configuration on save. (4) Within 2 days the workflow publishes the rehearsal `0.1.0-rehearsal.0` under the dist-tag `rehearsal`; that first publish validates and binds the configuration, which otherwise expires, cannot be edited, and must be deleted and recreated. The rehearsal is a prerelease, not a release: it proves the publishing path only, `npm install @hniedner/sveltedt` never selects it, so the release duties (A5 protocol, G1 release coverage, criteria of section 6) do not apply to it. (5) The owner turns on "Require two-factor authentication and disallow tokens" and revokes any token. From then on every release, except a break-glass, is published only by the release workflow, with provenance (automatic for a public repo and package). **Releases are automatic (owner, 2026-11-17, amending REV 7):** after CI has passed on a push to `main`, the release workflow works out the next version from the conventional commit messages, creates the version tag and the GitHub release with the changelog generated from those commits, and publishes that tag's build; it pushes no commit to `main`. The publish job runs in the `release` environment and waits for the owner's approval: a fix release may be approved at once, a minor or major release only after the PRD-A5 protocol record for it exists. Versions stay at 0.x until the owner decides on 1.0. The tool that computes the version is chosen by a library-first evaluation that includes the owner's existing release workflow; whichever it is, it runs only `npm publish` (with `--tag` for a prerelease) and moves no dist-tag. The workflow files reference no npm token (static check); the npm setting is recorded in the release record. **Break-glass:** if the workflow cannot publish and a security fix cannot wait, the owner publishes by hand with two-factor authentication (the setting "only affects traditional token authentication", and under it maintainers publish interactively with a two-factor prompt; READ by a review of an earlier draft, docs.npmjs.com trusted-publishers and requiring-2fa-for-package-publishing-and-settings-modification). That version has no provenance; its release record says "manual, no provenance" and why; it is the one exception criterion 7 names, and the next version goes through the workflow. | Consumers can verify every real release; the manual steps are named and recorded. | must |
+#### PRD-S1
+
+Client-rendered (the site, without nonces) and server-rendered (the consumer project, under the policy of PRD-W8: the
+strict policy, SvelteKit's nonces and the one allowance for SvelteKit's route announcer): 0 `securitypolicyviolation`
+events on every page, after its first load and after a client-side navigation, in Chromium, Firefox and WebKit, recorded
+by a listener script loaded before the bundle; the consumer project's server HTML holds 0 `style=` attributes; the
+component injects no `style`, `link` or `script`; its build holds no `eval`, `new Function` or string timers. The
+stylesheet is a static same-origin file allowed by `style-src 'self'`; neither the component nor the stylesheet needs a
+nonce, a hash or `'unsafe-inline'`; PRD-T11's hosts run under the policy with 0 violations.
+
+- **Reason:** A static `style="..."` raises a report (MEASURED, Chromium), and server-rendered HTML can carry style
+  attributes (INFERRED). The stylesheet route held under the policy (MEASURED 2026-11-18 in Chromium on the seed table:
+  0 violations on 56 pages, while the canary caught 2).
+- **Priority:** must
+
+#### PRD-S2
+
+Every given text renders as text; the source has no raw-HTML path.
+
+- **Reason:** Values may hold anything.
+- **Priority:** must
+
+#### PRD-S3
+
+The component and the local data source make no network request; the connection helper makes none except through the
+application's `send`; none of them sets a cookie, uses web storage or starts a download.
+
+- **Reason:** Data and its destinations are the consumer's.
+- **Priority:** must
+
+#### PRD-S4
+
+Error messages never contain row values.
+
+- **Reason:** Messages reach screenshots and logs.
+- **Priority:** must
+
+#### PRD-S5
+
+Supply chain: no runtime dependency besides the Svelte peer, the connection helper and the local data source included
+(they are part of the package); an exception is the owner's decision, taken on a library-first evaluation that shows
+building it ourselves would cost many times the effort of a well-vetted library and add a lasting maintenance burden,
+and it is recorded with the library's licence, size and supply-chain exposure; development dependencies locked, installs
+frozen, install scripts off except an allow-list; Dependabot alerts, security updates and grouped version updates for
+npm and GitHub Actions with a cooldown; dependency review on every pull request; actions pinned by commit SHA; secret
+scanning with push protection; workflow tokens read-only by default. The repo-file parts (lockfile, workflows,
+Dependabot config, pinned SHAs) are checked by static scans; repository settings need an admin credential, which is
+never stored, so the owner records them in the release record (rule 4.0).
+
+- **Reason:** Every dependency and workflow is exposure for every consumer.
+- **Priority:** must
+
+#### PRD-S6
+
+Behaviour under Trusted Types enforcement is measured, then claimed or documented as a limit.
+
+- **Reason:** Svelte's template code sets `innerHTML` (READ by an evaluation done before this document).
+- **Priority:** should
+
+#### PRD-S7
+
+Publishing, in this order (npm facts READ, docs.npmjs.com trusted publishers, 2026-11-17).
+
+(1) DONE 2026-11-17: the owner published the placeholder `@hniedner/sveltedt@0.0.0` by hand (MEASURED by `npm view`: on
+`latest`, Apache-2.0, maintainer `hniedner`). It stays on `latest` until the first real release replaces it.
+
+(2) The release workflow is merged: GitHub-hosted runner, npm CLI 11.5.1+, Node 22.14.0+, `repository.url` matching the
+repo exactly, the workflow file name recorded exactly (both case-sensitive).
+
+(3) The owner configures the trusted publisher on npmjs.com with "Allow npm dist-tag" left off (its default, READ): the
+workflow runs only `npm publish`, with `--tag rehearsal` for the rehearsal, and a publish without `--tag` sets `latest`
+itself (READ, docs.npmjs.com npm-dist-tag), which moves it off the placeholder. For the same reason the workflow passes
+`--tag` for every prerelease version, and a static check fails any workflow path that could publish a prerelease without
+it. The npm docs do not say whether `--tag` at publish needs the dist-tag option (INFERRED that it does not). If the
+rehearsal publish is refused for lack of it, the configuration is deleted and recreated with the option on (npm CLI
+11.21.0+ then, READ), the 2-day window starts again (INFERRED: a refused publish does not bind the configuration), and
+the release record says so. npm does not validate the configuration on save.
+
+(4) Within 2 days the workflow publishes the rehearsal `0.1.0-rehearsal.0` under the dist-tag `rehearsal`; that first
+publish validates and binds the configuration, which otherwise expires, cannot be edited, and must be deleted and
+recreated. The rehearsal is a prerelease, not a release: it proves the publishing path only,
+`npm install @hniedner/sveltedt` never selects it, so the release duties (A5 protocol, G1 release coverage, criteria of
+section 6) do not apply to it.
+
+(5) The owner turns on "Require two-factor authentication and disallow tokens" and revokes any token. From then on every
+release, except a break-glass, is published only by the release workflow, with provenance (automatic for a public repo
+and package).
+
+**Releases are automatic (owner, 2026-11-17, amending REV 7):** after CI has passed on a push to `main`, the release
+workflow works out the next version from the conventional commit messages, creates the version tag and the GitHub
+release with the changelog generated from those commits, and publishes that tag's build; it pushes no commit to `main`.
+The publish job runs in the `release` environment and waits for the owner's approval: a fix release may be approved at
+once, a minor or major release only after the PRD-A5 protocol record for it exists. Versions stay at 0.x until the owner
+decides on 1.0. The tool that computes the version is chosen by a library-first evaluation that includes the owner's
+existing release workflow; whichever it is, it runs only `npm publish` (with `--tag` for a prerelease) and moves no
+dist-tag. The workflow files reference no npm token (static check); the npm setting is recorded in the release record.
+
+**Break-glass:** if the workflow cannot publish and a security fix cannot wait, the owner publishes by hand with
+two-factor authentication (the setting "only affects traditional token authentication", and under it maintainers publish
+interactively with a two-factor prompt; READ by a review of an earlier draft, docs.npmjs.com trusted-publishers and
+requiring-2fa-for-package-publishing-and-settings-modification). That version has no provenance; its release record says
+"manual, no provenance" and why; it is the one exception criterion 7 names, and the next version goes through the
+workflow.
+
+- **Reason:** Consumers can verify every real release; the manual steps are named and recorded.
+- **Priority:** must
 
 ### 4.5 Theming (T), internationalisation (I), performance (P), browsers (E)
 PRD-T12 is not used: the optional precompiled stylesheet of an earlier draft is the one stylesheet of PRD-T3.
 
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-T1 | Every colour value in any declaration, gradients and shorthands included, reads a prefixed custom property (`--sdt-*`) with a CSS system-colour fallback, except the keywords `inherit`, `currentColor` and `transparent`, a zero-width border, and declarations inside `@media (forced-colors: active)`, which use system colours directly (PRD-A8); a static scan by value with a canary file checks it, and the canary includes a gradient. | Prefixed names cannot collide with an application's tokens; custom properties are the stable theming surface (AG Grid keeps only these stable, FETCHED 2026-11-18). A probe of 2026-11-18 on the seed table (PRD-T3), in Chromium, found its stylesheet already using `inherit` and a zero-width solid border (READ). | must |
-| PRD-T2 | With the stylesheet and no `--sdt-*` defined: the header is opaque over rows, text is readable, focus is visible, axe finds 0 serious or critical. | The fallbacks make "usable without tokens" true. | must |
-| PRD-T3 | Exactly one stylesheet ships, on its own export path (PRD-K2), as a static, unlayered file; the docs give one import line for an application without Tailwind and the layered import for a Tailwind 4 application (`@import "tailwindcss";` then the package's stylesheet with `layer(components)`: MEASURED 2026-11-18 for a relative file, in Chromium, in a probe of 2026-11-18 on the seed table (a table, caption, rows and cells only: no sticky header, focus ring, variants, controls or dialogs); the package specifier through `exports` (`style` and `default` conditions) resolved in a probe of packed stubs with Vite and Tailwind 4 (MEASURED 2026-11-18), on which the spec names it, and the consumer project proves it (CON-10 of `spec/package.md`)). | One file for every application; unlayered so an unlayered element-level reset cannot undo it (MEASURED 2026-11-18, Chromium, seed table: the unlayered file held under Bootstrap 5.3's unlayered reboot, a layered copy of it failed there); layered in a Tailwind application so its utilities restyle the table without `!` (MEASURED likewise). | must |
-| PRD-T4 | The docs and the site ship an example token set, light and dark, that also gives selected and sorted-column values and, for each variant that ships, its stripe, hover and size values, and meets 1.4.3 and 1.4.11 for every pair named in section 4.3. | A1 is claimed with it. | must |
-| PRD-T5 | A `density` prop, `"normal"` (default) or `"compact"`; compact lowers cell padding only, through its own padding tokens (PRD-T9). It never shrinks a pointer target below 24 by 24 CSS px and never sets a fixed height. | DataTables' `compact` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes). | should |
-| PRD-T6 | Boolean props `striped`, `hover` and `cellBorders`, false by default: alternate surface on data rows (a message row such as the empty or loading text is not counted), a row surface under a pointer where the device can hover, borders between all cells. Stylesheet only; stripe and hover are painted on each body cell, so a sticky cell's opaque surface shows them. Each colour reads a token (PRD-T1). Under forced colours they may vanish; selection, sort and focus keep their own non-colour marks (PRD-A8). | DataTables' `stripe`, `hover`, `cell-border` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes). Off by default. Spec STATE-03 puts the empty text in a body row, so the stripe must not count it. | should |
-| PRD-T7 | A column definition takes `class`, a string; it lands, unchanged, on that column's header cell and each of its body cells. | DataTables' `columns.className` (FETCHED 2026-11-18). Every surveyed grid has class hooks and DataTables users rely on them; the owner's instruction is to match DataTables in everything that matters (owner, 2026-11-18). | must |
-| PRD-T8 | `rowClass(row)` returns a string for that body row's `tr`; `cellClass(row, column)` for that body cell's `td`; each is called for each rendered row or cell and again when reactive state it reads changes; a changed row is a new row object; an empty string adds nothing; strings pass unchanged. | DataTables' `createdRow`, `createdCell` (FETCHED 2026-11-18); classes only (DEP-36). Every surveyed grid has class hooks and DataTables users rely on them; the owner's instruction is to match DataTables in everything that matters (owner, 2026-11-18). | must |
-| PRD-T9 | Size tokens, for the cells and named parts only: cell padding (inline and block, one pair per density), minimum row height, header and body font size, corner radius of the region's outer border, buttons and filter fields, sort-mark size, header vertical alignment, input padding. Font sizes inherit by default (the table takes the container's font size) and the font-size tokens accept any length; padding stays in `rem`. Each length token's declaration reads a `--sdt-*` property with a fallback in `rem`, except the font sizes, whose fallback is `inherit`; vertical alignment takes keyword values, so the rem-fallback scan covers only length tokens (a static scan with a canary, which also fails a font-size fallback other than `inherit`). Row height is a minimum. The colour tokens that match DataTables' (selected-row surface and text, header hover outline, the progress indicator) fall under PRD-T1. All join the token table. | What grids expose beside colour (FETCHED 2026-11-18); the selected-row, header-hover and small size tokens match DataTables' `--dt-*` variables (FETCHED 2026-11-18, the DataTables 3.1.5 stylesheet). `rem` keeps 1.4.4; a minimum keeps A11; font sizes inherit because PRD-T11's font inheritance is a must. | should |
-| PRD-T10 | Every shipped variant meets A1's claims with the example tokens and with none, and stays inside the P2 and P3 budgets, proven by the views of section 4.3. | The claim covers what ships (PRD-D3). | must |
-| PRD-T11 | (a) Host independence: in Chromium, Firefox and WebKit, on three hosts, each a separate page load sharing no CSS, in the order PRD-D9 advises (framework or reset first, then the stylesheet, then the application's own rules): none (only the stylesheet), Bootstrap 5.3 loaded unlayered first, then the stylesheet, then the application's own rules, and a Tailwind 4 application with Preflight importing it as PRD-T3 says; every element the full table renders (the table and its parts, the controls, fields, sort marks, the chooser and dialogs, the pager, the progress indicator) has, for a named set of properties (box model, `display`, `position`, `box-sizing`, the visually-hidden rule's properties, `appearance`, font inheritance, `border-collapse`, `caption-side`, `text-align`), the values of a literal table the spec states; the hidden caption measures at most 1 by 1 CSS px on all three (as CON-10). (b) Overrides: on every host, an application rule of a class and an element on a body cell (`.app td { padding: 4px }`) overrides the stylesheet; on the Tailwind host, a utility on a wrapper (`[&_td]:p-2`) overrides it without `!`. The test lands with the first stylesheet commit; at the end of the walking-skeleton milestone (the plan's first build milestone) it is run on the then table as the owner's checkpoint, and the result goes to him with figures. The reverse order is measured at spec time and recorded as supported or as a stated limit. | MEASURED 2026-11-18 in Chromium on the seed table against a reference built with Tailwind and Preflight: holds on all three hosts; the full table is not measured, so the promise is a test on every change and a checkpoint, not a claim. A literal table makes the "none" host able to fail. | must |
-| PRD-T13 | A boolean prop `orderColumn`, false by default, paints the body cells of the sorted columns by rank (lead, second, third and later) from tokens. | Part of DataTables' default `display` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes); ranks are known (PRD-B5). | must |
-| PRD-T14 | A column definition takes `align`, `"start"` (default), `"center"` or `"end"`, applied to its header and body cells, the sort mark sitting at the same inline edge as the header text; and `headerClass`, a string landing on its header cell only, after `class`. | DataTables' `dt-left/center/right` and `dt-head-*` / `dt-body-*` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes). Logical values keep right-to-left (PRD-I3). | must |
-| PRD-T15 | The component adds no `<style>` element, its `.svelte` files hold no `<style>` block, and every class it writes is `sdt` or starts with `sdt-`, or comes from a hook prop (PRD-T7, PRD-T8, PRD-T14); a static scan with a canary checks the source and the built package. | A `<style>` block is compiled by the application's Svelte settings and, when injected, breaks the strict policy (INFERRED); one prefix keeps the component's classes from colliding with an application's or a framework's. | must |
-| PRD-T16 | No selector in the stylesheet has a specificity above one class (0,1,0), counted without a pseudo-element (so `.sdt-x::after` counts as one class), and no declaration uses `!important`; parts beyond the one class (a variant, a state, a structural position) sit inside `:where()`; a static check with a canary computes every selector's specificity and fails on an `!important`. | So an application's unlayered plain rule of a class and an element (0,1,1) wins in any load order, and a single-class hook rule wins when the application's CSS loads after the stylesheet (PRD-D9). The stylesheet of a probe of 2026-11-18 on the seed table, in Chromium, already broke it (`.sdt-body > .sdt-row:not(:last-child)`, 0,3,0, READ). Practice: `:where()` keeps shipped CSS overridable (Web Awesome, Open Props, FETCHED 2026-11-18); no source documents a one-class cap (our rule, INFERRED). An `!important` in the shipped sheet would beat the application's overrides; practice: stylelint's core rule `declaration-no-important` (FETCHED 2026-11-18, https://stylelint.io/user-guide/rules/declaration-no-important). | must |
-| PRD-I1 | Every fixed word, announcement and accessible name is a prop with an English default; the defaults are public API (PRD-K3). | Consumers translate without forking. | must |
-| PRD-I2 | Counts and numbers go through consumer-replaceable functions (plural rules, numerals). | "1 row" and "2 rows" differ by language. | must |
-| PRD-I3 | Correct under `dir="rtl"`: sticky columns at the inline start, arrow keys and move buttons follow reading direction. | Logical properties are cheap at the start (INFERRED). | must |
-| PRD-P1 | Every given row renders, up to 1000, with no virtualisation. | Find-in-page and table navigation need the rows. | must |
-| PRD-P2 | Reference: a GitHub-hosted standard Linux runner (4 CPU, 16 GB, READ), Playwright's pinned Chromium, no throttle, a page of 1000 rows x 15 columns with selection, the shipped stylesheet and the example token set; 30 runs; the median of mount, page swap (new rows to the painted frame that shows them, under PRD-P6 the frame with the first part) and one selection change (press to painted frame). **Targets, to be confirmed once by the owner:** page swap 200 ms (INP "good" threshold, READ web.dev); selection change 50 ms (RAIL: process input within 50 ms, READ web.dev, which now prefers Core Web Vitals); mount 500 ms (INP's "needs improvement" upper bound, used as an INFERRED target since no standard covers a component mount). **Budgets (test-first exception, owner-visible):** no SvelteDT table exists when the P2 statements are written, so the statements carry the targets, and the budgets are fixed once, from SvelteDT's own first implementation that can run the full scenario on that runner class: the median of 30 runs x 1.5, rounded up to 50 ms (mount, page swap) or 10 ms (selection change), recorded with the runner image and Chromium versions in `docs/decisions/`. The P2 tests assert the targets until that record exists and the budgets from then on. The budgets are calibrated on no table other than SvelteDT's own. If a budget exceeds its target (mount 500 ms, page swap 200 ms, selection change 50 ms), work stops and goes to the owner. **Planted slowdowns, one per measured action:** site views add busy work equal to that action's budget to the first render of the cells (mount), to the rendering of new rows (page swap) and to the selection callback that reruns on a selection change (selection); each must turn its test red. **Recalibration** happens, and is recorded, when the runner image's major version, Playwright's Chromium major or Svelte's minor changes; budgets change only through that record. The pager does no work per page. | Laptop figures (16 cores, no CSS, auto layout: 140 ms, 124-148 ms, 4 ms; 471 ms and 477-612 ms at 4x throttle, MEASURED) do not transfer; a median of 30 is stable where a 90th percentile of 10 is the maximum. | must |
-| PRD-P3 | Size (KB = 1,000 bytes): at most 32 KB min+gz for a probe entry importing the table and the pager, built by the repo's Vite in production mode, all emitted JS (every chunk, eager and lazy) gzipped at level 9, Svelte runtime share included. Vite, and its minifier when that is a separate package, are pinned to exact versions recorded beside the budget, and the check fails when the installed versions differ, so an upgrade is a recorded re-base of the budget, never a silent one. The check writes a size report, kept by CI, with the gzip figure, the minified bytes, the brotli size and the probe built with `svelte` and every `svelte/*` path external (asserting that this output holds no module of the `svelte` package), so a runtime change is told apart from the component's own growth; the gate is the gzip figure. Proven able to fail by a planted static import and by a planted dynamic `import()`. The stylesheet gets its own figure in the size report (the file exactly as it ships in the packed tarball: raw bytes, gzip level 9, brotli) and its own budget: at most 8,000 bytes gzip; a breach stops work and goes to the owner, and a planted growth must turn the check red. | A prototype without chooser, order, resize and skip link measured 26.1 KB the same way (MEASURED); 32 is INFERRED to fit; a breach stops work and goes to the owner, never a silent raise. The stylesheet's budget: DataTables 2.3.2 core plus Select, FixedHeader, FixedColumns, ColReorder and Buttons, each minified file gzipped at level 9 and summed: 7,685 B; the same CSS as one file: 6,491 B (MEASURED 2026-11-18); size-limit's `@size-limit/file` checks a CSS file with gzip (FETCHED 2026-11-18). The method follows the practice of libraries that enforce a size budget: a hard limit on a tree-shaken probe (size-limit in TanStack Table and Query and in nanostores), Solid's own script with an exactly pinned bundler, Lit's own script; Vue reports minified, gzip and brotli sizes (FETCHED 2026-11-18; the sources go into a decision record when the size check is built). | must |
-| PRD-P4 | With 10,000 rows of the site's seeded dataset (PRD-W3's generator at that count, its 16 columns, the shipped stylesheet and the example token set) on the P2 reference runner, with pages of 1000 rows as P2: a page change on an unchanged sort and filter within P2's page-swap budget, measured from the press to the frame P2 names (no request is sent; the same budget, the slice is inside it); a new sort or a new filter within 500 ms, from the press to the painted frame as P2 measures a selection change (target, confirmed by the owner; INP's "needs improvement" upper bound, as P2 uses for mount); budgets fixed from the first implementation as P2 fixes them, and a budget over its target stops work and goes to the owner; a planted slowdown per measured action must turn its test red. The same actions at 100,000 rows are measured and published in the documentation as beyond the recommended size, with no budget. The local data source keeps no copy of a row, a cell value or a text after a query returns, and its reactive wrapper keeps the rows as given, never deeply reactive (as PRD-B20): beside the rows, the current page and the query it keeps only typed integer arrays (Int32Array, 4 bytes per element): one rank per row for each column sorted so far, the sorted order of all rows and the positions of the filtered rows, so what it adds is at most 4 bytes per row times (the number of columns sorted so far + 2), however many queries have run; it builds search text per search and keeps none. This is tested in the pinned Chromium on the reactive wrapper, held alive: sort by three named columns, filter two columns, then change sort and filters twelve times among those columns; after each step the heap is read after forced collection until two readings agree (the test fails if the readings do not settle or the heap figure lacks the array storage); the growth per row between 10,000 and 100,000 rows, the median of five runs, must stay within the formula, with the filtered positions counted at the filtered row count, plus a tolerance below 4 bytes per row fixed from a calibration run on the CI runner, and must not grow with the number of query changes. Planted faults turn it red: one cached text column, one extra kept order; a unit test checks that each kept list is an Int32Array. There is no limit at run time. The peak while ranking (a multiple of the rows, not kept) is measured and published, not budgeted. The documentation publishes, for the site's dataset at 10,000 and 100,000 rows, the rows' own megabytes, their size as JSON, the cell count and the source's added megabytes; the table is for that dataset, and an application's own JSON size is a guide to it, not a limit. | Client-side processing is budgeted at 10,000 rows, the upper end of the size DataTables advises it for (the DataTables manual: client-side under about 10,000 rows, 10,000 to 100,000 a "grey area", server-side above 100,000, READ datatables.net/manual/data); the grey area is measured at 100,000 and published, not promised. A browser tab holding every row should hold them once; what the source adds must be small, fixed and tested, or the client-side path loses its point on modest devices (Int32Array: 4 bytes per element by ECMA-262, READ, and MEASURED 2026-11-18 in Chromium and Node; a natural search-text cache measured 1.6 to 4.3 times the rows' own size in Chromium on a laptop, while search alone took 11 to 26 ms there, a part of the 500 ms that P4's test decides); an application's own data size, not its row count, is the better guide to how much memory the table needs. | must |
-| PRD-P5 | Each further export path has a size budget, measured as PRD-P3 measures its gate probe (Svelte runtime included), as the difference between the P3 probe with that path imported and the P3 probe alone: the connection helper and the local data source each at most 8 KB min+gz (INFERRED to fit; a breach stops work and goes to the owner); P3's size report also gives each path's standalone size, built as P3 (not budgeted). | Importing a data source must not cost the table's budget. | must |
-| PRD-P6 | On a page rendered in the browser, when more than 250 rows with new ids come at once, they are added to the document in parts: rows already in the document stay (PRD-B1), the first part shows before the rest, and once population ends every given row is present (PRD-P1); 250 or fewer new rows show at once; a page rendered on the server holds all its rows. | Owner, 2026-11-17: progressive population for larger pages on slow devices. MEASURED 2026-11-17 in a probe (plain table, 15 columns, Svelte 5.57.3, Chromium, 4x CPU throttle): 1000 rows at once took 215 ms to the first painted frame with a 175 ms long task in every run; 250 rows at once 53 ms; 1000 rows in parts showed the first part in 22 to 52 ms. The part size and the scheduling are chosen at spec time by a probe. | must |
-| PRD-E1 | Support: Chrome and Edge 114+, Firefox 128+, Safari 17+. CI tests Playwright's Chromium, Firefox and WebKit pinned by the lockfile, versions recorded per release; `eslint-plugin-compat` with that floor flags JavaScript APIs above it. The stylesheet uses no feature above the floor and no CSS nesting, checked statically; a canary file using a feature above the floor and a nested rule must turn the check red (the tool is chosen at spec time; the candidate doiuse calls its own detection "quite naive", FETCHED 2026-11-18, so the canary is what proves it). The support statement says the floor versions are covered by those checks only. Raising the floor is a major release. | Claim only what is proven, and say how. The floor is the Popover API's, which the filter dialogs and the column chooser use (Chrome 114, Firefox 125, Safari 17, FETCHED 2026-11-19, MDN); the owner raised it on 2026-11-19 from Chrome and Edge 111 and Safari 16.4. The stylesheet's features need less (custom properties, system colours, `:focus-visible`, logical properties, sticky table cells, `:where()`, `forced-colors`, `prefers-reduced-motion`: at most about Chrome 89, Firefox 89, Safari 16, FETCHED 2026-11-18; `forced-colors` per browser INFERRED); Svelte 5 needs Chrome 87, Firefox 83, Safari 14 (FETCHED likewise); a Tailwind 4 application needs 111, 128 and 16.4 (FETCHED likewise); lowering the floor later is not breaking while raising it is (PRD-K3). | must |
-| PRD-E2 | Touch works in emulated iOS Safari and Android Chrome. | Phones and tablets read tables (INFERRED). | should |
+#### PRD-T1
+
+Every colour value in any declaration, gradients and shorthands included, reads a prefixed custom property (`--sdt-*`)
+with a CSS system-colour fallback, except the keywords `inherit`, `currentColor` and `transparent`, a zero-width border,
+and declarations inside `@media (forced-colors: active)`, which use system colours directly (PRD-A8); a static scan by
+value with a canary file checks it, and the canary includes a gradient.
+
+- **Reason:** Prefixed names cannot collide with an application's tokens; custom properties are the stable theming
+  surface (AG Grid keeps only these stable, FETCHED 2026-11-18). A probe of 2026-11-18 on the seed table (PRD-T3), in
+  Chromium, found its stylesheet already using `inherit` and a zero-width solid border (READ).
+- **Priority:** must
+
+#### PRD-T2
+
+With the stylesheet and no `--sdt-*` defined: the header is opaque over rows, text is readable, focus is visible, axe
+finds 0 serious or critical.
+
+- **Reason:** The fallbacks make "usable without tokens" true.
+- **Priority:** must
+
+#### PRD-T3
+
+Exactly one stylesheet ships, on its own export path (PRD-K2), as a static, unlayered file; the docs give one import
+line for an application without Tailwind and the layered import for a Tailwind 4 application (`@import "tailwindcss";`
+then the package's stylesheet with `layer(components)`: MEASURED 2026-11-18 for a relative file, in Chromium, in a probe
+of 2026-11-18 on the seed table (a table, caption, rows and cells only: no sticky header, focus ring, variants, controls
+or dialogs); the package specifier through `exports` (`style` and `default` conditions) resolved in a probe of packed
+stubs with Vite and Tailwind 4 (MEASURED 2026-11-18), on which the spec names it, and the consumer project proves it
+(CON-10 of `spec/package.md`)).
+
+- **Reason:** One file for every application; unlayered so an unlayered element-level reset cannot undo it (MEASURED
+  2026-11-18, Chromium, seed table: the unlayered file held under Bootstrap 5.3's unlayered reboot, a layered copy of it
+  failed there); layered in a Tailwind application so its utilities restyle the table without `!` (MEASURED likewise).
+- **Priority:** must
+
+#### PRD-T4
+
+The docs and the site ship an example token set, light and dark, that also gives selected and sorted-column values and,
+for each variant that ships, its stripe, hover and size values, and meets 1.4.3 and 1.4.11 for every pair named in
+section 4.3.
+
+- **Reason:** A1 is claimed with it.
+- **Priority:** must
+
+#### PRD-T5
+
+A `density` prop, `"normal"` (default) or `"compact"`; compact lowers cell padding only, through its own padding tokens
+(PRD-T9). It never shrinks a pointer target below 24 by 24 CSS px and never sets a fixed height.
+
+- **Reason:** DataTables' `compact` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes).
+- **Priority:** should
+
+#### PRD-T6
+
+Boolean props `striped`, `hover` and `cellBorders`, false by default: alternate surface on data rows (a message row such
+as the empty or loading text is not counted), a row surface under a pointer where the device can hover, borders between
+all cells. Stylesheet only; stripe and hover are painted on each body cell, so a sticky cell's opaque surface shows
+them. Each colour reads a token (PRD-T1). Under forced colours they may vanish; selection, sort and focus keep their own
+non-colour marks (PRD-A8).
+
+- **Reason:** DataTables' `stripe`, `hover`, `cell-border` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes).
+  Off by default. Spec STATE-03 puts the empty text in a body row, so the stripe must not count it.
+- **Priority:** should
+
+#### PRD-T7
+
+A column definition takes `class`, a string; it lands, unchanged, on that column's header cell and each of its body
+cells.
+
+- **Reason:** DataTables' `columns.className` (FETCHED 2026-11-18). Every surveyed grid has class hooks and DataTables
+  users rely on them; the owner's instruction is to match DataTables in everything that matters (owner, 2026-11-18).
+- **Priority:** must
+
+#### PRD-T8
+
+`rowClass(row)` returns a string for that body row's `tr`; `cellClass(row, column)` for that body cell's `td`; each is
+called for each rendered row or cell and again when reactive state it reads changes; a changed row is a new row object;
+an empty string adds nothing; strings pass unchanged.
+
+- **Reason:** DataTables' `createdRow`, `createdCell` (FETCHED 2026-11-18); classes only (DEP-36). Every surveyed grid
+  has class hooks and DataTables users rely on them; the owner's instruction is to match DataTables in everything that
+  matters (owner, 2026-11-18).
+- **Priority:** must
+
+#### PRD-T9
+
+Size tokens, for the cells and named parts only: cell padding (inline and block, one pair per density), minimum row
+height, header and body font size, corner radius of the region's outer border, buttons and filter fields, sort-mark
+size, header vertical alignment, input padding. Font sizes inherit by default (the table takes the container's font
+size) and the font-size tokens accept any length; padding stays in `rem`. Each length token's declaration reads a
+`--sdt-*` property with a fallback in `rem`, except the font sizes, whose fallback is `inherit`; vertical alignment
+takes keyword values, so the rem-fallback scan covers only length tokens (a static scan with a canary, which also fails
+a font-size fallback other than `inherit`). Row height is a minimum. The colour tokens that match DataTables'
+(selected-row surface and text, header hover outline, the progress indicator) fall under PRD-T1. All join the token
+table.
+
+- **Reason:** What grids expose beside colour (FETCHED 2026-11-18); the selected-row, header-hover and small size tokens
+  match DataTables' `--dt-*` variables (FETCHED 2026-11-18, the DataTables 3.1.5 stylesheet). `rem` keeps 1.4.4; a
+  minimum keeps A11; font sizes inherit because PRD-T11's font inheritance is a must.
+- **Priority:** should
+
+#### PRD-T10
+
+Every shipped variant meets A1's claims with the example tokens and with none, and stays inside the P2 and P3 budgets,
+proven by the views of section 4.3.
+
+- **Reason:** The claim covers what ships (PRD-D3).
+- **Priority:** must
+
+#### PRD-T11
+
+(a) Host independence: in Chromium, Firefox and WebKit, on three hosts, each a separate page load sharing no CSS, in the
+order PRD-D9 advises (framework or reset first, then the stylesheet, then the application's own rules): none (only the
+stylesheet), Bootstrap 5.3 loaded unlayered first, then the stylesheet, then the application's own rules, and a Tailwind
+4 application with Preflight importing it as PRD-T3 says; every element the full table renders (the table and its parts,
+the controls, fields, sort marks, the chooser and dialogs, the pager, the progress indicator) has, for a named set of
+properties (box model, `display`, `position`, `box-sizing`, the visually-hidden rule's properties, `appearance`, font
+inheritance, `border-collapse`, `caption-side`, `text-align`), the values of a literal table the spec states; the hidden
+caption measures at most 1 by 1 CSS px on all three (as CON-10).
+
+(b) Overrides: on every host, an application rule of a class and an element on a body cell (`.app td { padding: 4px }`)
+overrides the stylesheet; on the Tailwind host, a utility on a wrapper (`[&_td]:p-2`) overrides it without `!`. The test
+lands with the first stylesheet commit; at the end of the walking-skeleton milestone (the plan's first build milestone)
+it is run on the then table as the owner's checkpoint, and the result goes to him with figures. The reverse order is
+measured at spec time and recorded as supported or as a stated limit.
+
+- **Reason:** MEASURED 2026-11-18 in Chromium on the seed table against a reference built with Tailwind and Preflight:
+  holds on all three hosts; the full table is not measured, so the promise is a test on every change and a checkpoint,
+  not a claim. A literal table makes the "none" host able to fail.
+- **Priority:** must
+
+#### PRD-T13
+
+A boolean prop `orderColumn`, false by default, paints the body cells of the sorted columns by rank (lead, second, third
+and later) from tokens.
+
+- **Reason:** Part of DataTables' default `display` (FETCHED 2026-11-18, the DataTables 3.1.5 styling classes); ranks
+  are known (PRD-B5).
+- **Priority:** must
+
+#### PRD-T14
+
+A column definition takes `align`, `"start"` (default), `"center"` or `"end"`, applied to its header and body cells, the
+sort mark sitting at the same inline edge as the header text; and `headerClass`, a string landing on its header cell
+only, after `class`.
+
+- **Reason:** DataTables' `dt-left/center/right` and `dt-head-*` / `dt-body-*` (FETCHED 2026-11-18, the DataTables 3.1.5
+  styling classes). Logical values keep right-to-left (PRD-I3).
+- **Priority:** must
+
+#### PRD-T15
+
+The component adds no `<style>` element, its `.svelte` files hold no `<style>` block, and every class it writes is `sdt`
+or starts with `sdt-`, or comes from a hook prop (PRD-T7, PRD-T8, PRD-T14); a static scan with a canary checks the
+source and the built package.
+
+- **Reason:** A `<style>` block is compiled by the application's Svelte settings and, when injected, breaks the strict
+  policy (INFERRED); one prefix keeps the component's classes from colliding with an application's or a framework's.
+- **Priority:** must
+
+#### PRD-T16
+
+No selector in the stylesheet has a specificity above one class (0,1,0), counted without a pseudo-element (so
+`.sdt-x::after` counts as one class), and no declaration uses `!important`; parts beyond the one class (a variant, a
+state, a structural position) sit inside `:where()`; a static check with a canary computes every selector's specificity
+and fails on an `!important`.
+
+- **Reason:** So an application's unlayered plain rule of a class and an element (0,1,1) wins in any load order, and a
+  single-class hook rule wins when the application's CSS loads after the stylesheet (PRD-D9). The stylesheet of a probe
+  of 2026-11-18 on the seed table, in Chromium, already broke it (`.sdt-body > .sdt-row:not(:last-child)`, 0,3,0, READ).
+  Practice: `:where()` keeps shipped CSS overridable (Web Awesome, Open Props, FETCHED 2026-11-18); no source documents
+  a one-class cap (our rule, INFERRED). An `!important` in the shipped sheet would beat the application's overrides;
+  practice: stylelint's core rule `declaration-no-important` (FETCHED 2026-11-18,
+  https://stylelint.io/user-guide/rules/declaration-no-important).
+- **Priority:** must
+
+#### PRD-I1
+
+Every fixed word, announcement and accessible name is a prop with an English default; the defaults are public API
+(PRD-K3).
+
+- **Reason:** Consumers translate without forking.
+- **Priority:** must
+
+#### PRD-I2
+
+Counts and numbers go through consumer-replaceable functions (plural rules, numerals).
+
+- **Reason:** "1 row" and "2 rows" differ by language.
+- **Priority:** must
+
+#### PRD-I3
+
+Correct under `dir="rtl"`: sticky columns at the inline start, arrow keys and move buttons follow reading direction.
+
+- **Reason:** Logical properties are cheap at the start (INFERRED).
+- **Priority:** must
+
+#### PRD-P1
+
+Every given row renders, up to 1000, with no virtualisation.
+
+- **Reason:** Find-in-page and table navigation need the rows.
+- **Priority:** must
+
+#### PRD-P2
+
+Reference: a GitHub-hosted standard Linux runner (4 CPU, 16 GB, READ), Playwright's pinned Chromium, no throttle, a page
+of 1000 rows x 15 columns with selection, the shipped stylesheet and the example token set; 30 runs; the median of
+mount, page swap (new rows to the painted frame that shows them, under PRD-P6 the frame with the first part) and one
+selection change (press to painted frame).
+
+**Targets, to be confirmed once by the owner:** page swap 200 ms (INP "good" threshold, READ web.dev); selection change
+50 ms (RAIL: process input within 50 ms, READ web.dev, which now prefers Core Web Vitals); mount 500 ms (INP's "needs
+improvement" upper bound, used as an INFERRED target since no standard covers a component mount).
+
+**Budgets (test-first exception, owner-visible):** no SvelteDT table exists when the P2 statements are written, so the
+statements carry the targets, and the budgets are fixed once, from SvelteDT's own first implementation that can run the
+full scenario on that runner class: the median of 30 runs x 1.5, rounded up to 50 ms (mount, page swap) or 10 ms
+(selection change), recorded with the runner image and Chromium versions in `docs/decisions/`. The P2 tests assert the
+targets until that record exists and the budgets from then on. The budgets are calibrated on no table other than
+SvelteDT's own. If a budget exceeds its target (mount 500 ms, page swap 200 ms, selection change 50 ms), work stops and
+goes to the owner.
+
+**Planted slowdowns, one per measured action:** site views add busy work equal to that action's budget to the first
+render of the cells (mount), to the rendering of new rows (page swap) and to the selection callback that reruns on a
+selection change (selection); each must turn its test red.
+
+**Recalibration** happens, and is recorded, when the runner image's major version, Playwright's Chromium major or
+Svelte's minor changes; budgets change only through that record. The pager does no work per page.
+
+- **Reason:** Laptop figures (16 cores, no CSS, auto layout: 140 ms, 124-148 ms, 4 ms; 471 ms and 477-612 ms at 4x
+  throttle, MEASURED) do not transfer; a median of 30 is stable where a 90th percentile of 10 is the maximum.
+- **Priority:** must
+
+#### PRD-P3
+
+Size (KB = 1,000 bytes): at most 32 KB min+gz for a probe entry importing the table and the pager, built by the repo's
+Vite in production mode, all emitted JS (every chunk, eager and lazy) gzipped at level 9, Svelte runtime share included.
+Vite, and its minifier when that is a separate package, are pinned to exact versions recorded beside the budget, and the
+check fails when the installed versions differ, so an upgrade is a recorded re-base of the budget, never a silent one.
+The check writes a size report, kept by CI, with the gzip figure, the minified bytes, the brotli size and the probe
+built with `svelte` and every `svelte/*` path external (asserting that this output holds no module of the `svelte`
+package), so a runtime change is told apart from the component's own growth; the gate is the gzip figure. Proven able to
+fail by a planted static import and by a planted dynamic `import()`. The stylesheet gets its own figure in the size
+report (the file exactly as it ships in the packed tarball: raw bytes, gzip level 9, brotli) and its own budget: at most
+8,000 bytes gzip; a breach stops work and goes to the owner, and a planted growth must turn the check red.
+
+- **Reason:** A prototype without chooser, order, resize and skip link measured 26.1 KB the same way (MEASURED); 32 is
+  INFERRED to fit; a breach stops work and goes to the owner, never a silent raise. The stylesheet's budget: DataTables
+  2.3.2 core plus Select, FixedHeader, FixedColumns, ColReorder and Buttons, each minified file gzipped at level 9 and
+  summed: 7,685 B; the same CSS as one file: 6,491 B (MEASURED 2026-11-18); size-limit's `@size-limit/file` checks a CSS
+  file with gzip (FETCHED 2026-11-18). The method follows the practice of libraries that enforce a size budget: a hard
+  limit on a tree-shaken probe (size-limit in TanStack Table and Query and in nanostores), Solid's own script with an
+  exactly pinned bundler, Lit's own script; Vue reports minified, gzip and brotli sizes (FETCHED 2026-11-18; the sources
+  go into a decision record when the size check is built).
+- **Priority:** must
+
+#### PRD-P4
+
+With 10,000 rows of the site's seeded dataset (PRD-W3's generator at that count, its 16 columns, the shipped stylesheet
+and the example token set) on the P2 reference runner, with pages of 1000 rows as P2: a page change on an unchanged sort
+and filter within P2's page-swap budget, measured from the press to the frame P2 names (no request is sent; the same
+budget, the slice is inside it); a new sort or a new filter within 500 ms, from the press to the painted frame as P2
+measures a selection change (target, confirmed by the owner; INP's "needs improvement" upper bound, as P2 uses for
+mount); budgets fixed from the first implementation as P2 fixes them, and a budget over its target stops work and goes
+to the owner; a planted slowdown per measured action must turn its test red. The same actions at 100,000 rows are
+measured and published in the documentation as beyond the recommended size, with no budget. The local data source keeps
+no copy of a row, a cell value or a text after a query returns, and its reactive wrapper keeps the rows as given, never
+deeply reactive (as PRD-B20): beside the rows, the current page and the query it keeps only typed integer arrays
+(Int32Array, 4 bytes per element): one rank per row for each column sorted so far, the sorted order of all rows and the
+positions of the filtered rows, so what it adds is at most 4 bytes per row times (the number of columns sorted so far +
+2), however many queries have run; it builds search text per search and keeps none. This is tested in the pinned
+Chromium on the reactive wrapper, held alive: sort by three named columns, filter two columns, then change sort and
+filters twelve times among those columns; after each step the heap is read after forced collection until two readings
+agree (the test fails if the readings do not settle or the heap figure lacks the array storage); the growth per row
+between 10,000 and 100,000 rows, the median of five runs, must stay within the formula, with the filtered positions
+counted at the filtered row count, plus a tolerance below 4 bytes per row fixed from a calibration run on the CI runner,
+and must not grow with the number of query changes. Planted faults turn it red: one cached text column, one extra kept
+order; a unit test checks that each kept list is an Int32Array. There is no limit at run time. The peak while ranking (a
+multiple of the rows, not kept) is measured and published, not budgeted. The documentation publishes, for the site's
+dataset at 10,000 and 100,000 rows, the rows' own megabytes, their size as JSON, the cell count and the source's added
+megabytes; the table is for that dataset, and an application's own JSON size is a guide to it, not a limit.
+
+- **Reason:** Client-side processing is budgeted at 10,000 rows, the upper end of the size DataTables advises it for
+  (the DataTables manual: client-side under about 10,000 rows, 10,000 to 100,000 a "grey area", server-side above
+  100,000, READ datatables.net/manual/data); the grey area is measured at 100,000 and published, not promised. A browser
+  tab holding every row should hold them once; what the source adds must be small, fixed and tested, or the client-side
+  path loses its point on modest devices (Int32Array: 4 bytes per element by ECMA-262, READ, and MEASURED 2026-11-18 in
+  Chromium and Node; a natural search-text cache measured 1.6 to 4.3 times the rows' own size in Chromium on a laptop,
+  while search alone took 11 to 26 ms there, a part of the 500 ms that P4's test decides); an application's own data
+  size, not its row count, is the better guide to how much memory the table needs.
+- **Priority:** must
+
+#### PRD-P5
+
+Each further export path has a size budget, measured as PRD-P3 measures its gate probe (Svelte runtime included), as the
+difference between the P3 probe with that path imported and the P3 probe alone: the connection helper and the local data
+source each at most 8 KB min+gz (INFERRED to fit; a breach stops work and goes to the owner); P3's size report also
+gives each path's standalone size, built as P3 (not budgeted).
+
+- **Reason:** Importing a data source must not cost the table's budget.
+- **Priority:** must
+
+#### PRD-P6
+
+On a page rendered in the browser, when more than 250 rows with new ids come at once, they are added to the document in
+parts: rows already in the document stay (PRD-B1), the first part shows before the rest, and once population ends every
+given row is present (PRD-P1); 250 or fewer new rows show at once; a page rendered on the server holds all its rows.
+
+- **Reason:** Owner, 2026-11-17: progressive population for larger pages on slow devices. MEASURED 2026-11-17 in a probe
+  (plain table, 15 columns, Svelte 5.57.3, Chromium, 4x CPU throttle): 1000 rows at once took 215 ms to the first
+  painted frame with a 175 ms long task in every run; 250 rows at once 53 ms; 1000 rows in parts showed the first part
+  in 22 to 52 ms. The part size and the scheduling are chosen at spec time by a probe.
+- **Priority:** must
+
+#### PRD-E1
+
+Support: Chrome and Edge 114+, Firefox 128+, Safari 17+. CI tests Playwright's Chromium, Firefox and WebKit pinned by
+the lockfile, versions recorded per release; `eslint-plugin-compat` with that floor flags JavaScript APIs above it. The
+stylesheet uses no feature above the floor and no CSS nesting, checked statically; a canary file using a feature above
+the floor and a nested rule must turn the check red (the tool is chosen at spec time; the candidate doiuse calls its own
+detection "quite naive", FETCHED 2026-11-18, so the canary is what proves it). The support statement says the floor
+versions are covered by those checks only. Raising the floor is a major release.
+
+- **Reason:** Claim only what is proven, and say how. The floor is the Popover API's, which the filter dialogs and the
+  column chooser use (Chrome 114, Firefox 125, Safari 17, FETCHED 2026-11-19, MDN); the owner raised it on 2026-11-19
+  from Chrome and Edge 111 and Safari 16.4. The stylesheet's features need less (custom properties, system colours,
+  `:focus-visible`, logical properties, sticky table cells, `:where()`, `forced-colors`, `prefers-reduced-motion`: at
+  most about Chrome 89, Firefox 89, Safari 16, FETCHED 2026-11-18; `forced-colors` per browser INFERRED); Svelte 5 needs
+  Chrome 87, Firefox 83, Safari 14 (FETCHED likewise); a Tailwind 4 application needs 111, 128 and 16.4 (FETCHED
+  likewise); lowering the floor later is not breaking while raising it is (PRD-K3).
+- **Priority:** must
+
+#### PRD-E2
+
+Touch works in emulated iOS Safari and Android Chrome.
+
+- **Reason:** Phones and tablets read tables (INFERRED).
+- **Priority:** should
 
 ### 4.6 Packaging (K), engineering (G), documentation (D), licence (L)
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-K1 | Svelte 5 runes; generic over the row type; callback props and snippets; no `any` in exported types. An API report of every export, including the default-word map, is checked in and CI fails on an unreviewed change. Tool: API Extractor on the emitted declarations if a spec-time probe shows it reads `svelte-package` output (INFERRED); otherwise a normalised snapshot of the emitted `.d.ts` files plus the default-word map. The API report has a CSS section generated from the stylesheet (the `--sdt-*` names it reads) and from the markup (the public classes it writes, PRD-K3); it fails on an unreviewed change like the rest, and a canary (a planted renamed class) must turn it red. | The public interface is the product. | must |
-| PRD-K2 | Built with `svelte-package`; `exports`: the root and every path that holds Svelte code carry `types` and `svelte` conditions (READ); a path that holds no Svelte code (the local data source's query function, PRD-B21) carries `types` and `default` (READ, svelte.dev/docs/kit/packaging: a library that exports no Svelte components may use `default` in place of `svelte`), because plain Node, which runs the site's server, resolves no `svelte` condition (MEASURED: `ERR_PACKAGE_PATH_NOT_EXPORTED` for a subpath with only `types` and `svelte`); the `svelte` peer floor is the lowest 5.x that CI runs and that provides per-instance ids stable across hydration (5.20 per a review of an earlier draft, INFERRED); the stylesheet has its own export path `./styles.css` with the conditions `style` and `default` (the `style` condition is INFERRED, probed in the consumer project before the spec names it) and no `types`: the rule for a path with no Svelte code applies to JavaScript paths; `package.json` `sideEffects` lists the stylesheet so a bundler keeps a bare import (INFERRED practice, fetched before the spec names it); `publint` passes, and the consumer project's type check (PRD-W8) passes against the packed package. | Consumers resolve and type it cleanly. | must |
-| PRD-K3 | Semver. Breaking: removing an `exports` path or condition (READ); removing or renaming a prop, callback, snippet, message key or token; changing a payload shape, a default role or a default English accessible name; raising the Svelte or browser floor; removing or renaming a public class or moving it to another element; removing a documented ARIA state selector; changing a variant's default or the element a hook lands on. The public classes are seven: `sdt` (the component's root element), `sdt-table` (the `table`), `sdt-head-row` (the header row), `sdt-th` (every header cell), `sdt-row` (every body data row), `sdt-cell` (every body cell), `sdt-pager` (the pager's `nav`). For state, these ARIA attributes are documented as stable selectors instead of state classes: `aria-sort` on the lead sorted header (PRD-A2), `aria-busy` on the table while loading (PRD-B15), and `aria-current="page"` on the pager's current numbered place (guaranteed by this row; PRD-B9). Every other `sdt-*` class is internal, and the docs say so. A change to a token's fallback value is a minor with a changelog line. A consumer that passes its own words is untouched by a default-word change. Deprecation: in a minor, with a documented replacement and a development-only warning; removal only in the next major. Changelog generated from commits; an upgrade note per major. | Consumers' tests find controls by role and name. A small listed set of classes is documented API and everything else internal, with custom properties as the stable surface (Svelte Flow, DataTables, MUI X; AG Grid warns that its classes can change in minor releases; FETCHED 2026-11-18); the stable surface is a token's name, not its value, as AG Grid keeps it. | must |
-| PRD-K4 | Renders under server-side rendering without browser globals and hydrates without mismatch or warning (proven in the consumer project, PRD-W8). | Most Svelte apps render on the server (INFERRED). | must |
-| PRD-G1 | Coverage by Vitest with the V8 provider over the component tests, read by the gate's changed-lines wrapper from the lcov report: every change covers at least 95 % of its changed lines; at each release `src/lib` has at least 95 % line coverage. Branch coverage is reported but has no threshold until a probe shows the V8 mapping of `.svelte` branches is accurate; mutation (G2) is the stronger proof meanwhile. The first commit is the baseline. The stylesheet is not a coverage source; PRD-G4 is its proof. | A whole-package figure needs a definition. | must |
-| PRD-G2 | Mutation by StrykerJS 10.1.1 with the Vitest runner, pinned (MEASURED by a mutation-testing probe done before this document: mutants in `.ts`, `.svelte.ts` and `.svelte` files under Svelte 5.57.3 and Vitest 5.1.0; the forms it exercised were a script block, a `class` attribute ternary, an `onclick` arrow and a `{call(...)}` expression; a spec-time probe adds `{#snippet}` bodies and component children, which its node list does not name). **What it does not mutate (READ, its Svelte parser source, 2026-11-17):** it parses `.svelte` with the legacy AST and takes markup expressions only from mustache tags (attribute values included), `{#if}`, `{#each}`, `{#await}`, `{#key}`, `{@const}` and `on:` handlers; directives (`class:`, `style:`, `bind:`, `use:`), `{@render}` and `{@attach}` arguments and spread attributes are not mutated, and markup takes no disable comment. **Rules:** (a) component logic lives in `.ts` and `.svelte.ts`; (b) the component uses no `class:`, `style:`, `use:`, `{@attach}`, spread attributes, or `bind:` other than `bind:this` (static scan), so conditional markup goes through mutated attribute expressions; (c) each `{@render}` call site and `bind:this` has a component test whose named break (drop or swap the argument) is applied once at review and recorded; (d) every markup expression has a component test that kills its mutants; (e) class strings in `.ts` are either asserted by a component test or marked with a disable comment naming the real-browser test that proves the style, reviewed. Everything Stryker mutates is gated at break 100 at step boundaries. The gate wrapper refuses a gated file with 0 mutants and any `allowEmpty` setting, because both pass silently (MEASURED), and fails as *could not check* when a file's mutant count falls below its recorded count (a Stryker or Svelte upgrade can drop mutants silently, INFERRED). An equivalent mutant is recorded with its reason on the same line and reviewed. Real-browser tests stay outside mutation (the Vitest runner has no browser mode, READ by that probe). | A test that cannot fail proves nothing; "break 100" claims only what is mutated. | must |
-| PRD-G3 | One local command, `pnpm gate`, runs format, lint, types, all tests (real-browser tests in Chromium only), coverage, mutation at step boundaries, trace, size, API report, docs test and the secret scan. CI (GitHub Actions on every pull request and on main, required by the main ruleset) runs the same except the private word scan, with real-browser tests in Chromium, Firefox and WebKit. | The gate record that counts is the one GitHub writes. | must |
-| PRD-G4 | Every rule of the stylesheet names the statement whose test proves it, as G2(e) asks of class strings; at step boundaries a rule-deletion probe removes each changed rule in turn and its named test must turn red. | G1 and G2 cannot see the stylesheet. No established practice for rule-deletion or mutation testing of CSS was found (searched 2026-11-18; screenshot testing is practice for appearance, not for proving each rule), so this is our analogue of PRD-G2. | must |
-| PRD-D1 | README quick start whose code blocks equal the consumer project's files (docs test); it shows both import lines of PRD-T3: the one for an application without Tailwind (equal to the plain consumer app's files) and the layered one for a Tailwind 4 application (equal to the Tailwind consumer app's file). | Setup is where adoption fails. | must |
-| PRD-D2 | API reference generated from the types; the docs test fails if any export, prop, callback, snippet, message key or token in the API report lacks a description, or if a relative link in the docs does not resolve. | One source; hand-kept docs drift. | must |
-| PRD-D3 | Accessibility statement: the claim, section 4.3, what the consumer must supply (caption, names, `stickyTop` equal to its app bar, the layout duty of design D (no ancestor of the table clips overflow; no fixed bar at the inline start), no inline `style` in its own page shell: SvelteKit's default `app.html` wrapper `<div style="display: contents">` raises a report under the strict policy, so README and the consumer project use a class), the policy allowance for SvelteKit's route announcer (`'unsafe-hashes'`, the hash of the announcer's style and `'report-sample'` in `style-src-attr`, the last so that a blocked style shows its first characters in the report, a help and not a proof: Chromium and Firefox fill it, WebKit leaves it empty, MEASURED; how to compute the hash; re-checked on every Svelte or SvelteKit update, when the consumer project's test turns red with a message pointing here; the allowance is for an upstream defect and is removed when SvelteKit's route announcer no longer needs an inline style (tracked in sveltejs/kit#11747; FETCHED 2026-11-18), which W8's control run detects), known limits (the browser floor, forced colours in WebKit), the latest protocol record. The claim holds with the shipped stylesheet, its variants, the example token set and none; it does not cover token values, classes or styles an application supplies. | An honest claim states its conditions. | must |
-| PRD-D4 | Examples are the test site's pages, quoted from its source. | Tested examples cannot rot. | must |
-| PRD-D5 | `SECURITY.md` (private vulnerability reporting, the support promise), `CHANGELOG.md`, upgrade notes. | Public-repo duties. | must |
-| PRD-D6 | Server implementer guide: intents to queries (zero-based offset, limit, direction words, the order list, filter shapes, what reset restores, the global search included), dropping out-of-order answers, `busy` and `status` handling, refusal as the failed state, the cancel intent with an own transport (abort the request and drop its late answer; with an answer on screen (0 rows included) clear `busy` and return the query to the last answered one without sending; with no answer on screen (a first load, or after a failure) set `stopped`; pass `onretry` only if you act on it, and with the helper drop it from the table's props to hide Try again), the local data source's query function (the site's query module), and a section for projects leaving DataTables: connecting their server-side backend through the connection helper (PRD-B20), with what each recorded backend sends and expects (PRD-W11), and ajax-datatables-rails, which speaks the 1.10 form in the bracketed request (FETCHED 2026-11-18), named as expected to work but not recorded. | The half of the contract the component cannot enforce. | must |
-| PRD-D7 | Contributor guide (`CONTRIBUTING.md`): the gate, the test layers, red first, statement ids and the trace, the mutation rule, synthetic data only. It cites only files in the repo. | Public contributors cannot read private documents. | must |
-| PRD-D8 | Migration guide from DataTables: for every option, event and server parameter in the reference index of the current DataTables release when the guide is written, its SvelteDT equivalent or the reason there is none, and every entry of the departure list (`docs/departures.md`, which holds the measured examples) with its reason; the docs test compares the guide with a checked-in snapshot of that index, which carries DataTables' MIT licence notice, and fails on an entry the guide does not list; the docs test also fails on a list entry the guide does not have; an open entry of class owner is the owner's to decide. | Adoption by projects leaving DataTables is a goal. | must |
-| PRD-D9 | Styling guide: the docs list the public classes and the documented ARIA state selectors (PRD-K3), the token table, and where an application's rule wins. The stylesheet's selectors are at most one class (PRD-T16), so an application's unlayered rule of a class and an element (0,1,1) wins in any load order (an application whose own CSS sits in cascade layers imports the stylesheet into a layer below them, as PRD-T3's Tailwind import does, and the docs state the outcome); a single-class hook rule (0,1,0) ties and wins only when the application's CSS loads after the stylesheet, so the docs advise importing the stylesheet after any framework or reset, before your own rules, and state both outcomes, and the consumer project tests a single-class hook in both orders. With the layered import in a Tailwind 4 application its utilities win, and so does any unlayered CSS of the application or of a third party (`th { text-align: left }` in its own stylesheet) and a utilities-layer plugin rule such as the typography plugin's `.prose :where(table, th, td)` when a table sits in prose content; the consumer project's Tailwind host adds an unlayered `th` rule and a `prose` wrapper, and the docs state the outcome. A hook class styled in an application component's own `<style>` block is scoped by Svelte and must be written with `:global(...)`; the plain consumer app tests it. SvelteDT sets some properties inline through CSSOM (the sticky offsets, `scroll-margin`, column widths); these follow props, and no class rule can override them without `!important`. The safe route for a hook class is setting `--sdt-*` tokens. Hook classes in a Tailwind application must be complete literals in files its build scans; `@source inline(...)` forces names that are not in source (FETCHED https://tailwindcss.com/docs/detecting-classes-in-source-files, 2026-11-18). The Tailwind examples are quoted from the Tailwind consumer app's source, as PRD-D4 does for the site's pages. Each sentence about an INFERRED outcome is measured before it is written. | A hook that silently does nothing, or loses to a rule the application did not expect, is the likely first support question (INFERRED). The plain rule and the layered utilities winning are MEASURED (2026-11-18, Chromium, seed table, padding only); the unlayered and plugin cases are INFERRED from the cascade, and that tokens set by a hook class inherit into its row or cell is INFERRED, each proven by a test. | must |
-| PRD-L1 | Apache-2.0: `LICENSE` with the full text, `NOTICE` with "Copyright 2026 R. Hannes Niedner", `"license": "Apache-2.0"` in `package.json`. | Settled by the owner. | must |
+
+#### PRD-K1
+
+Svelte 5 runes; generic over the row type; callback props and snippets; no `any` in exported types. An API report of
+every export, including the default-word map, is checked in and CI fails on an unreviewed change. Tool: API Extractor on
+the emitted declarations if a spec-time probe shows it reads `svelte-package` output (INFERRED); otherwise a normalised
+snapshot of the emitted `.d.ts` files plus the default-word map. The API report has a CSS section generated from the
+stylesheet (the `--sdt-*` names it reads) and from the markup (the public classes it writes, PRD-K3); it fails on an
+unreviewed change like the rest, and a canary (a planted renamed class) must turn it red.
+
+- **Reason:** The public interface is the product.
+- **Priority:** must
+
+#### PRD-K2
+
+Built with `svelte-package`; `exports`: the root and every path that holds Svelte code carry `types` and `svelte`
+conditions (READ); a path that holds no Svelte code (the local data source's query function, PRD-B21) carries `types`
+and `default` (READ, svelte.dev/docs/kit/packaging: a library that exports no Svelte components may use `default` in
+place of `svelte`), because plain Node, which runs the site's server, resolves no `svelte` condition (MEASURED:
+`ERR_PACKAGE_PATH_NOT_EXPORTED` for a subpath with only `types` and `svelte`); the `svelte` peer floor is the lowest 5.x
+that CI runs and that provides per-instance ids stable across hydration (5.20 per a review of an earlier draft,
+INFERRED); the stylesheet has its own export path `./styles.css` with the conditions `style` and `default` (the `style`
+condition is INFERRED, probed in the consumer project before the spec names it) and no `types`: the rule for a path with
+no Svelte code applies to JavaScript paths; `package.json` `sideEffects` lists the stylesheet so a bundler keeps a bare
+import (INFERRED practice, fetched before the spec names it); `publint` passes, and the consumer project's type check
+(PRD-W8) passes against the packed package.
+
+- **Reason:** Consumers resolve and type it cleanly.
+- **Priority:** must
+
+#### PRD-K3
+
+Semver. Breaking: removing an `exports` path or condition (READ); removing or renaming a prop, callback, snippet,
+message key or token; changing a payload shape, a default role or a default English accessible name; raising the Svelte
+or browser floor; removing or renaming a public class or moving it to another element; removing a documented ARIA state
+selector; changing a variant's default or the element a hook lands on. The public classes are seven: `sdt` (the
+component's root element), `sdt-table` (the `table`), `sdt-head-row` (the header row), `sdt-th` (every header cell),
+`sdt-row` (every body data row), `sdt-cell` (every body cell), `sdt-pager` (the pager's `nav`). For state, these ARIA
+attributes are documented as stable selectors instead of state classes: `aria-sort` on the lead sorted header (PRD-A2),
+`aria-busy` on the table while loading (PRD-B15), and `aria-current="page"` on the pager's current numbered place
+(guaranteed by this row; PRD-B9). Every other `sdt-*` class is internal, and the docs say so. A change to a token's
+fallback value is a minor with a changelog line. A consumer that passes its own words is untouched by a default-word
+change. Deprecation: in a minor, with a documented replacement and a development-only warning; removal only in the next
+major. Changelog generated from commits; an upgrade note per major.
+
+- **Reason:** Consumers' tests find controls by role and name. A small listed set of classes is documented API and
+  everything else internal, with custom properties as the stable surface (Svelte Flow, DataTables, MUI X; AG Grid warns
+  that its classes can change in minor releases; FETCHED 2026-11-18); the stable surface is a token's name, not its
+  value, as AG Grid keeps it.
+- **Priority:** must
+
+#### PRD-K4
+
+Renders under server-side rendering without browser globals and hydrates without mismatch or warning (proven in the
+consumer project, PRD-W8).
+
+- **Reason:** Most Svelte apps render on the server (INFERRED).
+- **Priority:** must
+
+#### PRD-G1
+
+Coverage by Vitest with the V8 provider over the component tests, read by the gate's changed-lines wrapper from the lcov
+report: every change covers at least 95 % of its changed lines; at each release `src/lib` has at least 95 % line
+coverage. Branch coverage is reported but has no threshold until a probe shows the V8 mapping of `.svelte` branches is
+accurate; mutation (G2) is the stronger proof meanwhile. The first commit is the baseline. The stylesheet is not a
+coverage source; PRD-G4 is its proof.
+
+- **Reason:** A whole-package figure needs a definition.
+- **Priority:** must
+
+#### PRD-G2
+
+Mutation by StrykerJS 10.1.1 with the Vitest runner, pinned (MEASURED by a mutation-testing probe done before this
+document: mutants in `.ts`, `.svelte.ts` and `.svelte` files under Svelte 5.57.3 and Vitest 5.1.0; the forms it
+exercised were a script block, a `class` attribute ternary, an `onclick` arrow and a `{call(...)}` expression; a
+spec-time probe adds `{#snippet}` bodies and component children, which its node list does not name).
+
+**What it does not mutate (READ, its Svelte parser source, 2026-11-17):** it parses `.svelte` with the legacy AST and
+takes markup expressions only from mustache tags (attribute values included), `{#if}`, `{#each}`, `{#await}`, `{#key}`,
+`{@const}` and `on:` handlers; directives (`class:`, `style:`, `bind:`, `use:`), `{@render}` and `{@attach}` arguments
+and spread attributes are not mutated, and markup takes no disable comment.
+
+**Rules:** (a) component logic lives in `.ts` and `.svelte.ts`; (b) the component uses no `class:`, `style:`, `use:`,
+`{@attach}`, spread attributes, or `bind:` other than `bind:this` (static scan), so conditional markup goes through
+mutated attribute expressions; (c) each `{@render}` call site and `bind:this` has a component test whose named break
+(drop or swap the argument) is applied once at review and recorded; (d) every markup expression has a component test
+that kills its mutants; (e) class strings in `.ts` are either asserted by a component test or marked with a disable
+comment naming the real-browser test that proves the style, reviewed. Everything Stryker mutates is gated at break 100
+at step boundaries. The gate wrapper refuses a gated file with 0 mutants and any `allowEmpty` setting, because both pass
+silently (MEASURED), and fails as *could not check* when a file's mutant count falls below its recorded count (a Stryker
+or Svelte upgrade can drop mutants silently, INFERRED). An equivalent mutant is recorded with its reason on the same
+line and reviewed. Real-browser tests stay outside mutation (the Vitest runner has no browser mode, READ by that probe).
+
+- **Reason:** A test that cannot fail proves nothing; "break 100" claims only what is mutated.
+- **Priority:** must
+
+#### PRD-G3
+
+One local command, `pnpm gate`, runs format, lint, types, all tests (real-browser tests in Chromium only), coverage,
+mutation at step boundaries, trace, size, API report, docs test and the secret scan. CI (GitHub Actions on every pull
+request and on main, required by the main ruleset) runs the same except the private word scan, with real-browser tests
+in Chromium, Firefox and WebKit.
+
+- **Reason:** The gate record that counts is the one GitHub writes.
+- **Priority:** must
+
+#### PRD-G4
+
+Every rule of the stylesheet names the statement whose test proves it, as G2(e) asks of class strings; at step
+boundaries a rule-deletion probe removes each changed rule in turn and its named test must turn red.
+
+- **Reason:** G1 and G2 cannot see the stylesheet. No established practice for rule-deletion or mutation testing of CSS
+  was found (searched 2026-11-18; screenshot testing is practice for appearance, not for proving each rule), so this is
+  our analogue of PRD-G2.
+- **Priority:** must
+
+#### PRD-D1
+
+README quick start whose code blocks equal the consumer project's files (docs test); it shows both import lines of
+PRD-T3: the one for an application without Tailwind (equal to the plain consumer app's files) and the layered one for a
+Tailwind 4 application (equal to the Tailwind consumer app's file).
+
+- **Reason:** Setup is where adoption fails.
+- **Priority:** must
+
+#### PRD-D2
+
+API reference generated from the types; the docs test fails if any export, prop, callback, snippet, message key or token
+in the API report lacks a description, or if a relative link in the docs does not resolve.
+
+- **Reason:** One source; hand-kept docs drift.
+- **Priority:** must
+
+#### PRD-D3
+
+Accessibility statement: the claim, section 4.3, what the consumer must supply (caption, names, `stickyTop` equal to its
+app bar, the layout duty of design D (no ancestor of the table clips overflow; no fixed bar at the inline start), no
+inline `style` in its own page shell: SvelteKit's default `app.html` wrapper `<div style="display: contents">` raises a
+report under the strict policy, so README and the consumer project use a class), the policy allowance for SvelteKit's
+route announcer (`'unsafe-hashes'`, the hash of the announcer's style and `'report-sample'` in `style-src-attr`, the
+last so that a blocked style shows its first characters in the report, a help and not a proof: Chromium and Firefox fill
+it, WebKit leaves it empty, MEASURED; how to compute the hash; re-checked on every Svelte or SvelteKit update, when the
+consumer project's test turns red with a message pointing here; the allowance is for an upstream defect and is removed
+when SvelteKit's route announcer no longer needs an inline style (tracked in sveltejs/kit#11747; FETCHED 2026-11-18),
+which W8's control run detects), known limits (the browser floor, forced colours in WebKit), the latest protocol record.
+The claim holds with the shipped stylesheet, its variants, the example token set and none; it does not cover token
+values, classes or styles an application supplies.
+
+- **Reason:** An honest claim states its conditions.
+- **Priority:** must
+
+#### PRD-D4
+
+Examples are the test site's pages, quoted from its source.
+
+- **Reason:** Tested examples cannot rot.
+- **Priority:** must
+
+#### PRD-D5
+
+`SECURITY.md` (private vulnerability reporting, the support promise), `CHANGELOG.md`, upgrade notes.
+
+- **Reason:** Public-repo duties.
+- **Priority:** must
+
+#### PRD-D6
+
+Server implementer guide: intents to queries (zero-based offset, limit, direction words, the order list, filter shapes,
+what reset restores, the global search included), dropping out-of-order answers, `busy` and `status` handling, refusal
+as the failed state, the cancel intent with an own transport (abort the request and drop its late answer; with an answer
+on screen (0 rows included) clear `busy` and return the query to the last answered one without sending; with no answer
+on screen (a first load, or after a failure) set `stopped`; pass `onretry` only if you act on it, and with the helper
+drop it from the table's props to hide Try again), the local data source's query function (the site's query module), and
+a section for projects leaving DataTables: connecting their server-side backend through the connection helper (PRD-B20),
+with what each recorded backend sends and expects (PRD-W11), and ajax-datatables-rails, which speaks the 1.10 form in
+the bracketed request (FETCHED 2026-11-18), named as expected to work but not recorded.
+
+- **Reason:** The half of the contract the component cannot enforce.
+- **Priority:** must
+
+#### PRD-D7
+
+Contributor guide (`CONTRIBUTING.md`): the gate, the test layers, red first, statement ids and the trace, the mutation
+rule, synthetic data only. It cites only files in the repo.
+
+- **Reason:** Public contributors cannot read private documents.
+- **Priority:** must
+
+#### PRD-D8
+
+Migration guide from DataTables: for every option, event and server parameter in the reference index of the current
+DataTables release when the guide is written, its SvelteDT equivalent or the reason there is none, and every entry of
+the departure list (`docs/departures.md`, which holds the measured examples) with its reason; the docs test compares the
+guide with a checked-in snapshot of that index, which carries DataTables' MIT licence notice, and fails on an entry the
+guide does not list; the docs test also fails on a list entry the guide does not have; an open entry of class owner is
+the owner's to decide.
+
+- **Reason:** Adoption by projects leaving DataTables is a goal.
+- **Priority:** must
+
+#### PRD-D9
+
+Styling guide: the docs list the public classes and the documented ARIA state selectors (PRD-K3), the token table, and
+where an application's rule wins. The stylesheet's selectors are at most one class (PRD-T16), so an application's
+unlayered rule of a class and an element (0,1,1) wins in any load order (an application whose own CSS sits in cascade
+layers imports the stylesheet into a layer below them, as PRD-T3's Tailwind import does, and the docs state the
+outcome); a single-class hook rule (0,1,0) ties and wins only when the application's CSS loads after the stylesheet, so
+the docs advise importing the stylesheet after any framework or reset, before your own rules, and state both outcomes,
+and the consumer project tests a single-class hook in both orders. With the layered import in a Tailwind 4 application
+its utilities win, and so does any unlayered CSS of the application or of a third party (`th { text-align: left }` in
+its own stylesheet) and a utilities-layer plugin rule such as the typography plugin's `.prose :where(table, th, td)`
+when a table sits in prose content; the consumer project's Tailwind host adds an unlayered `th` rule and a `prose`
+wrapper, and the docs state the outcome. A hook class styled in an application component's own `<style>` block is scoped
+by Svelte and must be written with `:global(...)`; the plain consumer app tests it. SvelteDT sets some properties inline
+through CSSOM (the sticky offsets, `scroll-margin`, column widths); these follow props, and no class rule can override
+them without `!important`. The safe route for a hook class is setting `--sdt-*` tokens. Hook classes in a Tailwind
+application must be complete literals in files its build scans; `@source inline(...)` forces names that are not in
+source (FETCHED https://tailwindcss.com/docs/detecting-classes-in-source-files, 2026-11-18). The Tailwind examples are
+quoted from the Tailwind consumer app's source, as PRD-D4 does for the site's pages. Each sentence about an INFERRED
+outcome is measured before it is written.
+
+- **Reason:** A hook that silently does nothing, or loses to a rule the application did not expect, is the likely first
+  support question (INFERRED). The plain rule and the layered utilities winning are MEASURED (2026-11-18, Chromium, seed
+  table, padding only); the unlayered and plugin cases are INFERRED from the cascade, and that tokens set by a hook
+  class inherit into its row or cell is INFERRED, each proven by a test.
+- **Priority:** must
+
+#### PRD-L1
+
+Apache-2.0: `LICENSE` with the full text, `NOTICE` with "Copyright 2026 R. Hannes Niedner", `"license": "Apache-2.0"` in
+`package.json`.
+
+- **Reason:** Settled by the owner.
+- **Priority:** must
 
 ### 4.7 The test site and consumer project (W): part of the product
 W1-W9 are the minimum needed to prove the musts; the test pages stay very simple beyond that, and the public site (W10) is built from them. They are (a) where the
@@ -345,19 +1434,124 @@ Where and in what language: section 5.3. What they are not: no users, sign-in, r
 personal data; no application code (the ported table is component code, section 7); no persistence (state lives in the URL); no export; not a template for a
 production server.
 
-| Id | Requirement | Reason | Priority |
-|---|---|---|---|
-| PRD-W1 | The site imports SvelteDT only through the package's public exports (static scan). | It may use only what a consumer can. | must |
-| PRD-W2 | One JSON endpoint applies multi-column sort, a global search, text and categorical filters, offset and limit (at most 1000), and refuses unknown columns, directions or sizes with an error. Test-mode switches, off by default: latency, failure, empty result, refused filter, out-of-order answers, duplicate row ids, unknown sort key, all columns hidden, and totals of 0, 1, limit, limit + 1, 1000, 2^53 - 1 and above 2^53. | Every state and refusal must be reachable in a real browser. | must |
-| PRD-W3 | A seeded synthetic dataset of 50,000 rows by 16 columns, generated at start from a fixed seed (the generator takes the row count, so PRD-P4 can use 10,000 and 100,000), with long unbroken values and markup-looking strings, using reserved shapes only (fixed synthetic word lists, RFC 2606 example domains, sequence ids), checked by the synthetic-shape check. | 50 pages even at 1000 rows proves server paging; one page cannot fake it. | must |
-| PRD-W4 | Every response carries the strict policy as a header; the listener script of S1 loads before the bundle; a canary page breaks the policy on purpose and the test must see the report; the site has no inline bootstrap. | Proves the policy and proves the proof can fail. | must |
-| PRD-W5 | Page "plain": sort, both filter kinds, clear and reset, the global search box, pager with sizes up to 1000 (PRD-P6) and the information line, a fixed 48 px app bar, a column `class`, an `align: "end"` column with a `headerClass`. The site uses no Tailwind: its pages import the stylesheet as an application without Tailwind does (PRD-T3). | The common read-only use. One less moving part: the Tailwind host is the consumer project's (PRD-W8). | must |
-| PRD-W6 | Page "full": selection with a Shift range worked out by the site, chooser, reorder (chooser buttons and the header grip) and resize (separators and chooser buttons), sticky header and sticky leading columns, cell actions (a link and a menu in a cell snippet), the `criteria` and actions snippets, a `rowClass` and a `cellClass` rule, child rows, a footer row. | Exercises every consumer duty. | must |
-| PRD-W7 | Views by URL parameter: light, dark, no tokens, `dir=rtl`, spacing, `compact` (density compact with `striped`, `hover`, `cellBorders` and `orderColumn` on, for each variant that ships), the three planted slowdowns (P2), two tables on one page. Real-browser tests also use the zoom view, the 320 view and forced colours (section 4.3). | Section 4.3 needs each. | must |
-| PRD-W8 | A clean-install consumer project (three apps) in `consumer/`: three SvelteKit apps, one per host of PRD-T11 (none, Bootstrap 5.3, Tailwind 4), which share no CSS; the README quick start equals the plain app's files, and its Tailwind lines equal the Tailwind app's file. Each app has server rendering and hydration, the strict policy sent as a header, plus SvelteKit's nonce for its own bootstrap (READ, SvelteKit docs) and exactly one `style-src-attr` allowance (`'unsafe-hashes'` and the hash of SvelteKit's route announcer style, with `'report-sample'`; without it the announcer raises one violation per page load in Chromium, Firefox and WebKit, and none on a client-side navigation, MEASURED in SvelteKit 2.21.1 and 3.2.0), the S1 listener script, a page shell with no inline `style`, installing the packed tarball with no workspace link; its type check (`svelte-check`) passes against the packed package. A control run of the project without that allowance, in the plain app only, must raise exactly one `style-src-attr` violation per first load and none on a client-side navigation, in each engine; when a first load raises none it fails with a message that the allowance is no longer needed and is to be removed (PRD-D3, sveltejs/kit#11747), and when it raises more it fails as an S1 failure. | Catches broken `exports`, files, types or import lines, and proves K4 and the server-rendered half of S1; the control run finds an allowance that is no longer needed. | must |
-| PRD-W9 | Every real-browser test runs against the site or the consumer project, and the consumer project's journeys and S1 checks run, in CI in Chromium, Firefox and WebKit on every pull request; P2 is measured on the site. | The real-browser layer needs pages. | must |
-| PRD-W10 | One public site on GitHub Pages, deployed by CI from each release tag: the documentation (D1-D8) and the examples gallery with live tables in a static data mode, shaped as section 8 Q5 describes. Each example page shows the live table and, in tabs, the component code, the server handler and the last request and response. | A visitor can read, see and try the table before installing; tested pages cannot drift from the code (owner, 2026-11-17, Q5). | must |
-| PRD-W11 | Request and answer fixtures, recorded once over PRD-W3's synthetic dataset from five DataTables server-side backends: `yajra/laravel-datatables-oracle` (PHP), the `ssp.class.php` helper of DataTables' server-side examples (PHP), django-rest-framework-datatables (Python), DataTables.AspNet (.NET) and spring-data-jpa-datatables (Java). Each fixture set states its backend, the backend's version and licence, and the one pinned DataTables client whose requests every set records (2.3 or later, named in the fixture sets, in the protocol form the connection helper covers; a new client pin or a new backend version is a new recording; requests of 1.x clients, which lack `order[i][name]`, are not recorded), and holds, per backend: a first page, a sort, a column search, a global search value as the client sends it, an error answer as the body the backend returns together with its HTTP status, and the answer fields that backend adds; the request as sent (query string, form body, or the dotted or JSON form a backend needs) and the answer body as returned, with no headers, hosts or paths; each with its backend's licence notice (MIT for four, Apache-2.0 for spring-data-jpa-datatables); checked in after the synthetic-shape check and the word scan; contract tests run the helper's request serialiser and answer mapper against every set. | The switch is proven against what real backends send and expect, not against our own endpoint. The five cover the most used backend (the Packagist package `yajra/laravel-datatables-oracle`, about 1.27 million installs a month), the reference helper, a Python package with 153,612 downloads a month (pypistats), a .NET package archived since 2024-01-08, and the one backend that reads only dotted names or a JSON body (registry figures, licences and the archived state FETCHED 2026-11-18). | must |
+#### PRD-W1
+
+The site imports SvelteDT only through the package's public exports (static scan).
+
+- **Reason:** It may use only what a consumer can.
+- **Priority:** must
+
+#### PRD-W2
+
+One JSON endpoint applies multi-column sort, a global search, text and categorical filters, offset and limit (at most
+1000), and refuses unknown columns, directions or sizes with an error. Test-mode switches, off by default: latency,
+failure, empty result, refused filter, out-of-order answers, duplicate row ids, unknown sort key, all columns hidden,
+and totals of 0, 1, limit, limit + 1, 1000, 2^53 - 1 and above 2^53.
+
+- **Reason:** Every state and refusal must be reachable in a real browser.
+- **Priority:** must
+
+#### PRD-W3
+
+A seeded synthetic dataset of 50,000 rows by 16 columns, generated at start from a fixed seed (the generator takes the
+row count, so PRD-P4 can use 10,000 and 100,000), with long unbroken values and markup-looking strings, using reserved
+shapes only (fixed synthetic word lists, RFC 2606 example domains, sequence ids), checked by the synthetic-shape check.
+
+- **Reason:** 50 pages even at 1000 rows proves server paging; one page cannot fake it.
+- **Priority:** must
+
+#### PRD-W4
+
+Every response carries the strict policy as a header; the listener script of S1 loads before the bundle; a canary page
+breaks the policy on purpose and the test must see the report; the site has no inline bootstrap.
+
+- **Reason:** Proves the policy and proves the proof can fail.
+- **Priority:** must
+
+#### PRD-W5
+
+Page "plain": sort, both filter kinds, clear and reset, the global search box, pager with sizes up to 1000 (PRD-P6) and
+the information line, a fixed 48 px app bar, a column `class`, an `align: "end"` column with a `headerClass`. The site
+uses no Tailwind: its pages import the stylesheet as an application without Tailwind does (PRD-T3).
+
+- **Reason:** The common read-only use. One less moving part: the Tailwind host is the consumer project's (PRD-W8).
+- **Priority:** must
+
+#### PRD-W6
+
+Page "full": selection with a Shift range worked out by the site, chooser, reorder (chooser buttons and the header grip)
+and resize (separators and chooser buttons), sticky header and sticky leading columns, cell actions (a link and a menu
+in a cell snippet), the `criteria` and actions snippets, a `rowClass` and a `cellClass` rule, child rows, a footer row.
+
+- **Reason:** Exercises every consumer duty.
+- **Priority:** must
+
+#### PRD-W7
+
+Views by URL parameter: light, dark, no tokens, `dir=rtl`, spacing, `compact` (density compact with `striped`, `hover`,
+`cellBorders` and `orderColumn` on, for each variant that ships), the three planted slowdowns (P2), two tables on one
+page. Real-browser tests also use the zoom view, the 320 view and forced colours (section 4.3).
+
+- **Reason:** Section 4.3 needs each.
+- **Priority:** must
+
+#### PRD-W8
+
+A clean-install consumer project (three apps) in `consumer/`: three SvelteKit apps, one per host of PRD-T11 (none,
+Bootstrap 5.3, Tailwind 4), which share no CSS; the README quick start equals the plain app's files, and its Tailwind
+lines equal the Tailwind app's file. Each app has server rendering and hydration, the strict policy sent as a header,
+plus SvelteKit's nonce for its own bootstrap (READ, SvelteKit docs) and exactly one `style-src-attr` allowance
+(`'unsafe-hashes'` and the hash of SvelteKit's route announcer style, with `'report-sample'`; without it the announcer
+raises one violation per page load in Chromium, Firefox and WebKit, and none on a client-side navigation, MEASURED in
+SvelteKit 2.21.1 and 3.2.0), the S1 listener script, a page shell with no inline `style`, installing the packed tarball
+with no workspace link; its type check (`svelte-check`) passes against the packed package. A control run of the project
+without that allowance, in the plain app only, must raise exactly one `style-src-attr` violation per first load and none
+on a client-side navigation, in each engine; when a first load raises none it fails with a message that the allowance is
+no longer needed and is to be removed (PRD-D3, sveltejs/kit#11747), and when it raises more it fails as an S1 failure.
+
+- **Reason:** Catches broken `exports`, files, types or import lines, and proves K4 and the server-rendered half of S1;
+  the control run finds an allowance that is no longer needed.
+- **Priority:** must
+
+#### PRD-W9
+
+Every real-browser test runs against the site or the consumer project, and the consumer project's journeys and S1 checks
+run, in CI in Chromium, Firefox and WebKit on every pull request; P2 is measured on the site.
+
+- **Reason:** The real-browser layer needs pages.
+- **Priority:** must
+
+#### PRD-W10
+
+One public site on GitHub Pages, deployed by CI from each release tag: the documentation (D1-D8) and the examples
+gallery with live tables in a static data mode, shaped as section 8 Q5 describes. Each example page shows the live table
+and, in tabs, the component code, the server handler and the last request and response.
+
+- **Reason:** A visitor can read, see and try the table before installing; tested pages cannot drift from the code
+  (owner, 2026-11-17, Q5).
+- **Priority:** must
+
+#### PRD-W11
+
+Request and answer fixtures, recorded once over PRD-W3's synthetic dataset from five DataTables server-side backends:
+`yajra/laravel-datatables-oracle` (PHP), the `ssp.class.php` helper of DataTables' server-side examples (PHP),
+django-rest-framework-datatables (Python), DataTables.AspNet (.NET) and spring-data-jpa-datatables (Java). Each fixture
+set states its backend, the backend's version and licence, and the one pinned DataTables client whose requests every set
+records (2.3 or later, named in the fixture sets, in the protocol form the connection helper covers; a new client pin or
+a new backend version is a new recording; requests of 1.x clients, which lack `order[i][name]`, are not recorded), and
+holds, per backend: a first page, a sort, a column search, a global search value as the client sends it, an error answer
+as the body the backend returns together with its HTTP status, and the answer fields that backend adds; the request as
+sent (query string, form body, or the dotted or JSON form a backend needs) and the answer body as returned, with no
+headers, hosts or paths; each with its backend's licence notice (MIT for four, Apache-2.0 for
+spring-data-jpa-datatables); checked in after the synthetic-shape check and the word scan; contract tests run the
+helper's request serialiser and answer mapper against every set.
+
+- **Reason:** The switch is proven against what real backends send and expect, not against our own endpoint. The five
+  cover the most used backend (the Packagist package `yajra/laravel-datatables-oracle`, about 1.27 million installs a
+  month), the reference helper, a Python package with 153,612 downloads a month (pypistats), a .NET package archived
+  since 2024-01-08, and the one backend that reads only dotted names or a JSON body (registry figures, licences and the
+  archived state FETCHED 2026-11-18).
+- **Priority:** must
 
 **Later:** (PRD-X1, header drag to reorder, moved into 1.0 by the owner: B11 b); PRD-X2 fit width to content; PRD-X3 columns sticky at the inline end;
 PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1); PRD-B30 the vocabulary helper of the local data source; PRD-X6 a built-in number or date
@@ -392,7 +1586,12 @@ widths and recomputes them on resize, reorder and hide (no consumer offsets). Lo
 right-to-left. For 2.4.11 the component sets `scroll-margin` on its own focusable cells and controls: at the block start,
 `stickyTop` plus the header height while the header is sticky, and `stickyTop` only while the 30 % rule has made the
 header scroll; at the inline start, the sticky columns' width. Focus
-then scrolls them clear without writing to the document. `scroll-margin` on the component's own elements is used, not the `scroll-padding` that WCAG technique C43 names, because the scroller is the consumer's document, which the component must not style (B19). That focus scrolling honours `scroll-margin` in all three engines is INFERRED (an older Firefox ignored it; WebKit's current behaviour is unconfirmed) and is proven per engine by the 2.4.11 BT; where an engine fails it, the remedy is the component's own (it scrolls the focused control clear on focus), settled in the spec and recorded, never a consumer duty. Styles go through CSSOM only
+then scrolls them clear without writing to the document. `scroll-margin` on the component's own elements is used, not
+the `scroll-padding` that WCAG technique C43 names, because the scroller is the consumer's document, which the component
+must not style (B19). That focus scrolling honours `scroll-margin` in all three engines is INFERRED (an older Firefox
+ignored it; WebKit's current behaviour is unconfirmed) and is proven per engine by the 2.4.11 BT; where an engine fails
+it, the remedy is the component's own (it scrolls the focused control clear on focus), settled in the spec and recorded,
+never a consumer duty. Styles go through CSSOM only
 (MEASURED: allowed by the strict policy). Rejected: a script-synced detached header (breaks table semantics, writes
 styles on every scroll).
 
@@ -438,7 +1637,17 @@ The first app starts on 1.0; production use by it is not a criterion.
 - **TanStack Table v9:** clean, runes-native, 24.2 KB; in server mode its row models do nothing; saves an estimated
   150-300 lines (INFERRED) for a 3-month-old major.
 - **Smaller headless handlers:** no accessibility claim; resize missing or server mode undocumented.
-- **Decision:** no third-party table library is adopted for the component, nor for the local data source: its row model is built as a pure TypeScript engine with a thin Svelte wrapper (the row model, PRD-B21: chosen on the measurement that follows; no exception under PRD-S5 was sought), after its own library check (MEASURED 2026-11-17 in Node, in the library decision's adversarial re-run: TanStack Table 9 given the same comparator re-sorted 100,000 rows descending after an ascending sort, the rank reused, in 117.9 ms against 17.5 ms for the evaluation's own rank-cache probe engine, and by two columns in 268.6 ms against 71.7 ms, in the same order, with 120.7 MB of heap above the data against 9.6 MB), to be recorded in `docs/decisions/002-local-data-source.md` before B21's spec. The component is built test-first, and it starts from the owner's own earlier Svelte 5 table (server-driven, native table, no runtime dependency), ported through the method: its tests first, then its code, with its inline styles replaced to meet the strict policy (owner, 2026-11-17: reuse instead of rebuilding to an equivalent result). What that table lacks is written new.
+- **Decision:** no third-party table library is adopted for the component, nor for the local data source: its row model
+  is built as a pure TypeScript engine with a thin Svelte wrapper (the row model, PRD-B21: chosen on the measurement
+  that follows; no exception under PRD-S5 was sought), after its own library check (MEASURED 2026-11-17 in Node, in the
+  library decision's adversarial re-run: TanStack Table 9 given the same comparator re-sorted 100,000 rows descending
+  after an ascending sort, the rank reused, in 117.9 ms against 17.5 ms for the evaluation's own rank-cache probe
+  engine, and by two columns in 268.6 ms against 71.7 ms, in the same order, with 120.7 MB of heap above the data
+  against 9.6 MB), to be recorded in `docs/decisions/002-local-data-source.md` before B21's spec. The component is built
+  test-first, and it starts from the owner's own earlier Svelte 5 table (server-driven, native table, no runtime
+  dependency), ported through the method: its tests first, then its code, with its inline styles replaced to meet the
+  strict policy (owner, 2026-11-17: reuse instead of rebuilding to an equivalent result). What that table lacks is
+  written new.
 - **Styling:** the component's own classes and one unlayered stylesheet reading `--sdt-*` tokens, chosen over a
   Tailwind-built component (with or without a precompiled stylesheet) on the owner's measure of lasting maintenance at
   1.0 (owner, 2026-11-18). Evidence: no surveyed data grid requires Tailwind; about half of surveyed developers use no
