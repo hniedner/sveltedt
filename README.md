@@ -26,7 +26,8 @@ There is nothing to install yet. What is on `main` today:
   ready, that are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
 - row ids that are strings or finite numbers, as server JSON gives them;
 - the loading, failed and busy states: the loading text in a status element, the failure in an alert, `aria-busy`
-  on the table, the rows kept while busy, and the row count in a polite live region;
+  on the table, the rows kept while busy, and the row count in a polite live region, its digits grouped the
+  English way ("1,000") whatever the runtime's locale;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a described
@@ -37,7 +38,7 @@ There is nothing to install yet. What is on `main` today:
 - the pager core, a separate `Pagination` component: a labelled `nav` with step buttons and at most seven page
   places (gaps hidden from assistive technology), `aria-current` on the current page, steps that cannot move
   marked `aria-disabled`, a press emitting the page's offset through `onpage`, an optional page-size select
-  emitting through `onsize`, and the alert for invalid input. It is not yet on the test site;
+  emitting through `onsize`, and the alert for invalid input. The test site's list page pages its rows with it;
 - the pager's information line ("Showing 1 to 10 of 57 rows", with "(filtered from 1,000 total rows)" when an
   unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
   announced, and every fixed word of the pager as a `messages` prop with an English default.
