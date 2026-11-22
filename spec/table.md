@@ -2164,9 +2164,9 @@ new `limit` and offset.
 - Traces: PRD-B9, PRD-S4, PRD-B26.
 
 **PAGE-19** Every fixed word the pager shows or announces MUST come from its `messages` prop with an English default.
-- Examples (the test runs every row; it passes a full `messages` object of non-English words, then checks that each
-  replacement appears where the row says and that no English default is left in the pager's text or accessible
-  names):
+- Examples (the test runs every row but the last through a full `messages` object of non-English words, then checks
+  that each replacement appears where the row says and that no English default is left in the pager's text or
+  accessible names; the last row is run apart, below):
 
   | Message | English default | Shown by |
   |---|---|---|

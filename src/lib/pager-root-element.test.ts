@@ -1,4 +1,3 @@
-// PAGE-31 lives in a file of its own, as the footprint tests do (test/footprint.ts)
 import { render } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import Pagination from "./Pagination.svelte";

@@ -68,6 +68,12 @@ function expectNoBrokenNumber(): void {
     expect(words).not.toContain(bad);
 }
 
+// The element whose text is exactly the information line, spaces as written (testing-library's default matcher
+// collapses white space)
+const lineElement = (line: string): HTMLElement =>
+  within(nav()).getByText(line, { normalizer: (text) => text });
+const hasNote = (): boolean => nav().textContent.includes("filtered from");
+
 const STEPS = ["First page", "Previous page", "Next page", "Last page"];
 
 // @spec("PAGE-09", "b2e86c2c")
@@ -454,9 +460,8 @@ describe("PAGE-16", () => {
     mount({ unfilteredTotal: null as unknown as number });
     expect(screen.queryByRole("alert")).toBeNull();
     // Not given: the information line has no filtered note (PAGE-38)
-    expect(
-      within(nav()).getByText("Showing 1 to 10 of 95 rows").isConnected,
-    ).toBe(true);
+    expect(lineElement("Showing 1 to 10 of 95 rows").isConnected).toBe(true);
+    expect(hasNote()).toBe(false);
   });
 
   it("takes an unfilteredTotal below total as no fault", () => {
@@ -480,7 +485,9 @@ describe("PAGE-37", () => {
     "at offset %i of total %i shows the line %j as visible text",
     (offset, total, line) => {
       mount({ offset, limit: 10, total });
-      expect(within(nav()).getByText(line).isConnected).toBe(true);
+      expect(
+        lineElement(line).closest("[hidden], [aria-hidden='true']"),
+      ).toBeNull();
     },
   );
 });
@@ -497,7 +504,8 @@ describe("PAGE-38", () => {
     "with total %i and unfilteredTotal %s shows the line %j",
     (total, unfilteredTotal, line) => {
       mount({ offset: 0, limit: 10, total, unfilteredTotal });
-      expect(within(nav()).getByText(line).isConnected).toBe(true);
+      expect(lineElement(line).isConnected).toBe(true);
+      expect(hasNote()).toBe(line.includes("filtered from"));
     },
   );
 });
@@ -515,7 +523,7 @@ const FAULTS: Record<keyof typeof PAGER_ALERTS, Partial<PaginationProps>> = {
   unfilteredTotalInvalid: { unfilteredTotal: -1 },
 };
 
-// @spec("PAGE-19", "5de7e31c")
+// @spec("PAGE-19", "edda19c9")
 describe("PAGE-19", () => {
   const foreign: PaginationMessages = {
     firstPage: "Erste Seite",
