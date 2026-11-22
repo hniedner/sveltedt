@@ -23,6 +23,7 @@ import {
   SHA,
   SUPPRESSIONS,
   canaryDir,
+  commit,
   component,
   edit,
   expect,
@@ -1305,14 +1306,14 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, test, trace, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, test, trace, diff-coverage, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 8 not applicable: secrets, svelte, site, inline, test, trace, browser, commits$/m,
+    /^PASS all: 16 checks passed, 9 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, browser, commits$/m,
   );
 });
-test("all: test and trace share one vitest run", () => {
+test("all: test, trace and diff-coverage share one vitest run", () => {
   // A wrapper around the real vitest that counts the runs of the repository's tests (the canaries run without --config)
   const calls = join(tempDir(), "calls");
   const wrapper = join(tempDir(), "vitest");
@@ -1334,11 +1335,25 @@ test("all: test and trace share one vitest run", () => {
     // ESLint's type-aware rules need the config in the program, as the real tsconfig.json has it
     edit("tsconfig.json", '"test"]', '"test", "vitest.config.ts"]')(root);
     component(COMPONENT)(root); // the svelte step cannot pass without one
+    // The component is on origin/main; the branch changes one module the test covers
+    commit(root, "chore: the component");
+    git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+    put(
+      root,
+      "src/sum.ts",
+      "export const sum = (a: number): number => a + 1;\n",
+    );
+    put(
+      root,
+      "src/sum.test.ts",
+      'import { expect, test } from "vitest";\nimport { sum } from "./sum.ts";\ntest("sums", () => {\n  expect(sum(1)).toBe(2);\n});\n',
+    );
   };
   const out = expect("all", repo(marked), 0, {
     extraEnv: { VITEST_BIN: wrapper },
   });
   assert.match(out, /^PASS trace: .*1 marker\(s\)/m);
+  assert.match(out, /^PASS diff-coverage: 1\/1 changed lines covered/m);
   assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 1);
 });
 test("all: returns the failing step's finding and names the step", () => {

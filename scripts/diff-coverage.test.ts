@@ -19,13 +19,16 @@ import { CANNOT, FINDING, PASS } from "./pinned.ts";
 
 const NA = 4;
 
-/** A `git diff -U0` of one file: `hunks` are [start, count] on the new side. */
+/** A `git diff -U0` of one file: `hunks` are [start, count] of added lines on the new side. */
 const diffOf = (file: string, ...hunks: [number, number][]): string =>
   [
     `diff --git a/${file} b/${file}`,
     `--- a/${file}`,
     `+++ b/${file}`,
-    ...hunks.map(([s, n]) => `@@ -${s},0 +${s},${n} @@`),
+    ...hunks.flatMap(([s, n]) => [
+      `@@ -${s - 1},0 +${s},${n} @@`,
+      ...Array.from({ length: n }, (_, i) => `+line ${s + i}`),
+    ]),
   ].join("\n");
 /** An lcov record: `lines` maps a line number to its hit count. */
 const lcovOf = (sf: string, lines: Record<number, number>): string =>
@@ -102,10 +105,15 @@ test("diff-coverage: deleted lines and a deleted file never count and need no re
     "--- a/src/gone.ts",
     "+++ /dev/null",
     "@@ -1,3 +0,0 @@",
+    "-one",
+    "-two",
+    "-three",
     "diff --git a/src/a.ts b/src/a.ts",
     "--- a/src/a.ts",
     "+++ b/src/a.ts",
     "@@ -4,2 +3,0 @@",
+    "-four",
+    "-five",
   ].join("\n");
   assert.equal(judge(diff, lcovOf("src/a.ts", { 4: 0, 5: 0 }), ROOT).code, NA);
 });
@@ -118,6 +126,8 @@ test("diff-coverage: a renamed file counts only its changed lines", () => {
     "--- a/src/old.ts",
     "+++ b/src/new.ts",
     "@@ -5 +5 @@",
+    "-const old = 1;",
+    "+const now = 1;",
   ].join("\n");
   const r = judge(diff, lcovOf("src/new.ts", { ...hits(9, 0), 5: 1 }), ROOT);
   assert.equal(r.code, PASS);
@@ -138,6 +148,38 @@ test("diff-coverage: changed lines that all lack coverage data are not applicabl
   );
   assert.equal(r.code, NA);
   assert.equal(r.summary, "2 changed line(s) without coverage data");
+});
+
+test("diff-coverage: an added line that reads like a file header stays content of its hunk", () => {
+  const diff = [
+    "diff --git a/src/a.ts b/src/a.ts",
+    "--- a/src/a.ts",
+    "+++ b/src/a.ts",
+    "@@ -0,0 +1 @@",
+    "+++ x",
+    "@@ -1,0 +3 @@",
+    "+z",
+  ].join("\n");
+  const r = judge(diff, lcovOf("src/a.ts", { 1: 1, 3: 0 }), ROOT);
+  assert.equal(r.code, FINDING);
+  assert.deepEqual(r.details, ["src/a.ts:3"]);
+});
+test("diff-coverage: a path git quoted cannot be checked, a path with a space and git's tab is read", () => {
+  const quoted = diffOf("src/a.ts", [1, 1]).replace(
+    "+++ b/src/a.ts",
+    '+++ "b/src/\\303\\274.ts"',
+  );
+  const r = judge(quoted, lcovOf("src/a.ts", { 1: 1 }), ROOT);
+  assert.equal(r.code, CANNOT);
+  assert.match(r.summary, /cannot read/);
+  const spaced = diffOf("src/a b.ts", [1, 1]).replace(
+    "+++ b/src/a b.ts",
+    "+++ b/src/a b.ts\t",
+  );
+  assert.equal(
+    judge(spaced, lcovOf("src/a b.ts", { 1: 0 }), ROOT).code,
+    FINDING,
+  );
 });
 
 // The step on a fixture repository: origin/main is the first commit, the change is staged on top.
@@ -170,6 +212,12 @@ function fixture(files: Record<string, string>): string {
 
 test("diff-coverage step: a changed line the tests do not reach is a finding", () => {
   const out = expect("diff-coverage", fixture({ "src/a.ts": MODULE }), FINDING);
+  assert.match(out, /src\/a\.ts:3$/m);
+});
+test("diff-coverage step: a contributor's diff prefix setting does not hide a changed file", () => {
+  const root = fixture({ "src/a.ts": MODULE });
+  git(root, "config", "diff.mnemonicPrefix", "true");
+  const out = expect("diff-coverage", root, FINDING);
   assert.match(out, /src\/a\.ts:3$/m);
 });
 test("diff-coverage step: a new file no test imports is in the report at 0 % and is a finding", () => {
@@ -210,6 +258,7 @@ test("diff-coverage step: a test run that writes no lcov report cannot check", (
     extraEnv: { VITEST_BIN: join(tempDir(), "no-vitest") },
   });
   assert.match(out, /wrote no reports\/test\/coverage\/lcov\.info/);
+  assert.match(out, /cannot run .*no-vitest: ENOENT/);
 });
 test("diff-coverage step: a push to main is left to its pull request", () => {
   const root = fixture({ "src/a.ts": MODULE });

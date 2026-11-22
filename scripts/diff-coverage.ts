@@ -14,30 +14,43 @@ import {
   isResult,
   NA,
   result,
+  tail,
   testRun,
 } from "./gate-step.ts";
 import type { Result } from "./gate-step.ts";
 import { CANNOT, FINDING, PASS } from "./pinned.ts";
 
 const FLOOR = 95;
-const HUNK = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/;
+const HUNK = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
-/** The changed lines per file on the new side of a `git diff -U0` (a deleted file has none). */
+/**
+ * The changed lines per file on the new side of a `git diff -U0` with the prefixes a/ and b/ (a deleted file has
+ * none). A file header whose path the reader cannot take (no b/ prefix: git quoted it) is kept as `"` + the raw path.
+ * Inside a hunk a line is content, so an added line that starts with `++ ` is never read as a header.
+ */
 export function changedLines(diff: string): Map<string, number[]> {
   const files = new Map<string, number[]>();
   let lines: number[] | null = null;
+  let content = 0; // lines of the current hunk still to come, old and new side
   for (const line of diff.split("\n")) {
+    if (content > 0) {
+      content--;
+      continue;
+    }
     if (line.startsWith("+++ ")) {
-      const path = line.slice(4);
+      const path = line.slice(4).replace(/\t$/, ""); // git ends a path holding a space with a tab
       lines = path === "/dev/null" ? null : [];
-      if (lines) files.set(path.replace(/^b\//, ""), lines);
+      if (lines)
+        files.set(path.startsWith("b/") ? path.slice(2) : `"${path}`, lines);
       continue;
     }
     const h = HUNK.exec(line);
-    if (h && lines) {
-      const start = Number(h[1]);
-      const count = h[2] === undefined ? 1 : Number(h[2]);
-      for (let n = start; n < start + count; n++) lines.push(n);
+    if (h) {
+      const count = (n: string | undefined): number =>
+        n === undefined ? 1 : Number(n);
+      const start = Number(h[2]);
+      for (let n = start; n < start + count(h[3]); n++) lines?.push(n);
+      content = count(h[1]) + count(h[3]);
     }
   }
   return files;
@@ -67,14 +80,28 @@ export function readLcov(
 const realOr = (path: string): string =>
   existsSync(path) ? realpathSync(path) : path;
 
+/** The changed lines under src/ per file, sorted, and the changed paths the reader cannot read. */
+export function sourceChanges(diff: string): {
+  changed: [string, number[]][];
+  unreadable: string[];
+} {
+  const all = [...changedLines(diff)].filter(([, lines]) => lines.length);
+  return {
+    changed: all
+      .filter(([file]) => isCovered(file))
+      .sort(([a], [b]) => a.localeCompare(b)),
+    unreadable: all.filter(([f]) => f.startsWith('"')).map(([f]) => f.slice(1)),
+  };
+}
+
 /** The figure for one diff and one lcov report, read against `root`. */
 export function judge(diff: string, lcov: string, root: string): Result {
+  const { changed, unreadable } = sourceChanges(diff);
+  if (unreadable.length)
+    return result(CANNOT, "a changed path the reader cannot read", unreadable);
+  if (!changed.length) return result(NA, "no changed line under src/");
   const report = readLcov(lcov, root);
   if (!report.size) return result(CANNOT, "the coverage report lists no file");
-  const changed = [...changedLines(diff)]
-    .filter(([file, lines]) => isCovered(file) && lines.length)
-    .sort(([a], [b]) => a.localeCompare(b));
-  if (!changed.length) return result(NA, "no changed line under src/");
   const absent = changed.filter(([file]) => !report.has(file)).map(([f]) => f);
   if (absent.length)
     return result(
@@ -106,9 +133,11 @@ export function judge(diff: string, lcov: string, root: string): Result {
 }
 
 /**
- * The step. The reader must first find the planted uncovered line of its canary; then the shared test run's lcov and
- * the diff to the base are judged. A push is checked on its pull request. A new file counts once it is tracked: the
- * diff to the working tree does not list an untracked file (CI's checkout has none).
+ * The step. The reader must first find the planted uncovered line of its canary; then the diff to the base is read,
+ * and only when it changes a line under src/ is the shared test run's lcov report judged. A push is checked on its
+ * pull request. A new file counts once it is tracked: the diff to the working tree does not list an untracked file
+ * (CI's checkout has none). The prefixes and the path quoting are set here, so a contributor's git config (for
+ * example `diff.mnemonicPrefix`) cannot hide a file.
  */
 export function check(root: string): Result {
   const planted = canaries("diff-coverage");
@@ -127,19 +156,18 @@ export function check(root: string): Result {
   if (isResult(base)) return base;
   if (base.kind === "push" || !base.base)
     return result(NA, "a push is checked on its pull request");
-  const run = testRun(root);
-  if (isResult(run)) return run;
-  const lcov = join(root, COVERAGE_DIR, "lcov.info");
-  if (!existsSync(lcov))
-    return result(CANNOT, `the test run wrote no ${COVERAGE_DIR}/lcov.info`);
   const diff = spawnSync(
     "git",
     [
       "-C",
       root,
+      "-c",
+      "core.quotePath=false",
       "diff",
       "-U0",
       "-M",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
       "--no-color",
       "--no-ext-diff",
       base.base,
@@ -152,5 +180,16 @@ export function check(root: string): Result {
     return result(CANNOT, `git diff against ${base.base} failed`, [
       diff.stderr.trim(),
     ]);
+  const { changed, unreadable } = sourceChanges(diff.stdout);
+  if (unreadable.length || !changed.length) return judge(diff.stdout, "", root);
+  const run = testRun(root);
+  if (isResult(run)) return run;
+  const lcov = join(root, COVERAGE_DIR, "lcov.info");
+  if (!existsSync(lcov))
+    return result(
+      CANNOT,
+      `the test run wrote no ${COVERAGE_DIR}/lcov.info`,
+      run.error ? [run.error] : tail(run.out),
+    );
   return judge(diff.stdout, readFileSync(lcov, "utf8"), root);
 }
