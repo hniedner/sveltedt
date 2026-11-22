@@ -198,7 +198,8 @@ Development dependencies on the same terms as the test toolchain.
   its caller and any match slower than 50 ms, run with a test run, the site build and the dev server. Not run under
   it, and inferred to take their patterns from the same tracked config: coverage (its include is the gate's fixed
   `src/**/*.{ts,svelte}`, no extglob), a mutation runner once it is added, and vite's server-side resolve paths. A
-  bump of vite, vitest, @sveltejs/vite-plugin-svelte or @tailwindcss/vite re-opens this claim: before it merges, picomatch is logged again the same way.
+  bump of vite, vitest, @sveltejs/vite-plugin-svelte or @tailwindcss/vite re-opens this claim: before it merges,
+  picomatch is logged again the same way.
 - **Covers** every path that brings in an affected picomatch (<= 4.0.7): a pull request that adds such a path to
   `pnpm-lock.yaml` is a ruling request. A runtime path cannot merge: the gate fails any runtime dependency but a
   `svelte` peer.

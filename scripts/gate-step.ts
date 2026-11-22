@@ -199,8 +199,9 @@ export function commitRange(root: string): Result | { range: string } {
 
 /**
  * Where the shared test run writes its lcov report, and which files it measures: TypeScript and components under src/
- * (Vitest's default exclude leaves the test files out, measured) (G4). `isCovered` is the same rule for a path, so the
- * report and the diff agree.
+ * (G4). The report leaves out the files the config's `test.include` runs as tests (measured with the
+ * `.test.ts` files under src/); `isCovered` is the same rule for a path, so the report and the diff agree while tests
+ * end in `.test.ts`.
  */
 export const COVERAGE_DIR = "reports/test/coverage";
 const COVERAGE_INCLUDE = "src/**/*.{ts,svelte}";
