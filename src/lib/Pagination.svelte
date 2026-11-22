@@ -38,6 +38,13 @@
         </select></label
       >
     {/if}
+    <span
+      >{words.info({
+        first: state.firstRow,
+        last: state.lastRow,
+        total: props.total,
+      })}</span
+    >
     <button
       type="button"
       aria-label={words.firstPage}

@@ -51,6 +51,16 @@ export const pagerWords = {
   pageNumber: (page: number) => number.format(page),
   sizeLabel: "rows per page",
   sizeOption: (size: number) => number.format(size),
+  info: ({
+    first,
+    last,
+    total,
+  }: {
+    first: number;
+    last: number;
+    total: number;
+  }) =>
+    `Showing ${number.format(first)} to ${number.format(last)} of ${number.format(total)} ${total === 1 ? "row" : "rows"}`,
   totalInvalid: "The row total is not a valid number.",
   offsetInvalid: "The page offset is not a valid number.",
   limitInvalid: "The page size is not a valid number.",

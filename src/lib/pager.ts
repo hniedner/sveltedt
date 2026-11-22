@@ -28,6 +28,9 @@ export interface PagerState {
   previous: number;
   next: number;
   last: number;
+  // The information line's first and last row, counted from 1; both 0 with no row on the page (PAGE-37)
+  firstRow: number;
+  lastRow: number;
 }
 
 // Where the pager stands, from the section 8 preamble: every target is on the page grid (PAGE-27)
@@ -39,6 +42,8 @@ export function pagerState(
   const pages = Math.max(1, Math.ceil(total / limit));
   const past = offset > 0 && offset >= total;
   const page = past ? pages : Math.floor(offset / limit) + 1;
+  // The answer holds every row of its page up to `total` (PAGE-37); with none, first and last are 0
+  const lastRow = past ? 0 : Math.min(offset + limit, total);
   return {
     pages,
     page,
@@ -50,6 +55,8 @@ export function pagerState(
     previous: past ? (pages - 1) * limit : Math.max(0, (page - 2) * limit),
     next: page * limit,
     last: (pages - 1) * limit,
+    firstRow: lastRow === 0 ? 0 : offset + 1,
+    lastRow,
   };
 }
 

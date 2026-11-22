@@ -461,3 +461,22 @@ describe("PAGE-16", () => {
     expect(nav().isConnected).toBe(true);
   });
 });
+
+// @spec("PAGE-37", "2fc2897d")
+describe("PAGE-37", () => {
+  it.each<[number, number, string]>([
+    [0, 57, "Showing 1 to 10 of 57 rows"],
+    [50, 57, "Showing 51 to 57 of 57 rows"],
+    [0, 1, "Showing 1 to 1 of 1 row"],
+    [0, 0, "Showing 0 to 0 of 0 rows"],
+    [90, 90, "Showing 0 to 0 of 90 rows"],
+    [100, 95, "Showing 0 to 0 of 95 rows"],
+    [1000, 12345, "Showing 1,001 to 1,010 of 12,345 rows"],
+  ])(
+    "at offset %i of total %i shows the line %j as visible text",
+    (offset, total, line) => {
+      mount({ offset, limit: 10, total });
+      expect(within(nav()).getByText(line).isConnected).toBe(true);
+    },
+  );
+});
