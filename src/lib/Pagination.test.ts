@@ -663,3 +663,29 @@ describe("PAGE-39", () => {
     }
   });
 });
+
+// @spec("PAGE-40", "e030c81e")
+describe("PAGE-40", () => {
+  it.each<[string, number[]]>([
+    ["sizes [10, 25]", [10, 25]],
+    ["sizes []", []],
+  ])(
+    "with %s puts the line after the page-size select, if any, and before First page",
+    (_case, sizes) => {
+      mount({ offset: 100, limit: 10, total: 200, sizes });
+      const line = within(nav()).getByText("Showing 101 to 110 of 200 rows");
+      expect(follows(line, button("First page"))).toBe(true);
+      const select = within(nav()).queryByRole("combobox");
+      if (sizes.length > 0) expect(follows(select!, line)).toBe(true);
+      else
+        expect(
+          [...nav().querySelectorAll("*")].every(
+            (element) =>
+              element === line ||
+              follows(line, element) ||
+              element.contains(line),
+          ),
+        ).toBe(true);
+    },
+  );
+});
