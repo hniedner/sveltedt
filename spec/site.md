@@ -273,6 +273,28 @@ output when it listens, and MUST write nothing there when it refuses.
 - Layer: component.
 - Traces: PRD-W5.
 
+**LIST-04** The list page MUST page its rows with the pager below the table, the page itself going back to the
+first page on a sort and keeping the first row shown on a size change.
+- Examples (the test runs the rows in order on one mounted list page, which starts at offset 0, size 25, sizes 5, 10
+  and 25; the pager is the `nav` named "Orders pages", after the table):
+
+  | Step | First cells of the body rows | Information line |
+  |---|---|---|
+  | mounted | the 20 rows in the order of LIST-02 | "Showing 1 to 20 of 20 rows" |
+  | choose 5 in "rows per page" | "Order 07", "Order 03", "Order 15", "Order 01", "Order 20" | "Showing 1 to 5 of 20 rows" |
+  | press "Page 4" | "Order 19", "Order 04", "Order 12", "Order 16", "Order 08" | "Showing 16 to 20 of 20 rows" |
+  | choose 10 in "rows per page" | the 11th to 20th of LIST-02, "Order 02" to "Order 08" | "Showing 11 to 20 of 20 rows" |
+  | press "Sort by Order" | "Order 01" to "Order 10" | "Showing 1 to 10 of 20 rows" |
+
+  The size row tells the rules apart: a page that kept offset 15 would show the 16th to 20th rows, one that went
+  back to offset 0 the 1st to 10th.
+- Reason: the pager is a separate component the application wires; the page shows that wiring where a consumer
+  uses it. A sort draws from the first page and a size change keeps the first row shown on the shown page, as
+  DataTables does (3.1.5 source: a sort redraws without holding its position, `displayStart = 0`; a size change sets
+  `start -= start % len`), and as CONN-27 states for the connection helper.
+- Layer: component.
+- Traces: PRD-W5.
+
 ## 4. The strict policy on the site (POL)
 
 **POL-01** Each HTML page the build folder holds MUST load the listener from the site's own origin so that it runs
@@ -547,6 +569,7 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
 | LIST-01 | PRD-W5 |
 | LIST-02 | PRD-W5 |
 | LIST-03 | PRD-W5 |
+| LIST-04 | PRD-W5 |
 | POL-01 | PRD-W4, PRD-S1 |
 | POL-02 | PRD-W4, PRD-S1 |
 | POL-03 | PRD-W4 |
@@ -568,7 +591,7 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
 | PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04, FULL-06 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
-| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03 | in part: sort by more than one column, both filter kinds, clear and reset, the pager with sizes and the fixed 48 px app bar come with later parts |
+| PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03, LIST-04 | in part: sort by more than one column, both filter kinds, clear and reset, sizes up to 1000 (PRD-P6) and the fixed 48 px app bar come with later parts |
 | PRD-S1 | POL-01, POL-02, POL-04, VIEW-04, FULL-06 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 | PRD-W6 | FULL-01, FULL-02, FULL-03, FULL-04, FULL-05, FULL-06 | in part: the table that `spec/table.md` sections 16 and 18 run on; the page's answers to intents other than the sort and its loading and failed states come with the part that brings the JSON endpoint and the dataset; the rest of PRD-W6 comes later |
 | PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04, FULL-03 | in part: the token set, the density and the variants (`hover` on shows its surface once a later theming branch states it); `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
