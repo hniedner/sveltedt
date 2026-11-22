@@ -421,6 +421,8 @@ export function canaryDir(step: string, files: Record<string, string>): string {
   for (const [name, t] of Object.entries(files)) put(dir, join(step, name), t);
   return dir;
 }
+// Prettier and ESLint skip a file under a node_modules folder; only the root one is git-ignored, so one can be tracked.
+export const UNDER_NODE_MODULES = "docs/node_modules/note";
 // A nested Prettier config would change what "formatted" means in its folder (and a prettier.config.mjs would run).
 export const nested = (data: string) => (root: string) => {
   put(root, "sub/.prettierrc.json", '{ "tabWidth": 4 }\n');
