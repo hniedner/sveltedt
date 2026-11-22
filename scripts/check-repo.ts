@@ -5,7 +5,7 @@
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 // The files the steps classify and scan come from `git ls-files`; configuration, pins and canaries are read from disk.
 import { createHash } from "node:crypto";
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
   closeSync,
   existsSync,
@@ -19,7 +19,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -87,8 +87,14 @@ const REQUIRED = [
   ".github/dependabot.yml",
   ".github/CODEOWNERS",
   "scripts/check-repo.test.ts",
+  "scripts/check-repo-hooks.test.ts",
+  "scripts/check-repo-lint.test.ts",
+  "scripts/check-repo-site.test.ts",
+  "scripts/check-repo-tools.test.ts",
   "scripts/scan-secrets.ts",
   "scripts/scan-secrets.test.ts",
+  "scripts/setup.test.ts",
+  "scripts/trace.test.ts",
   "scripts/gitleaks.toml",
   "scripts/gitleaks.version",
 ];
@@ -396,23 +402,35 @@ function actionlint(root: string, list: Set<string>): Result {
   );
 }
 
-function runTestFile(
+async function runTestFile(
   root: string,
   file: string,
-): { code: number; line: string } {
+): Promise<{ code: number; line: string }> {
   if (!existsSync(join(root, file)))
     return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
-  const r = spawnSync(
-    process.execPath,
-    ["--test-reporter=tap", join(root, file)],
-    { cwd: root, encoding: "utf8", env: childEnv() },
-  );
+  const r = await new Promise<{
+    status: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+  }>((resolve) => {
+    const child = spawn(
+      process.execPath,
+      ["--test-reporter=tap", join(root, file)],
+      { cwd: root, env: childEnv(), stdio: ["ignore", "pipe", "ignore"] },
+    );
+    let stdout = "";
+    child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
+    child.on("error", () => resolve({ status: null, signal: null, stdout }));
+    child.on("close", (status, signal) => resolve({ status, signal, stdout }));
+  });
   const count = (name: string): number =>
     Number(new RegExp(`^# ${name} (\\d+)$`, "m").exec(r.stdout)?.[1] ?? NaN);
   const [tests, pass, fail] = [count("tests"), count("pass"), count("fail")];
+  // A file killed by a signal (out of memory on a busy runner) says so instead of "exit null"
+  const end = r.signal ? `killed by ${r.signal}` : `exit ${r.status}`;
   if (!(tests > 0))
-    return { code: CANNOT, line: `${file}: no test ran (exit ${r.status})` };
+    return { code: CANNOT, line: `${file}: no test ran (${end})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
     const failed = r.stdout
       .split("\n")
@@ -420,24 +438,30 @@ function runTestFile(
       .map((l) => `  ${l.trim()}`);
     return {
       code: FINDING,
-      line: [
-        `${file}: ${fail} of ${tests} failed (exit ${r.status})`,
-        ...failed,
-      ].join("\n"),
+      line: [`${file}: ${fail} of ${tests} failed (${end})`, ...failed].join(
+        "\n",
+      ),
     };
   }
   return { code: PASS, line: `${file}: ${tests} passed` };
 }
 
-// Every tracked test file runs, each with its own count; a file with no test is could-not-check.
-function selftest(root: string, list: Set<string>): Result {
+// Every tracked test file runs in its own process, each with its own count, as many at once as the machine has cores;
+// a file with no test is could-not-check. The lines keep the order of the names, whichever file ends first.
+async function selftest(root: string, list: Set<string>): Promise<Result> {
   const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
   if (!files.length)
     return result(
       CANNOT,
       "no tracked test file scripts/*.test.mjs or scripts/*.test.ts",
     );
-  const runs = files.map((f) => runTestFile(root, f));
+  const runs: { code: number; line: string }[] = [];
+  let next = 0;
+  const lane = async (): Promise<void> => {
+    for (let i = next++; i < files.length; i = next++)
+      runs[i] = await runTestFile(root, files[i]);
+  };
+  await Promise.all(Array.from({ length: availableParallelism() }, lane));
   const details = runs.map((r) => r.line);
   if (runs.some((r) => r.code === FINDING))
     return result(FINDING, "a test file failed", details);
@@ -2609,7 +2633,7 @@ function hooks(root: string, list: Set<string>): Result {
   );
 }
 
-type Stage = [string, () => Result];
+type Stage = [string, () => Result | Promise<Result>];
 
 // The pre-commit hook. git runs it at the top of the work tree with its own environment, which names a temporary
 // index for `git commit -a` or `git commit <path>`: the staged list and the export below keep that environment. The
@@ -2887,10 +2911,10 @@ function words(root: string, range: string): Result {
 }
 
 /** Runs the stages in order, stopping at the first that does not pass; one not applicable is counted apart. */
-function runStages(name: string, stages: Stage[]): number {
+async function runStages(name: string, stages: Stage[]): Promise<number> {
   const notApplicable: string[] = [];
   for (const [step, check] of stages) {
-    const r = check();
+    const r = await check();
     const code = report(step, r);
     if (code !== PASS) return report(name, result(code, `stopped at ${step}`));
     if (r.code === NA) notApplicable.push(step);
@@ -2909,7 +2933,10 @@ function runStages(name: string, stages: Stage[]): number {
 
 // `all` stops at the first step that does not pass, so the order is toolchain, secrets, hooks: a pull request red on
 // any later step, `hooks` included, still gets its secret scan in CI, which has no other.
-const CHECKS: Record<string, Check> = {
+const CHECKS: Record<
+  string,
+  (root: string, list: Set<string>) => Result | Promise<Result>
+> = {
   toolchain,
   secrets,
   hooks,
@@ -2942,7 +2969,7 @@ function report(name: string, r: Result): number {
   return r.code === NA ? PASS : r.code;
 }
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
   const [name, ...rest] = argv;
   if (name === "needs") return report("needs", needs(rest[0]));
   if (name === "commit-msg") return report(name, commitMsg(rest[0]));
@@ -2973,7 +3000,7 @@ function main(argv: string[]): number {
       name,
       result(CANNOT, `${root}: git ls-files failed or lists nothing`),
     );
-  if (name !== "all") return report(name, CHECKS[name](root, list));
+  if (name !== "all") return report(name, await CHECKS[name](root, list));
   return runStages(
     "all",
     Object.entries(CHECKS).map(([step, check]) => [
@@ -2984,7 +3011,7 @@ function main(argv: string[]): number {
 }
 
 try {
-  process.exitCode = main(process.argv.slice(2));
+  process.exitCode = await main(process.argv.slice(2));
 } catch (e) {
   console.log(
     `USAGE check-repo: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
