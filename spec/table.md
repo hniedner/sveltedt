@@ -2426,9 +2426,9 @@ receives that number.
 
   The defaults group digits the English way whatever the runtime's default locale: the test calls each row's default
   function once more, directly and without mounting, in a process started with a German default locale (`LANG` and
-  `LC_ALL` `de_DE.UTF-8`) and expects the English column; that run first asserts that the runtime's own default formatting gives "1.000" and
-  that `navigator.language` and `navigator.languages` are German, so a locale that did not take effect fails instead
-  of passing.
+  `LC_ALL` `de_DE.UTF-8`) and expects the English column; that run first asserts that the runtime's own default
+  formatting gives "1.000" and that `navigator.language` and `navigator.languages` are German, so a locale that did
+  not take effect fails instead of passing.
 - Reason: digits, grouping and plural forms differ by language (PRD-I2).
 - Layer: component.
 - Traces: PRD-I2, PRD-I1, PRD-B26.
