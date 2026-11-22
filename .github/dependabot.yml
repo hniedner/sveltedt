@@ -33,6 +33,11 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     groups:
+      # First: a dependency goes to the first group it matches, so Vitest and its coverage provider, which pins the same
+      # version, move in one pull request, a major included.
+      vitest:
+        applies-to: version-updates
+        patterns: ["vitest", "@vitest/coverage-v8"]
       npm-minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
