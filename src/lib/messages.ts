@@ -1,12 +1,16 @@
 import type { DataTableMessages, PaginationMessages } from "./types.ts";
 
+// Numbers group the English way whatever the runtime's locale (I18N-01)
+const number = new Intl.NumberFormat("en-US");
+
 // The English default of every fixed word the table shows or announces (RND-06, SORT-17). The alert texts hold no
 // value taken from the input (RND-09).
 export const defaultMessages: DataTableMessages = {
   loading: "Loading data…",
   failed: "The data could not be loaded.",
   empty: "No data.",
-  rowCount: (count) => `${count} ${count === 1 ? "row" : "rows"} displayed`,
+  rowCount: (count) =>
+    `${number.format(count)} ${count === 1 ? "row" : "rows"} displayed`,
   captionEmpty: "Table caption must not be empty.",
   regionLabelEmpty: "Table region label must not be empty.",
   noColumns: "Table has no columns.",
@@ -37,9 +41,6 @@ export const defaultMessages: DataTableMessages = {
   sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
   sortColumnDuplicate: "The sort names a column twice.",
 };
-
-// Numbers group the English way whatever the runtime's locale
-const number = new Intl.NumberFormat("en-US");
 
 // The pager's English words, the information line's included (PAGE-37, PAGE-38), and the alert texts of PAGE-16
 export const defaultPagerMessages: PaginationMessages = {
