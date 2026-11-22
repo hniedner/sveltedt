@@ -6,6 +6,7 @@ export type {
   DataTableProps,
   DataTableSortEntry,
   DataTableStatus,
+  PaginationMessages,
   PaginationProps,
   SortDirection,
 } from "./types.ts";

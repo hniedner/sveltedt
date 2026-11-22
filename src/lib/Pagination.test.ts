@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import Pagination from "./Pagination.svelte";
-import type { PaginationProps } from "./types.ts";
+import type { PaginationMessages, PaginationProps } from "./types.ts";
 
 // Mounts the pager over `offset 0, limit 10, total 95`, labelled "Pages of orders", with handlers that record their
 // calls and pass nothing back
@@ -494,6 +494,115 @@ describe("PAGE-38", () => {
     (total, unfilteredTotal, line) => {
       mount({ offset: 0, limit: 10, total, unfilteredTotal });
       expect(within(nav()).getByText(line).isConnected).toBe(true);
+    },
+  );
+});
+
+// One input per alert key of PAGE-16, for the rows that show an alert
+const FAULTS: Record<keyof typeof PAGER_ALERTS, Partial<PaginationProps>> = {
+  totalInvalid: { total: -1 },
+  offsetInvalid: { offset: -1 },
+  limitInvalid: { limit: 0 },
+  labelEmpty: { label: "" },
+  sizesInvalid: { sizes: [0] },
+  limitNotInSizes: { sizes: [25] },
+  pageHandlerMissing: { onpage: undefined },
+  sizeHandlerMissing: { sizes: [10], onsize: undefined },
+  unfilteredTotalInvalid: { unfilteredTotal: -1 },
+};
+
+// @spec("PAGE-19", "d34a47bf")
+describe("PAGE-19", () => {
+  const foreign: PaginationMessages = {
+    firstPage: "Erste Seite",
+    previousPage: "Vorherige Seite",
+    nextPage: "Nächste Seite",
+    lastPage: "Letzte Seite",
+    pageLabel: (page) => `Seite ${page}`,
+    pageNumber: (page) => `#${page}`,
+    sizeLabel: "Zeilen pro Seite",
+    sizeOption: (size) => `${size} Zeilen`,
+    info: ({ first, last, total }) =>
+      `Zeilen ${first} bis ${last} von ${total}`,
+    infoFiltered: (total) => `(gefiltert aus ${total})`,
+    ...(Object.fromEntries(
+      Object.keys(PAGER_ALERTS).map((key) => [key, `F-${key}`]),
+    ) as typeof PAGER_ALERTS),
+  };
+  const english = [
+    ...STEPS,
+    "Page ",
+    "rows per page",
+    "Showing",
+    "filtered from",
+    ...Object.values(PAGER_ALERTS),
+  ];
+  // Page 6 of 10 with sizes and an unfiltered total: every word but the alerts is on show
+  const onShow: Partial<PaginationProps> = {
+    offset: 50,
+    sizes: [10, 25],
+    unfilteredTotal: 1000,
+  };
+  const everything = (): string =>
+    [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+        [...element.attributes].map((attribute) => attribute.value),
+      ),
+    ].join("\n");
+
+  it("shows each given word where its statement says, and no English default", () => {
+    mount({ ...onShow, messages: foreign });
+    for (const name of [
+      "Erste Seite",
+      "Vorherige Seite",
+      "Nächste Seite",
+      "Letzte Seite",
+    ])
+      expect(button(name).isConnected).toBe(true);
+    expect(button("Seite 6").textContent.trim()).toBe("#6");
+    const select = within(nav()).getByRole<HTMLSelectElement>("combobox", {
+      name: "Zeilen pro Seite",
+    });
+    expect([...select.options].map((option) => option.text)).toEqual([
+      "10 Zeilen",
+      "25 Zeilen",
+    ]);
+    expect(
+      within(nav()).getByText("Zeilen 51 bis 60 von 95 (gefiltert aus 1000)")
+        .isConnected,
+    ).toBe(true);
+    for (const word of english) expect(everything()).not.toContain(word);
+  });
+
+  it.each(Object.keys(FAULTS) as (keyof typeof PAGER_ALERTS)[])(
+    "shows the given alert word for %s",
+    (key) => {
+      mount({ ...FAULTS[key], messages: foreign });
+      expect(screen.getByRole("alert").textContent).toBe(`F-${key}`);
+    },
+  );
+
+  // A caller the type does not reach: untyped translation data, one entry of each kind
+  it.each<[string, keyof PaginationMessages, unknown, string]>([
+    ["undefined", "firstPage", undefined, "First page"],
+    ["null", "previousPage", null, "Previous page"],
+    ["a number for a word", "nextPage", 5, "Next page"],
+    ["a text for a function", "pageLabel", "Seite", "Page 6"],
+    ["an empty text", "lastPage", "", "Last page"],
+    ["a blank text", "sizeLabel", "  ", "rows per page"],
+  ])(
+    "keeps the English default when an entry is %s (%s)",
+    (_kind, key, entry, name) => {
+      mount({
+        ...onShow,
+        messages: { [key]: entry } as unknown as Partial<PaginationMessages>,
+      });
+      expect(
+        within(nav()).getByRole(key === "sizeLabel" ? "combobox" : "button", {
+          name,
+        }).isConnected,
+      ).toBe(true);
     },
   );
 });
