@@ -107,7 +107,7 @@ test("diff-coverage: deleted lines and a deleted file never count and need no re
     "+++ b/src/a.ts",
     "@@ -4,2 +3,0 @@",
   ].join("\n");
-  assert.equal(judge(diff, lcovOf("src/a.ts", { 3: 0 }), ROOT).code, NA);
+  assert.equal(judge(diff, lcovOf("src/a.ts", { 4: 0, 5: 0 }), ROOT).code, NA);
 });
 test("diff-coverage: a renamed file counts only its changed lines", () => {
   const diff = [
