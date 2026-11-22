@@ -480,3 +480,20 @@ describe("PAGE-37", () => {
     },
   );
 });
+
+// @spec("PAGE-38", "66cd1522")
+describe("PAGE-38", () => {
+  it.each<[number, number | undefined, string]>([
+    [57, 1000, "Showing 1 to 10 of 57 rows (filtered from 1,000 total rows)"],
+    [57, 57, "Showing 1 to 10 of 57 rows"],
+    [57, undefined, "Showing 1 to 10 of 57 rows"],
+    [0, 1, "Showing 0 to 0 of 0 rows (filtered from 1 total row)"],
+    [57, 50, "Showing 1 to 10 of 57 rows (filtered from 50 total rows)"],
+  ])(
+    "with total %i and unfilteredTotal %s shows the line %j",
+    (total, unfilteredTotal, line) => {
+      mount({ offset: 0, limit: 10, total, unfilteredTotal });
+      expect(within(nav()).getByText(line).isConnected).toBe(true);
+    },
+  );
+});

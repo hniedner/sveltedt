@@ -10,6 +10,17 @@
   const state = $derived(pagerState(props.offset, props.limit, props.total));
   const items = $derived(pageNumbers(state.page - 1, state.pages));
   const sizes = $derived(props.sizes ?? []);
+  // The information line; the unfiltered total follows only when it differs (PAGE-37, PAGE-38)
+  const info = $derived(
+    words.info({
+      first: state.firstRow,
+      last: state.lastRow,
+      total: props.total,
+    }) +
+      (props.unfilteredTotal != null && props.unfilteredTotal !== props.total
+        ? ` ${words.infoFiltered(props.unfilteredTotal)}`
+        : ""),
+  );
 
   // A step that cannot move stays a focusable button and emits nothing (PAGE-05, PAGE-13)
   function step(can: boolean, offset: number): void {
@@ -38,13 +49,7 @@
         </select></label
       >
     {/if}
-    <span
-      >{words.info({
-        first: state.firstRow,
-        last: state.lastRow,
-        total: props.total,
-      })}</span
-    >
+    <span>{info}</span>
     <button
       type="button"
       aria-label={words.firstPage}
