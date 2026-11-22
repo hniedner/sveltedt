@@ -51,6 +51,7 @@ import {
   vitestBin,
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
+import { check as diffCoverage } from "./diff-coverage.ts";
 import { check as trace, judgeResults, readMarkers } from "./trace.ts";
 import type { Ran } from "./trace.ts";
 
@@ -2953,6 +2954,7 @@ const CHECKS: Record<
   inline,
   test,
   trace,
+  "diff-coverage": diffCoverage,
   browser,
   dupes,
   commits,
