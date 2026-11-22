@@ -273,8 +273,8 @@ output when it listens, and MUST write nothing there when it refuses.
 - Layer: component.
 - Traces: PRD-W5.
 
-**LIST-04** The list page MUST page its rows with the pager below the table, the page itself going back to the
-first page on a sort and keeping the first row shown on a size change.
+**LIST-04** The list page MUST page its rows with the pager after the table, the page itself going back to the
+first page on a sort and, on a size change, to the page of the new size that holds the first row shown.
 - Examples (the test runs the rows in order on one mounted list page, which starts at offset 0, size 25, sizes 5, 10
   and 25; the pager is the `nav` named "Orders pages", after the table):
 
@@ -287,7 +287,8 @@ first page on a sort and keeping the first row shown on a size change.
   | press "Sort by Order" | "Order 01" to "Order 10" | "Showing 1 to 10 of 20 rows" |
 
   The size row tells the rules apart: a page that kept offset 15 would show the 16th to 20th rows, one that went
-  back to offset 0 the 1st to 10th.
+  back to offset 0 the 1st to 10th. The sort row starts at offset 10: a sort that kept the page would show "Order 11"
+  to "Order 20".
 - Reason: the pager is a separate component the application wires; the page shows that wiring where a consumer
   uses it. A sort draws from the first page and a size change keeps the first row shown on the shown page, as
   DataTables does (3.1.5 source: a sort redraws without holding its position, `displayStart = 0`; a size change sets

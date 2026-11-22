@@ -73,9 +73,9 @@ describe("LIST-03", () => {
   });
 });
 
-// @spec("LIST-04", "fe2180d0")
+// @spec("LIST-04", "9bab45c0")
 describe("LIST-04", () => {
-  it("pages its rows, back to page 1 on a sort, the first row kept on a size change", async () => {
+  it("pages its rows, back to page 1 on a sort, on a size change to the page that holds the first row shown", async () => {
     render(ListPage);
     const fixed = orders.map((order) => order.name);
     const pager = screen.getByRole("navigation", { name: "Orders pages" });
@@ -90,6 +90,12 @@ describe("LIST-04", () => {
       within(pager).getByText(/^Showing /).textContent ?? "",
     ];
     expect(shown()).toEqual([fixed, "Showing 1 to 20 of 20 rows"]);
+    expect([
+      size.value,
+      within(size)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ]).toEqual(["25", ["5", "10", "25"]]);
     await fireEvent.change(size, { target: { value: "5" } });
     expect(shown()).toEqual([fixed.slice(0, 5), "Showing 1 to 5 of 20 rows"]);
     await fireEvent.click(
