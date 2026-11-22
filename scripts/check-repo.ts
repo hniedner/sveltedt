@@ -862,6 +862,10 @@ const SUPPRESSION = new RegExp(
     ["@ts-", "nocheck"],
     ["jscpd:", "ignore"],
     ["prettier-", "ignore"],
+    // coverage hints, which take a line out of diff-coverage's count (G4)
+    ["v8 ", "ignore"],
+    ["c8 ", "ignore"],
+    ["istanbul ", "ignore"],
   ]
     .map((parts) => parts.join(""))
     .join("|"),
