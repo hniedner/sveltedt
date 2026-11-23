@@ -194,3 +194,16 @@ test.describe("THEME-11", () => {
     });
   }
 });
+
+// The list page takes the stylesheet through the package's export, as a consumer's application does, beside its own
+// Tailwind: its cells have the stylesheet's padding
+test("the list page's cells have the stylesheet's padding", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const cell = page.getByRole("cell").first();
+  await expect(cell).toBeAttached();
+  expect(
+    await cell.evaluate((element) => getComputedStyle(element).padding),
+  ).toBe("8px 12px");
+});
