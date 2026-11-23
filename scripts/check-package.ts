@@ -106,6 +106,21 @@ function root(c: Contents): Finding[] {
   });
 }
 
+/** The files a consumer's build runs, which PKG-07 reads: `.svelte` and `.js`, not the declarations. */
+export const runnable = (c: Contents): string[] =>
+  [...c.keys()].filter((p) => /\.(?:svelte|js)$/.test(p));
+const RELATIVE_TS = /\b(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']*\.ts)["']/g;
+
+/** PKG-07: no run file imports a relative module whose path ends in `.ts`. */
+function imports(c: Contents): Finding[] {
+  return runnable(c).flatMap((path) =>
+    [...(c.get(path)?.toString() ?? "").matchAll(RELATIVE_TS)].map((m) => ({
+      id: "PKG-07",
+      message: `${path} imports ${m[1]}`,
+    })),
+  );
+}
+
 /** PKG-05: `./styles.css` has exactly `style` and `default`, naming the same file, which the tarball holds. */
 function styles(c: Contents): Finding[] {
   const e = manifest(c)?.exports;
@@ -148,7 +163,13 @@ function notices(c: Contents, repo: Repo): Finding[] {
 
 /** Every statement over one tarball's contents, in the spec's order. */
 export function analyse(c: Contents, repo: Repo): Finding[] {
-  return [...root(c), ...shape(c), ...notices(c, repo), ...styles(c)];
+  return [
+    ...root(c),
+    ...shape(c),
+    ...notices(c, repo),
+    ...styles(c),
+    ...imports(c),
+  ];
 }
 
 /** The packed manifest with `exports["."]` replaced, or removed when `value` is undefined. */
@@ -171,6 +192,18 @@ const withStyles = (c: Contents, value: unknown): Contents => {
 };
 
 export const CANARIES: Canary[] = [
+  ...(
+    [
+      ["dist/A.svelte", 'import { x } from "./messages.ts";', true],
+      ["dist/index.js", 'import { x } from "./messages.ts";', true],
+      ["dist/types.d.ts", 'import type { T } from "./types.ts";', false],
+    ] as [string, string, boolean][]
+  ).map(([path, line, found]): Canary => ({
+    id: "PKG-07",
+    row: `${line} in ${path}`,
+    plant: (c) => put(c, path, `${line}\n`),
+    found,
+  })),
   ...(
     [
       [{ style: "./dist/styles.css" }, "no default", true],
@@ -260,14 +293,20 @@ export const CANARIES: Canary[] = [
   },
 ];
 
-/** The canary rows whose stated result the statements did not give, each as a line; none is a working check. */
+/**
+ * The canary rows whose stated result the statements did not give, each as a line; none is a working check. A row is
+ * judged by the findings its planting adds to those the base already has, so a finding in the real tarball is a
+ * finding, not a failed canary.
+ */
 export function missedCanaries(base: Contents, repo: Repo): string[] {
-  const missed = analyse(base, repo).map(
-    (f) => `the real contents gave ${f.id} ${f.message}`,
-  );
+  const text = (f: Finding): string => `${f.id} ${f.message}`;
+  const before = new Set(analyse(base, repo).map(text));
+  const missed: string[] = [];
   for (const k of CANARIES) {
-    const got = analyse(k.plant(base), repo).filter((f) => f.id === k.id);
-    if (got.length > 0 !== k.found)
+    const added = analyse(k.plant(base), repo).filter(
+      (f) => f.id === k.id && !before.has(text(f)),
+    );
+    if (added.length > 0 !== k.found)
       missed.push(`${k.id} row "${k.row}": ${k.found ? "not found" : "found"}`);
   }
   return missed;
@@ -302,6 +341,32 @@ function packed(root: string, dir: string): Contents | string {
   return files;
 }
 
+/** The verdict on one tarball's contents: canaries first, then the statements. */
+export function verdict(contents: Contents, repo: Repo): Result {
+  if (!manifest(contents))
+    return result(CANNOT, "the packed package.json cannot be read");
+  if (!runnable(contents).length)
+    return result(CANNOT, "no .svelte or .js file in the tarball to read");
+  const missed = missedCanaries(contents, repo);
+  if (missed.length)
+    return result(
+      CANNOT,
+      "a canary row did not give its stated result",
+      missed,
+    );
+  const findings = analyse(contents, repo);
+  if (findings.length)
+    return result(
+      FINDING,
+      `${findings.length} finding(s)`,
+      findings.map((f) => `${f.id} ${f.message}`),
+    );
+  return result(
+    PASS,
+    `${contents.size} file(s) in the tarball, canaries found`,
+  );
+}
+
 export function check(root: string): Result {
   const repo = {
     license: readFileSync(join(root, "LICENSE")),
@@ -310,27 +375,9 @@ export function check(root: string): Result {
   const dir = mkdtempSync(join(tmpdir(), "package-"));
   try {
     const contents = packed(root, dir);
-    if (typeof contents === "string") return result(CANNOT, contents);
-    if (!manifest(contents))
-      return result(CANNOT, "the packed package.json cannot be read");
-    const missed = missedCanaries(contents, repo);
-    if (missed.length)
-      return result(
-        CANNOT,
-        "a canary row did not give its stated result",
-        missed,
-      );
-    const findings = analyse(contents, repo);
-    if (findings.length)
-      return result(
-        FINDING,
-        `${findings.length} finding(s)`,
-        findings.map((f) => `${f.id} ${f.message}`),
-      );
-    return result(
-      PASS,
-      `${contents.size} file(s) in the tarball, canaries found`,
-    );
+    return typeof contents === "string"
+      ? result(CANNOT, contents)
+      : verdict(contents, repo);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

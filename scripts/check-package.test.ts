@@ -7,8 +7,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { HERE } from "./gate-step.ts";
-import { CANNOT } from "./pinned.ts";
-import { analyse, CANARIES, check, missedCanaries } from "./check-package.ts";
+import { CANNOT, FINDING, PASS } from "./pinned.ts";
+import {
+  analyse,
+  CANARIES,
+  check,
+  missedCanaries,
+  runnable,
+  verdict,
+} from "./check-package.ts";
 import type { Contents, Repo } from "./check-package.ts";
 
 const REPO: Repo = {
@@ -65,6 +72,24 @@ test("PKG-01: the finding names the condition and the path", () => {
     "svelte is ./src/a.ts, not under ./dist/",
   ]);
 });
+test("PKG-07: the finding names the file and the specifier, in any import or re-export form", () => {
+  const c = new Map(GOOD).set(
+    "dist/A.svelte",
+    Buffer.from(
+      'import {\n  a,\n} from "../x/y.ts";\nexport * from "./z.ts";\nconst m = import("./w.ts");\nimport "./v.ts";\nimport { ok } from "./fine.js";\nimport u from "pkg/x.ts";\n',
+    ),
+  );
+  assert.deepEqual(found(c, "PKG-07"), [
+    "dist/A.svelte imports ../x/y.ts",
+    "dist/A.svelte imports ./z.ts",
+    "dist/A.svelte imports ./w.ts",
+    "dist/A.svelte imports ./v.ts",
+  ]);
+});
+test("PKG-07: only .svelte and .js files are run, declarations are not", () => {
+  assert.deepEqual(runnable(GOOD).sort(), ["dist/A.svelte", "dist/index.js"]);
+  assert.deepEqual(runnable(new Map([["dist/a.d.ts", Buffer.from("x")]])), []);
+});
 test("PKG-05: a condition besides style and default, and two different files, are findings", () => {
   const manifest = (styles: unknown): Contents =>
     new Map(GOOD).set(
@@ -103,6 +128,22 @@ test("PKG-03: the finding names the file and what is wrong with it", () => {
   assert.deepEqual(found(c, "PKG-03"), ["dist/a.test.js: a test file"]);
 });
 
+test("the verdict: pass, finding, and could not check for an unreadable manifest or no file to read", () => {
+  assert.equal(verdict(GOOD, REPO).code, PASS);
+  const bad = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
+  assert.equal(verdict(bad, REPO).code, FINDING);
+  const noManifest = new Map(GOOD).set("package.json", Buffer.from("{"));
+  assert.match(
+    verdict(noManifest, REPO).summary,
+    /package\.json cannot be read/,
+  );
+  const onlyTypes = new Map(
+    [...GOOD].filter(([p]) => !/\.(?:svelte|js)$/.test(p)),
+  );
+  const r = verdict(onlyTypes, REPO);
+  assert.equal(r.code, CANNOT);
+  assert.match(r.summary, /no \.svelte or \.js file/);
+});
 test("the script builds, packs and reads the real package, and passes", () => {
   const r = spawnSync(
     process.execPath,
