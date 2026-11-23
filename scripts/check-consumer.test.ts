@@ -196,6 +196,34 @@ test("CON-03: a style attribute is a finding that names the page and the element
   );
   assert.deepEqual(found(styled("<td>a style=b c</td>"), "CON-03"), []);
 });
+test("CON-04: the finding names the page and what its policy lacks; one nonce per response", () => {
+  const csp = (page: "home" | "again" | "missing", value: string): State => ({
+    ...GOOD,
+    http: { ...GOOD.http, [page]: { ...GOOD.http[page], csp: value } },
+  });
+  assert.deepEqual(
+    found(
+      csp(
+        "home",
+        policy("N1").replace(
+          "style-src 'self'",
+          "style-src 'self' 'unsafe-inline'",
+        ),
+      ),
+      "CON-04",
+    ),
+    [
+      "the list page's policy differs from the strict policy with one nonce: default-src 'self'; script-src 'self' 'nonce-N'; style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'",
+    ],
+  );
+  assert.deepEqual(found(csp("again", policy("N1")), "CON-04"), [
+    "two responses carry the same nonce",
+  ]);
+  assert.deepEqual(
+    found(csp("missing", "default-src 'self'"), "CON-04").length,
+    1,
+  );
+});
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);
   const bad: State = {

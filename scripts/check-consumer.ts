@@ -204,6 +204,40 @@ function noStyle(s: State): Finding[] {
   );
 }
 
+const NONCE = /'nonce-[\w+/=-]+'/;
+const STRICT = [
+  "default-src 'self'",
+  "script-src 'self' 'nonce-N'",
+  "style-src 'self'",
+  "style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'",
+];
+
+/** CON-04: each HTML answer carries the strict policy with one fresh nonce in `script-src` and no other addition. */
+function policy(s: State): Finding[] {
+  const found: string[] = [];
+  const nonces: string[] = [];
+  for (const [name, { csp }] of [
+    ["list", s.http.home],
+    ["second list", s.http.again],
+    ["404", s.http.missing],
+  ] as const) {
+    nonces.push(NONCE.exec(csp)?.[0] ?? "");
+    const shape = csp
+      .replace(NONCE, "'nonce-N'")
+      .split(";")
+      .map((d) => d.trim())
+      .filter(Boolean)
+      .sort();
+    if (shape.join("; ") !== [...STRICT].sort().join("; "))
+      found.push(
+        `the ${name} page's policy differs from the strict policy with one nonce: ${shape.join("; ")}`,
+      );
+  }
+  if (new Set(nonces).size !== nonces.length)
+    found.push("two responses carry the same nonce");
+  return found.map((message) => ({ id: "CON-04", message }));
+}
+
 /** CON-11: no issue of `pnpm peers check` names the package; an issue that names only others is not this statement's. */
 function peers(s: State): Finding[] {
   const { status, text } = s.peers.real;
@@ -223,6 +257,7 @@ export function analyse(s: State): Finding[] {
     ...install(s),
     ...listPage(s),
     ...noStyle(s),
+    ...policy(s),
     ...types(s),
     ...peers(s),
   ];
@@ -290,6 +325,33 @@ export const CANARIES: Canary[] = [
           html: '<div style="display: contents"></div>',
         },
       },
+    }),
+    found: true,
+  },
+  {
+    id: "CON-04",
+    row: "'unsafe-inline' added to style-src",
+    plant: (s) => ({
+      ...s,
+      http: {
+        ...s.http,
+        home: {
+          ...s.http.home,
+          csp: s.http.home.csp.replace(
+            "style-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+          ),
+        },
+      },
+    }),
+    found: true,
+  },
+  {
+    id: "CON-04",
+    row: "the same nonce in two responses",
+    plant: (s) => ({
+      ...s,
+      http: { ...s.http, again: { ...s.http.again, csp: s.http.home.csp } },
     }),
     found: true,
   },
