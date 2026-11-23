@@ -238,6 +238,9 @@ function shardJob(job: string[] | undefined): string[] {
     found.push(
       `the matrix of the job selftest is not shard: ${want} (the ${SHARDS.length} shards of scripts/shards.ts)`,
     );
+  // exclude or include would drop a shard while the listed values still read as all of them
+  if (job.some((l) => /^\s+(exclude|include)\s*:/.test(l)))
+    found.push("the matrix of the job selftest has an exclude or include");
   return found;
 }
 

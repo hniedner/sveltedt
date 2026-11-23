@@ -1076,6 +1076,15 @@ test("gate-needs: the selftest job sets GATE_SHARD from its matrix, and the matr
       /matrix of the job selftest is not shard: \[1, 2, 3\]/,
     ],
   ];
+  // An exclude or include can drop a shard from the matrix while the listed values still read [1, 2, 3]
+  for (const key of ["exclude", "include"])
+    cases.push([
+      selftestJob(leavesSelftest).replace(
+        "        shard: [1, 2, 3]\n",
+        `        shard: [1, 2, 3]\n        ${key}: [{ shard: 3 }]\n`,
+      ),
+      /the matrix of the job selftest has an exclude or include/,
+    ]);
   for (const [ci, why] of cases)
     assert.match(expect("gate-needs", repo(ciWith(ci)), 1), why);
 });
