@@ -1388,6 +1388,7 @@ test("consumer: a tracked consumer project runs check-consumer.ts, which needs n
     "consumer",
     repo((root) => {
       put(root, "consumer/package.json", "{}\n");
+      put(root, "consumer/pnpm-lock.yaml", "\n");
       remove("LICENSE")(root);
     }),
     3,

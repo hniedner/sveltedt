@@ -1,16 +1,28 @@
 // Tests for check-consumer.ts. The statements are pure functions of what the copy of the consumer project holds, so
 // they are called on a synthetic good state; the install, build and server run once through the script.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HERE } from "./gate-step.ts";
+import { HERE, isResult } from "./gate-step.ts";
 import { PASS } from "./pinned.ts";
 import {
   analyse,
+  check,
   CANARIES,
   parsePeerReport,
   parseTypeReport,
+  prepare,
   verdict,
 } from "./check-consumer.ts";
 import type { State } from "./check-consumer.ts";
@@ -31,6 +43,10 @@ const page = (n = NUMBERS, extra = ""): string =>
   `<!doctype html><html><body>${extra}<table><caption>Orders</caption><tbody>${n
     .map((x) => `<tr><td>Order ${x}</td></tr>`)
     .join("")}</tbody></table></body></html>`;
+const LISTENER = "window.__csp = [];\n";
+const shell = (scripts: string): string =>
+  `<!doctype html><html><head>${scripts}</head><body>${page()}</body></html>`;
+const SCRIPTS = `<script src="/csp-listener.js"></script><link href="./a.js" rel="modulepreload"><script nonce="n">boot()</script>`;
 const policy = (nonce: string): string =>
   `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self'; style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'`;
 const COPY = "/tmp/copy";
@@ -39,6 +55,7 @@ const FILES = new Map([
   ["dist/index.js", Buffer.from("export {};\n")],
 ]);
 const GOOD: State = {
+  listener: LISTENER,
   before: {
     manifest: '{"devDependencies":{"svelte":"5.57.3"}}\n',
     lock: "lockfileVersion: '9.0'\n",
@@ -56,7 +73,8 @@ const GOOD: State = {
     tarballName: "hniedner-sveltedt-0.0.0.tgz",
   },
   http: {
-    home: { status: 200, csp: policy("N1"), html: page() },
+    home: { status: 200, csp: policy("N1"), html: shell(SCRIPTS) },
+    listener: { status: 200, csp: "", html: LISTENER },
     again: { status: 200, csp: policy("N2"), html: page() },
     missing: {
       status: 404,
@@ -282,6 +300,181 @@ test("could not check: a 404 that is not 404, a planted peer range pnpm does not
     verdict(blind).summary,
     /canary row did not give its stated result/,
   );
+});
+test("CON-05: the finding names what is wrong with the scripts of the list page", () => {
+  const run = (scripts: string, listener = GOOD.http.listener): State => ({
+    ...GOOD,
+    http: {
+      ...GOOD.http,
+      home: { ...GOOD.http.home, html: shell(scripts) },
+      listener,
+    },
+  });
+  assert.deepEqual(
+    found(
+      run(
+        '<script nonce="n">boot()</script><script src="/csp-listener.js"></script>',
+      ),
+      "CON-05",
+    ),
+    ['a script comes before the listener: <script nonce="n">'],
+  );
+  assert.deepEqual(
+    found(run('<script src="/csp-listener.js" async></script>'), "CON-05"),
+    ["the listener script has the async attribute"],
+  );
+  assert.deepEqual(
+    found(run('<script src="//evil.test/x.js"></script>'), "CON-05"),
+    ["no script loads /csp-listener.js from the consumer's own origin"],
+  );
+  assert.deepEqual(
+    found(run(SCRIPTS, { status: 404, csp: "", html: "" }), "CON-05"),
+    ["the server answers /csp-listener.js with 404, not 200"],
+  );
+  assert.deepEqual(
+    found(run(SCRIPTS, { status: 200, csp: "", html: "x" }), "CON-05"),
+    ["/csp-listener.js is not the bytes of the listener"],
+  );
+  // a foreign origin is not the listener, whatever its file name; a module listener runs deferred; an async module
+  // script before the listener is a script that does not run in order
+  assert.deepEqual(
+    found(
+      run('<script src="https://evil.test/csp-listener.js"></script>'),
+      "CON-05",
+    ),
+    ["no script loads /csp-listener.js from the consumer's own origin"],
+  );
+  assert.deepEqual(
+    found(
+      run('<script type="module" src="/csp-listener.js"></script>'),
+      "CON-05",
+    ),
+    ["the listener script has the type attribute"],
+  );
+  assert.deepEqual(
+    found(
+      run('<script type="module" async src="/m.js"></script>' + SCRIPTS),
+      "CON-05",
+    ),
+    [
+      'a script comes before the listener: <script type="module" async="" src="/m.js">',
+    ],
+  );
+  // a module script without async may come before it
+  assert.deepEqual(
+    found(
+      run('<script type="module" src="/m.js"></script>' + SCRIPTS),
+      "CON-05",
+    ),
+    [],
+  );
+});
+test("a root that cannot be prepared is could not check, whatever consumer files it lacks", async () => {
+  const root = mkdtempSync(join(tmpdir(), "consumer-bare-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  assert.equal((await check(root)).code, 3);
+});
+// prepare() on a git repository made of the real package inputs, a tracked consumer/ and a fake pnpm that runs only
+// `pack` for real: the failing steps and the missing package are reached without a registry
+function bare(fakeVite: boolean): {
+  root: string;
+  env: (fail?: string) => void;
+} {
+  const root = mkdtempSync(join(tmpdir(), "consumer-prep-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  const real = join(HERE, "..");
+  for (const f of [
+    "src",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "svelte.config.js",
+    "tsconfig.json",
+    "package.json",
+  ])
+    cpSync(join(real, f), join(root, f), { recursive: true });
+  symlinkSync(join(real, "node_modules"), join(root, "node_modules"));
+  mkdirSync(join(root, "consumer", "node_modules", ".bin"), {
+    recursive: true,
+  });
+  writeFileSync(join(root, "consumer", "package.json"), "{}\n");
+  const vite = join(root, "consumer", "node_modules", ".bin", "vite");
+  writeFileSync(vite, "#!/bin/sh\nexit 0\n");
+  chmodSync(vite, 0o755);
+  if (!fakeVite) rmSync(vite);
+  const pnpm = join(root, "fake-pnpm");
+  writeFileSync(
+    pnpm,
+    `#!/bin/sh\ncase "$1" in pack) exec pnpm "$@";; $FAIL_STEP) exit 1;; *) exit 0;; esac\n`.replace(
+      "$FAIL_STEP",
+      '"${FAIL_STEP:-none}"',
+    ),
+  );
+  chmodSync(pnpm, 0o755);
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["add", "-f", "consumer"], { cwd: root });
+  return {
+    root,
+    env: (fail = "none") => {
+      process.env.PNPM_BIN = pnpm;
+      process.env.FAIL_STEP = fail;
+    },
+  };
+}
+for (const step of ["install", "add"])
+  test(`prepare: a failing pnpm ${step} is could not check and stops the preparation`, () => {
+    const { root, env } = bare(true);
+    env(step);
+    try {
+      const r = prepare(
+        root,
+        mkdtempSync(join(tmpdir(), "consumer-prep-out-")),
+      );
+      assert.ok(isResult(r), "the preparation went on after a failed step");
+      assert.equal(r.code, 3);
+      assert.match(
+        r.summary,
+        new RegExp(`^pnpm ${step} exited 1 in the consumer copy`),
+      );
+    } finally {
+      delete process.env.PNPM_BIN;
+      delete process.env.FAIL_STEP;
+    }
+  });
+test("prepare: a failing build is could not check without the registry hint", () => {
+  const { root, env } = bare(true);
+  writeFileSync(
+    join(root, "consumer", "node_modules", ".bin", "vite"),
+    "#!/bin/sh\nexit 1\n",
+  );
+  spawnSync("git", ["add", "-f", "consumer"], { cwd: root });
+  env();
+  try {
+    const r = prepare(root, mkdtempSync(join(tmpdir(), "consumer-prep-out-")));
+    assert.ok(isResult(r), "the preparation went on after a failed build");
+    assert.match(r.summary, /^vite build exited 1 in the consumer copy$/);
+  } finally {
+    delete process.env.PNPM_BIN;
+    delete process.env.FAIL_STEP;
+  }
+});
+test("prepare: a copy that holds no installed package is could not check", () => {
+  const { root, env } = bare(true);
+  env();
+  try {
+    const r = prepare(root, mkdtempSync(join(tmpdir(), "consumer-prep-out-")));
+    assert.ok(
+      isResult(r),
+      "the preparation passed without an installed package",
+    );
+    assert.match(
+      r.summary,
+      /^the copy holds no installed @hniedner\/sveltedt$/,
+    );
+  } finally {
+    delete process.env.PNPM_BIN;
+    delete process.env.FAIL_STEP;
+  }
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);

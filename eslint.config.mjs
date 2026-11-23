@@ -158,7 +158,7 @@ export default [
   },
   {
     // The test site's plain scripts, served as they are (Vite's public folder): browser globals, listed by hand
-    files: ["site/public/**/*.js"],
+    files: ["site/public/**/*.js", "consumer/static/**/*.js"],
     languageOptions: { globals: { window: "writable", document: "readonly" } },
   },
   ...ts.configs.recommendedTypeChecked.map((config) => ({

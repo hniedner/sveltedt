@@ -800,9 +800,9 @@ const CLASSES: FileClass[] = [
     why: "lint, types: CON-09, in the consumer's own install; dupes: its files are its own, not shared code",
   },
   {
-    match: /^consumer\/vite\.config\.js$/,
+    match: /^consumer\/(?:vite\.config\.js|static\/[^/]+\.js)$/,
     steps: ["format", "lint"],
-    why: "dupes: configuration, no logic to copy",
+    why: "dupes: configuration and a plain script served as it is, no shared code",
   },
   {
     // The test site's plain scripts, served as they are from Vite's public folder (a page's first, classic script
