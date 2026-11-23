@@ -637,7 +637,7 @@ export function prepare(root: string, dir: string): Prepared | Result {
     if (r.status !== 0)
       return result(
         CANNOT,
-        `${name} exited ${r.status ?? "without a status"} in the consumer copy (no registry or warm store?)`,
+        `${name} exited ${r.status ?? "without a status"} in the consumer copy${cmd === pnpm ? " (no registry or warm store?)" : ""}`,
         lines(r),
       );
   }
@@ -651,9 +651,10 @@ export function prepare(root: string, dir: string): Prepared | Result {
 export async function check(root: string): Promise<Result> {
   const dir = mkdtempSync(join(tmpdir(), "consumer-"));
   try {
-    const before = committed(root);
     const prepared = prepare(root, dir);
     if (isResult(prepared)) return prepared;
+    // After the preparation, which reads nothing but the tracked files: a missing lockfile ends it, not this read
+    const before = committed(root);
     const { made, copy, real } = prepared;
     const pnpm = binaryOf("pnpm");
     const typed = typeCheck(copy);

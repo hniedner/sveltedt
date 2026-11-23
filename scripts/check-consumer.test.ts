@@ -1,13 +1,16 @@
 // Tests for check-consumer.ts. The statements are pure functions of what the copy of the consumer project holds, so
 // they are called on a synthetic good state; the install, build and server run once through the script.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HERE } from "./gate-step.ts";
 import { PASS } from "./pinned.ts";
 import {
   analyse,
+  check,
   CANARIES,
   parsePeerReport,
   parseTypeReport,
@@ -331,6 +334,11 @@ test("CON-05: the finding names what is wrong with the scripts of the list page"
     ),
     [],
   );
+});
+test("a root that cannot be prepared is could not check, whatever consumer files it lacks", async () => {
+  const root = mkdtempSync(join(tmpdir(), "consumer-bare-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  assert.equal((await check(root)).code, 3);
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);
