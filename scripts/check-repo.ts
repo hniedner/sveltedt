@@ -52,6 +52,7 @@ import {
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
 import { check as diffCoverage } from "./diff-coverage.ts";
+import { check as mutation } from "./mutation.ts";
 import { check as redCheck } from "./red-check.ts";
 import { check as trace, judgeResults, readMarkers } from "./trace.ts";
 import type { Ran } from "./trace.ts";
@@ -188,26 +189,34 @@ function pins(root: string, list: Set<string>): Result {
 }
 
 /**
- * GATE_BROWSER leaves the browser step to the job `browser`, which gate must need (gateNeeds) and which runs it; the
- * problems, given the workflow's lines above `jobs:` and its jobs.
+ * GATE_BROWSER and GATE_MUTATION leave their step to the job of that name (`browser`, `mutation`), which gate must need
+ * (gateNeeds) and which runs it; the problems, given the workflow's lines above `jobs:` and its jobs.
  */
-function browserJob(top: string[], jobs: Map<string, string[]>): string[] {
-  const sets = (l: string[]) => l.some((x) => /^\s+GATE_BROWSER\s*:/.test(x));
-  const job = jobs.get("browser");
+function leftToJob(
+  name: "browser" | "mutation",
+  top: string[],
+  jobs: Map<string, string[]>,
+): string[] {
+  const variable = `GATE_${name.toUpperCase()}`;
+  const sets = (l: string[]) =>
+    l.some((x) => new RegExp(`^\\s+${variable}\\s*:`).test(x));
+  const job = jobs.get(name);
   const found = [];
-  if (sets(top)) found.push("GATE_BROWSER is set for the whole workflow");
-  if (job && sets(job)) found.push("GATE_BROWSER is set in the job browser");
+  if (sets(top)) found.push(`${variable} is set for the whole workflow`);
+  if (job && sets(job)) found.push(`${variable} is set in the job ${name}`);
   // The step's own command line, as `run:` or in a `run: |` block; nothing may let the job pass without it
   const runs = job?.some((l) =>
-    /^\s*(-\s+)?(run:\s+)?node scripts\/check-repo\.ts browser\s*$/.test(l),
+    new RegExp(
+      `^\\s*(-\\s+)?(run:\\s+)?node scripts/check-repo\\.ts ${name}\\s*$`,
+    ).test(l),
   );
   if ([...jobs.values()].some(sets) && !runs)
-    found.push("GATE_BROWSER is set but no job named browser runs the step");
+    found.push(`${variable} is set but no job named ${name} runs the step`);
   // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
   // on failure) narrows this rule in its own branch, with its rows
   if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
     found.push(
-      "the job browser has continue-on-error or if: it may pass without the step",
+      `the job ${name} has continue-on-error or if: it may pass without the step`,
     );
   return found;
 }
@@ -252,7 +261,8 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
-  details.push(...browserJob(lines.slice(0, start), jobs));
+  for (const name of ["browser", "mutation"] as const)
+    details.push(...leftToJob(name, lines.slice(0, start), jobs));
   if (details.length)
     return result(
       FINDING,
@@ -2960,6 +2970,7 @@ const CHECKS: Record<
   trace,
   "diff-coverage": diffCoverage,
   "red-check": redCheck,
+  mutation,
   browser,
   dupes,
   commits,

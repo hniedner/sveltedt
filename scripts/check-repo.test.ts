@@ -957,6 +957,51 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
   expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
 });
+// The static job leaves the mutation step to the job mutation by the same rules as the browser step
+const leavesMutation = leavesBrowser.replaceAll(
+  "GATE_BROWSER",
+  "GATE_MUTATION",
+);
+const mutationJob = (ci: string, run = "node scripts/check-repo.ts mutation") =>
+  browserJob(ci, run)
+    .replace("  browser:", "  mutation:")
+    .replace("static, browser]", "static, mutation]");
+test("gate-needs: GATE_MUTATION needs a mutation job that runs the step, set in no other place", () => {
+  for (const ci of [
+    leavesMutation,
+    mutationJob(leavesMutation, "echo ok"),
+    mutationJob(leavesMutation, "node scripts/check-repo.ts browser"),
+  ])
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /GATE_MUTATION is set but no job named mutation runs the step/,
+    );
+  expect("gate-needs", repo(ciWith(mutationJob(leavesMutation))), 0);
+  const top = mutationJob(CI).replace(
+    "jobs:\n",
+    "env:\n  GATE_MUTATION: job\njobs:\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(top)), 1),
+    /GATE_MUTATION is set for the whole workflow/,
+  );
+  const inJob = mutationJob(leavesMutation).replace(
+    "  mutation:\n    runs-on: ubuntu-latest\n",
+    "  mutation:\n    runs-on: ubuntu-latest\n    env:\n      GATE_MUTATION: job\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(inJob)), 1),
+    /GATE_MUTATION is set in the job mutation/,
+  );
+  const unsure = mutationJob(leavesMutation).replace(
+    "    steps:\n      - run: node",
+    "    if: false\n    steps:\n      - run: node",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(unsure)), 1),
+    /the job mutation has continue-on-error or if/,
+  );
+});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -1098,6 +1143,7 @@ test("no gate variable", () => {
     "GATE_BROWSER",
     "GATE_EVENT",
     "GATE_HEAD",
+    "GATE_MUTATION",
     "GITHUB_ACTIONS",
   ])
     assert.equal(process.env[k], undefined, k);
@@ -1306,11 +1352,11 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 10 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits$/m,
+    /^PASS all: 16 checks passed, 11 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
   );
 });
 test("all: test, trace and diff-coverage share one vitest run", () => {
@@ -1349,9 +1395,12 @@ test("all: test, trace and diff-coverage share one vitest run", () => {
       'import { expect, test } from "vitest";\nimport { sum } from "./sum.ts";\ntest("sums", () => {\n  expect(sum(1)).toBe(2);\n});\n',
     );
   };
-  const out = expect("all", repo(marked), 0, {
+  // The changed module gives the mutation step work, and the fixture has no packages to install: it cannot check and
+  // stops the run, after the three steps this test is about
+  const out = expect("all", repo(marked), 3, {
     extraEnv: { VITEST_BIN: wrapper },
   });
+  assert.match(out, /^COULD NOT CHECK mutation\b/m);
   assert.match(out, /^PASS trace: .*1 marker\(s\)/m);
   assert.match(out, /^PASS diff-coverage: 1\/1 changed lines covered/m);
   assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 1);

@@ -174,6 +174,15 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   the commit adds) or a test that throws by itself is refused. A commit that changes only tests must pass on its
   parent, so a test and its code belong in one commit. New tests that pass on the parent are listed by name. Its
   planted results in `scripts/canaries/red-check/` must first be refused.
+- **mutation:** every mutant StrykerJS makes on a changed line under `src/` (`.ts`, `.svelte.ts`, `.svelte`, test files
+  left out; the changed lines are the same as `diff-coverage`'s) must be killed by the tests (gates.md G8). A Survived
+  or NoCoverage mutant is a finding naming `file:line mutator`; an invalid mutant (it does not compile or run) is
+  listed and not judged; no judged mutant on the changed lines is could not check; a `Stryker disable` comment
+  without a reason after its colon is a finding. Stryker runs in a temporary copy of the tracked files with an offline
+  install, never in your checkout, and the JSON report is kept in `reports/mutation/`. The whole of each changed file is
+  mutated (7 to 13 seconds for one component, 52 for all of `src`, measured locally). In CI it is its own job `mutation`. Mutants of
+  lines no change touches are not judged. A planted survivor in `scripts/canaries/mutation/` must be in the same run's
+  report first.
 - **browser:** Playwright, at the version `package.json` pins, runs `playwright.config.ts`: the specs in
   `site/browser/` in Chromium, Firefox and WebKit, against the site's build served on 127.0.0.1:4173 by its own server
   (never one already running), after the test step so that address is never shared. The planted failing spec in
@@ -290,7 +299,7 @@ code from that branch.
 
 These checks are part of the method but do not exist in this repository yet:
 
-- `mutation` and `release-links` (they arrive with the first code that needs them).
+- `release-links` (it arrives with the first code that needs it).
 - `red-check` for the node:test files under `scripts/` (#153) and the Playwright specs (#154).
 
 ## Known limits of the merge rules

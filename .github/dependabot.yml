@@ -38,6 +38,10 @@ updates:
       vitest:
         applies-to: version-updates
         patterns: ["vitest", "@vitest/coverage-v8"]
+      # Core and its Vitest runner pin each other's version, so they move in one pull request.
+      stryker:
+        applies-to: version-updates
+        patterns: ["@stryker-mutator/*"]
       npm-minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
