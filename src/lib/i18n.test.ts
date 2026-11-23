@@ -97,8 +97,8 @@ const ROWS: Row[] = [
       table(
         {
           sort: [
-            { id: "code", desc: false },
-            { id: "name", desc: true },
+            { id: "code", direction: "asc" },
+            { id: "name", direction: "desc" },
           ],
         },
         messages,
@@ -120,9 +120,9 @@ const ROWS: Row[] = [
       table(
         {
           sort: [
-            { id: "code", desc: false },
-            { id: "date", desc: false },
-            { id: "name", desc: true },
+            { id: "code", direction: "asc" },
+            { id: "date", direction: "asc" },
+            { id: "name", direction: "desc" },
           ],
         },
         messages,

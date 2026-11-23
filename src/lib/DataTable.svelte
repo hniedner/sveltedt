@@ -86,7 +86,7 @@
     const entry = order[place];
     if (!entry) return { direction: null, rank: null };
     return {
-      direction: entry.desc ? "desc" : "asc",
+      direction: entry.direction,
       rank: order.length > 1 ? place + 1 : null,
     };
   }

@@ -2,7 +2,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-type Order = { id: string; desc: boolean }[];
+type Order = { id: string; direction: "asc" | "desc" }[];
 type SortWindow = Window & {
   __sorts: Order[];
   __table: { set(props: object): void };
@@ -14,7 +14,7 @@ const parse = (text: string): Order =>
     ? []
     : text.split(", ").map((entry) => {
         const [id = "", direction] = entry.split(" ");
-        return { id, desc: direction === "desc" };
+        return { id, direction: direction === "desc" ? "desc" : "asc" };
       });
 const set = (page: Page, props: object) =>
   page.evaluate(

@@ -28,12 +28,13 @@ const isEmpty = (text: unknown): boolean =>
 // undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
 const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
 
-// An entry of the order as its type says: an object with a string id and a boolean desc (SORT-15)
+// An entry of the order as its type says: an object with a string id and a direction, asc or desc (SORT-15)
 const isSortEntry = (entry: unknown): boolean =>
   typeof entry === "object" &&
   entry !== null &&
   typeof (entry as { id?: unknown }).id === "string" &&
-  typeof (entry as { desc?: unknown }).desc === "boolean";
+  ((entry as { direction?: unknown }).direction === "asc" ||
+    (entry as { direction?: unknown }).direction === "desc");
 
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
@@ -150,8 +151,7 @@ function sortFault<Row>(
     return "sortColumnNotSortable";
   if (
     order.some(
-      (entry) =>
-        !columnOf(entry.id)?.sortable?.includes(entry.desc ? "desc" : "asc"),
+      (entry) => !columnOf(entry.id)?.sortable?.includes(entry.direction),
     )
   )
     return "sortDirectionNotAllowed";

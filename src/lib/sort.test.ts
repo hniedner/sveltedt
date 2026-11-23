@@ -42,7 +42,7 @@ function order(text: string): DataTableSortEntry[] {
     ? []
     : text.split(", ").map((part) => {
         const [id = "", direction] = part.split(" ");
-        return { id, desc: direction === "desc" };
+        return { id, direction: direction === "desc" ? "desc" : "asc" };
       });
 }
 
@@ -482,7 +482,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
-// @spec("SORT-15", "8ac55f94")
+// @spec("SORT-15", "223f9337")
 describe("SORT-15", () => {
   it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
     const { container } = mount(props);
@@ -523,7 +523,9 @@ describe("SORT-15", () => {
     ],
     [
       "a sort entry whose id is the number 5",
-      { sort: [{ id: 5, desc: true }] as unknown as DataTableSortEntry[] },
+      {
+        sort: [{ id: 5, direction: "desc" }] as unknown as DataTableSortEntry[],
+      },
       "sortInvalid",
     ],
   ])("lets the first row that applies win: %s", (_faults, props, key) => {
@@ -534,17 +536,19 @@ describe("SORT-15", () => {
   // A caller the type does not reach (plain JavaScript, untyped state) passes these
   it.each<[string, unknown]>([
     ["not an array", "name"],
-    ["not an array", { id: "name", desc: false }],
+    ["not an array", { id: "name", direction: "asc" }],
     ["an entry that is null", [null]],
     ["an entry that is an array", [["name"]]],
     ["an entry that is not an object", ["name"]],
-    ["an entry's id left out", [{ desc: false }]],
-    ["an entry's id not a string", [{ id: 5, desc: false }]],
-    ["an entry's id null", [{ id: null, desc: false }]],
-    ["an entry's desc left out", [{ id: "name" }]],
-    ["an entry's desc undefined", [{ id: "name", desc: undefined }]],
-    ["an entry's desc null", [{ id: "name", desc: null }]],
-    ["an entry's desc not a boolean", [{ id: "name", desc: "true" }]],
+    ["an entry's id left out", [{ direction: "asc" }]],
+    ["an entry's id not a string", [{ id: 5, direction: "asc" }]],
+    ["an entry's id null", [{ id: null, direction: "asc" }]],
+    ["an entry's direction left out", [{ id: "name" }]],
+    ["an entry's direction undefined", [{ id: "name", direction: undefined }]],
+    ["an entry's direction null", [{ id: "name", direction: null }]],
+    ["an entry's direction 'up'", [{ id: "name", direction: "up" }]],
+    ["an entry's direction 'ASC'", [{ id: "name", direction: "ASC" }]],
+    ["an entry with the old boolean desc", [{ id: "name", desc: false }]],
   ])("shows only the alert sortInvalid, no table, for %s: %j", (_row, sort) => {
     const { container } = mount({ sort: sort as DataTableSortEntry[] });
     expect(

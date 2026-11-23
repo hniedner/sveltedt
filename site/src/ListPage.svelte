@@ -36,7 +36,9 @@
     sort[0] === undefined
       ? orders
       : orders.toSorted(
-          (a, b) => a.name.localeCompare(b.name) * (sort[0]?.desc ? -1 : 1),
+          (a, b) =>
+            a.name.localeCompare(b.name) *
+            (sort[0]?.direction === "desc" ? -1 : 1),
         ),
   );
   const rows = $derived(sorted.slice(offset, offset + limit));

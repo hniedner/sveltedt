@@ -34,8 +34,8 @@ describe("SORT-24", () => {
       const { rerender, unmount } = render(
         DataTable<FootprintRow>,
         props([
-          { id: "code", desc: false },
-          { id: "name", desc: true },
+          { id: "code", direction: "asc" },
+          { id: "name", direction: "desc" },
         ]),
       );
       const button = () => screen.getByRole("button", { name: "Name" });
@@ -43,7 +43,7 @@ describe("SORT-24", () => {
       expect(own()).toEqual([]);
       await fireEvent.click(button(), { shiftKey: true });
       expect(own()).toEqual([]);
-      await rerender(props([{ id: "name", desc: false }]));
+      await rerender(props([{ id: "name", direction: "asc" }]));
       expect(own()).toEqual([]);
       expect(onsort).toHaveBeenCalledTimes(2);
       unmount();

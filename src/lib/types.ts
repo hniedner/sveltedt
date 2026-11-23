@@ -23,7 +23,7 @@ export type SortDirection = "asc" | "desc";
 // One entry of the order, the lead first
 export interface DataTableSortEntry {
   readonly id: string;
-  readonly desc: boolean;
+  readonly direction: SortDirection;
 }
 
 // Every fixed word of the table (RND-06, SORT-17): the state messages, the live count, the sort words and the alert
