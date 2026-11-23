@@ -294,7 +294,7 @@ function specOf(sel: selectorParser.Selector, parent: Spec): Spec {
 }
 
 const inKeyframes = (rule: Rule): boolean => {
-  for (let p = rule.parent; p; p = p.parent)
+  for (let p: Node | undefined = rule.parent; p; p = p.parent)
     if (p.type === "atrule" && /keyframes$/i.test((p as AtRule).name))
       return true;
   return false;
@@ -305,8 +305,8 @@ function ruleSpec(
   selectors: (spec: Spec, text: string) => void,
 ): Spec {
   let outer: Rule | undefined;
-  for (let p = rule.parent; p && !outer; p = p.parent)
-    if (p.type === "rule") outer = p;
+  for (let p: Node | undefined = rule.parent; p && !outer; p = p.parent)
+    if (p.type === "rule") outer = p as Rule;
   const parent = outer ? ruleSpec(outer, () => {}) : ZERO;
   const specs: Spec[] = [];
   selectorParser((root) =>
@@ -410,7 +410,7 @@ export function analyse(
       if (problem)
         findings.push({
           id: "THEME-13",
-          message: `${node.type === "rule" ? node.selector : `@${node.name}`}: ${problem}`,
+          message: `${node.type === "rule" ? node.selector : `@${(node as AtRule).name}`}: ${problem}`,
         });
     }
     if (node.type === "atrule" && /^(?:layer|import)$/i.test(node.name))
