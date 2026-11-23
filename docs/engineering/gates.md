@@ -125,8 +125,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 ## G7. `red-check`
 
 - For each commit of the change (merges skipped and listed), its new and changed Vitest test files and its test
-  support (`test/`) are put onto the parent's tree, which is unpacked with `git archive` and installed from the
-  parent's own lockfile (`pnpm install --offline`; the site needs the workspace link, measured). The files run twice
+  support (`test/`) are put onto the parent's tree, which is unpacked with `git archive` and given the checked tree's
+  packages, with no install (below). The files run twice
   there with the shared run's flags: first in the parent's own versions (the test names already there), then in the
   commit's versions. When a test file names `dist`, it reads the site's build, so the parent's `vite build` runs
   first.
@@ -150,12 +150,17 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   a parent whose own run wrote no report. A parent whose Vitest config names `projects`, `coverage` or `onUnhandledError`
   is run with the gate's flags unchecked. A push to main is not applicable: it was checked on
   its pull request.
-- **Offline install.** The parent's install is offline, against the store the head's install filled. A parent whose
-  lockfile holds packages the head's does not (a branch that bumps a development dependency after a commit with a
-  Vitest test) is could not check. Measured with a store holding only the head's lockfile: the parent of c77e4b4 fails
-  with `ERR_PNPM_NO_OFFLINE_TARBALL`, and 110 of the 127 past commits with a Vitest test have such a parent. Remedy: put
-  a lockfile change in its own commit first in the branch; its parent is the base, it adds no test, and every later
-  parent then carries the head's lockfile.
+- **Packages.** The parent runs with the checked tree's packages: its root `node_modules` is one link to the checked
+  tree's, and the site's `node_modules` is copied as links with the same link text, so the site's workspace link
+  leads into the parent's tree, never into the checked one (a row fails if the folder is linked whole). The parent's
+  lockfile is never read.
+  - A commit whose own dependency bump is what makes its test pass shows "not red" and is refused.
+  - An assertion failure caused only by a package difference counts as red: the one fail-open direction, with small
+    harm, since the test is still shown able to fail.
+  - A parent config that cannot load the checked tree's packages is could not check; the remedy is that the bump and
+    its config change land as their own pull request first.
+  - A workspace whose `node_modules` is not recreated here fails toward a load failure (refused), never toward a pass;
+    the consumer project (#24) installs the packed package as a real consumer would, so it has no workspace link.
 - red-check runs each parent's install and test code with the rights of the pull-request job, as the head's tests do.
 - A merge commit in the range is not checked, so test changes made by a conflict resolution are not re-run.
 - False refusals: a commit that changes only configuration or the lockfile besides its tests is held to the test-only
