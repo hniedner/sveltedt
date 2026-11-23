@@ -71,8 +71,10 @@ export interface State {
   before: Committed;
   after: Committed;
   copy: Copy;
-  /** `GET /`, `GET /` again, and `GET /no-such-page` on the production server. */
-  http: { home: Page; again: Page; missing: Page };
+  /** The listener file the copy holds (static/csp-listener.js), which the server must answer with. */
+  listener: string;
+  /** `GET /`, `GET /` again, `GET /no-such-page` and `GET /csp-listener.js` on the production server. */
+  http: { home: Page; again: Page; missing: Page; listener: Page };
   /** `real`: the consumer; `planted`: the same copy with a page that passes `rows={42}` (CON-09's second row). */
   types: { real: TypeReport; planted: TypeReport };
   /** `real`: the consumer with the real tarball; `planted`: with a tarball whose peer range is `^6.0.0` (CON-11's second row). */
@@ -240,6 +242,36 @@ function policy(s: State): Finding[] {
   return found.map((message) => ({ id: "CON-04", message }));
 }
 
+const attr = (n: Tree.Element, name: string): string | undefined =>
+  n.attrs.find((a) => a.name === name)?.value;
+const show = (n: Tree.Element): string =>
+  `<script ${n.attrs.map((a) => `${a.name}="${a.value}"`).join(" ")}>`;
+
+/** CON-05: the list page loads the listener from its own origin as a plain script, before every other script. */
+function listenerFirst(s: State): Finding[] {
+  const found: string[] = [];
+  const scripts = elements(s.http.home.html, "script");
+  const at = scripts.findIndex((n) => attr(n, "src") === "/csp-listener.js");
+  if (at < 0)
+    found.push(
+      "no script loads /csp-listener.js from the consumer's own origin",
+    );
+  else {
+    for (const a of ["async", "defer", "type"])
+      if (attr(scripts[at], a) !== undefined)
+        found.push(`the listener script has the ${a} attribute`);
+    for (const n of scripts.slice(0, at))
+      if (attr(n, "type") !== "module" || attr(n, "async") !== undefined)
+        found.push(`a script comes before the listener: ${show(n)}`);
+  }
+  const { status, html } = s.http.listener;
+  if (status !== 200)
+    found.push(`the server answers /csp-listener.js with ${status}, not 200`);
+  else if (html !== s.listener)
+    found.push("/csp-listener.js is not the bytes of the listener");
+  return found.map((message) => ({ id: "CON-05", message }));
+}
+
 /** CON-11: no issue of `pnpm peers check` names the package; an issue that names only others is not this statement's. */
 function peers(s: State): Finding[] {
   const { status, text } = s.peers.real;
@@ -258,6 +290,7 @@ export function analyse(s: State): Finding[] {
   return [
     ...install(s),
     ...listPage(s),
+    ...listenerFirst(s),
     ...noStyle(s),
     ...policy(s),
     ...types(s),
@@ -312,6 +345,32 @@ export const CANARIES: Canary[] = [
     plant: (s) => ({
       ...s,
       http: { ...s.http, home: { ...s.http.home, html } },
+    }),
+    found: true,
+  })),
+  ...(
+    [
+      [
+        "the listener after the framework's bootstrap script",
+        '<script nonce="n">boot()</script><script src="/csp-listener.js"></script>',
+      ],
+      [
+        "the listener with an async attribute",
+        '<script src="/csp-listener.js" async></script>',
+      ],
+    ] as const
+  ).map(([row, html]): Canary => ({
+    id: "CON-05",
+    row,
+    plant: (s) => ({
+      ...s,
+      http: {
+        ...s.http,
+        home: {
+          ...s.http.home,
+          html: `<html><head>${html}</head><body>${s.http.home.html}</body></html>`,
+        },
+      },
     }),
     found: true,
   })),
@@ -502,6 +561,7 @@ async function serve(copy: string): Promise<State["http"] | string> {
           home: await answer(`${base}/`),
           again: await answer(`${base}/`),
           missing: await answer(`${base}/no-such-page`),
+          listener: await answer(`${base}/csp-listener.js`),
         };
       } catch {
         if (server.exitCode !== null) return "the consumer server exited";
@@ -640,6 +700,7 @@ export async function check(root: string): Promise<Result> {
       before,
       after: committed(root),
       http,
+      listener: readFileSync(join(copy, "static", "csp-listener.js"), "utf8"),
       types: { real: typed, planted: typedPlanted },
       peers: { real: peerReal, planted: peerPlanted },
       copy: installedCopy,

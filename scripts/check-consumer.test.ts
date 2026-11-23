@@ -31,6 +31,10 @@ const page = (n = NUMBERS, extra = ""): string =>
   `<!doctype html><html><body>${extra}<table><caption>Orders</caption><tbody>${n
     .map((x) => `<tr><td>Order ${x}</td></tr>`)
     .join("")}</tbody></table></body></html>`;
+const LISTENER = "window.__csp = [];\n";
+const shell = (scripts: string): string =>
+  `<!doctype html><html><head>${scripts}</head><body>${page()}</body></html>`;
+const SCRIPTS = `<script src="/csp-listener.js"></script><link href="./a.js" rel="modulepreload"><script nonce="n">boot()</script>`;
 const policy = (nonce: string): string =>
   `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self'; style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'`;
 const COPY = "/tmp/copy";
@@ -39,6 +43,7 @@ const FILES = new Map([
   ["dist/index.js", Buffer.from("export {};\n")],
 ]);
 const GOOD: State = {
+  listener: LISTENER,
   before: {
     manifest: '{"devDependencies":{"svelte":"5.57.3"}}\n',
     lock: "lockfileVersion: '9.0'\n",
@@ -56,7 +61,8 @@ const GOOD: State = {
     tarballName: "hniedner-sveltedt-0.0.0.tgz",
   },
   http: {
-    home: { status: 200, csp: policy("N1"), html: page() },
+    home: { status: 200, csp: policy("N1"), html: shell(SCRIPTS) },
+    listener: { status: 200, csp: "", html: LISTENER },
     again: { status: 200, csp: policy("N2"), html: page() },
     missing: {
       status: 404,
@@ -281,6 +287,49 @@ test("could not check: a 404 that is not 404, a planted peer range pnpm does not
   assert.match(
     verdict(blind).summary,
     /canary row did not give its stated result/,
+  );
+});
+test("CON-05: the finding names what is wrong with the scripts of the list page", () => {
+  const run = (scripts: string, listener = GOOD.http.listener): State => ({
+    ...GOOD,
+    http: {
+      ...GOOD.http,
+      home: { ...GOOD.http.home, html: shell(scripts) },
+      listener,
+    },
+  });
+  assert.deepEqual(
+    found(
+      run(
+        '<script nonce="n">boot()</script><script src="/csp-listener.js"></script>',
+      ),
+      "CON-05",
+    ),
+    ['a script comes before the listener: <script nonce="n">'],
+  );
+  assert.deepEqual(
+    found(run('<script src="/csp-listener.js" async></script>'), "CON-05"),
+    ["the listener script has the async attribute"],
+  );
+  assert.deepEqual(
+    found(run('<script src="//evil.test/x.js"></script>'), "CON-05"),
+    ["no script loads /csp-listener.js from the consumer's own origin"],
+  );
+  assert.deepEqual(
+    found(run(SCRIPTS, { status: 404, csp: "", html: "" }), "CON-05"),
+    ["the server answers /csp-listener.js with 404, not 200"],
+  );
+  assert.deepEqual(
+    found(run(SCRIPTS, { status: 200, csp: "", html: "x" }), "CON-05"),
+    ["/csp-listener.js is not the bytes of the listener"],
+  );
+  // a module script without async may come before it
+  assert.deepEqual(
+    found(
+      run('<script type="module" src="/m.js"></script>' + SCRIPTS),
+      "CON-05",
+    ),
+    [],
   );
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
