@@ -68,3 +68,47 @@ test("THEME-13: a @property rule needs a marker; keyframe selectors do not", () 
 test("THEME-13: a stylesheet with only an @charset has 0 rules read, which is could-not-check", () => {
   assert.equal(analyse('@charset "utf-8";', CANARY_SPECS).reads.rules, 0);
 });
+
+test("THEME-01: the finding names the property and the colour", () => {
+  assert.deepEqual(found(".sdt-x { color: #333 }", "THEME-01"), [
+    "color: #333 is not a --sdt-* property with a system-colour fallback",
+  ]);
+});
+test("THEME-01: colour functions of CSS Color 4 and 5 are colours anywhere in a value", () => {
+  for (const value of [
+    "rgb(0 0 0 / 50%)",
+    "oklch(60% 0.1 200)",
+    "color-mix(in srgb, var(--sdt-a, Canvas), 20% white)",
+    "1px solid hsl(0 0% 0%)",
+  ])
+    assert.equal(
+      found(`.a { border-color: ${value} }`, "THEME-01").length,
+      1,
+      value,
+    );
+});
+test("THEME-01: a var() in a property that takes no colour, with no colour in its fallback, is not judged", () => {
+  assert.deepEqual(
+    found(".a { padding: var(--sdt-pad, 0.5rem) }", "THEME-01"),
+    [],
+  );
+  assert.equal(
+    found(".a { padding: var(--sdt-pad, red) }", "THEME-01").length,
+    1,
+  );
+});
+test("THEME-01: a url() and a string are not read for colours", () => {
+  assert.deepEqual(
+    found('.a { background-image: url(red.png); content: "red" }', "THEME-01"),
+    [],
+  );
+});
+test("THEME-01: the declarations read are counted, those inside forced-colors included", () => {
+  assert.equal(
+    analyse(
+      "@media (forced-colors: active) { .a { color: Canvas } } .b { color: inherit }",
+      CANARY_SPECS,
+    ).reads.declarations,
+    2,
+  );
+});

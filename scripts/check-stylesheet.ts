@@ -1,8 +1,8 @@
 // check-stylesheet: THEME-01, 02, 04, 12 and 13 (spec/table.md) over the package's stylesheet.
 //   node scripts/check-stylesheet.ts [--root <dir>]
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
-import postcss from "postcss";
-import type { AtRule, ChildNode, Rule } from "postcss";
+import postcss, { list } from "postcss";
+import type { AtRule, ChildNode, Node, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
 
 export interface Finding {
@@ -144,6 +144,72 @@ export const CANARIES: Canary[] = [
     css: "@font-face { font-family: sdt-x; src: local(sdt-x) }",
     found: true,
   },
+  {
+    id: "THEME-01",
+    row: "color: #333",
+    css: ".sdt-x { color: #333 }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "a shorthand with a named colour",
+    css: ".sdt-x { border: 1px solid blue }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "a gradient with one raw colour",
+    css: ".sdt-x { background-image: linear-gradient(red, var(--sdt-a, Canvas)) }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "a fallback that is not a system colour",
+    css: ".sdt-x { color: var(--sdt-text, #333) }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "no fallback",
+    css: ".sdt-x { color: var(--sdt-text) }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "not the --sdt- prefix",
+    css: ".sdt-x { color: var(--app-text, CanvasText) }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "a system colour outside forced-colors and outside a fallback",
+    css: ".sdt-x { color: Canvas }",
+    found: true,
+  },
+  {
+    id: "THEME-01",
+    row: "a --sdt-* property with a system-colour fallback",
+    css: ".sdt-x { color: var(--sdt-text, CanvasText) }",
+    found: false,
+  },
+  {
+    id: "THEME-01",
+    row: "a keyword and a zero-width border",
+    css: ".sdt-x { color: currentColor; border: 0 solid red }",
+    found: false,
+  },
+  {
+    id: "THEME-01",
+    row: "a system colour inside forced-colors",
+    css: "@media (forced-colors: active) { .sdt-x { outline-color: Highlight } }",
+    found: false,
+  },
+  {
+    id: "THEME-01",
+    row: "transparent",
+    css: ".sdt-x { background: transparent }",
+    found: false,
+  },
 ];
 
 type Spec = [number, number, number];
@@ -224,6 +290,64 @@ function ruleSpec(
   return mostSpecific(specs);
 }
 
+// CSS Color 4: the named colours and the system colours (lower case); `transparent` and `currentColor` are keywords
+const words = (list: string): Set<string> => new Set(list.split(" "));
+const NAMED = words(
+  "aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen",
+);
+const SYSTEM = words(
+  "accentcolor accentcolortext activetext buttonborder buttonface buttontext canvas canvastext field fieldtext graytext highlight highlighttext linktext mark marktext selecteditem selecteditemtext visitedtext",
+);
+const COLOUR_FUNCTION =
+  /^(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark|device-cmyk)$/i;
+// Properties whose value is a colour: a custom property of a var() with no colour in its fallback is judged by this
+const COLOUR_PROPERTY =
+  /color$|^(?:background(?:-image)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?|outline|fill|stroke|box-shadow|text-shadow|text-decoration|column-rule)$/i;
+
+/** THEME-01: the colour values in a declaration's value that are not a --sdt-* property with a system-colour fallback. */
+function rawColours(prop: string, value: string): string[] {
+  const found: string[] = [];
+  for (const part of list.comma(value))
+    for (const token of list.space(part)) {
+      const call = /^([\w-]+)\(([\s\S]*)\)$/.exec(token);
+      if (!call) {
+        if (
+          /^#[0-9a-f]{3,8}$/i.test(token) ||
+          NAMED.has(token.toLowerCase()) ||
+          SYSTEM.has(token.toLowerCase())
+        )
+          found.push(token);
+      } else if (call[1].toLowerCase() === "var") {
+        const comma = call[2].indexOf(",");
+        const fallback = comma < 0 ? "" : call[2].slice(comma + 1).trim();
+        const fine =
+          call[2].trim().startsWith("--sdt-") &&
+          SYSTEM.has(fallback.toLowerCase());
+        if (
+          !fine &&
+          (COLOUR_PROPERTY.test(prop) || rawColours(prop, fallback).length)
+        )
+          found.push(token);
+      } else if (COLOUR_FUNCTION.test(call[1])) found.push(token);
+      else if (call[1].toLowerCase() !== "url")
+        found.push(...rawColours(prop, call[2]));
+    }
+  return found;
+}
+const inForcedColors = (node: Node): boolean => {
+  for (let p = node.parent; p; p = p.parent)
+    if (
+      p.type === "atrule" &&
+      /forced-colors:\s*active/i.test((p as AtRule).params)
+    )
+      return true;
+  return false;
+};
+// A border or outline of width 0 paints no colour
+const zeroWidth = (prop: string, value: string): boolean =>
+  /^(?:border|outline)/i.test(prop) &&
+  list.space(value).some((t) => /^0(?:\.0+)?[a-z]*$/i.test(t));
+
 const MARKER = /^@spec\("([^"]+)"\)$/;
 /** THEME-13: the id of the marker comment directly before a node, or a word for what is wrong with it. */
 function markerProblem(
@@ -269,11 +393,20 @@ export function analyse(
             message: `${text} has the specificity (${spec.join(",")}), above (0,1,0)`,
           });
       });
-    } else if (node.type === "decl" && node.important)
-      findings.push({
-        id: "THEME-12",
-        message: `${node.prop} is declared !important`,
-      });
+    } else if (node.type === "decl") {
+      reads.declarations++;
+      if (node.important)
+        findings.push({
+          id: "THEME-12",
+          message: `${node.prop} is declared !important`,
+        });
+      if (!inForcedColors(node) && !zeroWidth(node.prop, node.value))
+        for (const colour of rawColours(node.prop, node.value))
+          findings.push({
+            id: "THEME-01",
+            message: `${node.prop}: ${colour} is not a --sdt-* property with a system-colour fallback`,
+          });
+    }
   });
   return { reads, findings };
 }
