@@ -150,6 +150,21 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   a parent whose own run wrote no report. A parent whose Vitest config names `projects`, `coverage` or `onUnhandledError`
   is run with the gate's flags unchecked. A push to main is not applicable: it was checked on
   its pull request.
+- **Offline install.** The parent's install is offline, against the store the head's install filled. A parent whose
+  lockfile holds packages the head's does not (a branch that bumps a development dependency after a commit with a
+  Vitest test) is could not check. Measured with a store holding only the head's lockfile: the parent of c77e4b4 fails
+  with `ERR_PNPM_NO_OFFLINE_TARBALL`, and 110 of the 127 past commits with a Vitest test have such a parent. Remedy: put
+  a lockfile change in its own commit first in the branch; its parent is the base, it adds no test, and every later
+  parent then carries the head's lockfile.
+- red-check runs each parent's install and test code with the rights of the pull-request job, as the head's tests do.
+- A merge commit in the range is not checked, so test changes made by a conflict resolution are not re-run.
+- False refusals: a commit that changes only configuration or the lockfile besides its tests is held to the test-only
+  rule; a missing import in a form other than a relative one in Vite's or Node's words (an alias, an absolute path, a
+  `.js` suffix on a `.ts` file) is the wrong reason.
+- Unguarded, because none has occurred in this repository: a symbolic link to a folder in a parent tree (the overlay
+  follows it); nested statement markers (a test counts for the first marker whose range holds its line); a missing git
+  or tar; binary files under `test/` (read as text). A failed `git show` writes an empty test file, which Vitest
+  reports as no suite and the step refuses.
 - The record is the step's lines in the CI log and `reports/red-check/` (in the gate's artifact). The commit message is not used: a committer's own message is not
   proof, and writing it would mean rewriting commits.
 - Canary: planted results (an import-error red and a new test that passes on the parent) must both be refused first.
