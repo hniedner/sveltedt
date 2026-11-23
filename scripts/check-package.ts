@@ -76,12 +76,63 @@ function shape(c: Contents): Finding[] {
   return found;
 }
 
-/** Every statement over one tarball's contents, in the spec's order. */
-export function analyse(c: Contents): Finding[] {
-  return shape(c);
+/** PKG-01: the root export has `types` and `svelte`, each a file under ./dist/. */
+function root(c: Contents): Finding[] {
+  const e = manifest(c)?.exports;
+  const r = isObject(e) ? e["."] : undefined;
+  if (!isObject(r))
+    return [
+      { id: "PKG-01", message: 'exports["."] is not a set of conditions' },
+    ];
+  return ["types", "svelte"].flatMap((cond) => {
+    const path = r[cond];
+    const message =
+      typeof path !== "string"
+        ? `no ${cond} condition`
+        : path.startsWith("./dist/")
+          ? ""
+          : `${cond} is ${path}, not under ./dist/`;
+    return message ? [{ id: "PKG-01", message }] : [];
+  });
 }
 
+/** Every statement over one tarball's contents, in the spec's order. */
+export function analyse(c: Contents): Finding[] {
+  return [...root(c), ...shape(c)];
+}
+
+/** The packed manifest with `exports["."]` replaced, or removed when `value` is undefined. */
+const withRoot = (c: Contents, value: unknown): Contents => {
+  const m = manifest(c) ?? {};
+  const e = { ...(m.exports as object), ".": value };
+  if (value === undefined) delete (e as Record<string, unknown>)["."];
+  return put(c, "package.json", JSON.stringify({ ...m, exports: e }));
+};
+
 export const CANARIES: Canary[] = [
+  ...(
+    [
+      [{ svelte: "./dist/index.js" }, "no types", true],
+      [{ types: "./dist/index.d.ts" }, "no svelte", true],
+      ["./dist/index.js", "a string, no conditions", true],
+      [undefined, "no exports for .", true],
+      [
+        { types: "./src/lib/index.ts", svelte: "./src/lib/index.ts" },
+        "the repository's own exports, not under ./dist/",
+        true,
+      ],
+      [
+        { types: "./dist/index.d.ts", svelte: "./dist/index.js" },
+        "types and svelte under ./dist/",
+        false,
+      ],
+    ] as [unknown, string, boolean][]
+  ).map(([value, row, found]): Canary => ({
+    id: "PKG-01",
+    row,
+    plant: (c) => withRoot(c, value),
+    found,
+  })),
   ...[
     ["dist/DataTable.test.js", "a test file"],
     ["dist/sort.spec.d.ts", "a test file"],

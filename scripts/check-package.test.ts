@@ -48,6 +48,19 @@ for (const k of CANARIES)
     assert.equal(found(k.plant(GOOD), k.id).length > 0, k.found);
   });
 
+test("PKG-01: the finding names the condition and the path", () => {
+  const c = new Map(GOOD).set(
+    "package.json",
+    Buffer.from(
+      JSON.stringify({
+        exports: { ".": { types: "./dist/a.d.ts", svelte: "./src/a.ts" } },
+      }),
+    ),
+  );
+  assert.deepEqual(found(c, "PKG-01"), [
+    "svelte is ./src/a.ts, not under ./dist/",
+  ]);
+});
 test("PKG-03: the finding names the file and what is wrong with it", () => {
   const c = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
   assert.deepEqual(found(c, "PKG-03"), ["dist/a.test.js: a test file"]);

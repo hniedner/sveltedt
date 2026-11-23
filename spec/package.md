@@ -58,7 +58,8 @@
 
 ## 1. The packed package (PKG)
 
-**PKG-01** The packed manifest's root export `.` MUST have a `types` condition and a `svelte` condition.
+**PKG-01** The packed manifest's root export `.` MUST have a `types` condition and a `svelte` condition, each naming a
+file under `./dist/`.
 - Examples (the first row is the real tarball; the others are canaries, each a packed manifest planted in a copy of
   the tarball's contents):
 
@@ -68,6 +69,7 @@
   | `{ "types": "./dist/index.d.ts", "svelte": "./dist/index.js" }` | passes |
   | `{ "svelte": "./dist/index.js" }` | finding: no `types` |
   | `{ "types": "./dist/index.d.ts" }` | finding: no `svelte` |
+  | `{ "types": "./src/lib/index.ts", "svelte": "./src/lib/index.ts" }` (the repository's own `exports`) | finding: not under `./dist/` |
   | `"./dist/index.js"` (a string, no conditions) | finding |
   | no `exports` field, or none for `.` | finding |
 
@@ -75,7 +77,9 @@
   condition names a file the tarball holds is publint's check (PKG-02). Break that turns it red: the `types` condition
   left out of the root export.
 - Reason: without `types` TypeScript finds no types for the package, and without `svelte` a Svelte-aware bundler
-  cannot resolve the component; the repository's own tests pass either way.
+  cannot resolve the component; the repository's own tests pass either way. The repository's own `exports` point at `src/lib` for the
+  site's workspace link, and only pnpm replaces them from `publishConfig` when it packs, so the check reads the
+  tarball's manifest and never the repository's.
 - Layer: pack.
 - Traces: PRD-K2.
 
