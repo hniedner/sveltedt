@@ -123,6 +123,15 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   the browser tests. Each planted page in `scripts/canaries/inline/` must first raise its own finding, or the step
   cannot be checked; it likewise cannot be checked when `site/dist` holds no HTML file. Without a tracked
   `site/vite.config.ts` it is NOT APPLICABLE.
+- **stylesheet:** `scripts/check-stylesheet.ts` reads the tracked `src/lib` stylesheet with postcss and
+  postcss-selector-parser, and `docs/styling.md`. THEME-01: every colour is a `--sdt-*` property with a system-colour
+  fallback. THEME-02: the token table lists exactly the names read. THEME-04: one stylesheet, no `@layer` or `@import`,
+  no `<style>` block in a component. THEME-12: no selector above one class, no `!important`. THEME-13: each rule has
+  a marker naming a real-browser statement of the spec. It first runs every canary row of those statements and
+  cannot be checked if one gives another result; it also cannot be checked with no spec, no guide, no token table or
+  0 declarations, selectors or rules read. Limits: a colour keyword used as a custom identifier in a non-colour
+  property (`font-family: Tan`) reads as a colour; the tarball halves wait for PRD-K2. With nothing tracked under
+  `src/lib` it is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`

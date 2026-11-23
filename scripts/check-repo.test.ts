@@ -1352,12 +1352,44 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, stylesheet, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 11 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
+    /^PASS all: 16 checks passed, 12 not applicable: secrets, svelte, site, inline, stylesheet, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
   );
+});
+test("stylesheet: with nothing tracked under src/lib the step is not applicable", () => {
+  const r = run(["stylesheet", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE stylesheet: nothing is tracked under src\/lib$/m,
+  );
+});
+test("stylesheet: a stylesheet with a raw colour is a finding that names the statement", () => {
+  const out = expect(
+    "stylesheet",
+    repo((root) => {
+      put(
+        root,
+        "src/lib/styles.css",
+        '/* @spec("TST-01") */\n.sdt-x { color: #333 }\n',
+      );
+      put(
+        root,
+        "spec/a.md",
+        "# S\n\n**TST-01** A real-browser statement.\n- Reason: r.\n- Layer: real browser.\n- Traces: PRD-A1.\n",
+      );
+      put(
+        root,
+        "docs/styling.md",
+        "## Tokens\n\n| Token | Paints | Fallback |\n|---|---|---|\n| `--sdt-a` | x | `Canvas` |\n",
+      );
+    }),
+    1,
+  );
+  assert.match(out, /THEME-01 src\/lib\/styles\.css: color: #333/);
 });
 test("all: test, trace and diff-coverage share one vitest run", () => {
   // A wrapper around the real vitest that counts the runs of the repository's tests (the canaries run without --config)
