@@ -349,6 +349,15 @@ const ranks = (): string[][] =>
 
 // @spec("SORT-05", "a6a7074f")
 describe("SORT-05", () => {
+  it("shows nothing but the arrow in the header of a lone sorted column", () => {
+    mount({ sort: order("name desc") });
+    expect(
+      screen
+        .getAllByRole("columnheader")[1]
+        ?.querySelectorAll('[aria-hidden="true"]'),
+    ).toHaveLength(1);
+  });
+
   it.each([
     ["code asc, name desc", [["1"], ["2"], []]],
     ["name desc", [[], [], []]],

@@ -891,6 +891,14 @@ describe("A11Y-14", () => {
     expect(status.textContent.trim()).toBe(LOADING);
   });
 
+  it.each(fiveStates.filter(([name]) => name !== "status 'loading'"))(
+    "holds nothing in the status element: %s",
+    (_name, props) => {
+      show(props);
+      expect(screen.getByRole("status").textContent.trim()).toBe("");
+    },
+  );
+
   it("mounted with status loading, the status element holds the loading message", () => {
     show({ status: "loading" });
     expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
