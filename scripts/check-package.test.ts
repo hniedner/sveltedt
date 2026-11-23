@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   cpSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -287,6 +288,8 @@ test("a package whose files list lets the tests in is a finding of check(), the 
   assert.ok(
     r.details.some((d) => /^PKG-03 dist\/.*\.test\.js: a test file$/.test(d)),
   );
+  // The build is private to the run: two runs at once (selftest runs the test files in parallel) share no dist
+  assert.ok(!existsSync(join(root, "dist")));
 });
 test("PKG-07: a backtick specifier is found", () => {
   const c = new Map(GOOD).set(

@@ -5,12 +5,15 @@
 // `publishConfig` only when it packs.
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -313,14 +316,30 @@ export function packed(
   root: string,
   dir: string,
 ): { contents: Contents; tgz: string } | string {
+  // A private copy of what the package is built from: runs at once (selftest runs the test files in parallel) share
+  // no dist/, and nothing is written into the repository
+  const pkg = join(dir, "pkg");
+  for (const f of [
+    "package.json",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "svelte.config.js",
+    "tsconfig.json",
+    "src/lib",
+  ])
+    if (existsSync(join(root, f)))
+      cpSync(join(root, f), join(pkg, f), { recursive: true });
+  if (existsSync(join(root, "node_modules")))
+    symlinkSync(join(root, "node_modules"), join(pkg, "node_modules"));
   const build = run(
     join(root, "node_modules", ".bin", "svelte-package"),
     ["-i", "src/lib", "-o", "dist"],
-    root,
+    pkg,
   );
   if (build.status !== 0)
     return `svelte-package exited ${build.status ?? "without a status"}`;
-  const pack = run(binaryOf("pnpm"), ["pack", "--pack-destination", dir], root);
+  const pack = run(binaryOf("pnpm"), ["pack", "--pack-destination", dir], pkg);
   const tgz = readdirSync(dir).find((f) => f.endsWith(".tgz"));
   if (pack.status !== 0 || !tgz) return "pnpm pack made no tarball";
   const out = join(dir, "unpacked");
