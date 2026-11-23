@@ -23,67 +23,110 @@ export const MISMATCH = `<script lang="ts">
 <img {src} alt="x" />
 `;
 
-/** Why the server did not come up (it exited, or did not answer in `ms`), or undefined once it answers 200. */
+/** A server process with the last lines it printed and why it could not be started, if it could not. */
+interface Server {
+  name: string;
+  child: ChildProcess;
+  out: string[];
+  failed?: string;
+}
+function launch(
+  name: string,
+  cmd: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): Server {
+  const server: Server = {
+    name,
+    child: spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] }),
+    out: [],
+  };
+  const keep = (d: Buffer): void => {
+    server.out.push(...String(d).split("\n").filter(Boolean));
+    server.out.splice(0, Math.max(0, server.out.length - 5));
+  };
+  server.child.stdout?.on("data", keep);
+  server.child.stderr?.on("data", keep);
+  server.child.on(
+    "error",
+    (e) => (server.failed = `could not be started: ${e.message}`),
+  );
+  return server;
+}
+const ended = (s: Server): string | undefined => {
+  const { exitCode, signalCode } = s.child;
+  if (exitCode === null && signalCode === null) return undefined;
+  return `exited with ${exitCode ?? signalCode}${s.out.length ? `: ${s.out.join(" | ")}` : ""}`;
+};
+
+/** Why `server` did not answer at `url` (it failed, it ended, or no answer in `ms`), or undefined once it answers 200. */
 async function wait(
   url: string,
-  child: ChildProcess,
+  server: Server,
   ms: number,
 ): Promise<string | undefined> {
   for (const end = Date.now() + ms; Date.now() < end;) {
-    if (child.exitCode !== null) return `exited with ${child.exitCode}`;
+    const problem = server.failed ?? ended(server);
+    if (problem) return `${server.name} ${problem}`;
     try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-      if (r.ok) return undefined;
+      if ((await fetch(url, { signal: AbortSignal.timeout(5000) })).ok)
+        return undefined;
     } catch {
       // not listening yet
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return `did not answer within ${ms / 1000} s`;
+  return `${server.name} did not answer within ${ms / 1000} s`;
 }
 
-/** Plants the mismatch route in `copy`, starts both servers and waits for both: a stop function, or what failed. */
+/**
+ * Plants the mismatch route in `copy`, starts the development server and waits for it on both routes (the first request
+ * compiles a route), then starts the production server and waits for it: so when 4174 answers, so does 4175. A stop
+ * function and a promise of why a server died later, or what failed.
+ */
 export async function start(
   copy: string,
   ports = PORTS,
   ms = 60_000,
-): Promise<{ stop: () => void } | string> {
+): Promise<{ stop: () => void; died: Promise<string> } | string> {
   mkdirSync(join(copy, "src", "routes", "mismatch"), { recursive: true });
   writeFileSync(
     join(copy, "src", "routes", "mismatch", "+page.svelte"),
     MISMATCH,
   );
-  const dev = spawn(
+  const dev = launch(
+    "the development server",
     join(copy, "node_modules", ".bin", "vite"),
     ["dev", "--host", "127.0.0.1", "--port", String(ports.dev), "--strictPort"],
-    { cwd: copy, env: childEnv(), stdio: "ignore" },
+    copy,
+    childEnv(),
   );
-  const prod = spawn(process.execPath, ["build"], {
-    cwd: copy,
-    env: { ...childEnv(), HOST: "127.0.0.1", PORT: String(ports.prod) },
-    stdio: "ignore",
-  });
+  let prod: Server | undefined;
   const stop = (): void => {
-    dev.kill();
-    prod.kill();
+    dev.child.kill();
+    prod?.child.kill();
   };
-  // The routes are asked for once before the tests start: the development server compiles a route on its first request
-  for (const [name, child, url] of [
-    ["the development server", dev, `http://127.0.0.1:${ports.dev}/`],
-    [
-      "the development server /mismatch",
-      dev,
-      `http://127.0.0.1:${ports.dev}/mismatch`,
-    ],
-    ["the production server", prod, `http://127.0.0.1:${ports.prod}/`],
-  ] as const) {
-    const problem = await wait(url, child, ms);
-    if (problem) {
-      stop();
-      return `${name} ${problem}`;
-    }
+  let problem = await wait(`http://127.0.0.1:${ports.dev}/`, dev, ms);
+  problem ??= await wait(`http://127.0.0.1:${ports.dev}/mismatch`, dev, ms);
+  if (!problem) {
+    prod = launch("the production server", process.execPath, ["build"], copy, {
+      ...childEnv(),
+      HOST: "127.0.0.1",
+      PORT: String(ports.prod),
+    });
+    problem = await wait(`http://127.0.0.1:${ports.prod}/`, prod, ms);
   }
-  return { stop };
+  if (problem || !prod) {
+    stop();
+    return problem ?? "the production server was not started";
+  }
+  const servers = [dev, prod];
+  const died = new Promise<string>((resolve) => {
+    for (const s of servers)
+      s.child.on("exit", () => resolve(`${s.name} ${ended(s) ?? "stopped"}`));
+  });
+  return { stop, died };
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -99,30 +142,33 @@ async function main(argv: string[]): Promise<number> {
       ? resolve(argv[at + 1])
       : join(dirname(fileURLToPath(import.meta.url)), "..");
   const dir = mkdtempSync(join(tmpdir(), "consumer-serve-"));
-  const clean = (): void => rmSync(dir, { recursive: true, force: true });
-  const prepared = prepare(root, dir);
-  if (isResult(prepared)) {
-    clean();
-    console.log(`COULD NOT CHECK consumer-serve: ${prepared.summary}`);
-    return CANNOT;
-  }
-  const started = await start(prepared.copy);
-  if (typeof started === "string") {
-    clean();
-    console.log(`COULD NOT CHECK consumer-serve: ${started}`);
-    return CANNOT;
-  }
+  let stop = (): void => undefined;
+  const clean = (): void => {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  };
+  // Before the preparation: Playwright ends a webServer with SIGKILL unless gracefulShutdown names SIGTERM
   const end = (): never => {
-    started.stop();
     clean();
     process.exit(0);
   };
   process.on("SIGTERM", end);
   process.on("SIGINT", end);
+  const fail = (why: string, details: string[] = []): number => {
+    clean();
+    for (const d of details) console.log(`  ${d}`);
+    console.log(`COULD NOT CHECK consumer-serve: ${why}`);
+    return CANNOT;
+  };
+  const prepared = prepare(root, dir);
+  if (isResult(prepared)) return fail(prepared.summary, prepared.details);
+  const started = await start(prepared.copy);
+  if (typeof started === "string") return fail(started);
+  stop = started.stop;
   console.log(
     `The consumer: http://127.0.0.1:${PORTS.prod}/ and its development server http://127.0.0.1:${PORTS.dev}/`,
   );
-  return await new Promise<number>(() => undefined);
+  return fail(await started.died);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

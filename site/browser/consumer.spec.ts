@@ -40,6 +40,7 @@ async function warnings(page: Page, path: string): Promise<string[]> {
   page.on("console", (message) => written.push(message.text()));
   await page.goto(`${DEV}${path}`);
   await hydrated(page);
+  await page.evaluate(() => 0); // a round trip: messages sent before it have arrived
   return written.filter((text) => text.includes("[svelte] hydration_"));
 }
 
