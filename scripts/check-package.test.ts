@@ -298,6 +298,17 @@ test("PKG-07: a backtick specifier is found", () => {
   );
   assert.deepEqual(found(c, "PKG-07"), ["dist/A.svelte imports ./w.ts"]);
 });
+test("a relative --root works: the private copy links node_modules by an absolute path", () => {
+  const r = spawnSync(
+    process.execPath,
+    [join(HERE, "check-package.ts"), "--root", "."],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(r.status, 0, r.stdout);
+});
 test("a pnpm that makes no tarball is could not check", () => {
   process.env.PNPM_BIN = "false";
   try {

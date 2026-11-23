@@ -557,7 +557,7 @@ export async function check(root: string): Promise<Result> {
     const pnpm = binaryOf("pnpm");
     const steps: [string, string[]][] = [
       ["pnpm install", ["install", "--frozen-lockfile", "--prefer-offline"]],
-      ["pnpm add", ["add", "-D", "--offline", made.tgz]],
+      ["pnpm add", ["add", "-D", "--prefer-offline", made.tgz]],
     ];
     for (const [name, args] of steps) {
       const r = run(pnpm, args, copy);
@@ -625,7 +625,7 @@ export async function check(root: string): Promise<Result> {
       dir,
       "peer6",
     );
-    const added = run(pnpm, ["add", "-D", "--offline", tgz6], copy);
+    const added = run(pnpm, ["add", "-D", "--prefer-offline", tgz6], copy);
     const peerPlanted =
       added.status === 0
         ? parsePeerReport(run(pnpm, ["peers", "check"], copy))

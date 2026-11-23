@@ -144,7 +144,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   tracked under `src/lib`.
 - **consumer:** `scripts/check-consumer.ts` packs the package like the `package` step, copies the files git tracks under
   `consumer/` (a SvelteKit 3 app with its own lockfile and settings) into a temporary folder, installs from the
-  lockfile, adds the tarball with `pnpm add -D --offline`, builds it and runs its production server on a free port.
+  lockfile, adds the tarball with `pnpm add -D --prefer-offline`, builds it and runs its production server on a free port.
   CON-01: the copy holds exactly the tarball's files under `node_modules/.pnpm/`, its lockfile records the tarball, the
   committed consumer files do not name the package and are unchanged. CON-02: `GET /` holds one table "Orders" with
   the 20 rows in order. CON-03: no `style` attribute in `GET /` or the 404 page. CON-04: each answer carries the strict

@@ -7,7 +7,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
@@ -346,7 +346,9 @@ export async function scriptMain(
   }
   try {
     const r = await check(
-      at >= 0 ? argv[at + 1] : join(dirname(fileURLToPath(scriptUrl)), ".."),
+      at >= 0
+        ? resolve(argv[at + 1])
+        : join(dirname(fileURLToPath(scriptUrl)), ".."),
     );
     for (const d of r.details) console.log(`  ${d}`);
     console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
