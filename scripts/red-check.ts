@@ -5,12 +5,15 @@
 // wrong reason left is a test file that cannot load for a cause the commit does not supply.
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,7 +30,7 @@ import {
   vitest,
 } from "./gate-step.ts";
 import type { Result, VitestReport } from "./gate-step.ts";
-import { binaryOf, CANNOT, FINDING, PASS } from "./pinned.ts";
+import { CANNOT, FINDING, PASS } from "./pinned.ts";
 import { readMarkers } from "./trace.ts";
 
 /** The Vitest test files the step runs: the config's include of src/ and site/. */
@@ -204,7 +207,21 @@ const git = (root: string, ...args: string[]) =>
     maxBuffer: 1 << 28,
   });
 
-/** The parent's tree in a fresh folder, installed from its own lockfile, offline. */
+/** Every node_modules folder of the tree at `root`, as paths under it, not looking inside one. */
+const packageFolders = (root: string, at = ""): string[] =>
+  readdirSync(join(root, at), { withFileTypes: true }).flatMap((e) =>
+    e.name === "node_modules"
+      ? [join(at, e.name)]
+      : e.isDirectory() && ![".git", "dist", "reports"].includes(e.name)
+        ? packageFolders(root, join(at, e.name))
+        : [],
+  );
+
+/**
+ * The parent's tree in a fresh folder, with the checked tree's packages: its root node_modules as one link, and every
+ * other node_modules folder (the site's) as a copy of the links inside it, with the same link text. A workspace link
+ * such as `../../..` then leads into the parent's tree, never into the checked one. Nothing is installed.
+ */
 function parentTree(root: string, sha: string): { dir: string } | Result {
   const dir = mkdtempSync(join(tmpdir(), "red-check-"));
   const tar = join(dir, "..", `${dir.split("/").pop()}.tar`);
@@ -218,21 +235,14 @@ function parentTree(root: string, sha: string): { dir: string } | Result {
     rmSync(dir, { recursive: true, force: true });
     return result(CANNOT, `cannot unpack ${sha}^`, [x.stderr.trim()]);
   }
-  const i = spawnSync(
-    binaryOf("pnpm"),
-    ["install", "--offline", "--frozen-lockfile", "--ignore-scripts"],
-    { cwd: dir, encoding: "utf8", env: childEnv(), maxBuffer: 1 << 26 },
-  );
-  if (i.status !== 0) {
-    rmSync(dir, { recursive: true, force: true });
-    return result(
-      CANNOT,
-      `pnpm install --offline in ${sha}^ failed`,
-      i.error
-        ? [`cannot run ${binaryOf("pnpm")}`]
-        : tail(`${i.stdout}${i.stderr}`),
-    );
-  }
+  for (const rel of packageFolders(root))
+    if (rel === "node_modules")
+      symlinkSync(realpathSync(join(root, rel)), join(dir, rel));
+    else
+      cpSync(join(root, rel), join(dir, rel), {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
   return { dir: realpathSync(dir) };
 }
 
@@ -246,7 +256,9 @@ const FLAGS = [
   "--typecheck.enabled=false",
   "--update=none",
   "--includeTaskLocation",
-  "--cache=false",
+  "--no-cache", // the results cache would be written into the checked tree's node_modules
+  "--fsModuleCache=false",
+  "--configLoader=runner", // the default writes a temporary config under node_modules
 ];
 
 /** One commit: its test files run twice on the parent, first the parent's own versions (the names already there). */
@@ -296,7 +308,13 @@ export function checkCommit(root: string, c: Change, keep: string): Verdict {
     ) {
       const b = spawnSync(
         join(dir, "node_modules", ".bin", "vite"),
-        ["build", "--config", "site/vite.config.ts"],
+        [
+          "build",
+          "--config",
+          "site/vite.config.ts",
+          "--configLoader",
+          "runner",
+        ],
         { cwd: dir, encoding: "utf8", env: childEnv(), maxBuffer: 1 << 26 },
       );
       if (b.status !== 0)

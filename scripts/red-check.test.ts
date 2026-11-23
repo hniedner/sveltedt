@@ -92,12 +92,8 @@ const A_TEST =
   'import { expect, test } from "vitest";\nimport { f } from "./a.ts";\ntest("f adds one", () => {\n  expect(f(1)).toBe(2);\n});\n';
 function fixture(config = CONFIG): string {
   const root = tempDir();
-  for (const f of [
-    "package.json",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    "site/package.json",
-  ]) {
+  // The site is its own package: an import from it of the package's name is not a self-reference but needs the link
+  for (const f of ["package.json", "site/package.json"]) {
     mkdirSync(join(root, f, ".."), { recursive: true });
     copyFileSync(join(here, "..", f), join(root, f));
   }
