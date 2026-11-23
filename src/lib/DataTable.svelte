@@ -45,11 +45,9 @@
     );
     // Stryker restore OptionalChaining,ArrayDeclaration
   }
-  // SORT-13 asks only that the two directions differ, so swapping the glyphs changes no statement
-  // Stryker disable EqualityOperator: SORT-13 fixes no glyph
+  // The direction mark of a sorted column (SORT-13)
   const arrow = (direction: SortDirection): string =>
     direction === "asc" ? "▲" : "▼";
-  // Stryker restore EqualityOperator
   // The text of a cell without a snippet; RND-05 refuses a column with neither, so its value is there
   // Stryker disable OptionalChaining: unreachable, see above
   const textOf = (column: DataTableColumn<Row>, row: Row) =>
