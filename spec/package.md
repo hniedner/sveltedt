@@ -210,9 +210,11 @@ each naming a file the tarball holds.
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
 consumer project, and leave the committed consumer project unchanged.
 - Examples (the test copies the files git tracks under `consumer/`, and nothing else, to a temporary folder, installs
-  the copy from its copied lockfile unchanged, then adds the tarball with one package-manager command that fetches
-  nothing from the registry (`pnpm add -D --offline` and the tarball's path); the first three rows are read after that,
-  the others are canaries, each planted in a copy, which must be found):
+  the copy from its copied lockfile unchanged, then adds the tarball with one package-manager command that takes the
+  package from the tarball's path, not from the registry (`pnpm add -D --prefer-offline` and the tarball's path;
+  `--offline` fails on a clean runner, whose metadata cache is empty after a frozen install: "Failed to resolve ... in
+  package mirror", MEASURED 2026-11-23, pnpm 12.19.0); the first three rows are read after that, the others are
+  canaries, each planted in a copy, which must be found):
 
   | What is read | Result |
   |---|---|
