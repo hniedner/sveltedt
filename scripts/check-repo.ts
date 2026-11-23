@@ -1980,6 +1980,31 @@ function inline(root: string, list: Set<string>): Result {
     : result(PASS, `read ${pages.length} HTML file(s) in site/dist`);
 }
 
+/** A scan script of scripts/ run over the repository: its result is read from its exit code and last line (G1). */
+function scan(root: string, script: string): Result {
+  const r = spawnSync(process.execPath, [join(HERE, script), "--root", root], {
+    encoding: "utf8",
+    env: childEnv(),
+  });
+  const lines = (r.stdout ?? "").trim().split("\n");
+  const code = [PASS, FINDING, CANNOT].includes(r.status ?? -1)
+    ? (r.status as number)
+    : USAGE;
+  return result(
+    code,
+    (lines.at(-1) ?? "").replace(/^.*? check-[a-z-]+: /, ""),
+    lines.slice(0, -1).map((l) => l.trim()),
+  );
+}
+
+// THEME-01, 02, 04, 12 and 13: check-stylesheet.ts over the stylesheet and the guide. With nothing tracked under
+// src/lib there is no stylesheet to read yet: not applicable.
+function stylesheet(root: string, list: Set<string>): Result {
+  if (![...list].some((f) => f.startsWith("src/lib/")))
+    return result(NA, "nothing is tracked under src/lib");
+  return scan(root, "check-stylesheet.ts");
+}
+
 // Vitest with the one tracked vitest.config.ts. A planted failing test must be reported first; then every tracked
 // test file outside scripts/ (node:test files and canaries) and site/browser/ must have run with at least one passing
 // test, no test may fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report).
@@ -2971,6 +2996,7 @@ const CHECKS: Record<
   svelte,
   site,
   inline,
+  stylesheet,
   test,
   trace,
   "diff-coverage": diffCoverage,
