@@ -1,6 +1,7 @@
 // The mutation step (G8): every mutant of a changed line under src/ must be killed by the tests. StrykerJS runs in a
 // temporary copy of the tracked files (its `inPlace` mode rewrites every file it reaches, which a killed run would leave
-// in a checkout) on the changed line ranges; the step judges the JSON report itself. A planted survivor in the copy
+// in a checkout) on the whole of each changed file, and judges the JSON report on the changed lines only (a mutant is
+// made only when its whole node is inside a mutate range, so a range would lose the mutants that span a changed line). A planted survivor in the copy
 // must show up in the report first, or the step cannot check.
 import { spawnSync } from "node:child_process";
 import {
@@ -42,7 +43,7 @@ export interface Report {
     }
   >;
 }
-const BAD = ["Survived", "NoCoverage"];
+const HANDLED = ["Killed", "Timeout"]; // any other status that is not invalid or Ignored (Survived, NoCoverage, Pending) fails
 const INVALID = ["CompileError", "RuntimeError"]; // the mutant itself does not run: Stryker's scoring leaves it out too
 
 /**
@@ -61,10 +62,10 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
       const line = m.location.start.line;
       if (!lines.includes(line)) continue;
       const at = `${file}:${line} ${m.mutatorName}`;
-      if (BAD.includes(m.status)) bad.push(`${at} (${m.status})`);
-      else if (INVALID.includes(m.status))
+      if (INVALID.includes(m.status))
         invalid.push(`${at}: invalid mutant (not judged)`);
-      else if (m.status !== "Ignored") judged++;
+      else if (HANDLED.includes(m.status)) judged++;
+      else if (m.status !== "Ignored") bad.push(`${at} (${m.status})`);
     }
   if (bad.length)
     return result(
@@ -94,23 +95,13 @@ export function disableWithoutReason(files: Map<string, string>): string[] {
 /** A new empty directory outside the checkout, where Stryker's temporary copy is made. */
 export const workDir = (): string => mkdtempSync(join(tmpdir(), "mutation-"));
 
-/** `file:a-b` for each run of consecutive changed lines, the form Stryker's `mutate` takes. */
-const ranges = (changed: [string, number[]][]): string[] =>
-  changed.flatMap(([file, lines]) => {
-    const out: string[] = [];
-    let start = lines[0];
-    lines.forEach((n, i) => {
-      if (i + 1 === lines.length || lines[i + 1] !== n + 1) {
-        out.push(`${file}:${start}-${n}`);
-        start = lines[i + 1];
-      }
-    });
-    return out;
-  });
-
 const CANARY_FILE = "src/mutation-canary/canary.ts";
 
-function run(root: string, list: Set<string>, mutate: string[]): Result {
+function run(
+  root: string,
+  list: Set<string>,
+  changed: Map<string, number[]>,
+): Result {
   const planted = canaries("mutation");
   const dir = workDir();
   try {
@@ -144,7 +135,7 @@ function run(root: string, list: Set<string>, mutate: string[]): Result {
         maxBuffer: 64 * 1024 * 1024,
         env: {
           ...env,
-          STRYKER_MUTATE: JSON.stringify([...mutate, CANARY_FILE]),
+          STRYKER_MUTATE: JSON.stringify([...changed.keys(), CANARY_FILE]),
         },
       },
     );
@@ -162,26 +153,19 @@ function run(root: string, list: Set<string>, mutate: string[]): Result {
       reportFile(freshReports(root, "mutation"), "mutation.json"),
       text,
     );
-    return verdict(JSON.parse(text) as Report, mutate);
+    return verdict(JSON.parse(text) as Report, changed);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 /** The canary's planted survivor and killed mutant must both be in the report, then the changed lines are judged. */
-function verdict(report: Report, mutate: string[]): Result {
+function verdict(report: Report, changed: Map<string, number[]>): Result {
   const canary = report.files[CANARY_FILE]?.mutants.map((m) => m.status) ?? [];
   if (!canary.includes("Survived") || !canary.includes("Killed"))
     return result(CANNOT, "the run did not find the canary's survivor", [
       `canary mutants: ${canary.join(", ") || "none"}`,
     ]);
-  const changed = new Map<string, number[]>();
-  for (const r of mutate) {
-    const [, file, a, b] = /^(.*):(\d+)-(\d+)$/.exec(r) ?? [];
-    const lines = changed.get(file) ?? [];
-    for (let n = Number(a); n <= Number(b); n++) lines.push(n);
-    changed.set(file, lines);
-  }
   return judge(report, changed);
 }
 
@@ -211,5 +195,5 @@ export function check(root: string, list: Set<string>): Result {
       "a Stryker disable comment without a reason on its line",
       comments,
     );
-  return run(root, list, ranges(changed));
+  return run(root, list, new Map(changed));
 }

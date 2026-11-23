@@ -199,16 +199,23 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   them only on a clean end. A killed run now leaves a stray folder in the temp directory and nothing in the checkout
   (test: a real Stryker run killed once it has started mutating, the fixture's files byte-identical). Untracked new
   files are not in the copy, as in G4.
-  - Ranges: each run of consecutive changed lines becomes `file:a-b` in `mutate`; mutants of unchanged lines inside
-    a range are not judged. A mutant belongs to the line it starts on.
+  - Files, not ranges: Stryker makes a mutant only when its whole node lies inside a `mutate` range (read in its
+    instrumenter; measured 2026-11-22: a changed first line of a two-line array gave no ArrayDeclaration mutant), so
+    the whole of each changed file is mutated and the report is judged on the changed lines. A mutant belongs to the
+    line it starts on. Weaker rule, stated: no judged mutant is could not check over all changed files together, not per file,
+    so a type-only file changed beside a tested one passes.
   - Verdict: Survived and NoCoverage fail (a changed line no test reaches is a finding too); CompileError and
-    RuntimeError mutants are listed as "invalid mutant (not judged)", as Stryker's own score leaves them out; Ignored
-    (a disable comment) and Timeout count as handled. Existing survivors on lines no change touches are not judged:
-    measured 2026-11-22, 18 Survived and 2 NoCoverage mutants in today's `src`, listed in the checkpoint.
+    RuntimeError mutants are listed as "invalid mutant (not judged)", as Stryker's own score leaves them out; Killed
+    and Timeout count as handled, Ignored (a disable comment) as neither; any other status (Pending) fails. A
+    disable comment without a reason anywhere in a changed file is a finding too. Existing survivors on lines no
+    change touches are not judged: measured 2026-11-22, 18 Survived and 2 NoCoverage mutants in today's `src`,
+    listed in the checkpoint.
   - Canary: the copy also holds `scripts/canaries/mutation/` (a planted survivor and a killed mutant) under
     `src/mutation-canary/`, mutated in the same run. The step is could not check unless both are in the report.
-  - Seconds, measured locally: 6 s for one `.ts` file, 7 s for one `.svelte` file, 18 s for the ranges of
-    everything changed since #137 (95 lines in 6 files), 52 s for the whole of `src`; the copy and the install add 1 s.
+  - Seconds, measured locally for whole files: 6 s for `sort.ts`, 7 s for `Pagination.svelte`, 13 s for
+    `DataTable.svelte`, 52 s for all of `src`; the copy and the install add 1 s. (Ranges of everything changed since
+    #137 took 18 s, but ranges lose spanning mutants.) On a Linux machine whose temp directory is on another device
+    than the pnpm store, the offline install may not find the store and the step cannot check *(inferred, not run)*.
   - Packages: `@stryker-mutator/core` and `vitest-runner` 10.1.1, with `minimatch` and `qs` overridden (decision 001,
     Overrides) because core pins versions with advisories.
 - Real-browser tests (components and journeys) and static checks are outside mutation scope: Stryker's Vitest runner does not run browser
