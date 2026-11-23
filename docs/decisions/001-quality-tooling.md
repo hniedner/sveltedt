@@ -173,6 +173,22 @@ Development dependencies on the same terms as the test toolchain.
   with postcss's own `list.space` and `list.comma`, so no value parser is added. Dependabot moves both in
   `npm-minor-and-patch`.
 
+- **@sveltejs/package 3.0.3, publint 0.3.25 and @arethetypeswrong/cli 0.18.5** (MIT, exact pins): the package step
+  (PKG-01 to 05 and 07) builds `src/lib` with `svelte-package`, packs with `pnpm pack` and reads the tarball; publint
+  and attw run on it. 60 packages are added to the lockfile, none removed or re-resolved; every licence is on the allow
+  list. Docs read 2026-11-23: the Svelte packaging guide (`.ts` files are imported with a `.js` ending; `files` takes
+  `!dist/**/*.test.*`), the attw README (`--pack` uses npm only, so the pnpm tarball is passed as a path) and publint's
+  `--help` (a tarball path is accepted). Measured the same day: svelte-package leaves `.ts` specifiers inside `.svelte`
+  files, so the two components import with `.js` and PKG-07 keeps it so; publint passes a package whose consumer build
+  fails on that. attw runs with the `esm-only` profile (the package is ESM only), without `./styles.css`
+  (a CSS file is not a module) and with `internal-resolution-error` ignored (node16 on the `.svelte` re-exports;
+  Svelte consumers resolve with `bundler`, green); CON-04 proves the types for a real consumer.
+  The repository's own `exports` stay at `src/lib` for the site's workspace link; the dist exports are
+  `publishConfig.exports`, which pnpm (not npm) replaces when it packs, so every statement reads the tarball and the
+  release publishes that tarball (#171). The Svelte peer is `^5.20.0`: the Svelte changelog's `## 5.20.0` lists
+  "feat: SSR-safe ID generation with `$props.id()` (#15185)", which the table's ids need. Limit: no CI run exists at
+  that floor yet (#159), and later fixes to `$props.id()` (5.39.5, 5.45.4) are above it.
+
 ## Real-browser toolchain (build 2a)
 
 - **@playwright/test 1.65.1** (Apache-2.0, exact pin; with playwright and playwright-core 1.65.1, Apache-2.0, no install

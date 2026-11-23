@@ -1,12 +1,12 @@
 <script lang="ts" generics="Row">
-  import { defaultMessages, mergeMessages } from "./messages.ts";
-  import { nextOrder } from "./sort.ts";
+  import { defaultMessages, mergeMessages } from "./messages.js";
+  import { nextOrder } from "./sort.js";
   import type {
     DataTableColumn,
     DataTableProps,
     SortDirection,
-  } from "./types.ts";
-  import { validateTable } from "./validate.ts";
+  } from "./types.js";
+  import { validateTable } from "./validate.js";
 
   const {
     rows,

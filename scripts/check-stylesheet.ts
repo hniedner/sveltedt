@@ -3,15 +3,14 @@
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import postcss, { list } from "postcss";
 import type { AtRule, ChildNode, Node, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
 import { parse } from "svelte/compiler";
-import { result } from "./gate-step.ts";
+import { result, scriptMain } from "./gate-step.ts";
 import type { Result } from "./gate-step.ts";
-import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
+import { CANNOT, FINDING, PASS } from "./pinned.ts";
 import { parseSpec } from "./trace.ts";
 
 export interface Finding {
@@ -697,38 +696,4 @@ export function check(root: string): Result {
   );
 }
 
-const WORD: Record<number, string> = {
-  [PASS]: "PASS",
-  [FINDING]: "FINDING",
-  [USAGE]: "USAGE",
-  [CANNOT]: "COULD NOT CHECK",
-};
-function main(argv: string[]): number {
-  const at = argv.indexOf("--root");
-  if (argv.length !== (at >= 0 ? 2 : 0) || (at >= 0 && !argv[at + 1])) {
-    console.log(
-      "USAGE check-stylesheet: node scripts/check-stylesheet.ts [--root <dir>]",
-    );
-    return USAGE;
-  }
-  const r = check(
-    at >= 0
-      ? argv[at + 1]
-      : join(dirname(fileURLToPath(import.meta.url)), ".."),
-  );
-  for (const d of r.details) console.log(`  ${d}`);
-  console.log(`${WORD[r.code]} check-stylesheet: ${r.summary}`);
-  return r.code;
-}
-
-// Run as a program, not when a test imports the checks
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (e) {
-    console.log(
-      `USAGE check-stylesheet: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
-    );
-    process.exitCode = USAGE;
-  }
-}
+scriptMain("check-stylesheet", import.meta.url, check);

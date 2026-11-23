@@ -58,7 +58,8 @@
 
 ## 1. The packed package (PKG)
 
-**PKG-01** The packed manifest's root export `.` MUST have a `types` condition and a `svelte` condition.
+**PKG-01** The packed manifest's root export `.` MUST have a `types` condition and a `svelte` condition, each naming a
+file under `./dist/`.
 - Examples (the first row is the real tarball; the others are canaries, each a packed manifest planted in a copy of
   the tarball's contents):
 
@@ -68,6 +69,7 @@
   | `{ "types": "./dist/index.d.ts", "svelte": "./dist/index.js" }` | passes |
   | `{ "svelte": "./dist/index.js" }` | finding: no `types` |
   | `{ "types": "./dist/index.d.ts" }` | finding: no `svelte` |
+  | `{ "types": "./src/lib/index.ts", "svelte": "./src/lib/index.ts" }` (the repository's own `exports`) | finding: not under `./dist/` |
   | `"./dist/index.js"` (a string, no conditions) | finding |
   | no `exports` field, or none for `.` | finding |
 
@@ -75,7 +77,9 @@
   condition names a file the tarball holds is publint's check (PKG-02). Break that turns it red: the `types` condition
   left out of the root export.
 - Reason: without `types` TypeScript finds no types for the package, and without `svelte` a Svelte-aware bundler
-  cannot resolve the component; the repository's own tests pass either way.
+  cannot resolve the component; the repository's own tests pass either way. The repository's own `exports` point at `src/lib` for the
+  site's workspace link, and only pnpm replaces them from `publishConfig` when it packs, so the check reads the
+  tarball's manifest and never the repository's.
 - Layer: pack.
 - Traces: PRD-K2.
 
@@ -183,6 +187,23 @@ each naming a file the tarball holds.
   its path carries `types` and `svelte` like the root (PRD-K2).
 - Layer: pack.
 - Traces: PRD-K2, PRD-B20.
+
+**PKG-07** A `.svelte` or `.js` file in the tarball MUST NOT import a relative module whose path ends in `.ts`.
+- Examples (the check runs every row on a copy of the tarball's contents):
+
+  | File in the tarball | Result |
+  |---|---|
+  | the real tarball's files | passes |
+  | `import { x } from "./messages.ts";` planted in `dist/Pagination.svelte` | finding |
+  | the same line planted in `dist/index.js` | finding |
+  | `import type { T } from "./types.ts";` planted in a `.d.ts` file | passes (declaration files are not run) |
+
+  When no `.svelte` or `.js` file is read, the check reports "could not check". Break that turns it red: a `.ts`
+  specifier left in a `.svelte` file of `src/lib`.
+- Reason: `svelte-package` rewrites `.ts` specifiers in `.ts` files but not inside `.svelte` files, so a consumer's
+  build fails with an unresolved import, and publint does not see it (MEASURED 2026-11-23, svelte-package 3.0.3).
+- Layer: pack.
+- Traces: PRD-K2.
 
 ## 2. The consumer project (CON)
 
@@ -417,6 +438,7 @@ of `spec/table.md`).
 | PKG-04 | PRD-L1, PRD-K2 |
 | PKG-05 | PRD-K2, PRD-T3 |
 | PKG-06 | PRD-K2, PRD-B20 |
+| PKG-07 | PRD-K2 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
 | CON-03 | PRD-S1, PRD-W8 |
@@ -435,7 +457,7 @@ of `spec/table.md`).
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06, PKG-07, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11, CON-12 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-D3 | CON-14 | in part: the development warning is absent from a production build; the warning itself is STK-10 of `spec/table.md` |

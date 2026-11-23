@@ -131,8 +131,17 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   cannot be checked if one gives another result; it also cannot be checked with no spec, no guide, no token table or
   0 declarations, selectors or rules read. Limits: a colour keyword used as a custom identifier in a non-colour
   property (`font-family: Tan`) reads as a colour; a `var()` of a width inside a `border` or `outline` shorthand is judged as a
-  colour (stricter, never open); the tarball halves wait for PRD-K2. With nothing tracked under
-  `src/lib` it is NOT APPLICABLE.
+  colour (stricter, never open); the tarball's half of THEME-04 is PKG-03 of the `package` step. With nothing tracked
+  under `src/lib` it is NOT APPLICABLE.
+- **package:** `scripts/check-package.ts` builds `src/lib` with `svelte-package` into `dist/` (not tracked), packs it with
+  `pnpm pack` and reads the tarball, never the repository's `package.json`: PKG-01 root export under `./dist/`, PKG-02
+  publint and attw (profile `esm-only`, without `./styles.css`, `internal-resolution-error` ignored, reasons in the
+  code) clean, PKG-03 only the listed files, PKG-04 `LICENSE` and `NOTICE` equal the repository's, PKG-05 the
+  `./styles.css` export, PKG-07 no relative `.ts` import in a `.svelte` or `.js` file. Findings come first, then every
+  canary row on a copy of the real contents; it cannot be checked if one gives another result, the build or pack fails,
+  or no `.svelte` or `.js` file is read. Limits: no CI run at the Svelte peer floor (#159); attw skips node16 on the
+  `.svelte` re-exports (CON-04 proves the types); PKG-06 waits for the connection export. NOT APPLICABLE with nothing
+  tracked under `src/lib`.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
@@ -187,7 +196,8 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **mutation:** every mutant StrykerJS makes on a changed line under `src/` (`.ts`, `.svelte.ts`, `.svelte`, test files
   left out; the changed lines are the same as `diff-coverage`'s) must be killed by the tests (gates.md G8). A Survived
   or NoCoverage mutant is a finding naming `file:line mutator`; an invalid mutant (it does not compile or run) is
-  listed and not judged; no judged mutant on the changed lines is could not check; a `Stryker disable` comment
+  listed and not judged; no judged mutant on the changed lines is could not check, unless no mutant of any kind sits on them while the changed
+  files hold mutants elsewhere (an import or a comment changed): not applicable; a `Stryker disable` comment
   without a reason after its colon is a finding. Stryker runs in a temporary copy of the tracked files with an offline
   install, never in your checkout, and the JSON report is kept in `reports/mutation/`. The whole of each changed file is
   mutated (7 to 13 seconds for one component, 52 for all of `src`, measured locally). In CI it is its own job `mutation`. Mutants of

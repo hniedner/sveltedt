@@ -20,6 +20,7 @@ import { GATE_VARS } from "./gate-step.ts";
 import { disableWithoutReason, judge, workDir } from "./mutation.ts";
 import type { Report } from "./mutation.ts";
 import { CANNOT, FINDING, PASS } from "./pinned.ts";
+import { NA } from "./gate-step.ts";
 
 /** A Stryker report: for each file, [line, status] pairs (the mutator is "M"). */
 const reportOf = (
@@ -110,12 +111,51 @@ test("mutation judge: an invalid mutant is listed and not judged, and a diff wit
   const only = judge(reportOf({ "src/a.ts": [[3, "CompileError"]] }), CHANGED);
   assert.equal(only.code, CANNOT);
 });
-test("mutation judge: no mutant on a changed line, or no entry for the file, cannot be checked", () => {
-  assert.equal(
-    judge(reportOf({ "src/a.ts": [[9, "Killed"]] }), CHANGED).code,
-    CANNOT,
+test("mutation judge: changed lines with no mutant are not applicable when the changed file has mutants elsewhere", () => {
+  const r = judge(
+    reportOf({
+      "src/a.ts": [
+        [9, "Killed"],
+        [12, "Survived"],
+      ],
+    }),
+    CHANGED,
   );
+  assert.equal(r.code, NA);
+  assert.match(
+    r.summary,
+    /no mutant on a changed line \(2 mutants elsewhere in the changed files\)/,
+  );
+});
+test("mutation judge: one changed file with no mutant at all keeps could-not-check, whatever the others hold", () => {
+  const two = new Map([
+    ["src/a.ts", [2]],
+    ["src/b.ts", [4]],
+  ]);
+  const r = (b: [number, string][] | undefined) =>
+    judge(
+      reportOf({ "src/a.ts": [[9, "Killed"]], ...(b && { "src/b.ts": b }) }),
+      two,
+    );
+  assert.equal(r([]).code, CANNOT);
+  assert.equal(r(undefined).code, CANNOT);
+  assert.equal(r([[9, "Killed"]]).code, NA);
+});
+test("mutation judge: a changed file with 0 mutants, or no entry, cannot be checked", () => {
+  assert.equal(judge(reportOf({ "src/a.ts": [] }), CHANGED).code, CANNOT);
   assert.equal(judge(reportOf({}), CHANGED).code, CANNOT);
+});
+test("mutation judge: an invalid mutant on a changed line is not an excuse for not applicable", () => {
+  const r = judge(
+    reportOf({
+      "src/a.ts": [
+        [3, "CompileError"],
+        [9, "Killed"],
+      ],
+    }),
+    CHANGED,
+  );
+  assert.equal(r.code, CANNOT);
 });
 
 test("mutation comments: a disable comment needs a reason after the colon, in code and in markup", () => {

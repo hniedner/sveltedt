@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CANNOT } from "./pinned.ts";
+import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
 export const NA = 4; // nothing of the step's kind here: exits 0, never prints PASS
 
@@ -318,4 +318,43 @@ export function baseCommit(root: string): Result | Base {
   return merged
     ? { kind: "pull_request", base: merged }
     : result(CANNOT, `no merge base of ${base} and ${head}`);
+}
+
+const WORD: Record<number, string> = {
+  [PASS]: "PASS",
+  [FINDING]: "FINDING",
+  [USAGE]: "USAGE",
+  [CANNOT]: "COULD NOT CHECK",
+};
+/**
+ * The program of a `check-*.ts` script: `node scripts/<name>.ts [--root <dir>]`, run only when the script itself is the
+ * entry point (not when a test imports its checks). Prints the details and one last line `<WORD> <name>: <summary>`;
+ * the exit code is the result's, or 2 for a wrong argument or a crash.
+ */
+export function scriptMain(
+  name: string,
+  scriptUrl: string,
+  check: (root: string) => Result,
+): void {
+  if (process.argv[1] !== fileURLToPath(scriptUrl)) return;
+  const argv = process.argv.slice(2);
+  const at = argv.indexOf("--root");
+  if (argv.length !== (at >= 0 ? 2 : 0) || (at >= 0 && !argv[at + 1])) {
+    console.log(`USAGE ${name}: node scripts/${name}.ts [--root <dir>]`);
+    process.exitCode = USAGE;
+    return;
+  }
+  try {
+    const r = check(
+      at >= 0 ? argv[at + 1] : join(dirname(fileURLToPath(scriptUrl)), ".."),
+    );
+    for (const d of r.details) console.log(`  ${d}`);
+    console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
+    process.exitCode = r.code;
+  } catch (e) {
+    console.log(
+      `USAGE ${name}: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
+    );
+    process.exitCode = USAGE;
+  }
 }
