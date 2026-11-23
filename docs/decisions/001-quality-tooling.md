@@ -208,8 +208,21 @@ Development dependencies on the same terms as the test toolchain.
 
 ## Overrides
 
-None. The last one (minimatch 11.0.8 under @typescript-eslint/typescript-estree, for GHSA-g3hv-75wg-m249) came out
-with typescript-eslint 8.73.0, whose typescript-estree asks for minimatch `^11.0.1` itself.
+Two, both for `@stryker-mutator/core` 10.1.1 (the `mutation` step, #136), set in `pnpm-workspace.yaml`:
+
+- `@stryker-mutator/core>minimatch` to 11.0.1 (core asks for `~10.2.4`): GHSA-g3hv-75wg-m249, fixed in 11.0.1. 11.0.1 was
+  published 2026-10-27, past the 3-day release age.
+- `typed-rest-client>qs` to 6.16.1 (typed-rest-client 2.3.1 pins 6.15.1): GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx,
+  GHSA-4mjr-xmp4-gh2g and GHSA-6pq8-jhm2-2vcw, all fixed by 6.16.1 (published 2026-10-14).
+
+Why: without them `pnpm audit` reports 5 moderate advisories added by the two packages, and dependency-review fails
+on any. Measured 2026-11-22: a whole-`src` Stryker run (668 mutants keyed by file, position, mutator and replacement)
+gives the same status for every mutant with and without the overrides, and `pnpm audit` after them reports no known
+vulnerabilities. Neither package is reached by the step's use: minimatch matches the `mutate` globs, qs belongs to the
+dashboard reporter, which the step does not use.
+
+Removal: when `@stryker-mutator/core` no longer resolves a vulnerable minimatch or qs; Dependabot's `stryker` group
+shows it. The earlier override (minimatch 11.0.8 under typescript-estree) came out with typescript-eslint 8.73.0.
 
 ## Pinned programs
 

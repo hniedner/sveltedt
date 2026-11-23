@@ -11,3 +11,8 @@ strictDepBuilds: true
 # Equal to Dependabot's shortest npm cooldown (semver-patch-days: 3). A younger security fix is listed under
 # minimumReleaseAgeExclude with its GHSA id on the same line.
 minimumReleaseAge: 4320
+# Temporary, for GHSA-g3hv-75wg-m249 (minimatch) and four qs advisories: @stryker-mutator/core 10.1.1 pins minimatch
+# ~10.2.4, and its typed-rest-client pins qs 6.15.1. Decision 001, Overrides, says when each goes.
+overrides:
+  "@stryker-mutator/core>minimatch": 11.0.1
+  "typed-rest-client>qs": 6.16.1
