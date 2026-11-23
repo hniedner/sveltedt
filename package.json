@@ -8,7 +8,8 @@
     ".": {
       "types": "./src/lib/index.ts",
       "svelte": "./src/lib/index.ts"
-    }
+    },
+    "./styles.css": "./src/lib/styles.css"
   },
   "packageManager": "pnpm@12.19.0",
   "scripts": {

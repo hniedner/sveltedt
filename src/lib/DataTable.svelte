@@ -87,9 +87,7 @@
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table class="sdt-table" aria-busy={busy || status === "loading"}>
         <caption class="sdt-caption">{caption}</caption>
-        <thead
-          class="bg-[var(--sdt-header-surface,ButtonFace)] text-[var(--sdt-header-text,ButtonText)]"
-        >
+        <thead>
           <tr class="sdt-head-row">
             {#each columns as column, index (column.id)}
               {@const state = sortState(column.id)}
@@ -132,7 +130,7 @@
             {/each}
           </tr>
         </thead>
-        <tbody class="divide-y divide-[var(--sdt-border,GrayText)]">
+        <tbody>
           {#if status === "ready"}
             {#each rows as row (getRowId(row))}
               <tr class="sdt-row">
