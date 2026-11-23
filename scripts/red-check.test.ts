@@ -1,7 +1,13 @@
 // Tests for red-check.ts. The readers are pure, so they are called directly on git's and Vitest's own formats; the
 // step runs through check-repo.ts on fixture repositories with real commits, a real offline install and real Vitest.
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, readFileSync, renameSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+} from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
@@ -96,7 +102,16 @@ function fixture(config = CONFIG): string {
     copyFileSync(join(here, "..", f), join(root, f));
   }
   put(root, "vitest.config.ts", config);
-  put(root, ".gitignore", "/node_modules\n/reports/\n");
+  put(root, ".gitignore", "/node_modules\n/site/node_modules\n/reports/\n");
+  // The checked tree's packages, as a workspace installs them: the root folder and the site's link to the package
+  symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
+  mkdirSync(join(root, "site", "node_modules", "@hniedner"), {
+    recursive: true,
+  });
+  symlinkSync(
+    "../../..",
+    join(root, "site", "node_modules", "@hniedner", "sveltedt"),
+  );
   put(root, "src/a.ts", A);
   put(root, "src/a.test.ts", A_TEST);
   git(root, "init", "-q");
@@ -379,4 +394,41 @@ test("red-check step: a test-only commit whose test file cannot load is refused"
     step(root, FINDING),
     /src\/n\.test\.ts: the file did not load: .*\.\/gone\.ts/,
   );
+});
+test("red-check step: a site test is red by the parent's own component, the site's link to it kept inside the parent", () => {
+  const root = fixture(
+    CONFIG.replace(
+      '["src/**/*.test.ts"]',
+      '["src/**/*.test.ts", "site/**/*.test.ts"]',
+    ),
+  );
+  put(root, "src/lib/index.ts", 'export const word = "old";\n');
+  commit(root, "chore: the package says old");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+  put(root, "src/lib/index.ts", 'export const word = "new";\n');
+  put(
+    root,
+    "site/w.test.ts",
+    'import { expect, test } from "vitest";\nimport { word } from "@hniedner/sveltedt";\ntest("the site shows new", () => {\n  expect(word).toBe("new");\n});\n',
+  );
+  commit(root, "feat: the package says new");
+  assert.match(step(root, PASS), /the package says new: red$/m);
+});
+test("red-check step: a parent's lockfile is never installed, the checked tree's packages serve it", () => {
+  const root = fixture();
+  put(
+    root,
+    "pnpm-lock.yaml",
+    "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      no-such-package:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+  );
+  commit(root, "chore: a lockfile no store can serve");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+  put(root, "src/a.ts", F_NULL);
+  put(
+    root,
+    "src/n.test.ts",
+    vt('test("f(null) is 1", () => {\n  expect(f(null)).toBe(1);\n});\n'),
+  );
+  commit(root, "feat: null counts as zero");
+  assert.match(step(root, PASS), /null counts as zero: red$/m);
 });
