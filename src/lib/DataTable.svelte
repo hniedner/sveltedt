@@ -1,7 +1,11 @@
 <script lang="ts" generics="Row">
   import { defaultMessages, mergeMessages } from "./messages.ts";
   import { nextOrder } from "./sort.ts";
-  import type { DataTableProps, SortDirection } from "./types.ts";
+  import type {
+    DataTableColumn,
+    DataTableProps,
+    SortDirection,
+  } from "./types.ts";
   import { validateTable } from "./validate.ts";
 
   const {
@@ -32,6 +36,25 @@
     keyShift = null;
     return shift;
   }
+  // A sort button's press emits the next order (SORT-12). A sort button exists only for a sortable column, and the table
+  // has an onsort whenever a column is sortable (RND-05), so neither fallback below can be reached
+  function press(column: DataTableColumn<Row>, event: MouseEvent): void {
+    // Stryker disable OptionalChaining,ArrayDeclaration: unreachable fallbacks, see above
+    onsort?.(
+      nextOrder(order, column.id, column.sortable ?? [], shiftOf(event)),
+    );
+    // Stryker restore OptionalChaining,ArrayDeclaration
+  }
+  // SORT-13 asks only that the two directions differ, so swapping the glyphs changes no statement
+  // Stryker disable EqualityOperator: SORT-13 fixes no glyph
+  const arrow = (direction: SortDirection): string =>
+    direction === "asc" ? "▲" : "▼";
+  // Stryker restore EqualityOperator
+  // The text of a cell without a snippet; RND-05 refuses a column with neither, so its value is there
+  // Stryker disable OptionalChaining: unreachable, see above
+  const textOf = (column: DataTableColumn<Row>, row: Row) =>
+    column.value?.(row);
+  // Stryker restore OptionalChaining
   // The given words over the English defaults (RND-06)
   const words = $derived(mergeMessages(defaultMessages, messages));
   // null is no order (SORT-15)
@@ -109,17 +132,10 @@
                     aria-describedby={`${uid}-sort-${index}`}
                     onkeydown={sortKey}
                     onblur={() => (keyShift = null)}
-                    onclick={(event) =>
-                      onsort?.(
-                        nextOrder(
-                          order,
-                          column.id,
-                          column.sortable ?? [],
-                          shiftOf(event),
-                        ),
-                      )}>{column.label}</button
+                    onclick={(event) => press(column, event)}
+                    >{column.label}</button
                   >{#if state.direction}<span aria-hidden="true"
-                      >{state.direction === "asc" ? "▲" : "▼"}</span
+                      >{arrow(state.direction)}</span
                     >{/if}{#if state.rank !== null}<span aria-hidden="true"
                       >{words.sortRank(state.rank)}</span
                     >{/if}
@@ -139,7 +155,7 @@
                     >{#if typeof column.cell === "function"}{@render column.cell(
                         row,
                         column.id,
-                      )}{:else}{column.value?.(row)}{/if}</td
+                      )}{:else}{textOf(column, row)}{/if}</td
                   >
                 {/each}
               </tr>
