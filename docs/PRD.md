@@ -40,6 +40,10 @@
   without its leading and trailing white space, a quoted phrase keeps it, with no message and no quote escape.
   Amended by the owner on 2026-11-21 ("yes"): PRD-S7's publish runs from the version tag in the `npm` environment (the
   environment he created admits only `v*` tags); releases stay automatic.
+  Amended by the owner on 2026-11-22: the first release is 0.1.0 with its own criteria (section 6.1); the owner's
+  acceptance of a release preview before every publish (PRD-S7); PRD-A5 automated (CI-driven screen readers, a person
+  listens once before 1.0); PRD-A8's Firefox contrast check in CI; Q6 amended (no local Windows machine); PRD-E1's
+  branded Chrome and Edge channels.
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -580,19 +584,15 @@ to `failed` is announced, a failure after a retry included.
 
 #### PRD-A5
 
-Screen-reader protocol before each minor release and 1.0: a written task script with the expected announcements,
-recorded at the first pass and compared after; a blocker is a task that cannot be done or an AA failure.
+The release gate is Playwright with axe and accessibility-tree assertions in Chromium, Firefox and WebKit. Screen
+readers are driven in CI: NVDA with Firefox, Chrome and Edge on a GitHub-hosted Windows runner (#179), VoiceOver on a
+GitHub-hosted macOS runner (#180), by Guidepup, each against a written task script with expected key phrases, kept only
+if three runs agree. Where a reader route proves reliable it replaces the hand run; where not, the release statement
+says which reader runs are not yet done. A person listens to the full task script once before 1.0. Versions are
+recorded per release; records live in the repo.
 
-**NVDA + Firefox:** run by the maintainer on the Windows host of Q6; additionally driven in CI by Guidepup on a
-GitHub-hosted Windows runner if a spec-time probe proves it reliable (Guidepup supports NVDA on Windows Server 2022 and
-2025, READ; no official hosted-runner workflow found and its Firefox runs headed, per a review of an earlier draft, so
-INFERRED).
-
-**Windows contrast theme (always, whatever route NVDA takes):** the maintainer checks A8 in Firefox on the same host.
-
-**VoiceOver + Safari:** run by the maintainer on macOS. Versions recorded; records live in the repo.
-
-- **Reason:** Automated checks cannot hear what is announced.
+- **Reason:** Automated accessibility checks cannot hear what is announced; CI-driven readers can, where they are
+  reliable.
 - **Priority:** must
 
 #### PRD-A6
@@ -613,6 +613,10 @@ Every drag has a single-pointer alternative and a keyboard way.
 
 In forced-colours mode, focus indicators, box states, sort marks, separators, the progress indicator and the Cancel and
 Try again buttons stay visible.
+
+Proof: Firefox under a real Windows contrast theme on the Windows runner in CI (#179); if the theme cannot be set
+there, Firefox under Playwright's forced-colours emulation in CI, and the statement says "emulated" (owner,
+2026-11-22: "Include the Firefox check").
 
 - **Reason:** `box-shadow` is forced to none there (READ, MDN).
 - **Priority:** must
@@ -657,7 +661,7 @@ tokens, and a browser check of computed colours in each theme view.
 
 The protocol also runs with JAWS + Chrome.
 
-- **Reason:** A widely used Windows reader; needs a licensed Windows host (Q6).
+- **Reason:** A widely used Windows reader; needs a JAWS licence on a Windows runner (Q6).
 - **Priority:** should
 
 #### PRD-A14
@@ -671,7 +675,8 @@ The protocol also runs with VoiceOver on iOS and TalkBack on Android.
 CT = component test (simulated DOM); BT = component in a real browser, Chromium, Firefox and WebKit unless marked;
 AX = axe inside BT, 0 serious or critical, run at scroll 0 with the header opaque so contrast is decidable; any
 remaining *incomplete* item goes to the named manual step "contrast review of the listed nodes" by the maintainer in
-the release record; MP = the protocol of PRD-A5. Rule 4.0 applies to every row.
+the release record; MP = the CI-driven screen-reader runs of PRD-A5; until a route is reliable, the release statement
+names MP as not yet done for that reader. Rule 4.0 applies to every row.
 
 | Criterion | What it means here | Proof |
 |---|---|---|
@@ -835,11 +840,11 @@ workflow works out the next version from the conventional commit messages, creat
 GitHub release with the changelog generated from those commits; it pushes no commit to `main`. The publish happens in a
 workflow run on that version tag, never in a run on `main`, and publishes the build of that tag. Its publish job runs in
 the `npm` environment, which admits only `v*` tags and has the owner as required reviewer, and waits for the owner's
-approval: a fix release may be approved at once, a minor or major release only after the PRD-A5 protocol record for it
-exists. Versions stay at 0.x until the owner decides on 1.0. The tool that computes the version is chosen by a
-library-first evaluation that includes the owner's existing release workflow; whichever it is, it runs only `npm
-publish` (with `--tag` for a prerelease) and moves no dist-tag. The workflow files reference no npm token (static
-check); the npm setting is recorded in the release record.
+approval: a fix release may be approved at once, a minor or major release only after the owner has accepted its preview
+and the PRD-A5 checks for it are green. Versions stay at 0.x until the owner decides on 1.0. The tool that computes the
+version is chosen by a library-first evaluation that includes the owner's existing release workflow; whichever it is, it
+runs only `npm publish` (with `--tag` for a prerelease) and moves no dist-tag. The workflow files reference no npm token
+(static check); the npm setting is recorded in the release record.
 
 **Break-glass:** if the workflow cannot publish and a security fix cannot wait, the owner publishes by hand with
 two-factor authentication (the setting "only affects traditional token authentication", and under it maintainers publish
@@ -847,6 +852,12 @@ interactively with a two-factor prompt; READ by a review of an earlier draft, do
 requiring-2fa-for-package-publishing-and-settings-modification). That version has no provenance; its release record says
 "manual, no provenance" and why; it is the one exception criterion 7 names, and the next version goes through the
 workflow.
+
+**Owner acceptance before every release (owner, 2026-11-22):** before any release publishes, the test site built from
+the release candidate runs as a preview with a "New in this release" page that lists each new feature and links to its
+example. The owner is told the address, the version and the list, and the publish waits for his acceptance; the `npm`
+environment's required-reviewer approval is given only after it. A finding from his test is fixed and the preview shown
+again.
 
 - **Reason:** Consumers can verify every real release; the manual steps are named and recorded.
 - **Priority:** must
@@ -1173,11 +1184,13 @@ given row is present (PRD-P1); 250 or fewer new rows show at once; a page render
 #### PRD-E1
 
 Support: Chrome and Edge 114+, Firefox 128+, Safari 17+. CI tests Playwright's Chromium, Firefox and WebKit pinned by
-the lockfile, versions recorded per release; `eslint-plugin-compat` with that floor flags JavaScript APIs above it. The
-stylesheet uses no feature above the floor and no CSS nesting, checked statically; a canary file using a feature above
-the floor and a nested rule must turn the check red (the tool is chosen at spec time; the candidate doiuse calls its own
-detection "quite naive", FETCHED 2026-11-18, so the canary is what proves it). The support statement says the floor
-versions are covered by those checks only. Raising the floor is a major release.
+the lockfile, versions recorded per release; CI also runs the browser specs in the branded Chrome and Edge channels
+(#181), and in real Safari if #180 shows it can be driven; otherwise WebKit stands for Safari and the support statement
+says so; `eslint-plugin-compat` with that floor flags JavaScript APIs above it. The stylesheet uses no feature above the
+floor and no CSS nesting, checked statically; a canary file using a feature above the floor and a nested rule must turn
+the check red (the tool is chosen at spec time; the candidate doiuse calls its own detection "quite naive", FETCHED
+2026-11-18, so the canary is what proves it). The support statement says the floor versions are covered by those checks
+only. Raising the floor is a major release.
 
 - **Reason:** Claim only what is proven, and say how. The floor is the Popover API's, which the filter dialogs and the
   column chooser use (Chrome 114, Firefox 125, Safari 17, FETCHED 2026-11-19, MDN); the owner raised it on 2026-11-19
@@ -1614,6 +1627,30 @@ proven in the consumer project (W8), because that is how consumers get it. The p
 of the same pages plus the documentation, made by the release workflow and deployed to GitHub Pages; in it the query
 module runs in the browser, since Pages has no server.
 
+## 6.1 Release criteria for 0.1.0 (owner, 2026-11-22: "Confirmed as listed")
+
+1. The core table: sort, pager, loading, failed and empty states.
+2. Slow-load feedback: PRD-B22 to PRD-B24, as built by #60 and #144 to #147.
+3. Unique ids (#148).
+4. The connection helper.
+5. The global search.
+6. The text and categorical column filters.
+7. The stylesheet with its tokens.
+8. Server rendering proven in a clean consumer project (#24).
+9. The strict policy and axe clean in Chromium, Firefox and WebKit.
+10. A README quick start.
+11. The API reference.
+12. A stated "not there yet" list.
+13. Published by the release workflow with provenance (PRD-S7).
+14. The owner's acceptance of the release preview (PRD-S7).
+
+After 0.1.0, one feature group per 0.x minor: the local data source (0.2), then the column chooser, reorder and
+resize, then selection and child rows, then the sticky layout, then the performance and memory budgets, the
+five-backend recordings and the full migration guide. Section 6 stays the bar for 1.0.
+
+For A5 in 0.1.0: if the CI-driven screen-reader runs of #179 and #180 are not reliable by then, 0.1.0 ships with the
+statement "verified by automated checks in Chromium, Firefox and WebKit; screen-reader runs not yet done".
+
 ## 6. What "perfected" means: release criteria for 1.0
 
 1. Every must is met and traces to statements whose tests ran and passed in every engine they name; the trace check is
@@ -1623,7 +1660,8 @@ module runs in the browser, since Pages has no server.
    reviewed, K2 checks, D2 docs test.
 4. Section 4.3 holds: AX 0 serious or critical, and S1 holds on every page of the site and the consumer project, in
    Chromium, Firefox and WebKit.
-5. The A5 protocol record for the release commit has no open blocker.
+5. The CI-driven screen-reader runs of PRD-A5 are green on the release commit, and the one hand listening before 1.0
+   has no open blocker.
 6. The test site and the clean-install consumer project run in CI in Chromium, Firefox and WebKit, green.
 7. Docs D1-D8 complete; 1.0 is published by the release workflow with provenance (S7), with no exception. So is
    every later release, except a break-glass publish, which is listed in the release record with its reason.
@@ -1696,6 +1734,9 @@ The first app starts on 1.0; production use by it is not a criterion.
    2026-11-17): a local Windows virtual machine run by the maintainer before each minor release and 1.0; in addition,
    a spec-time probe of Guidepup driving NVDA on a GitHub-hosted Windows runner (free on this public repo), kept in CI
    only if reliable. JAWS stays "should" until a JAWS licence exists on that machine.
+   AMENDED (owner, 2026-11-22): no local Windows machine; a Windows virtual machine on Podman with Rosetta is not
+   workable on Apple Silicon (FETCHED 2026-11-22). NVDA, the contrast theme and the Windows browser checks run on
+   GitHub-hosted Windows runners (#179); JAWS (A13) stays should.
 7. **Sticky layout: design D (document scrolls) or design R (region scrolls)?** ANSWERED (owner, 2026-11-17): D, the
    page scrolls. One scroller (touch, find-in-page and the screen reader behave as on any page), no focus stop that
    scrolls nothing, and it is how the earlier table that is being ported already works. R is not in 1.0; it is on the later
@@ -1719,7 +1760,7 @@ an open question.
 | R9 | Scope creep toward a grid, or the site toward an app. | Non-goals; a new page or feature needs a requirement here. |
 | R10 | CI timing differs between runners and engines; a flaky browser test. | P2 calibrates on the runner class with a planted slowdown; a flake is a defect to find, never re-run away. |
 | R11 | The browser floor is not run, only checked statically; WebKit has no rendered forced-colours proof. | Stated in the support and accessibility statements (E1, D3). |
-| R12 | Guidepup on hosted runners proves unreliable. | The Windows host of Q6 is the baseline; CI is an addition. |
+| R12 | Guidepup on hosted runners proves unreliable. | The release statement names the reader runs not yet done; the automated checks in three engines stand. |
 | R13 | A StrykerJS move to Svelte's modern AST, or Svelte 6, changes what is mutated. | Pinned version; the recorded per-file mutant counts of G2 fail an upgrade that drops mutants. |
 | R14 | The DataTables server-side protocol changes in a new major. | W11's fixtures name the major they record; the connection helper's spec names the major it covers; a new major is a new recording and a new spec part. |
 | R15 | Client-side processing of 100,000 rows blocks the main thread or holds too much memory on a modest device. | P4 budgets the time of a new sort or filter at 10,000 rows (500 ms) and bounds what the local data source adds per row (integer arrays only, no text cache, tested); 100,000 rows are measured and published (P4); the documentation publishes a table by data size (the rows' own and JSON megabytes beside the source's added megabytes) and advises server-side processing beyond the recommended size. |
