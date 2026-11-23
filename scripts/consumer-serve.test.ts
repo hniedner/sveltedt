@@ -1,0 +1,92 @@
+// Tests for consumer-serve.ts. The servers of a copy are faked by two small scripts, so every branch of `start` runs in
+// well under a second; the script's own exits are run through the program.
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createServer } from "node:net";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, test } from "node:test";
+import { HERE } from "./gate-step.ts";
+import { start } from "./consumer-serve.ts";
+
+const free = (): Promise<number> =>
+  new Promise((resolve) => {
+    const s = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = s.address() as { port: number };
+      s.close(() => resolve(port));
+    });
+  });
+// A fake vite that listens on --port after `delay` ms, and a fake build/index.js that listens on PORT after `delay`
+const LISTEN = (port: string, delay: number): string =>
+  `setTimeout(() => import("node:http").then((h) => h.createServer((q, r) => r.end("ok")).listen(Number(${port}), "127.0.0.1")), ${delay});`;
+function fake(opts: { dev: string; prod: string }): string {
+  const copy = mkdtempSync(join(tmpdir(), "serve-test-"));
+  after(() => rmSync(copy, { recursive: true, force: true }));
+  mkdirSync(join(copy, "node_modules", ".bin"), { recursive: true });
+  mkdirSync(join(copy, "build"));
+  const vite = join(copy, "node_modules", ".bin", "vite");
+  writeFileSync(vite, `#!/usr/bin/env node\n${opts.dev}\n`);
+  chmodSync(vite, 0o755);
+  writeFileSync(join(copy, "build", "index.js"), opts.prod);
+  return copy;
+}
+const GOOD = {
+  dev: LISTEN('process.argv[process.argv.indexOf("--port") + 1]', 0),
+  prod: LISTEN("process.env.PORT", 0),
+};
+
+test("start: both servers answer, the mismatch route is planted, and stop ends them", async () => {
+  const copy = fake(GOOD);
+  const ports = { dev: await free(), prod: await free() };
+  const started = await start(copy, ports, 5000);
+  assert.ok(typeof started !== "string", "the servers did not start");
+  after(() => started.stop()); // a failed assertion below must not leave the servers holding the run open
+  assert.ok(
+    existsSync(join(copy, "src", "routes", "mismatch", "+page.svelte")),
+  );
+  assert.equal((await fetch(`http://127.0.0.1:${ports.prod}/`)).status, 200);
+  started.stop();
+});
+test("start: a development server that exits, a production server that exits, and one that never answers are could not start", async () => {
+  const failed = async (opts: typeof GOOD, ms: number): Promise<string> => {
+    const ports = { dev: await free(), prod: await free() };
+    const r = await start(fake(opts), ports, ms);
+    assert.equal(typeof r, "string");
+    return r as string;
+  };
+  assert.equal(
+    await failed({ ...GOOD, dev: "process.exit(1);" }, 5000),
+    "the development server exited with 1",
+  );
+  assert.equal(
+    await failed({ ...GOOD, prod: "process.exit(1);" }, 5000),
+    "the production server exited with 1",
+  );
+  assert.equal(
+    await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 600),
+    "the production server did not answer within 0.6 s",
+  );
+});
+test("the program: an unknown argument is a usage error, a root without a consumer cannot be prepared (exit 3)", () => {
+  const run = (...args: string[]) =>
+    spawnSync(process.execPath, [join(HERE, "consumer-serve.ts"), ...args], {
+      encoding: "utf8",
+    });
+  assert.equal(run("--nope").status, 2);
+  const empty = mkdtempSync(join(tmpdir(), "serve-root-"));
+  after(() => rmSync(empty, { recursive: true, force: true }));
+  const r = run("--root", empty);
+  assert.equal(r.status, 3);
+  assert.match(
+    r.stdout,
+    /^COULD NOT CHECK consumer-serve: svelte-package exited/m,
+  );
+});

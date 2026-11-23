@@ -22,6 +22,7 @@ import type { DefaultTreeAdapterTypes as Tree } from "parse5";
 import {
   childEnv,
   COLOUR,
+  isResult,
   missedRows,
   result,
   scriptMain,
@@ -605,48 +606,56 @@ export function verdict(s: State): Result {
   );
 }
 
+/** The packed package installed into a built copy of the consumer, as the checks and the browser tests read it. */
+export interface Prepared {
+  made: { contents: Contents; tgz: string };
+  copy: string;
+  /** Where the copy's node_modules/@hniedner/sveltedt link leads. */
+  real: string;
+}
+
+/** Pack, copy the tracked consumer/, install from its lockfile, add the tarball, build: or why one step could not run. */
+export function prepare(root: string, dir: string): Prepared | Result {
+  const made = packed(root, dir);
+  if (typeof made === "string") return result(CANNOT, made);
+  const copy = join(dir, "copy");
+  if (!copyTracked(root, copy))
+    return result(CANNOT, "no file is tracked under consumer/");
+  const pnpm = binaryOf("pnpm");
+  const steps: [string, string, string[]][] = [
+    [
+      "pnpm install",
+      pnpm,
+      ["install", "--frozen-lockfile", "--prefer-offline"],
+    ],
+    ["pnpm add", pnpm, ["add", "-D", "--prefer-offline", made.tgz]],
+    // The build writes SvelteKit's generated tsconfig, which the consumer's extends (CON-09)
+    ["vite build", join(copy, "node_modules", ".bin", "vite"), ["build"]],
+  ];
+  for (const [name, cmd, args] of steps) {
+    const r = run(cmd, args, copy);
+    if (r.status !== 0)
+      return result(
+        CANNOT,
+        `${name} exited ${r.status ?? "without a status"} in the consumer copy (no registry or warm store?)`,
+        lines(r),
+      );
+  }
+  try {
+    return { made, copy, real: realpathSync(join(copy, "node_modules", NAME)) };
+  } catch {
+    return result(CANNOT, `the copy holds no installed ${NAME}`);
+  }
+}
+
 export async function check(root: string): Promise<Result> {
   const dir = mkdtempSync(join(tmpdir(), "consumer-"));
   try {
-    const made = packed(root, dir);
-    if (typeof made === "string") return result(CANNOT, made);
-    const copy = join(dir, "copy");
-    const count = copyTracked(root, copy);
-    if (!count) return result(CANNOT, "no file is tracked under consumer/");
     const before = committed(root);
+    const prepared = prepare(root, dir);
+    if (isResult(prepared)) return prepared;
+    const { made, copy, real } = prepared;
     const pnpm = binaryOf("pnpm");
-    const steps: [string, string[]][] = [
-      ["pnpm install", ["install", "--frozen-lockfile", "--prefer-offline"]],
-      ["pnpm add", ["add", "-D", "--prefer-offline", made.tgz]],
-    ];
-    for (const [name, args] of steps) {
-      const r = run(pnpm, args, copy);
-      if (r.status !== 0)
-        return result(
-          CANNOT,
-          `${name} exited ${r.status ?? "without a status"} in the consumer copy (no registry or warm store?)`,
-          lines(r),
-        );
-    }
-    const link = join(copy, "node_modules", NAME);
-    let real: string;
-    try {
-      real = realpathSync(link);
-    } catch {
-      return result(CANNOT, `the copy holds no installed ${NAME}`);
-    }
-    // The build writes SvelteKit's generated tsconfig, which the consumer's extends (CON-09)
-    const build = run(
-      join(copy, "node_modules", ".bin", "vite"),
-      ["build"],
-      copy,
-    );
-    if (build.status !== 0)
-      return result(
-        CANNOT,
-        "vite build failed in the consumer copy",
-        lines(build),
-      );
     const typed = typeCheck(copy);
     const page = join(copy, "src", "routes", "+page.svelte");
     const source = readFileSync(page, "utf8");
