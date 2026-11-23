@@ -54,6 +54,28 @@ test("format: a spec file is never reformatted, and text still checks it", () =>
   );
 });
 
+test("format: a vendored third-party file is never reformatted, and text still checks it", () => {
+  // Reformatting would change the bytes the site's test holds to the published hash.
+  const css = ".a{color:red}  \n";
+  expect(
+    "format",
+    repo((root) =>
+      put(root, "site/public/vendor/x.min.css", ".a{color:red}\n"),
+    ),
+    0,
+  );
+  expect(
+    "format",
+    repo((root) => put(root, "site/public/x.min.css", ".a{color:red}\n")),
+    1,
+  );
+  expect(
+    "text",
+    repo((root) => put(root, "site/public/vendor/x.min.css", css)),
+    1,
+  );
+});
+
 // A tool that fails, on the canaries or on the repository, cannot have checked: the step says so and stops.
 // Prettier fails on a package.json whose `prettier` key names a shared config that does not exist.
 const BROKEN_PRETTIER = '{ "prettier": "./absent-config.json" }\n';
