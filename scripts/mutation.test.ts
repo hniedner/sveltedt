@@ -259,6 +259,36 @@ test("mutation step: a disable comment without a reason is a finding before any 
   );
   assert.match(out, /src\/a\.ts:1/);
 });
+test("mutation step: the job mutation itself never leaves the step to itself", () => {
+  const root = fixture({ "README.md": "# Fixture\n" });
+  const head = git(root, "rev-parse", "HEAD").trim();
+  const base = {
+    GITHUB_ACTIONS: "true",
+    GATE_EVENT: "pull_request",
+    GATE_BASE: head,
+    GATE_HEAD: head,
+    GATE_MUTATION: "job",
+  };
+  // In another job the step is left to the job mutation; in that job it runs (here to "no changed line")
+  const other = run(["mutation", "--root", root], { extraEnv: base });
+  assert.match(other.out, /left to the CI job mutation/);
+  const own = run(["mutation", "--root", root], {
+    extraEnv: { ...base, GITHUB_JOB: "mutation" },
+  });
+  assert.match(own.out, /no changed line under src\//);
+  assert.doesNotMatch(own.out, /left to the CI job/);
+});
+test("mutation step: a Stryker run that writes no report cannot check", () => {
+  // The fixture's own test fails, so Stryker stops in its dry run before it writes a report
+  const failing = FIXTURE_TEST.replace("toBe(1)", "toBe(99)");
+  const out = expect(
+    "mutation",
+    fixture({ "src/a.ts": KILLED }, { "src/a.test.ts": failing }),
+    CANNOT,
+    REAL_PNPM,
+  );
+  assert.match(out, /Stryker wrote no report/);
+});
 test("mutation step: a push to main is left to its pull request", () => {
   const root = fixture({ "src/a.ts": KILLED });
   const r = run(["mutation", "--root", root], {
