@@ -135,12 +135,17 @@ export const reportFile = (dir: string, name: string): string =>
  * One Vitest run in `cwd` (with `args`): its JSON report (null when it wrote none), exit status, output and any spawn
  * error. The report goes to `keep` (a reports folder) when given, else to a folder removed after the run.
  */
-export function vitest(cwd: string, args: string[], keep?: string): VitestRun {
+export function vitest(
+  cwd: string,
+  args: string[],
+  keep?: string,
+  bin = vitestBin(),
+): VitestRun {
   const dir = keep ?? mkdtempSync(join(tmpdir(), "vitest-"));
   try {
     const file = reportFile(dir, "vitest.json");
     const r = spawnSync(
-      vitestBin(),
+      bin,
       // dot prints what the JSON report leaves out: errors thrown outside a test
       [
         "run",
@@ -163,7 +168,7 @@ export function vitest(cwd: string, args: string[], keep?: string): VitestRun {
       report,
       status: r.status,
       out: `${r.stdout}${r.stderr}`,
-      error: r.error && `cannot run ${vitestBin()}: ${errorCode(r.error)}`,
+      error: r.error && `cannot run ${bin}: ${errorCode(r.error)}`,
     };
   } finally {
     if (!keep) rmSync(dir, { recursive: true, force: true });
