@@ -147,7 +147,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   followed a symbolic link loop). The step has no time limit of its own: the job's `timeout-minutes` ends the run, and
   the result is a failure, never a pass.
 - A changed test file or new test that did not run (skipped, outside the config's include) is could not check, as is
-  a parent whose own run wrote no report. A push to main is not applicable: it was checked on
+  a parent whose own run wrote no report. A parent whose Vitest config names `projects`, `coverage` or `onUnhandledError`
+  is run with the gate's flags unchecked. A push to main is not applicable: it was checked on
   its pull request.
 - The record is the step's lines in the CI log and `reports/red-check/` (in the gate's artifact). The commit message is not used: a committer's own message is not
   proof, and writing it would mean rewriting commits.
