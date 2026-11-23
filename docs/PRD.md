@@ -588,8 +588,8 @@ The release gate is Playwright with axe and accessibility-tree assertions in Chr
 readers are driven in CI: NVDA with Firefox, Chrome and Edge on a GitHub-hosted Windows runner (#179), VoiceOver on a
 GitHub-hosted macOS runner (#180), by Guidepup, each against a written task script with expected key phrases, kept only
 if three runs agree. Where a reader route proves reliable it replaces the hand run; where not, the release statement
-says which reader runs are not yet done. A person listens to the full task script once before 1.0. Versions are
-recorded per release; records live in the repo.
+says which reader runs are not yet done. A person listens to the full task script once before 1.0. Versions are recorded
+per release; records live in the repo. A blocker is a task that cannot be done or an AA failure.
 
 - **Reason:** Automated accessibility checks cannot hear what is announced; CI-driven readers can, where they are
   reliable.
@@ -1627,6 +1627,23 @@ proven in the consumer project (W8), because that is how consumers get it. The p
 of the same pages plus the documentation, made by the release workflow and deployed to GitHub Pages; in it the query
 module runs in the browser, since Pages has no server.
 
+## 6. What "perfected" means: release criteria for 1.0
+
+1. Every must is met and traces to statements whose tests ran and passed in every engine they name; the trace check is
+   green; no skipped test and no open check result (rule 4.0).
+2. Q1-Q7 are answered and in the spec.
+3. `pnpm gate` and CI green at the release commit: G1 coverage, G2 mutation, P2-P5 budgets, K1 API report
+   reviewed, K2 checks, D2 docs test.
+4. Section 4.3 holds: AX 0 serious or critical, and S1 holds on every page of the site and the consumer project, in
+   Chromium, Firefox and WebKit.
+5. The CI-driven screen-reader runs of PRD-A5 are green on the release commit, and the one hand listening before 1.0
+   has no open blocker.
+6. The test site and the clean-install consumer project run in CI in Chromium, Firefox and WebKit, green.
+7. Docs D1-D8 complete; 1.0 is published by the release workflow with provenance (S7), with no exception. So is
+   every later release, except a break-glass publish, which is listed in the release record with its reason.
+
+The first app starts on 1.0; production use by it is not a criterion.
+
 ## 6.1 Release criteria for 0.1.0 (owner, 2026-11-22: "Confirmed as listed")
 
 1. The core table: sort, pager, loading, failed and empty states.
@@ -1650,23 +1667,6 @@ five-backend recordings and the full migration guide. Section 6 stays the bar fo
 
 For A5 in 0.1.0: if the CI-driven screen-reader runs of #179 and #180 are not reliable by then, 0.1.0 ships with the
 statement "verified by automated checks in Chromium, Firefox and WebKit; screen-reader runs not yet done".
-
-## 6. What "perfected" means: release criteria for 1.0
-
-1. Every must is met and traces to statements whose tests ran and passed in every engine they name; the trace check is
-   green; no skipped test and no open check result (rule 4.0).
-2. Q1-Q7 are answered and in the spec.
-3. `pnpm gate` and CI green at the release commit: G1 coverage, G2 mutation, P2-P5 budgets, K1 API report
-   reviewed, K2 checks, D2 docs test.
-4. Section 4.3 holds: AX 0 serious or critical, and S1 holds on every page of the site and the consumer project, in
-   Chromium, Firefox and WebKit.
-5. The CI-driven screen-reader runs of PRD-A5 are green on the release commit, and the one hand listening before 1.0
-   has no open blocker.
-6. The test site and the clean-install consumer project run in CI in Chromium, Firefox and WebKit, green.
-7. Docs D1-D8 complete; 1.0 is published by the release workflow with provenance (S7), with no exception. So is
-   every later release, except a break-glass publish, which is listed in the release record with its reason.
-
-The first app starts on 1.0; production use by it is not a criterion.
 
 ## 7. Alternatives considered (MEASURED or READ in an evaluation done before this document, unless marked)
 
