@@ -59,6 +59,7 @@ test("start: a development server that exits, a production server that exits, an
   const failed = async (opts: typeof GOOD, ms: number): Promise<string> => {
     const ports = { dev: await free(), prod: await free() };
     const r = await start(fake(opts), ports, ms);
+    if (typeof r !== "string") r.stop(); // a start that should have failed must not hold the run open
     assert.equal(typeof r, "string");
     return r as string;
   };
@@ -69,6 +70,12 @@ test("start: a development server that exits, a production server that exits, an
   assert.equal(
     await failed({ ...GOOD, prod: "process.exit(1);" }, 5000),
     "the production server exited with 1",
+  );
+  // The routes are asked for once before the tests start, so the first browser does not pay the dev server's compile
+  const half = `import("node:http").then((h) => h.createServer((q, r) => { r.statusCode = q.url === "/mismatch" ? 500 : 200; r.end("x"); }).listen(Number(process.argv[process.argv.indexOf("--port") + 1]), "127.0.0.1"));`;
+  assert.equal(
+    await failed({ ...GOOD, dev: half }, 600),
+    "the development server /mismatch did not answer within 0.6 s",
   );
   assert.equal(
     await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 600),

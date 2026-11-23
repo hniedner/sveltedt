@@ -150,10 +150,10 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   the 20 rows in order. CON-03: no `style` attribute in `GET /` or the 404 page. CON-04: each answer carries the strict
   policy with one fresh nonce. CON-09: `svelte-check` reports no error, and one on a page that passes `rows={42}`.
   CON-11: `pnpm peers check` names no issue of the package, and one for a tarball asking for `svelte ^6.0.0`. Findings
-  come first, then every canary row. It needs the registry or a warm store for the install: with neither it is COULD
-  NOT CHECK, as it is when the build, the server or a tool gives no report. Limits: the listener order and hydration
-  are #195; the consumer tree's licence and cooldown checks are #176. NOT APPLICABLE without a tracked
-  `consumer/package.json`.
+  come first, then every canary row. CON-05: the list page loads `/csp-listener.js` from its own origin as a plain script
+  before every other script. It needs the registry or a warm store for the install: with neither it is COULD NOT
+  CHECK, as it is when the build, the server or a tool gives no report. The consumer tree's licence and cooldown checks
+  are #176. NOT APPLICABLE without a tracked `consumer/package.json`.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
@@ -225,7 +225,11 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   checked. It cannot be checked when a tracked spec did not run in each of the three engines, 127.0.0.1:4173 is
   taken, a browser is not installed, the report is unreadable or its totals differ from the tests read, or Playwright
   reports any other error outside the tests. With no tracked spec under `site/browser/` the step is NOT APPLICABLE;
-  a spec without `playwright.config.ts` cannot be checked. In CI the static job leaves it to the job `browser`
+  a spec without `playwright.config.ts` cannot be checked. `site/browser/consumer.spec.ts` (CON-06 hydration in place,
+  CON-08 no hydration warning on the development server) runs against the consumer's servers on 4174 and 4175, which
+  `scripts/consumer-serve.ts` starts from one prepared copy (the webServer command prepares, because Playwright starts
+  it before any global setup); a taken port or a server that does not answer in 60 s cannot be checked. In CI the
+  static job leaves it to the job `browser`
   through the variable `GATE_BROWSER`, which gate-needs allows only outside that job and only beside a job `browser`
   that runs the step.
 - **commits:** every commit of the branch (the same range as `secrets`), merges left out, has a conventional header

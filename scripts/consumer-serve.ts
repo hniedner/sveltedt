@@ -67,11 +67,17 @@ export async function start(
     dev.kill();
     prod.kill();
   };
-  for (const [name, child, port] of [
-    ["the development server", dev, ports.dev],
-    ["the production server", prod, ports.prod],
+  // The routes are asked for once before the tests start: the development server compiles a route on its first request
+  for (const [name, child, url] of [
+    ["the development server", dev, `http://127.0.0.1:${ports.dev}/`],
+    [
+      "the development server /mismatch",
+      dev,
+      `http://127.0.0.1:${ports.dev}/mismatch`,
+    ],
+    ["the production server", prod, `http://127.0.0.1:${ports.prod}/`],
   ] as const) {
-    const problem = await wait(`http://127.0.0.1:${port}/`, child, ms);
+    const problem = await wait(url, child, ms);
     if (problem) {
       stop();
       return `${name} ${problem}`;
