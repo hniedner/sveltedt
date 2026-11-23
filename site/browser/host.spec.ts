@@ -7,7 +7,7 @@ type Values = Record<string, string>;
 const SIDES = ["top", "right", "bottom", "left"];
 // The four sides of one property family, each side given the same value
 const sides = (name: string, value: string): Values =>
-  Object.fromEntries(SIDES.map((side) => [name.replace("*", side), value]));
+  Object.fromEntries(SIDES.map((side) => [name.replaceAll("*", side), value]));
 // The region's properties (THEME-10's first row), with the box of an element that has no padding and no border
 const box = (display: string, position: string, boxSizing: string): Values => ({
   display,
