@@ -10,6 +10,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -109,7 +110,7 @@ function root(c: Contents): Finding[] {
 /** The files a consumer's build runs, which PKG-07 reads: `.svelte` and `.js`, not the declarations. */
 export const runnable = (c: Contents): string[] =>
   [...c.keys()].filter((p) => /\.(?:svelte|js)$/.test(p));
-const RELATIVE_TS = /\b(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']*\.ts)["']/g;
+const RELATIVE_TS = /\b(?:from|import)\s*\(?\s*["'`](\.\.?\/[^"'`]*\.ts)["'`]/g;
 
 /** PKG-07: no run file imports a relative module whose path ends in `.ts`. */
 function imports(c: Contents): Finding[] {
@@ -298,11 +299,15 @@ export const CANARIES: Canary[] = [
  * judged by the findings its planting adds to those the base already has, so a finding in the real tarball is a
  * finding, not a failed canary.
  */
-export function missedCanaries(base: Contents, repo: Repo): string[] {
+export function missedCanaries(
+  base: Contents,
+  repo: Repo,
+  rows: Canary[] = CANARIES,
+): string[] {
   const text = (f: Finding): string => `${f.id} ${f.message}`;
   const before = new Set(analyse(base, repo).map(text));
   const missed: string[] = [];
-  for (const k of CANARIES) {
+  for (const k of rows) {
     const added = analyse(k.plant(base), repo).filter(
       (f) => f.id === k.id && !before.has(text(f)),
     );
@@ -339,11 +344,8 @@ function packed(
     recursive: true,
     encoding: "utf8",
   }))
-    try {
+    if (!statSync(join(out, "package", f)).isDirectory())
       files.set(f, readFileSync(join(out, "package", f)));
-    } catch {
-      // a directory entry
-    }
   return { contents: files, tgz: join(dir, tgz) };
 }
 
@@ -373,7 +375,10 @@ export function publintProblems(
     ["run", tgz],
     root,
   );
-  const lines = r.stdout.split("\n").map((l) => l.trim());
+  const lines = r.stdout
+    .replace(COLOUR, "")
+    .split("\n")
+    .map((l) => l.trim());
   if (!lines.includes("All good!") && !lines.some((l) => LEVEL.test(l)))
     return undefined;
   let level = "";
@@ -464,12 +469,16 @@ function toolRows(root: string, c: Contents, dir: string): string[] {
 }
 
 /** The verdict on one tarball's contents: canaries first, then the statements. */
-export function verdict(contents: Contents, repo: Repo): Result {
+export function verdict(
+  contents: Contents,
+  repo: Repo,
+  rows: Canary[] = CANARIES,
+): Result {
   if (!manifest(contents))
     return result(CANNOT, "the packed package.json cannot be read");
   if (!runnable(contents).length)
     return result(CANNOT, "no .svelte or .js file in the tarball to read");
-  const missed = missedCanaries(contents, repo);
+  const missed = missedCanaries(contents, repo, rows);
   if (missed.length)
     return result(
       CANNOT,

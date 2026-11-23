@@ -2,10 +2,10 @@
 // synthetic good package; the build and pack are run once through the script on the real repository.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { HERE } from "./gate-step.ts";
 import { CANNOT, FINDING, PASS } from "./pinned.ts";
 import {
@@ -19,7 +19,7 @@ import {
   runnable,
   verdict,
 } from "./check-package.ts";
-import type { Contents, Repo } from "./check-package.ts";
+import type { Canary, Contents, Repo } from "./check-package.ts";
 
 const REPO: Repo = {
   license: Buffer.from("MIT License\n"),
@@ -135,6 +135,7 @@ test("PKG-03: the finding names the file and what is wrong with it", () => {
 // publint and attw run on tarballs made from the synthetic package, each under a name in a new folder
 const ROOT = join(HERE, "..");
 const tmp = mkdtempSync(join(tmpdir(), "package-tools-"));
+after(() => rmSync(tmp, { recursive: true, force: true }));
 const withManifest = (change: (m: Record<string, unknown>) => void): string => {
   const m = JSON.parse(GOOD.get("package.json")?.toString() ?? "") as Record<
     string,
@@ -220,6 +221,44 @@ test("the verdict: pass, finding, and could not check for an unreadable manifest
   assert.equal(r.code, CANNOT);
   assert.match(r.summary, /no \.svelte or \.js file/);
 });
+test("a canary row that gives another result than its stated one makes the verdict could not check", () => {
+  const noop: Canary = {
+    id: "PKG-03",
+    row: "a row that plants nothing but says it is found",
+    plant: (c) => c,
+    found: true,
+  };
+  const loud: Canary = {
+    id: "PKG-03",
+    row: "a row that plants a stray file but says it passes",
+    plant: (c) => new Map(c).set(".npmrc", Buffer.from("x")),
+    found: false,
+  };
+  assert.deepEqual(missedCanaries(GOOD, REPO, [noop, loud]), [
+    'PKG-03 row "a row that plants nothing but says it is found": not found',
+    'PKG-03 row "a row that plants a stray file but says it passes": found',
+  ]);
+  const r = verdict(GOOD, REPO, [noop]);
+  assert.equal(r.code, CANNOT);
+  assert.match(r.summary, /canary row did not give its stated result/);
+});
+test("PKG-07: a backtick specifier is found", () => {
+  const c = new Map(GOOD).set(
+    "dist/A.svelte",
+    Buffer.from("const m = import(`./w.ts`);\n"),
+  );
+  assert.deepEqual(found(c, "PKG-07"), ["dist/A.svelte imports ./w.ts"]);
+});
+test("a pnpm that makes no tarball is could not check", () => {
+  process.env.PNPM_BIN = "false";
+  try {
+    const r = check(ROOT);
+    assert.equal(r.code, CANNOT);
+    assert.match(r.summary, /pnpm pack made no tarball/);
+  } finally {
+    delete process.env.PNPM_BIN;
+  }
+});
 test("the script builds, packs and reads the real package, and passes", () => {
   const r = spawnSync(
     process.execPath,
@@ -231,6 +270,7 @@ test("the script builds, packs and reads the real package, and passes", () => {
 });
 test("a root that cannot build is could not check, exit 3", () => {
   const root = mkdtempSync(join(tmpdir(), "package-test-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
   for (const f of ["LICENSE", "NOTICE"]) writeFileSync(join(root, f), "x");
   const r = check(root);
   assert.equal(r.code, CANNOT);

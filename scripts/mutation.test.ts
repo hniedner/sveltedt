@@ -127,6 +127,20 @@ test("mutation judge: changed lines with no mutant are not applicable when the c
     /no mutant on a changed line \(2 mutants elsewhere in the changed files\)/,
   );
 });
+test("mutation judge: one changed file with no mutant at all keeps could-not-check, whatever the others hold", () => {
+  const two = new Map([
+    ["src/a.ts", [2]],
+    ["src/b.ts", [4]],
+  ]);
+  const r = (b: [number, string][] | undefined) =>
+    judge(
+      reportOf({ "src/a.ts": [[9, "Killed"]], ...(b && { "src/b.ts": b }) }),
+      two,
+    );
+  assert.equal(r([]).code, CANNOT);
+  assert.equal(r(undefined).code, CANNOT);
+  assert.equal(r([[9, "Killed"]]).code, NA);
+});
 test("mutation judge: a changed file with 0 mutants, or no entry, cannot be checked", () => {
   assert.equal(judge(reportOf({ "src/a.ts": [] }), CHANGED).code, CANNOT);
   assert.equal(judge(reportOf({}), CHANGED).code, CANNOT);
