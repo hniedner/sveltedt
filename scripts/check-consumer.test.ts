@@ -185,6 +185,17 @@ test("CON-02: the finding names what the table lacks", () => {
     'the table\'s caption reads "Other", not "Orders"',
   ]);
 });
+test("CON-03: a style attribute is a finding that names the page and the element; text 'style=' in a cell is not", () => {
+  const styled = (html: string): State => ({
+    ...GOOD,
+    http: { ...GOOD.http, missing: { ...GOOD.http.missing, html } },
+  });
+  assert.deepEqual(
+    found(styled('<div style="display: contents">x</div>'), "CON-03"),
+    ["the 404 page has a style attribute on <div>"],
+  );
+  assert.deepEqual(found(styled("<td>a style=b c</td>"), "CON-03"), []);
+});
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);
   const bad: State = {

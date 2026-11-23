@@ -184,6 +184,26 @@ function listPage(s: State): Finding[] {
   return found.map((message) => ({ id: "CON-02", message }));
 }
 
+/** CON-03: no element of the server's HTML, as a parser reads it, has a `style` attribute. */
+function noStyle(s: State): Finding[] {
+  return (
+    [
+      ["list", s.http.home],
+      ["404", s.http.missing],
+    ] as const
+  ).flatMap(([name, { html }]) =>
+    nodes(parse(html))
+      .filter(
+        (n): n is Tree.Element =>
+          "attrs" in n && n.attrs.some((a) => a.name === "style"),
+      )
+      .map((n) => ({
+        id: "CON-03",
+        message: `the ${name} page has a style attribute on <${n.tagName}>`,
+      })),
+  );
+}
+
 /** CON-11: no issue of `pnpm peers check` names the package; an issue that names only others is not this statement's. */
 function peers(s: State): Finding[] {
   const { status, text } = s.peers.real;
@@ -199,7 +219,13 @@ function peers(s: State): Finding[] {
 
 /** Every statement over one state, in the spec's order. */
 export function analyse(s: State): Finding[] {
-  return [...install(s), ...listPage(s), ...types(s), ...peers(s)];
+  return [
+    ...install(s),
+    ...listPage(s),
+    ...noStyle(s),
+    ...types(s),
+    ...peers(s),
+  ];
 }
 
 export const CANARIES: Canary[] = [
@@ -252,6 +278,21 @@ export const CANARIES: Canary[] = [
     }),
     found: true,
   })),
+  {
+    id: "CON-03",
+    row: "SvelteKit's default page shell wrapper with a style attribute",
+    plant: (s) => ({
+      ...s,
+      http: {
+        ...s.http,
+        missing: {
+          ...s.http.missing,
+          html: '<div style="display: contents"></div>',
+        },
+      },
+    }),
+    found: true,
+  },
   {
     id: "CON-09",
     row: "a page that passes rows={42} to DataTable gives an error",
