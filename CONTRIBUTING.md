@@ -142,6 +142,18 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   or no `.svelte` or `.js` file is read. Limits: no CI run at the Svelte peer floor (#159); attw skips node16 on the
   `.svelte` re-exports (CON-04 proves the types); PKG-06 waits for the connection export. NOT APPLICABLE with nothing
   tracked under `src/lib`.
+- **consumer:** `scripts/check-consumer.ts` packs the package like the `package` step, copies the files git tracks under
+  `consumer/` (a SvelteKit 3 app with its own lockfile and settings) into a temporary folder, installs from the
+  lockfile, adds the tarball with `pnpm add -D --offline`, builds it and runs its production server on a free port.
+  CON-01: the copy holds exactly the tarball's files under `node_modules/.pnpm/`, its lockfile records the tarball, the
+  committed consumer files do not name the package and are unchanged. CON-02: `GET /` holds one table "Orders" with
+  the 20 rows in order. CON-03: no `style` attribute in `GET /` or the 404 page. CON-04: each answer carries the strict
+  policy with one fresh nonce. CON-09: `svelte-check` reports no error, and one on a page that passes `rows={42}`.
+  CON-11: `pnpm peers check` names no issue of the package, and one for a tarball asking for `svelte ^6.0.0`. Findings
+  come first, then every canary row. It needs the registry or a warm store for the install: with neither it is COULD
+  NOT CHECK, as it is when the build, the server or a tool gives no report. Limits: the listener order and hydration
+  are #195; the consumer tree's licence and cooldown checks are #176. NOT APPLICABLE without a tracked
+  `consumer/package.json`.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`
