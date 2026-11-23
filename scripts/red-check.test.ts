@@ -391,7 +391,7 @@ test("red-check step: a test-only commit whose test file cannot load is refused"
     /src\/n\.test\.ts: the file did not load: .*\.\/gone\.ts/,
   );
 });
-test("red-check step: a site test is red by the parent's own component, the site's link to it kept inside the parent", () => {
+test("red-check step: a site test is red by the parent's own component, never installed, the site's link kept inside the parent", () => {
   const root = fixture(
     CONFIG.replace(
       '["src/**/*.test.ts"]',
@@ -399,7 +399,16 @@ test("red-check step: a site test is red by the parent's own component, the site
     ),
   );
   put(root, "src/lib/index.ts", 'export const word = "old";\n');
-  commit(root, "chore: the package says old");
+  // A lockfile no store can serve: the parent is checked with the checked tree's packages, nothing is installed
+  put(
+    root,
+    "pnpm-lock.yaml",
+    "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      no-such-package:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+  );
+  commit(
+    root,
+    "chore: the package says old, with a lockfile no store can serve",
+  );
   git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   put(root, "src/lib/index.ts", 'export const word = "new";\n');
   put(
@@ -409,22 +418,4 @@ test("red-check step: a site test is red by the parent's own component, the site
   );
   commit(root, "feat: the package says new");
   assert.match(step(root, PASS), /the package says new: red$/m);
-});
-test("red-check step: a parent's lockfile is never installed, the checked tree's packages serve it", () => {
-  const root = fixture();
-  put(
-    root,
-    "pnpm-lock.yaml",
-    "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      no-such-package:\n        specifier: 1.0.0\n        version: 1.0.0\n",
-  );
-  commit(root, "chore: a lockfile no store can serve");
-  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
-  put(root, "src/a.ts", F_NULL);
-  put(
-    root,
-    "src/n.test.ts",
-    vt('test("f(null) is 1", () => {\n  expect(f(null)).toBe(1);\n});\n'),
-  );
-  commit(root, "feat: null counts as zero");
-  assert.match(step(root, PASS), /null counts as zero: red$/m);
 });
