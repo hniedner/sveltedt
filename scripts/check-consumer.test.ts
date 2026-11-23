@@ -188,6 +188,7 @@ test("CON-02: the finding names what the table lacks", () => {
     found(thrown, "CON-02")[0],
     "the list page answered 500, not 200",
   );
+  assert.equal(verdict(thrown).code, 1);
   assert.deepEqual(found(home(page().replace("Orders<", "Other<")), "CON-02"), [
     'the table\'s caption reads "Other", not "Orders"',
   ]);
