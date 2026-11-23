@@ -295,20 +295,12 @@ test("the verdict: pass on the good state, finding on a real defect even when a 
     r.details.some((d) => d.startsWith("CON-01 consumer/pnpm-lock.yaml names")),
   );
 });
-// The run comes first and its last lines go into the test's name: selftest prints only the names of failed tests, so
-// a failure that only a CI runner shows would otherwise carry no reason
-const real = spawnSync(
-  process.execPath,
-  [join(HERE, "check-consumer.ts"), "--root", join(HERE, "..")],
-  { encoding: "utf8" },
-);
-const outcome = `${real.stdout}${real.stderr}`
-  .split("\n")
-  .filter((l) => l.trim())
-  .slice(-4)
-  .join(" | ")
-  .slice(0, 600);
-test(`the script installs the real packed package into a copy of the real consumer, and passes: ${outcome}`, () => {
-  assert.equal(real.status, 0, real.stdout);
-  assert.match(real.stdout, /^PASS check-consumer: /m);
+test("the script installs the real packed package into a copy of the real consumer, and passes", () => {
+  const r = spawnSync(
+    process.execPath,
+    [join(HERE, "check-consumer.ts"), "--root", join(HERE, "..")],
+    { encoding: "utf8" },
+  );
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /^PASS check-consumer: /m);
 });
