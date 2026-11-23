@@ -26,9 +26,24 @@ const free = (): Promise<number> =>
       s.close(() => resolve(port));
     });
   });
+// True once nothing answers on `port` (polled for 3 s: a stopped server takes a moment to go)
+async function closed(port: number): Promise<boolean> {
+  for (let i = 0; i < 30; i++) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/`, {
+        signal: AbortSignal.timeout(500),
+      });
+    } catch {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
 // A fake vite that listens on --port after `delay` ms, and a fake build/index.js that listens on PORT after `delay`
+// Every fake ends itself after 20 s, so a server that the code under test fails to stop cannot hold the run open
 const LISTEN = (port: string, delay: number): string =>
-  `setTimeout(() => import("node:http").then((h) => h.createServer((q, r) => r.end("ok")).listen(Number(${port}), "127.0.0.1")), ${delay});`;
+  `setTimeout(() => process.exit(0), 20000); setTimeout(() => import("node:http").then((h) => h.createServer((q, r) => r.end("ok")).listen(Number(${port}), "127.0.0.1")), ${delay});`;
 function fake(opts: { dev: string; prod: string }): string {
   const copy = mkdtempSync(join(tmpdir(), "serve-test-"));
   after(() => rmSync(copy, { recursive: true, force: true }));
@@ -45,100 +60,136 @@ const GOOD = {
   prod: LISTEN("process.env.PORT", 0),
 };
 
-test("start: both servers answer, the mismatch route is planted, and stop ends them", async () => {
-  const copy = fake(GOOD);
-  const ports = { dev: await free(), prod: await free() };
-  const started = await start(copy, ports, 5000);
-  assert.ok(typeof started !== "string", "the servers did not start");
-  after(() => started.stop()); // a failed assertion below must not leave the servers holding the run open
-  assert.ok(
-    existsSync(join(copy, "src", "routes", "mismatch", "+page.svelte")),
-  );
-  assert.equal((await fetch(`http://127.0.0.1:${ports.prod}/`)).status, 200);
-  started.stop();
-});
-test("start: a development server that exits, a production server that exits, and one that never answers are could not start", async () => {
-  const failed = async (opts: typeof GOOD, ms: number): Promise<string> => {
+test(
+  "start: both servers answer, the mismatch route is planted, and stop ends them",
+  { timeout: 30_000 },
+  async () => {
+    const copy = fake(GOOD);
     const ports = { dev: await free(), prod: await free() };
-    const r = await start(fake(opts), ports, ms);
-    if (typeof r !== "string") r.stop(); // a start that should have failed must not hold the run open
-    assert.equal(typeof r, "string");
-    return r as string;
-  };
-  assert.equal(
-    await failed({ ...GOOD, dev: "process.exit(1);" }, 5000),
-    "the development server exited with 1",
-  );
-  assert.equal(
-    await failed({ ...GOOD, prod: "process.exit(1);" }, 5000),
-    "the production server exited with 1",
-  );
-  // The routes are asked for once before the tests start, so the first browser does not pay the dev server's compile
-  const half = `import("node:http").then((h) => h.createServer((q, r) => { r.statusCode = q.url === "/mismatch" ? 500 : 200; r.end("x"); }).listen(Number(process.argv[process.argv.indexOf("--port") + 1]), "127.0.0.1"));`;
-  assert.equal(
-    await failed({ ...GOOD, dev: half }, 600),
-    "the development server did not answer within 0.6 s",
-  );
-  assert.equal(
-    await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 600),
-    "the production server did not answer within 0.6 s",
-  );
-});
-test("start: the production server is started only after the development server answers, so Playwright's wait on 4174 covers both", async () => {
-  const stamp = (name: string): string =>
-    `require("node:fs").writeFileSync("${name}", String(Date.now()));`;
-  const copy = fake({
-    dev: `setTimeout(() => { ${stamp("dev-up")} ${GOOD.dev} }, 500);`,
-    prod: `${stamp("prod-up")} ${GOOD.prod}`,
-  });
-  const ports = { dev: await free(), prod: await free() };
-  const started = await start(copy, ports, 5000);
-  assert.ok(typeof started !== "string", "the servers did not start");
-  after(() => started.stop());
-  const at = (name: string): number =>
-    Number(readFileSync(join(copy, name), "utf8"));
-  assert.ok(at("prod-up") >= at("dev-up"));
-});
-test("start: why a server failed is in the message: its output, a missing binary, a kill by signal", async () => {
-  const failed = async (
-    opts: typeof GOOD,
-    ms = 5000,
-    bare = false,
-  ): Promise<string> => {
-    const copy = fake(opts);
-    if (bare) rmSync(join(copy, "node_modules", ".bin", "vite"));
-    const r = await start(copy, { dev: await free(), prod: await free() }, ms);
-    if (typeof r !== "string") r.stop();
-    assert.equal(typeof r, "string");
-    return r as string;
-  };
-  assert.equal(
-    await failed({ ...GOOD, dev: 'console.error("boom"); process.exit(1);' }),
-    "the development server exited with 1: boom",
-  );
-  assert.match(
-    await failed(GOOD, 5000, true),
-    /^the development server could not be started: /,
-  );
-  assert.equal(
-    await failed({ ...GOOD, dev: 'process.kill(process.pid, "SIGKILL");' }),
-    "the development server exited with SIGKILL",
-  );
-});
-test("start: a server that dies after both answered is reported by `died`", async () => {
-  const copy = fake({
-    ...GOOD,
-    prod: `${LISTEN("process.env.PORT", 0)} setTimeout(() => process.exit(7), 700);`,
-  });
-  const started = await start(
-    copy,
-    { dev: await free(), prod: await free() },
-    5000,
-  );
-  assert.ok(typeof started !== "string", "the servers did not start");
-  after(() => started.stop());
-  assert.equal(await started.died, "the production server exited with 7");
-});
+    const started = await start(copy, ports, 5000);
+    assert.ok(typeof started !== "string", "the servers did not start");
+    after(() => started.stop()); // a failed assertion below must not leave the servers holding the run open
+    assert.ok(
+      existsSync(join(copy, "src", "routes", "mismatch", "+page.svelte")),
+    );
+    assert.equal((await fetch(`http://127.0.0.1:${ports.prod}/`)).status, 200);
+    started.stop();
+    assert.ok(
+      await closed(ports.dev),
+      "the development server still answers after stop",
+    );
+    assert.ok(
+      await closed(ports.prod),
+      "the production server still answers after stop",
+    );
+  },
+);
+test(
+  "start: a development server that exits, a production server that exits, and one that never answers are could not start",
+  { timeout: 30_000 },
+  async () => {
+    const failed = async (opts: typeof GOOD, ms: number): Promise<string> => {
+      const ports = { dev: await free(), prod: await free() };
+      const r = await start(fake(opts), ports, ms);
+      if (typeof r !== "string") r.stop(); // a start that should have failed must not hold the run open
+      assert.equal(typeof r, "string");
+      assert.ok(
+        (await closed(ports.dev)) && (await closed(ports.prod)),
+        "a failed start left a server",
+      );
+      return r as string;
+    };
+    assert.equal(
+      await failed({ ...GOOD, dev: "process.exit(1);" }, 5000),
+      "the development server exited with 1",
+    );
+    assert.equal(
+      await failed({ ...GOOD, prod: "process.exit(1);" }, 5000),
+      "the production server exited with 1",
+    );
+    // The routes are asked for once before the tests start, so the first browser does not pay the dev server's compile
+    const half = `import("node:http").then((h) => h.createServer((q, r) => { r.statusCode = q.url === "/mismatch" ? 500 : 200; r.end("x"); }).listen(Number(process.argv[process.argv.indexOf("--port") + 1]), "127.0.0.1"));`;
+    assert.equal(
+      await failed({ ...GOOD, dev: half }, 600),
+      "the development server did not answer within 0.6 s",
+    );
+    assert.equal(
+      await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 600),
+      "the production server did not answer within 0.6 s",
+    );
+  },
+);
+test(
+  "start: the production server is started only after the development server answers, so Playwright's wait on 4174 covers both",
+  { timeout: 30_000 },
+  async () => {
+    const stamp = (name: string): string =>
+      `require("node:fs").writeFileSync("${name}", String(Date.now()));`;
+    const copy = fake({
+      dev: `setTimeout(() => { ${stamp("dev-up")} ${GOOD.dev} }, 500);`,
+      prod: `${stamp("prod-up")} ${GOOD.prod}`,
+    });
+    const ports = { dev: await free(), prod: await free() };
+    const started = await start(copy, ports, 5000);
+    assert.ok(typeof started !== "string", "the servers did not start");
+    after(() => started.stop());
+    const at = (name: string): number =>
+      Number(readFileSync(join(copy, name), "utf8"));
+    assert.ok(at("prod-up") >= at("dev-up"));
+  },
+);
+test(
+  "start: why a server failed is in the message: its output, a missing binary, a kill by signal",
+  { timeout: 30_000 },
+  async () => {
+    const failed = async (
+      opts: typeof GOOD,
+      ms = 5000,
+      bare = false,
+    ): Promise<string> => {
+      const copy = fake(opts);
+      if (bare) rmSync(join(copy, "node_modules", ".bin", "vite"));
+      const r = await start(
+        copy,
+        { dev: await free(), prod: await free() },
+        ms,
+      );
+      if (typeof r !== "string") r.stop();
+      assert.equal(typeof r, "string");
+      return r as string;
+    };
+    assert.equal(
+      await failed({ ...GOOD, dev: 'console.error("boom"); process.exit(1);' }),
+      "the development server exited with 1: boom",
+    );
+    assert.match(
+      await failed(GOOD, 5000, true),
+      /^the development server could not be started: /,
+    );
+    assert.equal(
+      await failed({ ...GOOD, dev: 'process.kill(process.pid, "SIGKILL");' }),
+      "the development server exited with SIGKILL",
+    );
+  },
+);
+test(
+  "start: a server that dies after both answered is reported by `died`",
+  { timeout: 30_000 },
+  async () => {
+    const copy = fake({
+      ...GOOD,
+      prod: `${LISTEN("process.env.PORT", 0)} setTimeout(() => process.exit(7), 700);`,
+    });
+    const started = await start(
+      copy,
+      { dev: await free(), prod: await free() },
+      5000,
+    );
+    assert.ok(typeof started !== "string", "the servers did not start");
+    after(() => started.stop());
+    assert.equal(await started.died, "the production server exited with 7");
+  },
+);
 test("the program: SIGTERM after both servers answer ends them and removes the copy", async () => {
   const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
   after(() => rmSync(mine, { recursive: true, force: true }));
