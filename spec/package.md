@@ -322,10 +322,11 @@ other script of the page.
 
   | Consumer | Warnings |
   |---|---|
-  | the real consumer project | none |
-  | a copy whose list page renders an `img` whose `src` differs between the server and the browser | at least one `[svelte] hydration_attribute_changed`, found |
+  | the real consumer project's list page | none |
+  | a second route `/mismatch`, planted in the copy the development server runs, whose page renders an `img` whose `src` differs between the server and the browser | at least one `[svelte] hydration_attribute_changed`, found |
 
-  The second row shows the test sees a warning when there is one. Messages the browser itself logs (a failed request,
+  The second row shows the test sees a warning when there is one (MEASURED 2026-11-23 on SvelteKit 3.4.0 in Chromium,
+  Firefox and WebKit; Chromium and WebKit write the text with `%c` style markers, Firefox without). Messages the browser itself logs (a failed request,
   a policy report) are not warnings in this sense. Break that turns it red: the second row's change made to the real
   list page.
 - Reason: Svelte writes its hydration warnings with their `[svelte]` text only in development (a production build
