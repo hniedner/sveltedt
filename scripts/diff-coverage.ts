@@ -133,6 +133,39 @@ export function judge(diff: string, lcov: string, root: string): Result {
 }
 
 /**
+ * `git diff -U0` of src/ from `base` to the working tree, as text. The prefixes and the path quoting are set here, so a
+ * contributor's git config (for example `diff.mnemonicPrefix`) cannot hide a file. Shared by the steps that judge
+ * the changed lines.
+ */
+export function sourceDiff(root: string, base: string): Result | string {
+  const diff = spawnSync(
+    "git",
+    [
+      "-C",
+      root,
+      "-c",
+      "core.quotePath=false",
+      "diff",
+      "-U0",
+      "-M",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--no-color",
+      "--no-ext-diff",
+      base,
+      "--",
+      "src",
+    ],
+    { encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (diff.status !== 0)
+    return result(CANNOT, `git diff against ${base} failed`, [
+      diff.stderr.trim(),
+    ]);
+  return diff.stdout;
+}
+
+/**
  * The step. The reader must first find the planted uncovered line of its canary; then the diff to the base is read,
  * and only when it changes a line under src/ is the shared test run's lcov report judged. A push is checked on its
  * pull request. A new file counts once it is tracked: the diff to the working tree does not list an untracked file
@@ -156,32 +189,10 @@ export function check(root: string): Result {
   if (isResult(base)) return base;
   if (base.kind === "push" || !base.base)
     return result(NA, "a push is checked on its pull request");
-  const diff = spawnSync(
-    "git",
-    [
-      "-C",
-      root,
-      "-c",
-      "core.quotePath=false",
-      "diff",
-      "-U0",
-      "-M",
-      "--src-prefix=a/",
-      "--dst-prefix=b/",
-      "--no-color",
-      "--no-ext-diff",
-      base.base,
-      "--",
-      "src",
-    ],
-    { encoding: "utf8", env: childEnv(), maxBuffer: 64 * 1024 * 1024 },
-  );
-  if (diff.status !== 0)
-    return result(CANNOT, `git diff against ${base.base} failed`, [
-      diff.stderr.trim(),
-    ]);
-  const { changed, unreadable } = sourceChanges(diff.stdout);
-  if (unreadable.length || !changed.length) return judge(diff.stdout, "", root);
+  const diff = sourceDiff(root, base.base);
+  if (typeof diff !== "string") return diff;
+  const { changed, unreadable } = sourceChanges(diff);
+  if (unreadable.length || !changed.length) return judge(diff, "", root);
   const run = testRun(root);
   if (isResult(run)) return run;
   const lcov = join(root, COVERAGE_DIR, "lcov.info");
@@ -191,5 +202,5 @@ export function check(root: string): Result {
       `the test run wrote no ${COVERAGE_DIR}/lcov.info`,
       run.error ? [run.error] : tail(run.out),
     );
-  return judge(diff.stdout, readFileSync(lcov, "utf8"), root);
+  return judge(diff, readFileSync(lcov, "utf8"), root);
 }

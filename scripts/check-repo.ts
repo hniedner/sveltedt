@@ -52,6 +52,7 @@ import {
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
 import { check as diffCoverage } from "./diff-coverage.ts";
+import { check as mutation } from "./mutation.ts";
 import { check as redCheck } from "./red-check.ts";
 import { check as trace, judgeResults, readMarkers } from "./trace.ts";
 import type { Ran } from "./trace.ts";
@@ -2960,6 +2961,7 @@ const CHECKS: Record<
   trace,
   "diff-coverage": diffCoverage,
   "red-check": redCheck,
+  mutation,
   browser,
   dupes,
   commits,

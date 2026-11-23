@@ -44,6 +44,7 @@ export const GATE_VARS: readonly string[] = [
   "GATE_BROWSER",
   "GATE_EVENT",
   "GATE_HEAD",
+  "GATE_MUTATION",
   "GITHUB_ACTIONS",
 ];
 

@@ -13,6 +13,7 @@ import {
   git,
   here,
   put,
+  run,
   tempDir,
 } from "./check-repo.fixture.ts";
 import { GATE_VARS } from "./gate-step.ts";
@@ -116,7 +117,7 @@ test("mutation comments: a disable comment needs a reason after the colon, in co
 
 test("mutation work directory: never the checkout, and not inside it", () => {
   const root = tempDir();
-  const dir = workDir(root);
+  const dir = workDir();
   assert.ok(existsSync(dir));
   assert.notEqual(dir, root);
   assert.ok(relative(root, dir).startsWith(".."), dir);
@@ -193,7 +194,7 @@ test("mutation step: a disable comment without a reason is a finding before any 
 });
 test("mutation step: a push to main is left to its pull request", () => {
   const root = fixture({ "src/a.ts": KILLED });
-  const out = expect("mutation", root, 0, {
+  const r = run(["mutation", "--root", root], {
     ...REAL_PNPM,
     extraEnv: {
       GITHUB_ACTIONS: "true",
@@ -201,8 +202,9 @@ test("mutation step: a push to main is left to its pull request", () => {
       GATE_BASE: git(root, "rev-parse", "HEAD").trim(),
     },
   });
+  assert.equal(r.code, 0, r.out);
   assert.match(
-    out,
+    r.out,
     /^NOT APPLICABLE mutation: a push is checked on its pull request$/m,
   );
 });
