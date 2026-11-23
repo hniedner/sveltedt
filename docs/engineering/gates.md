@@ -207,7 +207,8 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
     so a type-only file changed beside a tested one passes.
   - Verdict: Survived and NoCoverage fail (a changed line no test reaches is a finding too); CompileError and
     RuntimeError mutants are listed as "invalid mutant (not judged)", as Stryker's own score leaves them out; Killed
-    and Timeout count as handled, Ignored (a disable comment) as neither; any other status (Pending) fails. A
+    and Timeout count as handled, and so does Ignored (a disable comment, its reason already checked), which is listed
+    as "ignored with a reason"; any other status (Pending) fails. A
     disable comment without a reason anywhere in a changed file is a finding too. Existing survivors on lines no
     change touches are not judged: measured 2026-11-22, 18 Survived and 2 NoCoverage mutants in today's `src`,
     listed in the checkpoint.

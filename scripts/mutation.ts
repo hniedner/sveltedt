@@ -43,7 +43,7 @@ export interface Report {
     }
   >;
 }
-const HANDLED = ["Killed", "Timeout"]; // any other status that is not invalid or Ignored (Survived, NoCoverage, Pending) fails
+const HANDLED = ["Killed", "Timeout"]; // Ignored has its own branch; any other status (Survived, NoCoverage, Pending) fails
 const INVALID = ["CompileError", "RuntimeError"]; // the mutant itself does not run: Stryker's scoring leaves it out too
 
 /**
@@ -55,6 +55,7 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
   const bad: string[] = [];
   const invalid: string[] = [];
   let judged = 0;
+  const ignored: string[] = [];
   for (const [file, lines] of [...changed].sort(([a], [b]) =>
     a.localeCompare(b),
   ))
@@ -65,7 +66,10 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
       if (INVALID.includes(m.status))
         invalid.push(`${at}: invalid mutant (not judged)`);
       else if (HANDLED.includes(m.status)) judged++;
-      else if (m.status !== "Ignored") bad.push(`${at} (${m.status})`);
+      else if (m.status === "Ignored") {
+        judged++; // switched off by a disable comment whose reason the step has checked
+        ignored.push(`${at}: ignored with a reason`);
+      } else bad.push(`${at} (${m.status})`);
     }
   if (bad.length)
     return result(
@@ -75,7 +79,11 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
     );
   if (!judged)
     return result(CANNOT, "no mutant on a changed line was judged", invalid);
-  return result(PASS, `${judged} mutant(s) on changed lines killed`, invalid);
+  return result(
+    PASS,
+    `${judged} mutant(s) on changed lines killed or ignored with a reason`,
+    [...ignored, ...invalid],
+  );
 }
 
 /** `file:line` of each Stryker disable comment without a reason after its colon (G8: the reason stands on the same line). */
