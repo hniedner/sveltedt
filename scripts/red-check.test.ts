@@ -29,6 +29,11 @@ test("loadFailure: a missing import is red only when the commit adds that file",
     load("./b", "src/a.test.ts", "src/c.ts"),
     /^the file did not load: Failed to resolve import "\.\/b"/,
   );
+  // a package name is never a file the commit adds, even beside a file of that name
+  assert.match(
+    load("b", "src/a.test.ts", "src/b.ts"),
+    /^the file did not load/,
+  );
 });
 test("readChange: tests, their support, renames and what counts as source", () => {
   const c = readChange(
@@ -333,4 +338,45 @@ test("red-check step: a judge that passes the canary cannot check", () => {
     pnpm: "",
   });
   assert.match(out, /the judge passed the canary/);
+});
+test("red-check step: a judge that refuses only one of the two planted results cannot check", () => {
+  const half = JSON.stringify({
+    testResults: [
+      {
+        name: "/canary/src/a.test.ts",
+        status: "failed",
+        assertionResults: [{ fullName: "a fails", status: "failed" }],
+      },
+      {
+        name: "/canary/src/b.test.ts",
+        status: "passed",
+        assertionResults: [{ fullName: "b passes", status: "passed" }],
+      },
+    ],
+  });
+  const out = expect("red-check", fixture(), CANNOT, {
+    canaries: canaryDir("red-check", { "report.json": half }),
+    pnpm: "",
+  });
+  assert.match(
+    out,
+    /the judge passed the canary \(src\/a\.test\.ts: the file did not load\)/,
+  );
+});
+test("red-check step: a test-only commit whose test file cannot load is refused", () => {
+  const root = fixture();
+  put(root, "scripts/x.ts", "export const x = 1;\n");
+  put(
+    root,
+    "src/n.test.ts",
+    vt(
+      'test("g", () => {\n  expect(g()).toBe(1);\n});\n',
+      'import { g } from "./gone.ts";\n',
+    ),
+  );
+  commit(root, "test: a test of a module nobody adds");
+  assert.match(
+    step(root, FINDING),
+    /src\/n\.test\.ts: the file did not load: .*\.\/gone\.ts/,
+  );
 });
