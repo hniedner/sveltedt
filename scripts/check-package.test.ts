@@ -2,7 +2,14 @@
 // synthetic good package; the build and pack are run once through the script on the real repository.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -130,6 +137,10 @@ test("PKG-04: the finding names the file and how it differs", () => {
 test("PKG-03: the finding names the file and what is wrong with it", () => {
   const c = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
   assert.deepEqual(found(c, "PKG-03"), ["dist/a.test.js: a test file"]);
+  c.set("dist/app.css", Buffer.from("x")); // named as a second stylesheet, not only as not listed
+  assert.ok(
+    found(c, "PKG-03").includes("dist/app.css: a second stylesheet (THEME-04)"),
+  );
 });
 
 // publint and attw run on tarballs made from the synthetic package, each under a name in a new folder
@@ -207,8 +218,6 @@ test("attw: nothing on the good package, a problem for a types file the tarball 
 });
 test("the verdict: pass, finding, and could not check for an unreadable manifest or no file to read", () => {
   assert.equal(verdict(GOOD, REPO).code, PASS);
-  const bad = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
-  assert.equal(verdict(bad, REPO).code, FINDING);
   const noManifest = new Map(GOOD).set("package.json", Buffer.from("{"));
   assert.match(
     verdict(noManifest, REPO).summary,
@@ -241,6 +250,43 @@ test("a canary row that gives another result than its stated one makes the verdi
   const r = verdict(GOOD, REPO, [noop]);
   assert.equal(r.code, CANNOT);
   assert.match(r.summary, /canary row did not give its stated result/);
+});
+test("a real defect is a finding even when a canary row misses: the findings come first", () => {
+  const noop: Canary = {
+    id: "PKG-03",
+    row: "plants nothing",
+    plant: (c) => c,
+    found: true,
+  };
+  const bad = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
+  const r = verdict(bad, REPO, [noop]);
+  assert.equal(r.code, FINDING);
+  assert.deepEqual(r.details, ["PKG-03 dist/a.test.js: a test file"]);
+});
+test("a package whose files list lets the tests in is a finding of check(), the tools do not turn it into a pass", () => {
+  // A copy of the repository's package inputs, with the test exclusion removed from `files` (a real defect)
+  const root = mkdtempSync(join(tmpdir(), "package-defect-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  for (const f of [
+    "src",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "svelte.config.js",
+    "tsconfig.json",
+  ])
+    cpSync(join(ROOT, f), join(root, f), { recursive: true });
+  symlinkSync(join(ROOT, "node_modules"), join(root, "node_modules"));
+  const manifest = readFileSync(join(ROOT, "package.json"), "utf8");
+  writeFileSync(
+    join(root, "package.json"),
+    manifest.replace('"!dist/**/*.test.*",', ""),
+  );
+  const r = check(root);
+  assert.equal(r.code, FINDING, r.summary);
+  assert.ok(
+    r.details.some((d) => /^PKG-03 dist\/.*\.test\.js: a test file$/.test(d)),
+  );
 });
 test("PKG-07: a backtick specifier is found", () => {
   const c = new Map(GOOD).set(

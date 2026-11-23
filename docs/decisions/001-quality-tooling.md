@@ -177,11 +177,10 @@ Development dependencies on the same terms as the test toolchain.
   (PKG-01 to 05 and 07) builds `src/lib` with `svelte-package`, packs with `pnpm pack` and reads the tarball; publint
   and attw run on it. 60 packages are added to the lockfile, none removed or re-resolved; every licence is on the allow
   list. Docs read 2026-11-23: the Svelte packaging guide (`.ts` files are imported with a `.js` ending; `files` takes
-  `!dist/**/*.test.*`; files other than Svelte and TypeScript are copied as they are), the attw README (`--pack` uses
-  npm only, so the pnpm tarball is passed as a path; `--exclude-entrypoints styles.css` is its own example) and
-  publint's `--help` (a tarball path is accepted). Measured the same day: svelte-package leaves `.ts` specifiers inside
-  `.svelte` files, so the two components import with `.js` and PKG-07 keeps it so; publint passes a package whose
-  consumer build fails on that. attw runs with the `esm-only` profile (the package is ESM only), without `./styles.css`
+  `!dist/**/*.test.*`), the attw README (`--pack` uses npm only, so the pnpm tarball is passed as a path) and publint's
+  `--help` (a tarball path is accepted). Measured the same day: svelte-package leaves `.ts` specifiers inside `.svelte`
+  files, so the two components import with `.js` and PKG-07 keeps it so; publint passes a package whose consumer build
+  fails on that. attw runs with the `esm-only` profile (the package is ESM only), without `./styles.css`
   (a CSS file is not a module) and with `internal-resolution-error` ignored (node16 on the `.svelte` re-exports;
   Svelte consumers resolve with `bundler`, green); CON-04 proves the types for a real consumer.
   The repository's own `exports` stay at `src/lib` for the site's workspace link; the dist exports are

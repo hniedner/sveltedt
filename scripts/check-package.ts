@@ -468,7 +468,7 @@ function toolRows(root: string, c: Contents, dir: string): string[] {
   );
 }
 
-/** The verdict on one tarball's contents: canaries first, then the statements. */
+/** The verdict on one tarball's contents: the statements, then the canaries that show they can fail. */
 export function verdict(
   contents: Contents,
   repo: Repo,
@@ -478,19 +478,21 @@ export function verdict(
     return result(CANNOT, "the packed package.json cannot be read");
   if (!runnable(contents).length)
     return result(CANNOT, "no .svelte or .js file in the tarball to read");
-  const missed = missedCanaries(contents, repo, rows);
-  if (missed.length)
-    return result(
-      CANNOT,
-      "a canary row did not give its stated result",
-      missed,
-    );
+  // The findings first: a defect the real contents already carry is also in the canaries' base, so a planting adds
+  // nothing and the canary rows would miss and hide it behind could not check. A finding blocks as well.
   const findings = analyse(contents, repo);
   if (findings.length)
     return result(
       FINDING,
       `${findings.length} finding(s)`,
       findings.map((f) => `${f.id} ${f.message}`),
+    );
+  const missed = missedCanaries(contents, repo, rows);
+  if (missed.length)
+    return result(
+      CANNOT,
+      "a canary row did not give its stated result",
+      missed,
     );
   return result(
     PASS,
