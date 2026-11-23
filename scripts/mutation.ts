@@ -49,19 +49,27 @@ const INVALID = ["CompileError", "RuntimeError"]; // the mutant itself does not 
 /**
  * The step's verdict for one report and the changed lines per file: a Survived or NoCoverage mutant on a changed line is
  * a finding; an invalid mutant is listed and not judged; no judged mutant at all is could not check (the tests could not
- * have noticed anything). A mutant belongs to every line from its start to its end.
+ * have noticed anything), unless no mutant of any status sits on a changed line while the changed files hold mutants
+ * elsewhere: Stryker read those files and the lines carry nothing to mutate (an import or a comment), so not applicable.
+ * 0 mutants in the changed files stays could not check. A mutant belongs to every line from its start to its end.
  */
 export function judge(report: Report, changed: Map<string, number[]>): Result {
   const bad: string[] = [];
   const invalid: string[] = [];
   let judged = 0;
+  let onChanged = 0;
+  let elsewhere = 0;
   const ignored: string[] = [];
   for (const [file, lines] of [...changed].sort(([a], [b]) =>
     a.localeCompare(b),
   ))
     for (const m of report.files[file]?.mutants ?? []) {
       const { start, end } = m.location;
-      if (!lines.some((n) => n >= start.line && n <= end.line)) continue;
+      if (!lines.some((n) => n >= start.line && n <= end.line)) {
+        elsewhere++;
+        continue;
+      }
+      onChanged++;
       const at = `${file}:${start.line} ${m.mutatorName}`;
       if (INVALID.includes(m.status))
         invalid.push(`${at}: invalid mutant (not judged)`);
@@ -76,6 +84,11 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
       FINDING,
       `${bad.length} mutant(s) on changed lines not killed`,
       [...bad, ...invalid],
+    );
+  if (!onChanged && elsewhere)
+    return result(
+      NA,
+      `no mutant on a changed line (${elsewhere} mutants elsewhere in the changed files)`,
     );
   if (!judged)
     return result(CANNOT, "no mutant on a changed line was judged", invalid);

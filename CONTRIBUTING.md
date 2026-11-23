@@ -187,7 +187,8 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
 - **mutation:** every mutant StrykerJS makes on a changed line under `src/` (`.ts`, `.svelte.ts`, `.svelte`, test files
   left out; the changed lines are the same as `diff-coverage`'s) must be killed by the tests (gates.md G8). A Survived
   or NoCoverage mutant is a finding naming `file:line mutator`; an invalid mutant (it does not compile or run) is
-  listed and not judged; no judged mutant on the changed lines is could not check; a `Stryker disable` comment
+  listed and not judged; no judged mutant on the changed lines is could not check, unless no mutant of any kind sits on them while the changed
+  files hold mutants elsewhere (an import or a comment changed): not applicable; a `Stryker disable` comment
   without a reason after its colon is a finding. Stryker runs in a temporary copy of the tracked files with an offline
   install, never in your checkout, and the JSON report is kept in `reports/mutation/`. The whole of each changed file is
   mutated (7 to 13 seconds for one component, 52 for all of `src`, measured locally). In CI it is its own job `mutation`. Mutants of
