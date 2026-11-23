@@ -126,14 +126,11 @@ export function judgeCommit(
       continue;
     }
     if (!r.assertionResults.length) {
-      if (!r.message) notRun.push(`${t.now}: no test ran`);
+      const why = loadFailure(r.message ?? "", t.now, c.added, real);
+      if (why !== "red") wrong.push(`${t.now}: ${why}`);
       else {
-        const why = loadFailure(r.message, t.now, c.added, real);
-        if (why !== "red") wrong.push(`${t.now}: ${why}`);
-        else {
-          red.add(t.now);
-          gained.add(t.now);
-        }
+        red.add(t.now);
+        gained.add(t.now);
       }
       continue;
     }
@@ -149,7 +146,7 @@ export function judgeCommit(
       if (a.status === "passed") {
         if (isNew) passing.push(name);
       } else if (a.status !== "failed") {
-        if (isNew) notRun.push(`${name}: ${a.status}`);
+        notRun.push(`${name}: ${a.status}`);
       } else {
         failing.push(name);
         if (isNew) red.add(statement);
@@ -173,11 +170,19 @@ function verdict(
   const list = (word: string, xs: string[]) => xs.map((x) => `${word}: ${x}`);
   if (!c.source) {
     const lines = [
-      ...list("fails on its own source (a failing commit)", o.failing),
+      ...list("fails on its own source (a failing commit)", [
+        ...o.wrong,
+        ...o.failing,
+      ]),
       ...list("pinned, not red (proof: mutation, #136)", o.passing),
       ...list("did not run", o.notRun),
     ];
-    const code = o.failing.length ? FINDING : o.notRun.length ? CANNOT : PASS;
+    const code =
+      o.wrong.length || o.failing.length
+        ? FINDING
+        : o.notRun.length
+          ? CANNOT
+          : PASS;
     return { code, lines };
   }
   const blue = [...o.gained].filter((s) => !o.red.has(s)).sort();
