@@ -38,7 +38,7 @@ export interface Report {
       mutants: {
         status: string;
         mutatorName: string;
-        location: { start: { line: number } };
+        location: { start: { line: number }; end: { line: number } };
       }[];
     }
   >;
@@ -49,7 +49,7 @@ const INVALID = ["CompileError", "RuntimeError"]; // the mutant itself does not 
 /**
  * The step's verdict for one report and the changed lines per file: a Survived or NoCoverage mutant on a changed line is
  * a finding; an invalid mutant is listed and not judged; no judged mutant at all is could not check (the tests could not
- * have noticed anything). A mutant belongs to the line it starts on.
+ * have noticed anything). A mutant belongs to every line from its start to its end.
  */
 export function judge(report: Report, changed: Map<string, number[]>): Result {
   const bad: string[] = [];
@@ -59,9 +59,9 @@ export function judge(report: Report, changed: Map<string, number[]>): Result {
     a.localeCompare(b),
   ))
     for (const m of report.files[file]?.mutants ?? []) {
-      const line = m.location.start.line;
-      if (!lines.includes(line)) continue;
-      const at = `${file}:${line} ${m.mutatorName}`;
+      const { start, end } = m.location;
+      if (!lines.some((n) => n >= start.line && n <= end.line)) continue;
+      const at = `${file}:${start.line} ${m.mutatorName}`;
       if (INVALID.includes(m.status))
         invalid.push(`${at}: invalid mutant (not judged)`);
       else if (HANDLED.includes(m.status)) judged++;

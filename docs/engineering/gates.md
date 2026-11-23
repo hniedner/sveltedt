@@ -201,8 +201,9 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
   files are not in the copy, as in G4.
   - Files, not ranges: Stryker makes a mutant only when its whole node lies inside a `mutate` range (read in its
     instrumenter; measured 2026-11-22: a changed first line of a two-line array gave no ArrayDeclaration mutant), so
-    the whole of each changed file is mutated and the report is judged on the changed lines. A mutant belongs to the
-    line it starts on. Weaker rule, stated: no judged mutant is could not check over all changed files together, not per file,
+    the whole of each changed file is mutated and the report is judged on the changed lines. A mutant belongs to every
+    line from its start to its end, so a changed second line of an array is judged with the mutant of the whole array.
+    Weaker rule, stated: no judged mutant is could not check over all changed files together, not per file,
     so a type-only file changed beside a tested one passes.
   - Verdict: Survived and NoCoverage fail (a changed line no test reaches is a finding too); CompileError and
     RuntimeError mutants are listed as "invalid mutant (not judged)", as Stryker's own score leaves them out; Killed
