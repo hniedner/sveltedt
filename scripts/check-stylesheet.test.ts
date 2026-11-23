@@ -2,7 +2,13 @@
 // the step's exit codes are run once each through the script.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { analyse, CANARIES, CANARY_SPECS } from "./check-stylesheet.ts";
+import {
+  analyse,
+  CANARIES,
+  CANARY_SPECS,
+  LAYOUT_CANARIES,
+  layout,
+} from "./check-stylesheet.ts";
 
 const found = (css: string, id: string): string[] =>
   analyse(css, CANARY_SPECS)
@@ -110,5 +116,30 @@ test("THEME-01: the declarations read are counted, those inside forced-colors in
       CANARY_SPECS,
     ).reads.declarations,
     2,
+  );
+});
+
+for (const c of LAYOUT_CANARIES)
+  test(`THEME-04 row: ${c.row} is ${c.found ? "a finding" : "not a finding"}`, () => {
+    assert.equal(layout(c.files).length > 0, c.found);
+  });
+test("THEME-04: the findings say which stylesheets and which component", () => {
+  assert.deepEqual(
+    layout(LAYOUT_CANARIES[1].files).map((f) => f.message),
+    ["2 stylesheets: src/lib/styles.css, src/lib/more.css"],
+  );
+  assert.deepEqual(
+    layout(LAYOUT_CANARIES[3].files).map((f) => f.message),
+    ["src/lib/A.svelte holds a <style> block"],
+  );
+});
+test("THEME-04: a css file outside src/lib and a <style> element nested in markup are not this statement's", () => {
+  assert.deepEqual(
+    layout({
+      "src/lib/styles.css": "",
+      "site/app.css": "",
+      "src/lib/A.svelte": "<svelte:head><style>.x{}</style></svelte:head>",
+    }),
+    [],
   );
 });

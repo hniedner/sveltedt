@@ -4,6 +4,7 @@
 import postcss, { list } from "postcss";
 import type { AtRule, ChildNode, Node, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
+import { parse } from "svelte/compiler";
 
 export interface Finding {
   id: string;
@@ -210,6 +211,24 @@ export const CANARIES: Canary[] = [
     css: ".sdt-x { background: transparent }",
     found: false,
   },
+  {
+    id: "THEME-04",
+    row: "a layer",
+    css: "@layer sdt { .sdt-x { color: inherit } }",
+    found: true,
+  },
+  {
+    id: "THEME-04",
+    row: "an import",
+    css: '@import "./more.css";',
+    found: true,
+  },
+  {
+    id: "THEME-04",
+    row: "neither",
+    css: '/* @spec("THEME-10") */ .sdt-x { color: inherit }',
+    found: false,
+  },
 ];
 
 type Spec = [number, number, number];
@@ -384,6 +403,11 @@ export function analyse(
           message: `${node.type === "rule" ? node.selector : `@${node.name}`}: ${problem}`,
         });
     }
+    if (node.type === "atrule" && /^(?:layer|import)$/i.test(node.name))
+      findings.push({
+        id: "THEME-04",
+        message: `the stylesheet holds an @${node.name} rule`,
+      });
     if (node.type === "rule" && !inKeyframes(node)) {
       ruleSpec(node, (spec, text) => {
         reads.selectors++;
@@ -409,4 +433,59 @@ export function analyse(
     }
   });
   return { reads, findings };
+}
+
+/** One row of THEME-04's source table: the tracked files it plants (path to text) and whether it must be found. */
+export interface LayoutCanary {
+  row: string;
+  files: Record<string, string>;
+  found: boolean;
+}
+const SHEET = '/* @spec("THEME-10") */ .sdt-x { color: inherit }';
+const COMPONENT = '<div class="sdt"></div>';
+export const LAYOUT_CANARIES: LayoutCanary[] = [
+  {
+    row: "the real source: one .css file, no <style> block",
+    files: { "src/lib/styles.css": SHEET, "src/lib/A.svelte": COMPONENT },
+    found: false,
+  },
+  {
+    row: "a second .css file",
+    files: { "src/lib/styles.css": SHEET, "src/lib/more.css": SHEET },
+    found: true,
+  },
+  {
+    row: "no .css file",
+    files: { "src/lib/A.svelte": COMPONENT },
+    found: true,
+  },
+  {
+    row: "a <style> block at the top level of a .svelte file",
+    files: {
+      "src/lib/styles.css": SHEET,
+      "src/lib/A.svelte": `${COMPONENT}<style>.x { color: inherit }</style>`,
+    },
+    found: true,
+  },
+];
+
+/** THEME-04, the part that reads files: exactly one stylesheet under src/lib and no <style> block in a component. */
+export function layout(files: Record<string, string>): Finding[] {
+  const found = (message: string): Finding => ({ id: "THEME-04", message });
+  const paths = Object.keys(files);
+  const sheets = paths.filter((f) => /^src\/lib\/.+\.css$/.test(f));
+  return [
+    ...(sheets.length === 1
+      ? []
+      : [
+          found(
+            sheets.length
+              ? `${sheets.length} stylesheets: ${sheets.join(", ")}`
+              : "no stylesheet under src/lib",
+          ),
+        ]),
+    ...paths
+      .filter((f) => /^src\/lib\/.+\.svelte$/.test(f) && parse(files[f]).css)
+      .map((f) => found(`${f} holds a <style> block`)),
+  ];
 }
