@@ -1352,11 +1352,11 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 10 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits$/m,
+    /^PASS all: 16 checks passed, 11 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
   );
 });
 test("all: test, trace and diff-coverage share one vitest run", () => {
@@ -1395,9 +1395,12 @@ test("all: test, trace and diff-coverage share one vitest run", () => {
       'import { expect, test } from "vitest";\nimport { sum } from "./sum.ts";\ntest("sums", () => {\n  expect(sum(1)).toBe(2);\n});\n',
     );
   };
-  const out = expect("all", repo(marked), 0, {
+  // The changed module gives the mutation step work, and the fixture has no packages to install: it cannot check and
+  // stops the run, after the three steps this test is about
+  const out = expect("all", repo(marked), 3, {
     extraEnv: { VITEST_BIN: wrapper },
   });
+  assert.match(out, /^COULD NOT CHECK mutation\b/m);
   assert.match(out, /^PASS trace: .*1 marker\(s\)/m);
   assert.match(out, /^PASS diff-coverage: 1\/1 changed lines covered/m);
   assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 1);

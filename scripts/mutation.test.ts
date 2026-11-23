@@ -2,11 +2,11 @@
 // the real StrykerJS on a fixture repository, with the real pnpm installing the fixture's packages offline.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { test } from "node:test";
 import {
+  canaryDir,
   commit,
   expect,
   GIT_ENV,
@@ -52,6 +52,19 @@ test("mutation judge: a changed line whose mutant survived or was never run is a
     assert.equal(r.code, FINDING);
     assert.deepEqual(r.details, [`src/a.ts:3 M (${status})`]);
   }
+});
+test("mutation judge: a mutant that was never decided is a finding, not a pass", () => {
+  const r = judge(
+    reportOf({
+      "src/a.ts": [
+        [2, "Killed"],
+        [3, "Pending"],
+      ],
+    }),
+    CHANGED,
+  );
+  assert.equal(r.code, FINDING);
+  assert.deepEqual(r.details, ["src/a.ts:3 M (Pending)"]);
 });
 test("mutation judge: only the changed lines count, and killed, timed-out and ignored mutants pass", () => {
   const killed = reportOf({
@@ -132,7 +145,10 @@ const SURVIVOR =
 const KILLED = "export function f(a: number): number {\n  return a + 1;\n}\n";
 const FIXTURE_TEST =
   'import { expect, test } from "vitest";\nimport { f } from "./a.ts";\ntest("f", () => {\n  expect(f(0)).toBe(1);\n});\n';
-function fixture(files: Record<string, string>): string {
+function fixture(
+  files: Record<string, string>,
+  base: Record<string, string> = {},
+): string {
   const root = tempDir();
   for (const p of [
     "package.json",
@@ -150,6 +166,7 @@ function fixture(files: Record<string, string>): string {
   put(root, ".gitignore", "/node_modules\n/reports/\n");
   put(root, "src/a.test.ts", FIXTURE_TEST);
   put(root, "src/a.ts", "export const f = (a: number): number => a;\n");
+  for (const [path, text] of Object.entries(base)) put(root, path, text);
   git(root, "init", "-q");
   commit(root, "chore: the fixture's first commit");
   git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
@@ -165,14 +182,49 @@ test("mutation step: a changed line whose mutant survives is a finding, and the 
   assert.match(out, /^ {2}src\/a\.ts:2 \S+ \(Survived\)$/m);
   assert.ok(existsSync(join(root, "reports/mutation/mutation.json")));
 });
-test("mutation step: changed lines whose mutants are all killed pass", () => {
-  const out = expect(
-    "mutation",
-    fixture({ "src/a.ts": KILLED }),
-    PASS,
-    REAL_PNPM,
-  );
+test("mutation step: changed lines whose mutants are all killed pass, and the temporary copy is removed", () => {
+  const scratch = tempDir();
+  const out = expect("mutation", fixture({ "src/a.ts": KILLED }), PASS, {
+    ...REAL_PNPM,
+    extraEnv: { TMPDIR: scratch },
+  });
   assert.match(out, /^PASS mutation: /m);
+  assert.deepEqual(readdirSync(scratch), []);
+});
+// A mutant is made only when its whole node lies inside a mutate range, so a changed line that starts a multi-line
+// expression needs the whole file mutated: the array below starts on line 2 and ends on line 3
+const WRAPPED = `export function f(a: number): number[] {
+  return [a,
+    2];
+}
+`;
+const WRAPPED_TEST =
+  'import { expect, test } from "vitest";\nimport { f } from "./a.ts";\ntest("f", () => {\n  expect(f(1)).toEqual([1, 2]);\n});\n';
+test("mutation step: a changed line that starts a multi-line expression is judged with the mutants that span it", () => {
+  const root = fixture(
+    { "src/a.ts": WRAPPED.replace("[a,", "[a + 0,") },
+    { "src/a.ts": WRAPPED, "src/a.test.ts": WRAPPED_TEST },
+  );
+  run(["mutation", "--root", root], REAL_PNPM);
+  const report = JSON.parse(
+    readFileSync(join(root, "reports/mutation/mutation.json"), "utf8"),
+  ) as Report;
+  const names = report.files["src/a.ts"].mutants
+    .filter((m) => m.location.start.line === 2)
+    .map((m) => m.mutatorName);
+  assert.ok(names.includes("ArrayDeclaration"), names.join());
+});
+test("mutation step: a run that does not find the canary's survivor cannot check", () => {
+  const blind = canaryDir("mutation", {
+    "canary.ts": "export const sign = (n: number): number => n;\n",
+    "canary.test.ts":
+      'import { expect, test } from "vitest";\nimport { sign } from "./canary.ts";\ntest("c", () => {\n  expect(sign(1)).toBe(1);\n});\n',
+  });
+  const out = expect("mutation", fixture({ "src/a.ts": KILLED }), CANNOT, {
+    ...REAL_PNPM,
+    canaries: blind,
+  });
+  assert.match(out, /did not find the canary's survivor/);
 });
 test("mutation step: a changed source file that yields no mutant cannot be checked", () => {
   const out = expect(
@@ -221,7 +273,7 @@ function snapshot(dir: string): string[] {
 }
 test("mutation step: a run killed while Stryker is mutating leaves the checkout as it was", async () => {
   const root = fixture({ "src/a.ts": SURVIVOR });
-  const scratch = mkdtempSync(join(tmpdir(), "mutation-kill-"));
+  const scratch = tempDir();
   const before = snapshot(root);
   const env: NodeJS.ProcessEnv = { ...GIT_ENV, TMPDIR: scratch };
   for (const k of GATE_VARS) delete env[k];
