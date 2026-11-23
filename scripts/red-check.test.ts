@@ -187,10 +187,12 @@ test("red-check step: a commit with no source change is test-only, wherever else
   put(
     root,
     "package.json",
-    readFileSync(join(root, "package.json"), "utf8").replace(
-      "{",
-      '{\n  "x-note": 1,',
-    ),
+    JSON.stringify({
+      ...(JSON.parse(
+        readFileSync(join(root, "package.json"), "utf8"),
+      ) as object),
+      "x-note": 1,
+    }),
   );
   put(root, "scripts/x.ts", "export const x = 1;\n");
   put(
