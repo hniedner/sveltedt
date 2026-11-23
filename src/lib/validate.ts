@@ -149,12 +149,14 @@ function sortFault<Row>(
   if (order.some((entry) => !columnOf(entry.id))) return "sortColumnUnknown";
   if (order.some((entry) => !columnOf(entry.id)?.sortable))
     return "sortColumnNotSortable";
+  // Stryker disable OptionalChaining: the two checks above leave every entry a known, sortable column
   if (
     order.some(
       (entry) => !columnOf(entry.id)?.sortable?.includes(entry.direction),
     )
   )
     return "sortDirectionNotAllowed";
+  // Stryker restore OptionalChaining
   return firstDuplicate(order.map((entry) => entry.id)) === undefined
     ? null
     : "sortColumnDuplicate";
