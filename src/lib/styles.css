@@ -1,6 +1,7 @@
 /* SvelteDT's stylesheet: one file, no layer, no import (THEME-04). Every selector has one class at most (THEME-12), so
-   an application's own rule of a class and an element wins in any load order (THEME-11). Each rule names the
-   real-browser statement whose test proves it (THEME-13). */
+   an application's own rule of a class and an element wins in any load order (THEME-11); the one exception is the row
+   rule, which has the specificity of one element (see it) and so wins over a framework's element rule only by coming
+   after it, the order PRD-D9 advises. Each rule names the real-browser statement whose test proves it (THEME-13). */
 
 /* @spec("THEME-10") */
 .sdt-region {
