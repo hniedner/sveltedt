@@ -1,9 +1,9 @@
 <!-- Adapted from ontoprism, frontend/src/lib/components/Pagination.svelte (Apache License 2.0, the owner's own
      project): the nav, the aria-disabled step buttons, the keyed number row and its gaps. -->
 <script lang="ts">
-  import { defaultPagerMessages, mergeMessages } from "./messages.ts";
-  import { pageNumbers, pagerState, validatePager } from "./pager.ts";
-  import type { PaginationProps } from "./types.ts";
+  import { defaultPagerMessages, mergeMessages } from "./messages.js";
+  import { pageNumbers, pagerState, validatePager } from "./pager.js";
+  import type { PaginationProps } from "./types.js";
 
   const props: PaginationProps = $props();
   const words = $derived(mergeMessages(defaultPagerMessages, props.messages));

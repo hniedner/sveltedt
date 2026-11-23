@@ -6,6 +6,7 @@
 # run (scripts/canaries/test/).
 node_modules/
 /site/dist/
+/dist/
 # Playwright's output folder, beside each config it runs (the browser step and its canary)
 test-results/
 /.claude/settings.local.json

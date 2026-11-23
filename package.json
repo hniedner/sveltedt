@@ -11,6 +11,24 @@
     },
     "./styles.css": "./src/lib/styles.css"
   },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "svelte": "./dist/index.js"
+      },
+      "./styles.css": {
+        "style": "./dist/styles.css",
+        "default": "./dist/styles.css"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "LICENSE",
+    "NOTICE"
+  ],
   "packageManager": "pnpm@12.19.0",
   "scripts": {
     "gate": "node scripts/check-repo.ts all",
@@ -23,12 +41,17 @@
       "prettier-plugin-svelte"
     ]
   },
+  "peerDependencies": {
+    "svelte": "^5.20.0"
+  },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@axe-core/playwright": "4.14.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.65.1",
     "@stryker-mutator/core": "10.1.1",
     "@stryker-mutator/vitest-runner": "10.1.1",
+    "@sveltejs/package": "3.0.3",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tailwindcss/vite": "4.3.5",
     "@testing-library/svelte": "5.4.2",
@@ -45,6 +68,7 @@
     "postcss-selector-parser": "7.2.1",
     "prettier": "3.10.1",
     "prettier-plugin-svelte": "4.1.1",
+    "publint": "0.3.25",
     "svelte": "5.57.3",
     "svelte-check": "4.7.8",
     "tailwindcss": "4.3.5",
