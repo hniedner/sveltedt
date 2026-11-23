@@ -63,6 +63,12 @@ importers:
       parse5:
         specifier: 8.1.1
         version: 8.1.1
+      postcss:
+        specifier: 8.5.33
+        version: 8.5.33
+      postcss-selector-parser:
+        specifier: 7.2.1
+        version: 7.2.1
       prettier:
         specifier: 3.10.1
         version: 3.10.1

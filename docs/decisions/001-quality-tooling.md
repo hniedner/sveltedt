@@ -164,6 +164,15 @@ Development dependencies on the same terms as the test toolchain.
   2026-11-18). An early-development feature may change in a minor release: when the Node pin moves, the site
   server's start is checked against that release's notes.
 
+- **postcss 8.5.33 and postcss-selector-parser 7.2.1** (MIT, exact pins): the stylesheet checks (THEME-01, 02, 04,
+  12 and 13) read `src/lib/styles.css` with the parser Vite and the Svelte lint already use, and count specificity
+  with the selector parser. Both were in the lockfile (through eslint-plugin-svelte and vite), so the pins add no
+  package and change no resolved version (6 lockfile lines, the importer block). Checked 2026-11-23 against the
+  registry: released 2026-11-13 and 2026-11-12, past the cooldown. lightningcss, also in the tree, drops comments
+  (THEME-13 reads them) and has no specificity; css-tree adds two packages and its colour data lags. Values are read
+  with postcss's own `list.space` and `list.comma`, so no value parser is added. Dependabot moves both in
+  `npm-minor-and-patch`.
+
 ## Real-browser toolchain (build 2a)
 
 - **@playwright/test 1.65.1** (Apache-2.0, exact pin; with playwright and playwright-core 1.65.1, Apache-2.0, no install
