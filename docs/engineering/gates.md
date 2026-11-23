@@ -180,17 +180,37 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 | Language | Tool | Gateable today? | The wrapper adds |
 |---|---|---|---|
 | Rust | cargo-mutants `--in-diff <file>` *(fetched, mutants.rs)* | Yes: missed mutants give their own exit code, and a bad diff fails. Each mutant recompiles, so it runs per pull request, plus a full run before release. | A diff that touches only tests runs 0 mutants: reported as "not mutated", never pass |
-| TypeScript, Svelte | StrykerJS, Vitest runner. `mutate` accepts `file:start-end` ranges. A score below `thresholds.break` exits 1, and the default `null` never fails *(fetched, stryker-mutator.io)* | Only through the wrapper: Stryker has no git-diff mode | Maps `git diff -U0` to line ranges and sets break = 100. Reads the JSON report: any survivor fails; 0 mutants on changed executable lines = could not check |
+| TypeScript, Svelte | StrykerJS, Vitest runner. `mutate` accepts `file:start-end` ranges. A score below `thresholds.break` exits 1, and the default `null` never fails *(fetched, stryker-mutator.io)* | Only through the wrapper: Stryker has no git-diff mode | Maps `git diff -U0` to line ranges. Judges the JSON report itself (no `break`: Stryker's score would count unchanged lines): any Survived or NoCoverage mutant on a changed line fails; no judged mutant on the changed lines = could not check |
 | Python | mutmut 3. Selects mutants by name pattern (`mutmut run "pkg.mod.func*"`) and honours `# pragma: no mutate` *(fetched, mutmut.readthedocs.io)* | Not on its own: no documented exit on survivors, mutates only inside functions, needs `fork` (Linux or macOS; Windows only under WSL) | Maps the diff to function names, reads the survivor count from mutmut's results, and lists changed lines outside functions as "not mutated". Report-only until the wrapper's test proves it fails on a planted survivor |
 
 - Equivalent mutants carry their reason on the same line, and a grep checks it: `# pragma: no mutate  # reason`,
   `// Stryker disable next-line <mutator>: reason`, `#[mutants::skip] // reason`. In protected files, every
   equivalent needs the owner's sign-off.
-- Frontend: StrykerJS gates .ts, .svelte.ts and .svelte through the wrapper with break 100. A gated file with 0
-  mutants is could-not-check unless exempted with a reason; allowEmpty is refused. Logic stays in .ts/.svelte.ts;
-  every markup expression has a component test that kills its mutants. Measured 2026-11-17 (StrykerJS 10.1.1,
-  vitest-runner, Svelte 5.57.3, Vitest 5.1.0): markup expressions are mutated; a file with 0 mutants and
-  `allowEmpty: true` both exit 0, so the wrapper refuses both; `inPlace: true` is needed with @testing-library/svelte.
+- Frontend: StrykerJS gates .ts, .svelte.ts and .svelte through the wrapper (`scripts/mutation.ts`, settings in
+  `stryker.config.mjs`, #136). Logic stays in .ts/.svelte.ts; every markup expression has a component test that kills
+  its mutants. Measured 2026-11-17 (StrykerJS 10.1.1, vitest-runner, Svelte 5.57.3, Vitest 5.1.0): markup expressions
+  are mutated; a file with 0 mutants and `allowEmpty: true` both exit 0, so the wrapper never sets it and gives could
+  not check for no mutant; `inPlace: true` is needed with @testing-library/svelte (without it, measured 2026-11-22,
+  "No tests were executed").
+- **The build.** The step runs Stryker in a temporary copy of the tracked files (working-tree content) in a new folder
+  under the system's temp directory, with `pnpm install --frozen-lockfile --offline` there and `inPlace: true`. Why
+  not the checkout: measured 2026-11-22, `inPlace` rewrites every file Stryker reaches, not only the `mutate` ones
+  (64 tracked files modified and 15 `stryker-setup-N.js` files after a SIGKILL 12 s into a run), and it restores
+  them only on a clean end. A killed run now leaves a stray folder in the temp directory and nothing in the checkout
+  (test: a real Stryker run killed once it has started mutating, the fixture's files byte-identical). Untracked new
+  files are not in the copy, as in G4.
+  - Ranges: each run of consecutive changed lines becomes `file:a-b` in `mutate`; mutants of unchanged lines inside
+    a range are not judged. A mutant belongs to the line it starts on.
+  - Verdict: Survived and NoCoverage fail (a changed line no test reaches is a finding too); CompileError and
+    RuntimeError mutants are listed as "invalid mutant (not judged)", as Stryker's own score leaves them out; Ignored
+    (a disable comment) and Timeout count as handled. Existing survivors on lines no change touches are not judged:
+    measured 2026-11-22, 18 Survived and 2 NoCoverage mutants in today's `src`, listed in the checkpoint.
+  - Canary: the copy also holds `scripts/canaries/mutation/` (a planted survivor and a killed mutant) under
+    `src/mutation-canary/`, mutated in the same run. The step is could not check unless both are in the report.
+  - Seconds, measured locally: 6 s for one `.ts` file, 7 s for one `.svelte` file, 18 s for the ranges of
+    everything changed since #137 (95 lines in 6 files), 52 s for the whole of `src`; the copy and the install add 1 s.
+  - Packages: `@stryker-mutator/core` and `vitest-runner` 10.1.1, with `minimatch` and `qs` overridden (decision 001,
+    Overrides) because core pins versions with advisories.
 - Real-browser tests (components and journeys) and static checks are outside mutation scope: Stryker's Vitest runner does not run browser
   tests, and a static check has no behaviour to mutate. Component-level statements (Vitest + Testing Library) are in scope.
 - CI runs mutation jobs on Linux only.
@@ -257,7 +277,8 @@ $0 budget, no self-hosted runners.
     (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
     `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
   - `red-check` (G7) in the `static` job, on each commit of the pull request.
-  - `mutation` (G8) on the step diff, Linux only.
+  - `mutation` (G8) on the pull request's changed lines, Linux only, in its own job `mutation`. The `static` job leaves
+    the step to it through `GATE_MUTATION`, under the same rule as `GATE_BROWSER` (gate-needs checks both).
   - `trace` (G6) in the `static` job over the Vitest results; the markers of browser specs are judged by the
     `browser` step in the `browser` job, from its own Playwright report (no result file passes between jobs).
   - `gate`: `needs:` every job above, `if: always()`. It passes only when every needed job's result is `success`;
