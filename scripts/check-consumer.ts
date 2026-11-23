@@ -24,7 +24,7 @@ import {
   scriptMain,
 } from "./gate-step.ts";
 import type { Result, Row } from "./gate-step.ts";
-import { packed, run } from "./check-package.ts";
+import { packed, planted, run } from "./check-package.ts";
 import type { Contents } from "./check-package.ts";
 import { binaryOf, CANNOT, FINDING, PASS } from "./pinned.ts";
 
@@ -53,12 +53,19 @@ export interface TypeReport {
   files: number;
   errors: string[];
 }
+/** What `pnpm peers check` printed and exited with. */
+export interface PeerReport {
+  status: number;
+  text: string;
+}
 export interface State {
   before: Committed;
   after: Committed;
   copy: Copy;
   /** `real`: the consumer; `planted`: the same copy with a page that passes `rows={42}` (CON-09's second row). */
   types: { real: TypeReport; planted: TypeReport };
+  /** `real`: the consumer with the real tarball; `planted`: with a tarball whose peer range is `^6.0.0` (CON-11's second row). */
+  peers: { real: PeerReport; planted: PeerReport };
 }
 export type Canary = Row<State>;
 
@@ -109,9 +116,22 @@ function install(s: State): Finding[] {
 const types = (s: State): Finding[] =>
   s.types.real.errors.map((message) => ({ id: "CON-09", message }));
 
+/** CON-11: no issue of `pnpm peers check` names the package; an issue that names only others is not this statement's. */
+function peers(s: State): Finding[] {
+  const { status, text } = s.peers.real;
+  if (status === 0 || !text.includes(NAME)) return [];
+  const issue = text.split("\n").find((l) => l.startsWith("✕")) ?? "an issue";
+  return [
+    {
+      id: "CON-11",
+      message: `pnpm peers check reports an issue that names ${NAME}: ${issue}`,
+    },
+  ];
+}
+
 /** Every statement over one state, in the spec's order. */
 export function analyse(s: State): Finding[] {
-  return [...install(s), ...types(s)];
+  return [...install(s), ...types(s), ...peers(s)];
 }
 
 export const CANARIES: Canary[] = [
@@ -151,6 +171,12 @@ export const CANARIES: Canary[] = [
     id: "CON-09",
     row: "a page that passes rows={42} to DataTable gives an error",
     plant: (s) => ({ ...s, types: { ...s.types, real: s.types.planted } }),
+    found: true,
+  },
+  {
+    id: "CON-11",
+    row: "a tarball whose peer range for svelte is above the installed version",
+    plant: (s) => ({ ...s, peers: { ...s.peers, real: s.peers.planted } }),
     found: true,
   },
   {
@@ -216,6 +242,19 @@ export function parseTypeReport(out: string): TypeReport | undefined {
   return { files: Number(done[1]), errors };
 }
 
+/** The peer report of a `pnpm peers check` run, or undefined when it printed neither of pnpm's two verdicts. */
+export function parsePeerReport(r: {
+  status: number | null;
+  stdout: string;
+}): PeerReport | undefined {
+  return r.status !== null &&
+    /No peer dependency issues found|Issues with peer dependencies found/.test(
+      r.stdout,
+    )
+    ? { status: r.status, text: r.stdout }
+    : undefined;
+}
+
 /** svelte-check in the copy, with its own configuration and tsconfig (CON-09). */
 function typeCheck(copy: string): TypeReport | undefined {
   const r = run(
@@ -235,6 +274,11 @@ function typeCheck(copy: string): TypeReport | undefined {
 
 /** The verdict on one state: the statements, then the canary rows that show they can fail. */
 export function verdict(s: State): Result {
+  if (s.peers.real.status !== 0 && s.peers.planted.status === 0)
+    return result(
+      CANNOT,
+      "pnpm peers check did not report the planted peer range",
+    );
   if (!s.types.real.files || !s.types.planted.files)
     return result(CANNOT, "the type check read no file of the consumer copy");
   const findings = analyse(s);
@@ -310,18 +354,48 @@ export function check(root: string): Result {
         CANNOT,
         "svelte-check exited without a report in the consumer copy",
       );
+    // What the real tarball installed, read before CON-11 replaces it with a planted one
+    const installedCopy: Copy = {
+      dir: realpathSync(copy),
+      real,
+      files: readTree(real),
+      tarball: made.contents,
+      lock: readFileSync(join(copy, "pnpm-lock.yaml"), "utf8"),
+      tarballName: made.tgz.slice(dir.length + 1),
+    };
+    // CON-11: the peer check of the real tarball, then of one whose peer range for svelte is above the installed version
+    const peerReal = parsePeerReport(run(pnpm, ["peers", "check"], copy));
+    const manifest = JSON.parse(
+      made.contents.get("package.json")?.toString() ?? "",
+    ) as {
+      peerDependencies: Record<string, string>;
+    };
+    manifest.peerDependencies.svelte = "^6.0.0";
+    const tgz6 = planted(
+      new Map(made.contents).set(
+        "package.json",
+        Buffer.from(JSON.stringify(manifest)),
+      ),
+      dir,
+      "peer6",
+    );
+    const added = run(pnpm, ["add", "-D", "--offline", tgz6], copy);
+    const peerPlanted =
+      added.status === 0
+        ? parsePeerReport(run(pnpm, ["peers", "check"], copy))
+        : undefined;
+    if (!peerReal || !peerPlanted)
+      return result(
+        CANNOT,
+        "pnpm peers check gave no report in the consumer copy",
+        lines(added),
+      );
     return verdict({
       before,
       after: committed(root),
       types: { real: typed, planted: typedPlanted },
-      copy: {
-        dir: realpathSync(copy),
-        real,
-        files: readTree(real),
-        tarball: made.contents,
-        lock: readFileSync(join(copy, "pnpm-lock.yaml"), "utf8"),
-        tarballName: made.tgz.slice(dir.length + 1),
-      },
+      peers: { real: peerReal, planted: peerPlanted },
+      copy: installedCopy,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

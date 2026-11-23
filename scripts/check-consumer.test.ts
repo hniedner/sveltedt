@@ -9,11 +9,22 @@ import { PASS } from "./pinned.ts";
 import {
   analyse,
   CANARIES,
+  parsePeerReport,
   parseTypeReport,
   verdict,
 } from "./check-consumer.ts";
 import type { State } from "./check-consumer.ts";
 
+const OK = "No peer dependency issues found";
+const UNMET = [
+  "Issues with peer dependencies found",
+  "",
+  "✕ unmet peer svelte",
+  "  Installed: 5.57.3",
+  "  Wanted:",
+  "    ^6.0.0:",
+  "      @hniedner/sveltedt@0.0.0",
+].join("\n");
 const COPY = "/tmp/copy";
 const FILES = new Map([
   ["package.json", Buffer.from('{"name":"@hniedner/sveltedt"}')],
@@ -35,6 +46,10 @@ const GOOD: State = {
     tarball: FILES,
     lock: "'@hniedner/sveltedt@file:../x/hniedner-sveltedt-0.0.0.tgz':\n",
     tarballName: "hniedner-sveltedt-0.0.0.tgz",
+  },
+  peers: {
+    real: { status: 0, text: OK },
+    planted: { status: 1, text: UNMET },
   },
   types: {
     real: { files: 170, errors: [] },
@@ -104,6 +119,34 @@ test("CON-09: a type check that read no file cannot be checked", () => {
   const r = verdict(none);
   assert.equal(r.code, 3);
   assert.match(r.summary, /type check read no file/);
+});
+test("CON-11: an issue that names the package is a finding; an issue naming only others is not this statement's", () => {
+  const bad: State = {
+    ...GOOD,
+    peers: { ...GOOD.peers, real: GOOD.peers.planted },
+  };
+  assert.deepEqual(found(bad, "CON-11"), [
+    "pnpm peers check reports an issue that names @hniedner/sveltedt: ✕ unmet peer svelte",
+  ]);
+  const other: State = {
+    ...GOOD,
+    peers: {
+      ...GOOD.peers,
+      real: { status: 1, text: UNMET.replace("@hniedner/sveltedt", "other") },
+    },
+  };
+  assert.deepEqual(found(other, "CON-11"), []);
+});
+test("CON-11: the peer report is read, and none when pnpm gave no report", () => {
+  assert.deepEqual(parsePeerReport({ status: 0, stdout: `${OK}\n` }), {
+    status: 0,
+    text: `${OK}\n`,
+  });
+  assert.equal(
+    parsePeerReport({ status: 1, stdout: "error: unknown command\n" }),
+    undefined,
+  );
+  assert.equal(parsePeerReport({ status: null, stdout: "" }), undefined);
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);
