@@ -34,8 +34,8 @@
   `query`, the initial query (required); `onerror(error)`. A later part adds the option of a first page loaded on
   the server (PRD-B20); every statement of this part is without it.
 - **The query** is `{ sort, filters, search, offset, limit }` with the shapes of `spec/table.md`: `sort` a list of
-  `{ id, direction }`, lead first (default `[]`); `filters` the applied filter of each column id (default `{}`); `search`
-  the global search text (default `""`); `offset` (default 0) and `limit` (required) the pager's.
+  `{ id, direction }`, lead first (default `[]`); `filters` the applied filter of each column id (default `{}`);
+  `search` the global search text (default `""`); `offset` (default 0) and `limit` (required) the pager's.
 - **What it returns:** `{ table, pager, query, reload }`. `table` holds `rows`, `status`, `busy`, `sort`, `filters`,
   `search`, `onsort`, `onfilter`, `onclearfilter`, `onclearfilters`, `onreset` and `onsearch`; `pager` holds
   `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`, or is `undefined` (CONN-25); `query` reads
