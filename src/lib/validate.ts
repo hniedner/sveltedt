@@ -3,7 +3,13 @@ import type { DataTableMessages, DataTableProps } from "./types.ts";
 // The message keys of the alert (RND-05, SORT-15)
 type Fault = Exclude<
   keyof DataTableMessages,
-  "loading" | "failed" | "empty" | "rowCount" | "sortRank" | "sortDescription"
+  | "loading"
+  | "failed"
+  | "empty"
+  | "rowCount"
+  | "sortableHint"
+  | "sortRank"
+  | "sortDescription"
 >;
 
 function firstDuplicate(values: readonly string[]): string | undefined {

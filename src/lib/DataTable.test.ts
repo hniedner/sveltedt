@@ -144,8 +144,20 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
   ["the alert of RND-05", { columns: [] }],
 ];
 
-// @spec("A11Y-01", "c91fd776")
+// @spec("A11Y-01", "7eb5c1e0")
 describe("A11Y-01", () => {
+  it("names a table that shows a sort button by the caption text, a space and the hint of SORT-28", () => {
+    show({
+      columns: [{ ...nameColumn, sortable: ["asc", "desc"] }],
+      onsort: () => {},
+    });
+    expect(
+      screen.getByRole("table", {
+        name: "Orders Column headers with buttons are sortable.",
+      }).isConnected,
+    ).toBe(true);
+  });
+
   it("is a native table named by the caption it holds as its first child", () => {
     show();
     const table = screen.getByRole("table", { name: "Orders" });

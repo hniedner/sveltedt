@@ -16,7 +16,9 @@ describe("LIST-01", () => {
   it("shows one table, named by its caption, with one body row per entry of the fixed list", () => {
     render(ListPage);
     expect(screen.getAllByRole("table")).toHaveLength(1);
-    const table = screen.getByRole("table", { name: "Orders" });
+    const table = screen.getByRole("table", {
+      name: "Orders Column headers with buttons are sortable.",
+    });
     expect(within(table).getByText("Orders").tagName).toBe("CAPTION");
     expect(orders).toHaveLength(20);
     expect(firstCells().toSorted()).toEqual(

@@ -80,6 +80,44 @@ describe("SORT-10", () => {
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
+// @spec("SORT-28", "448bf14a")
+describe("SORT-28", () => {
+  const sentence = "Column headers with buttons are sortable.";
+  const caption = (): HTMLElement =>
+    screen.getByRole("table").querySelector("caption") as HTMLElement;
+
+  it("holds the sentence in a class-less span after a space in the caption while a sort button is shown", () => {
+    mount({ columns: [name, note] });
+    expect(caption().textContent).toBe(`Orders ${sentence}`);
+    const span = caption().querySelector("span") as HTMLElement;
+    expect(span.textContent).toBe(sentence);
+    expect(span.hasAttribute("class")).toBe(false);
+    expect(span.previousSibling?.textContent?.endsWith(" ")).toBe(true);
+    expect(screen.getByRole("table", { name: `Orders ${sentence}` })).toBe(
+      screen.getByRole("table"),
+    );
+  });
+
+  it("holds no sentence while no sort button is shown", () => {
+    mount({ columns: [note], onsort: undefined });
+    expect(caption().textContent).toBe("Orders");
+    expect(caption().querySelector("span")).toBeNull();
+    expect(screen.getByRole("table", { name: "Orders" })).toBe(
+      screen.getByRole("table"),
+    );
+  });
+
+  it("shows the given sortableHint instead", () => {
+    mount({
+      messages: {
+        sortableHint: "Spaltenköpfe mit Schaltflächen sind sortierbar.",
+      },
+    });
+    expect(caption().textContent).toBe(
+      "Orders Spaltenköpfe mit Schaltflächen sind sortierbar.",
+    );
+  });
+});
 // @spec("SORT-01", "83f710c0")
 describe("SORT-01", () => {
   it.each([
@@ -565,6 +603,7 @@ describe("SORT-16", () => {
 // Non-English sort words for SORT-17 and the texts SORT-23 passes through them
 function sortWords(text?: string) {
   return {
+    sortableHint: text ?? "Spaltenköpfe mit Schaltflächen sind sortierbar.",
     sortRank: (rank: number) => text ?? `Nr ${rank}`,
     sortDescription: ({
       direction,
@@ -582,6 +621,7 @@ function sortWords(text?: string) {
 // @spec("SORT-17", "d35f26a9")
 describe("SORT-17", () => {
   const english = [
+    "Column headers with buttons",
     "sorted ascending",
     "sorted descending",
     "priority",
@@ -598,6 +638,12 @@ describe("SORT-17", () => {
     ].join("\n");
 
   it.each([
+    [
+      "sortableHint",
+      "",
+      "the caption",
+      () => screen.getByText("Spaltenköpfe mit Schaltflächen sind sortierbar."),
+    ],
     [
       "sortRank",
       "code asc, name desc",
@@ -646,8 +692,8 @@ describe("SORT-23", () => {
       expect(screen.getAllByRole("button", { description: text })).toHaveLength(
         2,
       );
-      // Two rank marks and the two hidden descriptions
-      expect(screen.getAllByText(text)).toHaveLength(4);
+      // Two rank marks, the two hidden descriptions and the caption's hint
+      expect(screen.getAllByText(text)).toHaveLength(5);
       expect(container.querySelector("img, none")).toBeNull();
     },
   );

@@ -46,6 +46,7 @@ export interface DataTableMessages {
   readonly rowIdEmpty: string;
   readonly rowIdDuplicate: string;
   readonly rowIdUnreadable: string;
+  readonly sortableHint: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (state: {
