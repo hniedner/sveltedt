@@ -19,7 +19,7 @@ const columns: DataTableColumn<FootprintRow>[] = ["Code", "Name", "Date"].map(
   }),
 );
 
-// @spec("SORT-24", "9de48625")
+// @spec("SORT-24", "564f92e6")
 describe("SORT-24", () => {
   it("holds no listener of its own on document or window through presses, a new order and unmount", async () => {
     try {
@@ -38,7 +38,7 @@ describe("SORT-24", () => {
           { id: "name", desc: true },
         ]),
       );
-      const button = () => screen.getByRole("button", { name: "Sort by Name" });
+      const button = () => screen.getByRole("button", { name: "Name" });
       await fireEvent.click(button());
       expect(own()).toEqual([]);
       await fireEvent.click(button(), { shiftKey: true });

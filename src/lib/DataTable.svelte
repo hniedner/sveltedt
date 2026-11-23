@@ -126,7 +126,6 @@
                   <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
                   <button
                     type="button"
-                    aria-label={words.sortBy(column.label)}
                     aria-describedby={`${uid}-sort-${index}`}
                     onkeydown={sortKey}
                     onblur={() => (keyShift = null)}

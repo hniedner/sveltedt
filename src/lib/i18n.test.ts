@@ -61,7 +61,7 @@ function pager(props: Partial<PaginationProps>, messages?: Words): HTMLElement {
 const pageButtons = (nav: HTMLElement): HTMLElement[] =>
   within(nav).getAllByRole("button").slice(2, -2);
 const nameButton = (): HTMLElement =>
-  screen.getByRole("button", { name: "Sort by Name" });
+  screen.getByRole("button", { name: "Name" });
 const described = (element: HTMLElement): string =>
   (element.getAttribute("aria-describedby") ?? "")
     .split(" ")

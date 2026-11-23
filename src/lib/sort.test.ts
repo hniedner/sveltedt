@@ -65,9 +65,9 @@ function mount(props: Partial<DataTableProps<Item>> = {}) {
 }
 
 const sortButton = (label: string): HTMLElement =>
-  screen.getByRole("button", { name: `Sort by ${label}` });
+  screen.getByRole("button", { name: label });
 
-// @spec("SORT-10", "4d6c171d")
+// @spec("SORT-10", "34feca0a")
 describe("SORT-10", () => {
   it("shows one sort button in the header cell of the sortable column Name and none in Note's", () => {
     mount({ columns: [name, note] });
@@ -75,7 +75,7 @@ describe("SORT-10", () => {
     const buttons = within(nameHeader).getAllByRole("button");
     expect(buttons).toHaveLength(1);
     expect(buttons[0]).toBe(
-      within(nameHeader).getByRole("button", { name: "Sort by Name" }),
+      within(nameHeader).getByRole("button", { name: "Name" }),
     );
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
@@ -289,16 +289,16 @@ describe("A11Y-03", () => {
     },
   );
 });
-// @spec("SORT-09", "5ad95b87")
+// @spec("SORT-09", "f47e537e")
 describe("SORT-09", () => {
   it.each(["", "name asc", "code asc, name desc"])(
-    "names the Name button 'Sort by Name' with the order [%s]",
+    "names the Name button by its label alone, with no aria-label, with the order [%s]",
     (before) => {
       mount({ sort: order(before) });
       const header = screen.getAllByRole("columnheader")[1];
-      expect(within(header).getByRole("button", { name: "Sort by Name" })).toBe(
-        within(header).getByRole("button"),
-      );
+      const button = within(header).getByRole("button", { name: "Name" });
+      expect(button).toBe(within(header).getByRole("button"));
+      expect(button.hasAttribute("aria-label")).toBe(false);
     },
   );
 });
@@ -382,20 +382,20 @@ describe("SORT-05", () => {
 const HINT =
   "Shift+click, Shift+Enter or Shift+Space adds this column to the sort.";
 
-// @spec("SORT-06", "c799bf34")
+// @spec("SORT-06", "9e99f312")
 describe("SORT-06", () => {
   it.each([
     ["name asc", `sorted ascending. ${HINT}`],
     ["name desc, code asc", `sorted descending, priority 1. ${HINT}`],
     ["code asc, date asc, name desc", `sorted descending, priority 3. ${HINT}`],
     ["code asc", HINT],
-  ])("with the order [%s], Sort by Name is described %j", (before, text) => {
+  ])("with the order [%s], the Name button is described %j", (before, text) => {
     mount({
       columns: [code, sortable("date", "Date"), name],
       sort: order(before),
     });
     expect(
-      screen.getByRole("button", { name: "Sort by Name", description: text })
+      screen.getByRole("button", { name: "Name", description: text })
         .isConnected,
     ).toBe(true);
   });
@@ -532,7 +532,7 @@ describe("SORT-15", () => {
       ],
     });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Sort by Name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Name" })).toBeNull();
     expect(sortButton("Code").isConnected).toBe(true);
   });
 
@@ -565,7 +565,6 @@ describe("SORT-16", () => {
 // Non-English sort words for SORT-17 and the texts SORT-23 passes through them
 function sortWords(text?: string) {
   return {
-    sortBy: (label: string) => text ?? `Sortieren nach ${label}`,
     sortRank: (rank: number) => text ?? `Nr ${rank}`,
     sortDescription: ({
       direction,
@@ -580,10 +579,9 @@ function sortWords(text?: string) {
   };
 }
 
-// @spec("SORT-17", "cb106f2c")
+// @spec("SORT-17", "d35f26a9")
 describe("SORT-17", () => {
   const english = [
-    "Sort by",
     "sorted ascending",
     "sorted descending",
     "priority",
@@ -601,12 +599,6 @@ describe("SORT-17", () => {
 
   it.each([
     [
-      "sortBy",
-      "",
-      "the name",
-      () => screen.getByRole("button", { name: "Sortieren nach Name" }),
-    ],
-    [
       "sortRank",
       "code asc, name desc",
       "the rank mark",
@@ -618,7 +610,7 @@ describe("SORT-17", () => {
       "the description",
       () =>
         screen.getByRole("button", {
-          name: "Sortieren nach Name",
+          name: "Name",
           description: "Richtung desc, Rang 1",
         }),
     ],
@@ -640,7 +632,7 @@ describe("SORT-17", () => {
     },
   );
 });
-// @spec("SORT-23", "0f9c3b08")
+// @spec("SORT-23", "4af2da9b")
 describe("SORT-23", () => {
   const texts = ["<img src=x onerror=alert(1)>", "<none>"];
 
@@ -651,9 +643,9 @@ describe("SORT-23", () => {
         sort: order("code asc, name desc"),
         messages: sortWords(text),
       });
-      expect(
-        screen.getAllByRole("button", { name: text, description: text }),
-      ).toHaveLength(2);
+      expect(screen.getAllByRole("button", { description: text })).toHaveLength(
+        2,
+      );
       // Two rank marks and the two hidden descriptions
       expect(screen.getAllByText(text)).toHaveLength(4);
       expect(container.querySelector("img, none")).toBeNull();

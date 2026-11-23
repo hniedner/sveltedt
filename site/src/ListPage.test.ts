@@ -63,7 +63,7 @@ describe("LIST-03", () => {
     const fixed = orders.map((order) => order.name);
     const ascending = fixed.toSorted();
     const press = () =>
-      fireEvent.click(screen.getByRole("button", { name: "Sort by Order" }));
+      fireEvent.click(screen.getByRole("button", { name: "Order" }));
     await press();
     expect(firstCells()).toEqual(ascending);
     await press();
@@ -112,9 +112,7 @@ describe("LIST-04", () => {
       fixed.slice(10, 20),
       "Showing 11 to 20 of 20 rows",
     ]);
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Sort by Order" }),
-    );
+    await fireEvent.click(screen.getByRole("button", { name: "Order" }));
     expect(shown()).toEqual([
       fixed.toSorted().slice(0, 10),
       "Showing 1 to 10 of 20 rows",

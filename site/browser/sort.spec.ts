@@ -24,7 +24,7 @@ const set = (page: Page, props: object) =>
 const sorts = (page: Page) =>
   page.evaluate(() => (window as unknown as SortWindow).__sorts);
 const button = (page: Page, name: string) =>
-  page.getByRole("button", { name: `Sort by ${name}`, exact: true });
+  page.getByRole("button", { name, exact: true });
 const newRows = Array.from({ length: 25 }, (_, index) => {
   const n = String(index + 1).padStart(2, "0");
   return { id: `n${n}`, code: `N${n}`, name: `New ${n}`, region: "North" };
@@ -197,7 +197,7 @@ test.describe("SORT-03, Enter and Space rows", () => {
     });
 });
 
-// @spec("SORT-11", "c4315f2b")
+// @spec("SORT-11", "3cda7850")
 test.describe("SORT-11, focus stays after Enter", () => {
   const ordered = { sort: parse("name asc"), rows: newRows };
   // Each step with what must be on screen once the table has taken it, checked before focus
@@ -283,7 +283,7 @@ test.describe("SORT-20, axe on the sort controls", () => {
       // Analysed, not skipped: button-name passed on the three sort buttons
       const named = results.passes.find((rule) => rule.id === "button-name");
       expect(named?.nodes.map((node) => node.html).join("")).toMatch(
-        /Sort by Code.*Sort by Name.*Sort by Region/s,
+        /Code\s*<\/button>.*Name\s*<\/button>.*Region\s*<\/button>/s,
       );
       expect(
         results.violations.filter(

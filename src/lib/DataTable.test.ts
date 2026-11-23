@@ -1185,13 +1185,13 @@ describe("EXP-03", () => {
   });
 });
 
-// @spec("RND-07", "881386e0")
+// @spec("RND-07", "9b9433bb")
 describe("RND-07", () => {
   it("shows no sort button for the columns Name and Note, neither sortable", () => {
     show({ columns: [nameColumn, noteColumn] });
-    expect(screen.queryAllByRole("button", { name: /^Sort by/ })).toHaveLength(
-      0,
-    );
+    expect(
+      screen.queryAllByRole("button", { name: /^(Name|Note)$/ }),
+    ).toHaveLength(0);
     for (const header of screen.getAllByRole("columnheader"))
       expect(within(header).queryAllByRole("button")).toHaveLength(0);
   });
