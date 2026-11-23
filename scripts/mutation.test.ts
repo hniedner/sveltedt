@@ -22,15 +22,17 @@ import type { Report } from "./mutation.ts";
 import { CANNOT, FINDING, PASS } from "./pinned.ts";
 
 /** A Stryker report: for each file, [line, status] pairs (the mutator is "M"). */
-const reportOf = (files: Record<string, [number, string][]>): Report => ({
+const reportOf = (
+  files: Record<string, [number, string, number?][]>,
+): Report => ({
   files: Object.fromEntries(
     Object.entries(files).map(([f, ms]) => [
       f,
       {
-        mutants: ms.map(([line, status]) => ({
+        mutants: ms.map(([line, status, end]) => ({
           status,
           mutatorName: "M",
-          location: { start: { line } },
+          location: { start: { line }, end: { line: end ?? line } },
         })),
       },
     ]),
@@ -65,6 +67,14 @@ test("mutation judge: a mutant that was never decided is a finding, not a pass",
   );
   assert.equal(r.code, FINDING);
   assert.deepEqual(r.details, ["src/a.ts:3 M (Pending)"]);
+});
+test("mutation judge: a mutant that spans a changed line is judged though it starts on an unchanged one", () => {
+  const r = judge(
+    reportOf({ "src/a.ts": [[1, "Survived", 4]] }),
+    new Map([["src/a.ts", [3]]]),
+  );
+  assert.equal(r.code, FINDING);
+  assert.deepEqual(r.details, ["src/a.ts:1 M (Survived)"]);
 });
 test("mutation judge: only the changed lines count, and killed, timed-out and ignored mutants pass", () => {
   const killed = reportOf({
