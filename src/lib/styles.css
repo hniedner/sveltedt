@@ -1,0 +1,57 @@
+/* SvelteDT's stylesheet: one file, no layer, no import (THEME-04). Every selector has one class at most (THEME-12), so
+   an application's own rule of a class and an element wins in any load order (THEME-11); the one exception is the row
+   rule, which has the specificity of one element (see it) and so wins over a framework's element rule only by coming
+   after it, the order PRD-D9 advises. Each rule names the real-browser statement whose test proves it (THEME-13). */
+
+/* @spec("THEME-10") */
+.sdt-region {
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* @spec("THEME-10") */
+.sdt-table {
+  border-collapse: collapse;
+  caption-side: top;
+}
+
+/* The caption and the live count stay in the accessibility tree and take no room (A11Y-13) */
+/* @spec("THEME-10") */
+.sdt-caption,
+.sdt-sr-only {
+  position: absolute;
+  box-sizing: border-box;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  text-align: start;
+}
+
+/* The rows are reached through the table's own children, so the empty message's row (no class) and no row of a table
+   inside a cell is left out or caught; :where() keeps the specificity at one element */
+/* @spec("THEME-10") */
+:where(.sdt-table) > :where(thead, tbody) > tr,
+.sdt-th,
+.sdt-cell {
+  box-sizing: border-box;
+  border: 0 none;
+}
+
+/* @spec("THEME-10") */
+.sdt-th,
+.sdt-cell {
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+}
+
+/* The default row divider (docs/departures.md): on the cells of every data row but the last */
+/* @spec("THEME-10") */
+:where(.sdt-row:not(:last-child)) > .sdt-cell {
+  border-block-end: 1px solid var(--sdt-border, GrayText);
+}

@@ -777,6 +777,11 @@ const CLASSES: FileClass[] = [
     why: "sentences hashed from the raw source: a formatter or a Prettier upgrade would turn every test stale",
   },
   {
+    match: /^site\/public\/vendor\//,
+    steps: ["text"],
+    why: "third-party files kept byte for byte, held to their published hash by a test: a formatter would change the bytes",
+  },
+  {
     match: /\.test\.mjs$/,
     steps: ["format", "lint"],
     why: "dupes: a test may repeat its setup so it reads on its own (method section 5)",

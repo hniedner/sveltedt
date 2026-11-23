@@ -317,7 +317,7 @@ function hiddenContent(header: Element, rank: string | null): string[] {
   );
 }
 
-// @spec("SORT-13", "ee42c8ce")
+// @spec("SORT-13", "9454f958")
 describe("SORT-13", () => {
   it.each([
     ["name asc", "name desc", null],
@@ -336,6 +336,15 @@ describe("SORT-13", () => {
       expect(after).not.toEqual(before);
     },
   );
+  it.each([
+    ["name asc", "▲"],
+    ["name desc", "▼"],
+  ])("shows the mark of [%s] as %s", (sorted, mark) => {
+    mount({ sort: order(sorted) });
+    expect(hiddenContent(screen.getAllByRole("columnheader")[1], null)).toEqual(
+      [mark],
+    );
+  });
 });
 // The rank marks of each header: digits inside its aria-hidden elements, top to bottom
 const ranks = (): string[][] =>
@@ -349,6 +358,15 @@ const ranks = (): string[][] =>
 
 // @spec("SORT-05", "a6a7074f")
 describe("SORT-05", () => {
+  it("shows nothing but the arrow in the header of a lone sorted column", () => {
+    mount({ sort: order("name desc") });
+    expect(
+      screen
+        .getAllByRole("columnheader")[1]
+        ?.querySelectorAll('[aria-hidden="true"]'),
+    ).toHaveLength(1);
+  });
+
   it.each([
     ["code asc, name desc", [["1"], ["2"], []]],
     ["name desc", [[], [], []]],

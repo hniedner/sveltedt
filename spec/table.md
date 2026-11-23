@@ -76,8 +76,8 @@ to the consumer as one callback (stated with the statements that add user action
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
-  id or a class, except THEME-09, which tests the public classes
-  of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
+  id or a class, except THEME-09 and THEME-48, which test the public
+  classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
   hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
@@ -1315,6 +1315,17 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
 - Layer: component.
 - Traces: PRD-K3.
 
+**THEME-48** The component MUST put `sdt-region` on the region of A11Y-09, `sdt-caption` on the `caption`,
+`sdt-sr-only` on the live count of A11Y-05 and `sdt-empty` on the cell of the empty message (STATE-03).
+- Example: `status 'ready'`, 2 rows, 2 columns: the one element with `sdt-region` is the element with
+  `role="region"`, the one with `sdt-caption` is the `caption`, the one with `sdt-sr-only` is the element with
+  `aria-live="polite"` and no role. The same props with 0 rows: the one element with `sdt-empty` is the `td` of the
+  empty message, and with 2 rows no element has `sdt-empty`. No other element carries one of the four classes.
+- Reason: a selector of the stylesheet has one class at most (THEME-12), so the region, the caption, the live count and
+  the empty cell need a class of their own; like the seven of THEME-09 they are public interface (PRD-K3).
+- Layer: component.
+- Traces: PRD-K3.
+
 **THEME-10** On each host page, every element of the table MUST have, for each property of PRD-T11's named set
 listed for it below, the computed value that the literal table of its test states.
 - Examples (the test loads each host page in its own browser context and first asserts the order of
@@ -1645,6 +1656,7 @@ differs between ascending and descending.
   | `[code asc, name desc]` and `[code asc, name asc]` | Name | different (the rank "2" left out) |
 
   A difference only in a class or a style (a rotation, say) does not count: it does not show in a simulated DOM.
+  The mark is the text ▲ for ascending and ▼ for descending, the widespread convention: the test reads both.
 
 - Reason: sighted users read the direction at a glance; assistive technology gets it from `aria-sort` and the
   description (SORT-06), so the mark is hidden. Its contrast and forced-colours visibility are later statements.
@@ -5242,6 +5254,7 @@ pointer.
 | THEME-44 | PRD-T10, PRD-A1 |
 | THEME-45 | PRD-A8, PRD-T10 |
 | THEME-46 | PRD-T1 |
+| THEME-48 | PRD-K3 |
 | THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
 | THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -5324,7 +5337,7 @@ state in their own statements.
 | PRD-T7 | THEME-23, THEME-31 | in full |
 | PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
 | PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
-| PRD-K3 | THEME-09 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
+| PRD-K3 | THEME-09, THEME-48 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 
