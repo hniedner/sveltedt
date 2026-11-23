@@ -633,7 +633,6 @@ test("the consumer's own files have a class: its lockfile, its configuration and
     repo((root) => {
       put(root, "consumer/pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
       put(root, "consumer/vite.config.js", "export default {};\n");
-      put(root, "consumer/static/csp-listener.js", "window.a = 1;\n");
       put(root, "consumer/src/lib/x.ts", "export const x = 1;\n");
       put(root, "consumer/src/routes/+page.svelte", "<p>x</p>\n");
     }),
