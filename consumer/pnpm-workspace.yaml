@@ -1,0 +1,7 @@
+# The consumer's own pnpm settings (SUP-10 of spec/release.md): the root's do not reach it, because the consumer is not a
+# workspace member. Same rules as the root: no install script runs, an unlisted one fails the install, and a release
+# is installed only after the cooldown the root uses (Dependabot's shortest npm cooldown).
+pmOnFail: ignore
+allowBuilds: {}
+strictDepBuilds: true
+minimumReleaseAge: 4320

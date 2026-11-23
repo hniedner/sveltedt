@@ -788,6 +788,23 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
+    match: /^consumer\/pnpm-lock\.yaml$/,
+    steps: [],
+    why: "written by pnpm; the consumer step installs from it",
+  },
+  {
+    // The consumer project's own files (spec/package.md, CON). Its sources import the packed package, which the root
+    // does not install: their types and their type-aware lint are the consumer step's, CON-09, not the root's.
+    match: /^consumer\/.*\.(?:ts|svelte)$/,
+    steps: ["format"],
+    why: "lint, types: CON-09, in the consumer's own install; dupes: its files are its own, not shared code",
+  },
+  {
+    match: /^consumer\/(?:vite\.config\.js|static\/[^/]+\.js)$/,
+    steps: ["format", "lint"],
+    why: "dupes: configuration and a plain script served as it is, a copy of a site file is not shared code",
+  },
+  {
     // The test site's plain scripts, served as they are from Vite's public folder (a page's first, classic script
     // cannot be a module the build compiles)
     match: /^site\/public\/[^/]+\.js$/,

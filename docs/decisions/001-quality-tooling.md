@@ -189,6 +189,16 @@ Development dependencies on the same terms as the test toolchain.
   "feat: SSR-safe ID generation with `$props.id()` (#15185)", which the table's ids need. Limit: no CI run exists at
   that floor yet (#159), and later fixes to `$props.id()` (5.39.5, 5.45.4) are above it.
 
+- **@sveltejs/kit 3.4.0 and @sveltejs/adapter-node 6.0.5** (MIT, exact pins, `consumer/package.json` only; nothing
+  ships): the consumer project (CON statements of `spec/package.md`) is a SvelteKit app built for Node, installed with
+  its own lockfile and settings (SUP-10). Both are the latest releases past the 3-day cooldown on 2026-11-23 (Kit
+  published 2026-11-18); the rest of its tree is the root's pins (vite 8.3.8, vite-plugin-svelte 7.3.1, svelte 5.57.3,
+  typescript 6.0.3, svelte-check 4.7.8); Kit's peers (`svelte ^5.57.1`, `vite ^8.0.12`) are met. A scratch install
+  resolved 56 packages, 71 MB, every licence on the allow list. Measured the same day with this tree: in nonce mode
+  Kit sends exactly the header CON-04 states and its route announcer style hashes to the hash CON-04 names; Kit 3 reads
+  its options from `vite.config.js` (a `kit:` namespace is an error) and writes the generated tsconfig under
+  `node_modules/$app/tsconfig.json`.
+
 ## Real-browser toolchain (build 2a)
 
 - **@playwright/test 1.65.1** (Apache-2.0, exact pin; with playwright and playwright-core 1.65.1, Apache-2.0, no install
