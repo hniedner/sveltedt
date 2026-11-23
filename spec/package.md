@@ -184,6 +184,23 @@ each naming a file the tarball holds.
 - Layer: pack.
 - Traces: PRD-K2, PRD-B20.
 
+**PKG-07** A `.svelte` or `.js` file in the tarball MUST NOT import a relative module whose path ends in `.ts`.
+- Examples (the check runs every row on a copy of the tarball's contents):
+
+  | File in the tarball | Result |
+  |---|---|
+  | the real tarball's files | passes |
+  | `import { x } from "./messages.ts";` planted in `dist/Pagination.svelte` | finding |
+  | the same line planted in `dist/index.js` | finding |
+  | `import type { T } from "./types.ts";` planted in a `.d.ts` file | passes (declaration files are not run) |
+
+  When no `.svelte` or `.js` file is read, the check reports "could not check". Break that turns it red: a `.ts`
+  specifier left in a `.svelte` file of `src/lib`.
+- Reason: `svelte-package` rewrites `.ts` specifiers in `.ts` files but not inside `.svelte` files, so a consumer's
+  build fails with an unresolved import, and publint does not see it (MEASURED 2026-11-23, svelte-package 3.0.3).
+- Layer: pack.
+- Traces: PRD-K2.
+
 ## 2. The consumer project (CON)
 
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
@@ -417,6 +434,7 @@ of `spec/table.md`).
 | PKG-04 | PRD-L1, PRD-K2 |
 | PKG-05 | PRD-K2, PRD-T3 |
 | PKG-06 | PRD-K2, PRD-B20 |
+| PKG-07 | PRD-K2 |
 | CON-01 | PRD-W8 |
 | CON-02 | PRD-K4, PRD-W8 |
 | CON-03 | PRD-S1, PRD-W8 |
@@ -435,7 +453,7 @@ of `spec/table.md`).
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
+| PRD-K2 | PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06, PKG-07, CON-09, CON-11 | in part (as amended by the owner on 2026-11-17: the consumer's type check, CON-09, replaces the earlier third-party types check): PKG-03 holds the shape of what the build packs; the Svelte peer floor arrives with the CI job at the floor; each further `exports` subpath with its own statement; built with `svelte-package` is shown by the tarball's shape, not stated |
 | PRD-K4 | CON-02, CON-06, CON-08 | in full for what Svelte reports: server rendering without browser globals (CON-02), a re-render after a structural mismatch on the production build (CON-06), every hydration warning in development (CON-08); a text that differs between server and browser is neither warned about nor re-rendered by Svelte, so no test can see it |
 | PRD-W8 | CON-01, CON-02, CON-03, CON-04, CON-05, CON-09, CON-10, CON-11, CON-12 | in part: "its files are the README quick start" comes with PRD-D1 |
 | PRD-D3 | CON-14 | in part: the development warning is absent from a production build; the warning itself is STK-10 of `spec/table.md` |
