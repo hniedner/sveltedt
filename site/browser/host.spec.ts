@@ -83,90 +83,81 @@ async function measure(page: Page, names: Record<string, string[]>) {
   }, names);
 }
 
+// The package's stylesheet is served as the file the package ships, unbundled, beside the application's file
+const PACKAGE_SHEET = "/sdt/styles.css";
+const APP_SHEET = "/host-app.css";
 const HOSTS = [
-  { name: "none", page: "/host-none.html", before: [] as string[] },
+  { name: "none", page: "none", before: [] as string[] },
   {
     name: "Bootstrap 5.3",
-    page: "/host-bootstrap.html",
+    page: "bootstrap",
     before: ["/vendor/bootstrap.min.css"],
   },
 ];
 
+const sheetsOf = (page: Page) =>
+  page.evaluate(() =>
+    [...document.styleSheets].map(
+      (sheet) => new URL(sheet.href ?? "").pathname,
+    ),
+  );
+
+// The cells in document order: the header cells, then the cells of the data rows or the empty message's cell
+const cellsOf = (rows: number): Values[] =>
+  rows === 0
+    ? [cell(false), cell(false), cell(false)]
+    : [
+        cell(false),
+        cell(false),
+        // Only the first data row's cells have the divider (the last row has none)
+        cell(true),
+        cell(true),
+        cell(false),
+        cell(false),
+      ];
+
 // @spec("THEME-10", "7738e132")
 test.describe("THEME-10", () => {
-  for (const host of HOSTS) {
-    test(`on the ${host.name} host: the stylesheets are in order and every named property has its value`, async ({
-      page,
-    }) => {
-      await page.goto(`${host.page}?rows=2`);
-      await expect(page.getByRole("table", { name: "Orders" })).toBeAttached();
-      const sheets = await page.evaluate(() =>
-        [...document.styleSheets].map(
-          (sheet) => new URL(sheet.href ?? "").pathname,
-        ),
-      );
-      expect(sheets.slice(0, -1)).toEqual(host.before);
-      expect(sheets.at(-1)).toMatch(/^\/assets\/.+\.css$/);
-      const names = Object.fromEntries(
-        Object.entries({ region, table, caption, row, cell: cell(true) }).map(
-          ([kind, values]) => [kind, Object.keys(values)],
-        ),
-      );
-      const found = await measure(page, names);
-      expect(found.region?.map((r) => r.values)).toEqual([region]);
-      expect(found.table?.map((r) => r.values)).toEqual([table]);
-      expect(found.caption?.map((r) => r.values)).toEqual([caption]);
-      // The header row and two data rows; only the first data row's cells have the divider (the last row has none)
-      expect(found.row?.map((r) => r.values)).toEqual([row, row, row]);
-      expect(found.cell?.map((r) => r.values)).toEqual([
-        cell(false),
-        cell(false),
-        cell(true),
-        cell(true),
-        cell(false),
-        cell(false),
-      ]);
-      for (const kind of Object.values(found))
-        for (const element of kind) expect(element.font).toBe(true);
-    });
-
-    test(`on the ${host.name} host: the empty message's row and cell have the same values`, async ({
-      page,
-    }) => {
-      await page.goto(`${host.page}?rows=0`);
-      await expect(page.getByRole("cell", { name: "No data." })).toBeAttached();
-      const found = await measure(page, {
-        row: Object.keys(row),
-        cell: Object.keys(cell(false)),
+  for (const host of HOSTS)
+    for (const rows of [2, 0]) {
+      test(`on the ${host.name} host with ${rows} rows: the stylesheets are in order and every named property has its value`, async ({
+        page,
+      }) => {
+        await page.goto(`/host-${host.page}.html?rows=${rows}`);
+        await expect(
+          page.getByRole("table", { name: "Orders" }),
+        ).toBeAttached();
+        expect(await sheetsOf(page)).toEqual([...host.before, PACKAGE_SHEET]);
+        const names = Object.fromEntries(
+          Object.entries({ region, table, caption, row, cell: cell(true) }).map(
+            ([kind, values]) => [kind, Object.keys(values)],
+          ),
+        );
+        const found = await measure(page, names);
+        expect(found.region?.map((r) => r.values)).toEqual([region]);
+        expect(found.table?.map((r) => r.values)).toEqual([table]);
+        expect(found.caption?.map((r) => r.values)).toEqual([caption]);
+        expect(found.row?.map((r) => r.values)).toEqual(
+          Array(rows === 0 ? 2 : 3).fill(row),
+        );
+        expect(found.cell?.map((r) => r.values)).toEqual(cellsOf(rows));
+        for (const kind of Object.values(found))
+          for (const element of kind) expect(element.font).toBe(true);
+        const sizes = await page.evaluate(() =>
+          [
+            document.querySelector("caption"),
+            document.querySelector('[aria-live="polite"]:not([role])'),
+          ].map((element) => {
+            const box = element?.getBoundingClientRect();
+            return [box?.width, box?.height];
+          }),
+        );
+        expect(sizes).toEqual([
+          [1, 1],
+          [1, 1],
+        ]);
       });
-      expect(found.row?.map((r) => r.values)).toEqual([row, row]);
-      // The two header cells and the empty message's cell
-      expect(found.cell?.map((r) => r.values)).toEqual([
-        cell(false),
-        cell(false),
-        cell(false),
-      ]);
-    });
-
-    test(`on the ${host.name} host: the caption and the live count measure at most 1 by 1 CSS px`, async ({
-      page,
-    }) => {
-      await page.goto(`${host.page}?rows=2`);
-      const sizes = await page.evaluate(() =>
-        [
-          document.querySelector("caption"),
-          document.querySelector('[aria-live="polite"]:not([role])'),
-        ].map((element) => {
-          const box = element?.getBoundingClientRect();
-          return [box?.width, box?.height];
-        }),
-      );
-      expect(sizes).toEqual([
-        [1, 1],
-        [1, 1],
-      ]);
-    });
-  }
+    }
 });
 
 // @spec("THEME-11", "996aaba2")
@@ -177,6 +168,11 @@ test.describe("THEME-11", () => {
     }) => {
       await page.goto(`/host-${host}-app.html?app`);
       await expect(page.getByRole("table", { name: "Orders" })).toBeAttached();
+      expect(await sheetsOf(page)).toEqual([
+        ...(host === "none" ? [] : ["/vendor/bootstrap.min.css"]),
+        PACKAGE_SHEET,
+        APP_SHEET,
+      ]);
       const padding = (name: string) =>
         page
           .getByRole("region", { name })
@@ -189,10 +185,13 @@ test.describe("THEME-11", () => {
               );
             }),
           );
-      for (const sidesOf of await padding("Orders table"))
-        expect(sidesOf).toEqual(["4px", "4px", "4px", "4px"]);
-      for (const sidesOf of await padding("Other table"))
-        expect(sidesOf).toEqual(["8px", "12px", "8px", "12px"]);
+      // Four body cells each: two rows of two columns
+      expect(await padding("Orders table")).toEqual(
+        Array(4).fill(["4px", "4px", "4px", "4px"]),
+      );
+      expect(await padding("Other table")).toEqual(
+        Array(4).fill(["8px", "12px", "8px", "12px"]),
+      );
     });
   }
 });
