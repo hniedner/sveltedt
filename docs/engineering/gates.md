@@ -124,11 +124,56 @@ Each wrapper has its own tests showing it refuse every failure listed in its sec
 
 ## G7. `red-check`
 
-- Puts the change's new and changed test files onto the parent commit's source and runs them.
-- Passes only when the runner reports test failures (pytest exit 1, not 2, 4 or 5; Vitest's equivalent) and every
-  failure is an assertion or `expect` mismatch, with no collection or import error.
-- Writes its output into the commit message.
-- Canaries: an import-error red is refused, and so is a test that passes on the parent.
+- For each commit of the change (merges skipped and listed), its new and changed Vitest test files and its test
+  support (`test/`) are put onto the parent's tree, which is unpacked with `git archive` and given the checked tree's
+  packages, with no install (below). The files run twice
+  there with the shared run's flags: first in the parent's own versions (the test names already there), then in the
+  commit's versions. When a test file names `dist`, it reads the site's build, so the parent's `vite build` runs
+  first.
+- **Right reason.** The test file is the same in both runs, so a failed test on the parent comes from what the commit
+  changed: any failed test counts as red, an assertion or an error thrown while the test runs. The wrong reasons are a
+  test file that cannot load, unless what it misses is a file the commit adds (a new module).
+- **A commit that changes source** (a non-test file under `src/` or `site/`) must show, for each statement that gains
+  tests (its `@spec` marker, G6; a test outside any marker counts for its file), at least one new test red. A new test
+  is a name the parent's version did not have, so a test that only gains rows needs one red row, and a renamed file
+  gains nothing.
+- **Any other commit that changes tests** (scripts, docs, config or test support only) pins existing behaviour: its
+  tests must pass on the parent, and a failing one is refused as a failing commit (method section 2). So the test and
+  the code split over two commits are refused.
+- New tests that pass on the parent and pinned tests are listed by name; their proof that they can fail is the
+  `mutation` step (G8, #136). Limit: a change that only touches types cannot be red at run time, so its tests are
+  refused as passing on the parent.
+- A commit whose test proves a fix for a synchronous hang hangs on its parent (known case: 3965642, a server that
+  followed a symbolic link loop). The step has no time limit of its own: the job's `timeout-minutes` ends the run, and
+  the result is a failure, never a pass.
+- A changed test file or new test that did not run (skipped, outside the config's include) is could not check, as is
+  a parent whose own run wrote no report. A parent whose Vitest config names `projects`, `coverage` or `onUnhandledError`
+  is run with the gate's flags unchecked. A push to main is not applicable: it was checked on
+  its pull request.
+- **Packages.** The parent runs with the checked tree's packages: its root `node_modules` is one link to the checked
+  tree's, and the site's `node_modules` is copied as links with the same link text, so the site's workspace link
+  leads into the parent's tree, never into the checked one (a row fails if the folder is linked whole). The parent's
+  lockfile is never read.
+  - A commit whose own dependency bump is what makes its test pass shows "not red" and is refused.
+  - An assertion failure caused only by a package difference counts as red: the one fail-open direction, with small
+    harm, since the test is still shown able to fail.
+  - A parent config that cannot load the checked tree's packages is could not check; the remedy is that the bump and
+    its config change land as their own pull request first.
+  - A workspace whose `node_modules` is not recreated here fails toward a load failure (refused), never toward a pass;
+    the consumer project (#24) installs the packed package as a real consumer would, so it has no workspace link.
+- red-check runs each parent's install and test code with the rights of the pull-request job, as the head's tests do.
+- A merge commit in the range is not checked, so test changes made by a conflict resolution are not re-run.
+- False refusals: a commit that changes only configuration or the lockfile besides its tests is held to the test-only
+  rule; a missing import in a form other than a relative one in Vite's or Node's words (an alias, an absolute path, a
+  `.js` suffix on a `.ts` file) is the wrong reason.
+- Unguarded, because none has occurred in this repository: a symbolic link to a folder in a parent tree (the overlay
+  follows it); nested statement markers (a test counts for the first marker whose range holds its line); a missing git
+  or tar; binary files under `test/` (read as text). A failed `git show` writes an empty test file, which Vitest
+  reports as no suite and the step refuses.
+- The record is the step's lines in the CI log and `reports/red-check/` (in the gate's artifact). The commit message is not used: a committer's own message is not
+  proof, and writing it would mean rewriting commits.
+- Canary: planted results (an import-error red and a new test that passes on the parent) must both be refused first.
+- Not covered yet: node:test files under `scripts/` (#153) and the Playwright specs (#154).
 
 ## G8. `mutation` (at step boundaries)
 
@@ -211,8 +256,7 @@ $0 budget, no self-hosted runners.
     `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
     (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
     `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
-  - `red-check` (G7) on each commit of the pull request, so the red record in a commit message is re-proven by CI
-    *(inferred: G7 needs only the parent commit and that commit's test files)*.
+  - `red-check` (G7) in the `static` job, on each commit of the pull request.
   - `mutation` (G8) on the step diff, Linux only.
   - `trace` (G6) in the `static` job over the Vitest results; the markers of browser specs are judged by the
     `browser` step in the `browser` job, from its own Playwright report (no result file passes between jobs).
