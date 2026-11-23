@@ -58,7 +58,7 @@ describe("LIST-02", () => {
   });
 });
 
-// @spec("LIST-03", "1629cc69")
+// @spec("LIST-03", "e57de09c")
 describe("LIST-03", () => {
   it("sorts the Order column ascending, descending, then back to the fixed order on three presses", async () => {
     render(ListPage);
@@ -75,7 +75,7 @@ describe("LIST-03", () => {
   });
 });
 
-// @spec("LIST-04", "9bab45c0")
+// @spec("LIST-04", "0c947dfa")
 describe("LIST-04", () => {
   it("pages its rows, back to page 1 on a sort, on a size change to the page that holds the first row shown", async () => {
     render(ListPage);
