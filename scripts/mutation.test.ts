@@ -76,6 +76,11 @@ test("mutation judge: a mutant that spans a changed line is judged though it sta
   assert.equal(r.code, FINDING);
   assert.deepEqual(r.details, ["src/a.ts:1 M (Survived)"]);
 });
+test("mutation judge: a change whose only mutants are ignored with a reason passes and lists them", () => {
+  const r = judge(reportOf({ "src/a.ts": [[3, "Ignored"]] }), CHANGED);
+  assert.equal(r.code, PASS);
+  assert.deepEqual(r.details, ["src/a.ts:3 M: ignored with a reason"]);
+});
 test("mutation judge: only the changed lines count, and killed, timed-out and ignored mutants pass", () => {
   const killed = reportOf({
     "src/a.ts": [
