@@ -2,7 +2,7 @@
 //   node scripts/check-stylesheet.ts [--root <dir>]
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
 import postcss from "postcss";
-import type { AtRule, Rule } from "postcss";
+import type { AtRule, ChildNode, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
 
 export interface Finding {
@@ -21,6 +21,12 @@ export interface Canary {
   css: string;
   found: boolean;
 }
+
+/** The statements the canary stylesheets may name, each with whether it is a real-browser statement (THEME-13). */
+export const CANARY_SPECS = new Map([
+  ["THEME-10", true],
+  ["THEME-12", false],
+]);
 
 export const CANARIES: Canary[] = [
   {
@@ -77,6 +83,66 @@ export const CANARIES: Canary[] = [
     row: ":where() counts 0",
     css: ".sdt-row:where(:not(:last-child)) { color: inherit }",
     found: false,
+  },
+  {
+    id: "THEME-13",
+    row: "a marker before the rule",
+    css: '/* @spec("THEME-10") */ .sdt-x { color: inherit }',
+    found: false,
+  },
+  {
+    id: "THEME-13",
+    row: "no marker",
+    css: ".sdt-x { color: inherit }",
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "no spec holds the id",
+    css: '/* @spec("THEME-99") */ .sdt-x { color: inherit }',
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "the statement is not a real-browser one",
+    css: '/* @spec("THEME-12") */ .sdt-x { color: inherit }',
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "a marked rule inside @media",
+    css: '@media (min-width: 40rem) { /* @spec("THEME-10") */ .sdt-x { color: inherit } }',
+    found: false,
+  },
+  {
+    id: "THEME-13",
+    row: "a marker before the @media does not mark the rule inside",
+    css: '/* @spec("THEME-10") */ @media (min-width: 40rem) { .sdt-x { color: inherit } }',
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "@keyframes is one rule",
+    css: '/* @spec("THEME-10") */ @keyframes sdt-spin { from { opacity: 0 } to { opacity: 1 } }',
+    found: false,
+  },
+  {
+    id: "THEME-13",
+    row: "a second rule after one marker",
+    css: '/* @spec("THEME-10") */ .sdt-x { color: inherit } .sdt-y { color: inherit }',
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "another comment between the marker and the rule",
+    css: '/* @spec("THEME-10") */ /* note */ .sdt-x { color: inherit }',
+    found: true,
+  },
+  {
+    id: "THEME-13",
+    row: "@font-face with no marker",
+    css: "@font-face { font-family: sdt-x; src: local(sdt-x) }",
+    found: true,
   },
 ];
 
@@ -158,10 +224,42 @@ function ruleSpec(
   return mostSpecific(specs);
 }
 
-export function analyse(css: string): { reads: Reads; findings: Finding[] } {
+const MARKER = /^@spec\("([^"]+)"\)$/;
+/** THEME-13: the id of the marker comment directly before a node, or a word for what is wrong with it. */
+function markerProblem(
+  node: ChildNode,
+  specs: Map<string, boolean>,
+): string | undefined {
+  const before = node.prev();
+  const id =
+    before?.type === "comment"
+      ? MARKER.exec(before.text.trim())?.[1]
+      : undefined;
+  if (!id) return "no marker comment directly before it";
+  if (!specs.has(id)) return `no spec holds ${id}`;
+  return specs.get(id) ? undefined : `${id} is not a real-browser statement`;
+}
+const isMarked = (node: ChildNode): boolean =>
+  (node.type === "rule" && !inKeyframes(node)) ||
+  (node.type === "atrule" &&
+    /^(?:-\w+-)?keyframes$|^font-face$|^property$/i.test(node.name));
+
+export function analyse(
+  css: string,
+  specs: Map<string, boolean>,
+): { reads: Reads; findings: Finding[] } {
   const reads: Reads = { selectors: 0, declarations: 0, rules: 0 };
   const findings: Finding[] = [];
   postcss.parse(css).walk((node) => {
+    if (isMarked(node)) {
+      reads.rules++;
+      const problem = markerProblem(node, specs);
+      if (problem)
+        findings.push({
+          id: "THEME-13",
+          message: `${node.type === "rule" ? node.selector : `@${node.name}`}: ${problem}`,
+        });
+    }
     if (node.type === "rule" && !inKeyframes(node)) {
       ruleSpec(node, (spec, text) => {
         reads.selectors++;
