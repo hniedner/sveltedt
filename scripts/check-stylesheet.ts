@@ -1,0 +1,181 @@
+// check-stylesheet: THEME-01, 02, 04, 12 and 13 (spec/table.md) over the package's stylesheet.
+//   node scripts/check-stylesheet.ts [--root <dir>]
+// Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
+import postcss from "postcss";
+import type { AtRule, Rule } from "postcss";
+import selectorParser from "postcss-selector-parser";
+
+export interface Finding {
+  id: string;
+  message: string;
+}
+export interface Reads {
+  selectors: number;
+  declarations: number;
+  rules: number;
+}
+/** One row of a statement's example table: the stylesheet it plants and whether the statement must find it. */
+export interface Canary {
+  id: string;
+  row: string;
+  css: string;
+  found: boolean;
+}
+
+export const CANARIES: Canary[] = [
+  {
+    id: "THEME-12",
+    row: ".sdt-a .sdt-b",
+    css: ".sdt-a .sdt-b { color: inherit }",
+    found: true,
+  },
+  {
+    id: "THEME-12",
+    row: ".sdt-row:not(:last-child)",
+    css: ".sdt-row:not(:last-child) { color: inherit }",
+    found: true,
+  },
+  { id: "THEME-12", row: "#x", css: "#x { color: inherit }", found: true },
+  {
+    id: "THEME-12",
+    row: ":is() with a compound argument",
+    css: ":is(.sdt-a, .sdt-b .sdt-c) { color: inherit }",
+    found: true,
+  },
+  {
+    id: "THEME-12",
+    row: ":has()",
+    css: ".sdt-a:has(.sdt-b) { color: inherit }",
+    found: true,
+  },
+  {
+    id: "THEME-12",
+    row: "a nested rule",
+    css: ".sdt-a { & .sdt-b { color: inherit } }",
+    found: true,
+  },
+  {
+    id: "THEME-12",
+    row: "!important",
+    css: ".sdt-x { color: inherit !important }",
+    found: true,
+  },
+  {
+    id: "THEME-12",
+    row: "one class",
+    css: ".sdt-x { color: inherit }",
+    found: false,
+  },
+  {
+    id: "THEME-12",
+    row: "a pseudo-element is left out",
+    css: '.sdt-x::after { content: "" }',
+    found: false,
+  },
+  {
+    id: "THEME-12",
+    row: ":where() counts 0",
+    css: ".sdt-row:where(:not(:last-child)) { color: inherit }",
+    found: false,
+  },
+];
+
+type Spec = [number, number, number];
+const ZERO: Spec = [0, 0, 0];
+const ONE_CLASS: Spec = [0, 1, 0];
+const plus = (a: Spec, b: Spec): Spec => [
+  a[0] + b[0],
+  a[1] + b[1],
+  a[2] + b[2],
+];
+const compare = (a: Spec, b: Spec): number =>
+  a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+const mostSpecific = (list: Spec[]): Spec =>
+  list.reduce((m, s) => (compare(s, m) > 0 ? s : m), ZERO);
+const LEGACY_ELEMENTS = new Set([
+  ":before",
+  ":after",
+  ":first-line",
+  ":first-letter",
+]);
+// Selectors Level 4: these take their most specific argument; `:where()` counts 0
+const TAKE_ARGUMENT = new Set([":is", ":not", ":has", ":matches"]);
+
+/** The specificity of one selector, pseudo-elements left out, a nested rule counted with its parent (`parent`). */
+function specOf(sel: selectorParser.Selector, parent: Spec): Spec {
+  let own = ZERO;
+  let nested = false;
+  sel.each((node) => {
+    if (node.type === "id") own = plus(own, [1, 0, 0]);
+    else if (node.type === "class" || node.type === "attribute")
+      own = plus(own, [0, 1, 0]);
+    else if (node.type === "tag") own = plus(own, [0, 0, 1]);
+    else if (node.type === "nesting") {
+      nested = true;
+      own = plus(own, parent);
+    } else if (node.type === "pseudo") {
+      const name = node.value.toLowerCase();
+      if (
+        name.startsWith("::") ||
+        LEGACY_ELEMENTS.has(name) ||
+        name === ":where"
+      )
+        return;
+      own = plus(
+        own,
+        TAKE_ARGUMENT.has(name)
+          ? mostSpecific(node.map((arg) => specOf(arg, ZERO)))
+          : [0, 1, 0],
+      );
+    }
+  });
+  return nested ? own : plus(own, parent);
+}
+
+const inKeyframes = (rule: Rule): boolean => {
+  for (let p = rule.parent; p; p = p.parent)
+    if (p.type === "atrule" && /keyframes$/i.test((p as AtRule).name))
+      return true;
+  return false;
+};
+/** The most specific selector of a rule's list, counted with the rules it is nested in. */
+function ruleSpec(
+  rule: Rule,
+  selectors: (spec: Spec, text: string) => void,
+): Spec {
+  let outer: Rule | undefined;
+  for (let p = rule.parent; p && !outer; p = p.parent)
+    if (p.type === "rule") outer = p;
+  const parent = outer ? ruleSpec(outer, () => {}) : ZERO;
+  const specs: Spec[] = [];
+  selectorParser((root) =>
+    root.each((sel) => {
+      const spec = specOf(sel, parent);
+      specs.push(spec);
+      selectors(spec, sel.toString().trim());
+    }),
+  ).processSync(rule.selector);
+  return mostSpecific(specs);
+}
+
+export function analyse(css: string): { reads: Reads; findings: Finding[] } {
+  const reads: Reads = { selectors: 0, declarations: 0, rules: 0 };
+  const findings: Finding[] = [];
+  postcss.parse(css).walk((node) => {
+    if (node.type === "rule" && !inKeyframes(node)) {
+      ruleSpec(node, (spec, text) => {
+        reads.selectors++;
+        if (compare(spec, ONE_CLASS) > 0)
+          findings.push({
+            id: "THEME-12",
+            message: `${text} has the specificity (${spec.join(",")}), above (0,1,0)`,
+          });
+      });
+    } else if (node.type === "decl" && node.important)
+      findings.push({
+        id: "THEME-12",
+        message: `${node.prop} is declared !important`,
+      });
+  });
+  return { reads, findings };
+}
