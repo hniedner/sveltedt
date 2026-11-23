@@ -121,7 +121,7 @@ export const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
   type: "module", // as the repository's
-  license: "Apache-2.0",
+  license: "MIT",
   packageManager: "pnpm@12.19.0",
   prettier: { plugins: ["prettier-plugin-svelte"] },
   devDependencies: {
