@@ -140,7 +140,9 @@ test.describe("THEME-10", () => {
         cell: Object.keys(cell(false)),
       });
       expect(found.row?.map((r) => r.values)).toEqual([row, row]);
+      // The two header cells and the empty message's cell
       expect(found.cell?.map((r) => r.values)).toEqual([
+        cell(false),
         cell(false),
         cell(false),
       ]);
@@ -173,7 +175,7 @@ test.describe("THEME-11", () => {
     test(`on the ${host} host: an application rule of a class and an element overrides the cell padding`, async ({
       page,
     }) => {
-      await page.goto(`/host-${host}-app.html`);
+      await page.goto(`/host-${host}-app.html?app`);
       await expect(page.getByRole("table", { name: "Orders" })).toBeAttached();
       const padding = (name: string) =>
         page
