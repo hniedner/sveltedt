@@ -17,9 +17,10 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-    # The browser step runs in the job browser below; gate-needs refuses this line without that job
+    # The browser and mutation steps run in the jobs of those names below; gate-needs refuses these lines without them
     env:
       GATE_BROWSER: job
+      GATE_MUTATION: job
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -109,8 +110,35 @@ jobs:
           node scripts/check-repo.ts site
           node scripts/check-repo.ts browser
 
+  # Mutation testing of the changed lines (G8): StrykerJS in a temporary copy of the tracked files, installed offline
+  # from the store the install step fills. In its own job so static's minutes stay as they are.
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install the locked development dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Mutation step
+        env:
+          # The step picks its base commit by the event, as trace and diff-coverage do
+          GATE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          GATE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          GATE_EVENT: ${{ github.event_name }}
+        run: node scripts/check-repo.ts mutation
+
   gate:
-    needs: [static, browser]
+    needs: [static, browser, mutation]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
