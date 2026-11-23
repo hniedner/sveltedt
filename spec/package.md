@@ -335,9 +335,11 @@ other script of the page.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
 - Examples (the type check is the one the repository uses, `svelte-check` 4.7.0 or later, which has `--config`, run in
-  the copy of CON-01 after its build, which also writes SvelteKit's generated type configuration, with the copy's own
-  configuration file (its `vite.config`, since SvelteKit 3 reads no `svelte.config.js`) named as its configuration, so
-  that no configuration outside the copy is read; the second row is a canary planted in a copy of the consumer project):
+  the copy of CON-01 with `--config vite.config.js`, the copy's own configuration file (SvelteKit 3 reads no
+  `svelte.config.js`), so that no configuration outside the copy is read, and `--tsconfig` naming the copy's
+  `tsconfig.json`, which extends `$app/tsconfig`, the file SvelteKit 3 writes under `node_modules/$app/tsconfig.json`
+  (MEASURED 2026-11-23, SvelteKit 3.4.0), and includes only `src`, so that the adapter's build output is not read; the
+  second row is a canary planted in a copy of the consumer project):
 
   | Consumer | Type check |
   |---|---|
