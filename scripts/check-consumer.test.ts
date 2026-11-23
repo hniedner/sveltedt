@@ -165,6 +165,7 @@ test("CON-11: the peer report is read, and none when pnpm gave no report", () =>
     undefined,
   );
   assert.equal(parsePeerReport({ status: null, stdout: "" }), undefined);
+  assert.equal(parsePeerReport({ status: null, stdout: OK }), undefined);
 });
 test("CON-02: the finding names what the table lacks", () => {
   const home = (html: string): State => ({
@@ -230,6 +231,56 @@ test("CON-04: the finding names the page and what its policy lacks; one nonce pe
   assert.deepEqual(
     found(csp("missing", "default-src 'self'"), "CON-04").length,
     1,
+  );
+});
+test("CON-01: an extra installed file, one missing tarball marker and one changed committed file are each a finding", () => {
+  const copy = (c: Partial<State["copy"]>): State => ({
+    ...GOOD,
+    copy: { ...GOOD.copy, ...c },
+  });
+  const extra = new Map(FILES).set("src/lib/index.ts", Buffer.from("x"));
+  assert.deepEqual(found(copy({ files: extra }), "CON-01"), [
+    "the installed package holds src/lib/index.ts, not in the tarball",
+  ]);
+  for (const lock of [
+    "'@hniedner/sveltedt@file:../x/other.tgz':\n",
+    "hniedner-sveltedt-0.0.0.tgz\n",
+  ])
+    assert.equal(found(copy({ lock }), "CON-01").length, 1, lock);
+  const after = (a: Partial<State["after"]>): State => ({
+    ...GOOD,
+    after: { ...GOOD.after, ...a },
+  });
+  for (const change of [
+    { manifest: '{"name":"x"}\n' },
+    { lock: "lockfileVersion: '9.1'\n" },
+  ])
+    assert.deepEqual(found(after(change), "CON-01"), [
+      "the test changed a committed consumer file",
+    ]);
+});
+test("could not check: a 404 that is not 404, a planted peer range pnpm does not flag, a canary row that misses", () => {
+  const status = (missing: number): State => ({
+    ...GOOD,
+    http: { ...GOOD.http, missing: { ...GOOD.http.missing, status: missing } },
+  });
+  const r404 = verdict(status(200));
+  assert.equal(r404.code, 3);
+  assert.match(r404.summary, /no-such-page answered 200/);
+  const quiet: State = {
+    ...GOOD,
+    peers: { ...GOOD.peers, planted: { status: 0, text: OK } },
+  };
+  assert.equal(verdict(quiet).code, 3);
+  assert.match(verdict(quiet).summary, /did not report the planted peer range/);
+  const blind: State = {
+    ...GOOD,
+    types: { ...GOOD.types, planted: { files: 170, errors: [] } },
+  };
+  assert.equal(verdict(blind).code, 3);
+  assert.match(
+    verdict(blind).summary,
+    /canary row did not give its stated result/,
   );
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {

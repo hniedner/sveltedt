@@ -1382,6 +1382,18 @@ test("consumer: with no tracked consumer/package.json the step is not applicable
     /^NOT APPLICABLE consumer: no consumer\/package\.json is tracked$/m,
   );
 });
+test("consumer: a tracked consumer project runs check-consumer.ts, which needs no LICENSE and cannot build here", () => {
+  // check-package.ts reads LICENSE first and would crash (exit 2) in this repository, so the exit 3 names the script
+  const out = expect(
+    "consumer",
+    repo((root) => {
+      put(root, "consumer/package.json", "{}\n");
+      remove("LICENSE")(root);
+    }),
+    3,
+  );
+  assert.match(out, /svelte-package exited/);
+});
 test("package: with nothing tracked under src/lib the step is not applicable", () => {
   const r = run(["package", "--root", repo()]);
   assert.equal(r.code, 0, r.out);
