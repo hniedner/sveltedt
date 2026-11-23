@@ -12,10 +12,17 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { childEnv, missedRows, result, scriptMain } from "./gate-step.ts";
+import {
+  childEnv,
+  COLOUR,
+  missedRows,
+  result,
+  scriptMain,
+} from "./gate-step.ts";
 import type { Result, Row } from "./gate-step.ts";
 import { packed, run } from "./check-package.ts";
 import type { Contents } from "./check-package.ts";
@@ -41,10 +48,17 @@ export interface Copy {
   lock: string;
   tarballName: string;
 }
+/** What `svelte-check --output machine` reported: the files it read and its errors, as "file line:column message". */
+export interface TypeReport {
+  files: number;
+  errors: string[];
+}
 export interface State {
   before: Committed;
   after: Committed;
   copy: Copy;
+  /** `real`: the consumer; `planted`: the same copy with a page that passes `rows={42}` (CON-09's second row). */
+  types: { real: TypeReport; planted: TypeReport };
 }
 export type Canary = Row<State>;
 
@@ -91,9 +105,13 @@ function install(s: State): Finding[] {
   return found.map((message) => ({ id: "CON-01", message }));
 }
 
+/** CON-09: the type check of the copy reports no error, with SvelteDT's types from the installed package. */
+const types = (s: State): Finding[] =>
+  s.types.real.errors.map((message) => ({ id: "CON-09", message }));
+
 /** Every statement over one state, in the spec's order. */
 export function analyse(s: State): Finding[] {
-  return install(s);
+  return [...install(s), ...types(s)];
 }
 
 export const CANARIES: Canary[] = [
@@ -130,6 +148,12 @@ export const CANARIES: Canary[] = [
     found: true,
   },
   {
+    id: "CON-09",
+    row: "a page that passes rows={42} to DataTable gives an error",
+    plant: (s) => ({ ...s, types: { ...s.types, real: s.types.planted } }),
+    found: true,
+  },
+  {
     id: "CON-01",
     row: "a copy's lockfile without the tarball as the source",
     plant: (s) => ({
@@ -139,6 +163,14 @@ export const CANARIES: Canary[] = [
     found: true,
   },
 ];
+
+/** The first lines a failed command printed, without colour, for the details of a could-not-check. */
+const lines = (r: { stdout: string; stderr: string }): string[] =>
+  `${r.stdout}${r.stderr}`
+    .replace(COLOUR, "")
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(0, 10);
 
 /** Every file under `dir` by its path, as the bytes it holds. */
 function readTree(dir: string): Contents {
@@ -174,8 +206,37 @@ const committed = (root: string): Committed => ({
   lock: readFileSync(join(root, "consumer", "pnpm-lock.yaml"), "utf8"),
 });
 
+/** The report in `svelte-check --output machine` text, or undefined when it did not report on any file. */
+export function parseTypeReport(out: string): TypeReport | undefined {
+  const done = /^\d+ COMPLETED (\d+) FILES /m.exec(out);
+  if (!done) return undefined;
+  const errors = [
+    ...out.matchAll(/^\d+ ERROR "([^"]*)" (\d+:\d+) "(.*)"$/gm),
+  ].map((m) => `${m[1]} ${m[2]} "${m[3]}"`);
+  return { files: Number(done[1]), errors };
+}
+
+/** svelte-check in the copy, with its own configuration and tsconfig (CON-09). */
+function typeCheck(copy: string): TypeReport | undefined {
+  const r = run(
+    join(copy, "node_modules", ".bin", "svelte-check"),
+    [
+      "--tsconfig",
+      "./tsconfig.json",
+      "--config",
+      "vite.config.js",
+      "--output",
+      "machine",
+    ],
+    copy,
+  );
+  return parseTypeReport(r.stdout);
+}
+
 /** The verdict on one state: the statements, then the canary rows that show they can fail. */
 export function verdict(s: State): Result {
+  if (!s.types.real.files || !s.types.planted.files)
+    return result(CANNOT, "the type check read no file of the consumer copy");
   const findings = analyse(s);
   if (findings.length)
     return result(
@@ -216,7 +277,7 @@ export function check(root: string): Result {
         return result(
           CANNOT,
           `${name} exited ${r.status ?? "without a status"} in the consumer copy (no registry or warm store?)`,
-          r.stderr.split("\n").slice(-5),
+          lines(r),
         );
     }
     const link = join(copy, "node_modules", NAME);
@@ -226,9 +287,33 @@ export function check(root: string): Result {
     } catch {
       return result(CANNOT, `the copy holds no installed ${NAME}`);
     }
+    // The build writes SvelteKit's generated tsconfig, which the consumer's extends (CON-09)
+    const build = run(
+      join(copy, "node_modules", ".bin", "vite"),
+      ["build"],
+      copy,
+    );
+    if (build.status !== 0)
+      return result(
+        CANNOT,
+        "vite build failed in the consumer copy",
+        lines(build),
+      );
+    const typed = typeCheck(copy);
+    const page = join(copy, "src", "routes", "+page.svelte");
+    const source = readFileSync(page, "utf8");
+    writeFileSync(page, source.replace("rows={orders}", "rows={42}"));
+    const typedPlanted = typeCheck(copy);
+    writeFileSync(page, source);
+    if (!typed || !typedPlanted)
+      return result(
+        CANNOT,
+        "svelte-check exited without a report in the consumer copy",
+      );
     return verdict({
       before,
       after: committed(root),
+      types: { real: typed, planted: typedPlanted },
       copy: {
         dir: realpathSync(copy),
         real,

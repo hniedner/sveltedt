@@ -6,7 +6,12 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { HERE } from "./gate-step.ts";
 import { PASS } from "./pinned.ts";
-import { analyse, CANARIES, verdict } from "./check-consumer.ts";
+import {
+  analyse,
+  CANARIES,
+  parseTypeReport,
+  verdict,
+} from "./check-consumer.ts";
 import type { State } from "./check-consumer.ts";
 
 const COPY = "/tmp/copy";
@@ -30,6 +35,15 @@ const GOOD: State = {
     tarball: FILES,
     lock: "'@hniedner/sveltedt@file:../x/hniedner-sveltedt-0.0.0.tgz':\n",
     tarballName: "hniedner-sveltedt-0.0.0.tgz",
+  },
+  types: {
+    real: { files: 170, errors: [] },
+    planted: {
+      files: 170,
+      errors: [
+        "src/routes/+page.svelte 8:12 \"Type 'number' is not assignable\"",
+      ],
+    },
   },
 };
 const found = (s: State, id: string): string[] =>
@@ -58,6 +72,39 @@ test("CON-01: each finding names what is wrong", () => {
   ]);
 });
 
+test("CON-09: each type error is a finding that names file, position and message", () => {
+  const bad: State = {
+    ...GOOD,
+    types: { ...GOOD.types, real: GOOD.types.planted },
+  };
+  assert.deepEqual(found(bad, "CON-09"), [
+    "src/routes/+page.svelte 8:12 \"Type 'number' is not assignable\"",
+  ]);
+});
+test("CON-09: svelte-check's machine output is read: files, errors, and none when it did not report", () => {
+  const out = [
+    '1795455601305 START "/x"',
+    '1795455601305 ERROR "src/routes/+page.svelte" 8:12 "Type \'number\' is not assignable"',
+    '1795455601305 WARNING "src/a.svelte" 1:1 "unused"',
+    "1795455601305 COMPLETED 170 FILES 1 ERRORS 1 WARNINGS 2 FILES_WITH_PROBLEMS",
+  ].join("\n");
+  assert.deepEqual(parseTypeReport(out), {
+    files: 170,
+    errors: [
+      "src/routes/+page.svelte 8:12 \"Type 'number' is not assignable\"",
+    ],
+  });
+  assert.equal(parseTypeReport('1795 START "/x"\n'), undefined);
+});
+test("CON-09: a type check that read no file cannot be checked", () => {
+  const none: State = {
+    ...GOOD,
+    types: { real: { files: 0, errors: [] }, planted: GOOD.types.planted },
+  };
+  const r = verdict(none);
+  assert.equal(r.code, 3);
+  assert.match(r.summary, /type check read no file/);
+});
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);
   const bad: State = {
