@@ -788,6 +788,23 @@ const CLASSES: FileClass[] = [
   },
   { match: /\.mjs$/, steps: ["format", "lint", "dupes"] },
   {
+    match: /^consumer\/pnpm-lock\.yaml$/,
+    steps: [],
+    why: "written by pnpm; the consumer step installs from it",
+  },
+  {
+    // The consumer project's own files (spec/package.md, CON). Its sources import the packed package, which the root
+    // does not install: their types and their type-aware lint are the consumer step's, CON-09, not the root's.
+    match: /^consumer\/.*\.(?:ts|svelte)$/,
+    steps: ["format"],
+    why: "lint, types: CON-09, in the consumer's own install; dupes: its files are its own, not shared code",
+  },
+  {
+    match: /^consumer\/vite\.config\.js$/,
+    steps: ["format", "lint"],
+    why: "dupes: configuration, no logic to copy",
+  },
+  {
     // The test site's plain scripts, served as they are from Vite's public folder (a page's first, classic script
     // cannot be a module the build compiles)
     match: /^site\/public\/[^/]+\.js$/,
@@ -2005,6 +2022,14 @@ function pack(root: string, list: Set<string>): Result {
   return scan(root, "check-package.ts");
 }
 
+// CON-01, 02, 03, 04, 09 and 11: check-consumer.ts installs the packed package into a copy of consumer/ and tests it.
+// With no tracked consumer project there is nothing to install into: not applicable.
+function consumer(root: string, list: Set<string>): Result {
+  if (!list.has("consumer/package.json"))
+    return result(NA, "no consumer/package.json is tracked");
+  return scan(root, "check-consumer.ts");
+}
+
 // THEME-01, 02, 04, 12 and 13: check-stylesheet.ts over the stylesheet and the guide. With nothing tracked under
 // src/lib there is no stylesheet to read yet: not applicable.
 function stylesheet(root: string, list: Set<string>): Result {
@@ -3006,6 +3031,7 @@ const CHECKS: Record<
   inline,
   stylesheet,
   package: pack,
+  consumer,
   test,
   trace,
   "diff-coverage": diffCoverage,

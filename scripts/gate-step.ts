@@ -7,7 +7,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
@@ -331,11 +331,11 @@ const WORD: Record<number, string> = {
  * entry point (not when a test imports its checks). Prints the details and one last line `<WORD> <name>: <summary>`;
  * the exit code is the result's, or 2 for a wrong argument or a crash.
  */
-export function scriptMain(
+export async function scriptMain(
   name: string,
   scriptUrl: string,
-  check: (root: string) => Result,
-): void {
+  check: (root: string) => Result | Promise<Result>,
+): Promise<void> {
   if (process.argv[1] !== fileURLToPath(scriptUrl)) return;
   const argv = process.argv.slice(2);
   const at = argv.indexOf("--root");
@@ -345,8 +345,10 @@ export function scriptMain(
     return;
   }
   try {
-    const r = check(
-      at >= 0 ? argv[at + 1] : join(dirname(fileURLToPath(scriptUrl)), ".."),
+    const r = await check(
+      at >= 0
+        ? resolve(argv[at + 1])
+        : join(dirname(fileURLToPath(scriptUrl)), ".."),
     );
     for (const d of r.details) console.log(`  ${d}`);
     console.log(`${WORD[r.code]} ${name}: ${r.summary}`);
@@ -357,4 +359,35 @@ export function scriptMain(
     );
     process.exitCode = USAGE;
   }
+}
+
+/** One row of a statement's example table: a change planted in a copy of what is read, and whether it must be found. */
+export interface Row<T> {
+  id: string;
+  row: string;
+  plant: (base: T) => T;
+  found: boolean;
+}
+/**
+ * The rows whose stated result the statements did not give, each as a line; none is a working check. A row is judged by
+ * the findings its planting adds to those the base already has, so a finding in the real thing is a finding, not a
+ * failed canary.
+ */
+export function missedRows<T>(
+  base: T,
+  rows: Row<T>[],
+  analyse: (t: T) => { id: string; message: string }[],
+): string[] {
+  const text = (f: { id: string; message: string }): string =>
+    `${f.id} ${f.message}`;
+  const before = new Set(analyse(base).map(text));
+  const missed: string[] = [];
+  for (const k of rows) {
+    const added = analyse(k.plant(base)).filter(
+      (f) => f.id === k.id && !before.has(text(f)),
+    );
+    if (added.length > 0 !== k.found)
+      missed.push(`${k.id} row "${k.row}": ${k.found ? "not found" : "found"}`);
+  }
+  return missed;
 }

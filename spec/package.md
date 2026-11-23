@@ -210,9 +210,11 @@ each naming a file the tarball holds.
 **CON-01** The consumer test MUST install SvelteDT with the package manager from the tarball into a copy of the
 consumer project, and leave the committed consumer project unchanged.
 - Examples (the test copies the files git tracks under `consumer/`, and nothing else, to a temporary folder, installs
-  the copy from its copied lockfile unchanged, then adds the tarball with one package-manager command that fetches
-  nothing from the registry (`pnpm add -D --offline` and the tarball's path); the first three rows are read after that,
-  the others are canaries, each planted in a copy, which must be found):
+  the copy from its copied lockfile unchanged, then adds the tarball with one package-manager command that takes the
+  package from the tarball's path, not from the registry (`pnpm add -D --prefer-offline` and the tarball's path;
+  `--offline` fails on a clean runner, whose metadata cache is empty after a frozen install: "Failed to resolve ... in
+  package mirror", MEASURED 2026-11-23, pnpm 12.19.0); the first three rows are read after that, the others are
+  canaries, each planted in a copy, which must be found):
 
   | What is read | Result |
   |---|---|
@@ -335,9 +337,11 @@ other script of the page.
 
 **CON-09** The consumer's type check MUST pass with SvelteDT's types resolved from the installed package.
 - Examples (the type check is the one the repository uses, `svelte-check` 4.7.0 or later, which has `--config`, run in
-  the copy of CON-01 after its build, which also writes SvelteKit's generated type configuration, with the copy's own
-  configuration file (its `vite.config`, since SvelteKit 3 reads no `svelte.config.js`) named as its configuration, so
-  that no configuration outside the copy is read; the second row is a canary planted in a copy of the consumer project):
+  the copy of CON-01 with `--config vite.config.js`, the copy's own configuration file (SvelteKit 3 reads no
+  `svelte.config.js`), so that no configuration outside the copy is read, and `--tsconfig` naming the copy's
+  `tsconfig.json`, which extends `$app/tsconfig`, the file SvelteKit 3 writes under `node_modules/$app/tsconfig.json`
+  (MEASURED 2026-11-23, SvelteKit 3.4.0), and includes only `src`, so that the adapter's build output is not read; the
+  second row is a canary planted in a copy of the consumer project):
 
   | Consumer | Type check |
   |---|---|

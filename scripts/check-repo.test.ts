@@ -1367,12 +1367,32 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, stylesheet, package, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, stylesheet, package, consumer, test, trace, diff-coverage, red-check, mutation, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 13 not applicable: secrets, svelte, site, inline, stylesheet, package, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
+    /^PASS all: 16 checks passed, 14 not applicable: secrets, svelte, site, inline, stylesheet, package, consumer, test, trace, diff-coverage, red-check, mutation, browser, commits$/m,
   );
+});
+test("consumer: with no tracked consumer/package.json the step is not applicable", () => {
+  const r = run(["consumer", "--root", repo()]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(
+    r.out,
+    /^NOT APPLICABLE consumer: no consumer\/package\.json is tracked$/m,
+  );
+});
+test("consumer: a tracked consumer project runs check-consumer.ts, which needs no LICENSE and cannot build here", () => {
+  // check-package.ts reads LICENSE first and would crash (exit 2) in this repository, so the exit 3 names the script
+  const out = expect(
+    "consumer",
+    repo((root) => {
+      put(root, "consumer/package.json", "{}\n");
+      remove("LICENSE")(root);
+    }),
+    3,
+  );
+  assert.match(out, /svelte-package exited/);
 });
 test("package: with nothing tracked under src/lib the step is not applicable", () => {
   const r = run(["package", "--root", repo()]);
