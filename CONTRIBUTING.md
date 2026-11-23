@@ -130,7 +130,8 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   a marker naming a real-browser statement of the spec. It first runs every canary row of those statements and
   cannot be checked if one gives another result; it also cannot be checked with no spec, no guide, no token table or
   0 declarations, selectors or rules read. Limits: a colour keyword used as a custom identifier in a non-colour
-  property (`font-family: Tan`) reads as a colour; the tarball halves wait for PRD-K2. With nothing tracked under
+  property (`font-family: Tan`) reads as a colour; a `var()` of a width inside a `border` or `outline` shorthand is judged as a
+  colour (stricter, never open); the tarball halves wait for PRD-K2. With nothing tracked under
   `src/lib` it is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may

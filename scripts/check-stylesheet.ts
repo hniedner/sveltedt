@@ -367,7 +367,7 @@ const inForcedColors = (node: Node): boolean => {
   for (let p = node.parent; p; p = p.parent)
     if (
       p.type === "atrule" &&
-      /forced-colors:\s*active/i.test((p as AtRule).params)
+      /^\(forced-colors:\s*active\)$/i.test((p as AtRule).params.trim())
     )
       return true;
   return false;
@@ -628,7 +628,9 @@ function missedCanaries(): string[] {
       return c.expect === "cannot"
         ? typeof got !== "string"
         : typeof got === "string" ||
-            (got.length === 0) !== (c.expect === "pass");
+            (c.expect === "pass"
+              ? got.length > 0
+              : !got.some((f) => f.message === c.expect));
     }).map((c) => `THEME-02: ${c.row}`),
   ];
 }

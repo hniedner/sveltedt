@@ -284,3 +284,14 @@ test("an unknown argument is a usage error, exit 2", () => {
   );
   assert.equal(r.status, 2);
 });
+test("THEME-01: only a plain (forced-colors: active) query exempts its rules, not a negated or an or-ed one", () => {
+  for (const query of [
+    "not (forced-colors: active)",
+    "(min-width: 1px), (forced-colors: active)",
+  ])
+    assert.equal(
+      found(`@media ${query} { .a { color: red } }`, "THEME-01").length,
+      1,
+      query,
+    );
+});
