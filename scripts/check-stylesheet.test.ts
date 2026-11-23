@@ -48,6 +48,12 @@ test("THEME-12: a nested rule counts with its parent, with or without the ampers
     0,
   );
 });
+test("THEME-12: :not takes the specificity of its argument", () => {
+  assert.equal(
+    found(":not(.sdt-a .sdt-b) { color: inherit }", "THEME-12").length,
+    1,
+  );
+});
 test("THEME-12: the selectors read are counted", () => {
   assert.equal(
     analyse(".a, .b { color: inherit } .c { color: inherit }", CANARY_SPECS)
@@ -77,6 +83,15 @@ test("THEME-13: a @property rule needs a marker; keyframe selectors do not", () 
       CANARY_SPECS,
     ).reads.rules,
     1,
+  );
+});
+test("THEME-13: the selectors of a vendor-prefixed keyframes block need no marker", () => {
+  assert.deepEqual(
+    found(
+      '/* @spec("THEME-10") */ @-webkit-keyframes k { from { opacity: 0 } to { opacity: 1 } }',
+      "THEME-13",
+    ),
+    [],
   );
 });
 test("THEME-13: a stylesheet with only an @charset has 0 rules read, which is could-not-check", () => {

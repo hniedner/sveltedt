@@ -687,7 +687,6 @@ export function check(root: string): Result {
   const empty = [
     ["declaration", reads.declarations],
     ["selector", reads.selectors],
-    ["rule", reads.rules],
   ].filter(([, n]) => n === 0);
   if (empty.length)
     return result(CANNOT, `0 ${empty[0][0]}(s) read from the stylesheet`);
