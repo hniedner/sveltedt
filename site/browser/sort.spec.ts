@@ -282,9 +282,12 @@ test.describe("SORT-20, axe on the sort controls", () => {
       });
       // Analysed, not skipped: button-name passed on the three sort buttons
       const named = results.passes.find((rule) => rule.id === "button-name");
-      expect(named?.nodes.map((node) => node.html).join("")).toMatch(
+      const html = named?.nodes.map((node) => node.html).join("");
+      expect(html).toMatch(
         /Code\s*<\/button>.*Name\s*<\/button>.*Region\s*<\/button>/s,
       );
+      // The name is the content: an aria-label on a sort button would show in the analysed HTML (SORT-09)
+      expect(html).not.toContain("aria-label");
       expect(
         results.violations.filter(
           (v) => v.impact === "serious" || v.impact === "critical",
