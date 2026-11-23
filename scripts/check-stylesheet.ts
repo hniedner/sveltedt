@@ -14,6 +14,8 @@ export interface Reads {
   selectors: number;
   declarations: number;
   rules: number;
+  /** The distinct `--sdt-*` names the declarations read, in order of first use. */
+  tokens: string[];
 }
 /** One row of a statement's example table: the stylesheet it plants and whether the statement must find it. */
 export interface Canary {
@@ -391,7 +393,7 @@ export function analyse(
   css: string,
   specs: Map<string, boolean>,
 ): { reads: Reads; findings: Finding[] } {
-  const reads: Reads = { selectors: 0, declarations: 0, rules: 0 };
+  const reads: Reads = { selectors: 0, declarations: 0, rules: 0, tokens: [] };
   const findings: Finding[] = [];
   postcss.parse(css).walk((node) => {
     if (isMarked(node)) {
@@ -419,6 +421,8 @@ export function analyse(
       });
     } else if (node.type === "decl") {
       reads.declarations++;
+      for (const [, name] of node.value.matchAll(/var\(\s*(--sdt-[\w-]+)/g))
+        if (!reads.tokens.includes(name)) reads.tokens.push(name);
       if (node.important)
         findings.push({
           id: "THEME-12",
@@ -487,5 +491,94 @@ export function layout(files: Record<string, string>): Finding[] {
     ...paths
       .filter((f) => /^src\/lib\/.+\.svelte$/.test(f) && parse(files[f]).css)
       .map((f) => found(`${f} holds a <style> block`)),
+  ];
+}
+
+const GUIDE_TABLE = (rows: string): string =>
+  `# Styling\n\n## Tokens\n\n| Token | Paints | Fallback |\n|---|---|---|\n${rows}\n\n## Token pairs\n\nText.\n`;
+/** One row of THEME-02's table: the names the stylesheet reads, the guide's text, and the verdict it must give. */
+export interface TokenCanary {
+  row: string;
+  read: string[];
+  guide: string;
+  /** A finding's message part, "pass", or "cannot" for could-not-check. */
+  expect: string;
+}
+export const TOKEN_CANARIES: TokenCanary[] = [
+  {
+    row: "the table lists exactly the names read",
+    read: ["--sdt-border"],
+    guide: GUIDE_TABLE("| `--sdt-border` | the divider | `GrayText` |"),
+    expect: "pass",
+  },
+  {
+    row: "a name read with no table row",
+    read: ["--sdt-border"],
+    guide: GUIDE_TABLE(""),
+    expect: "--sdt-border is read by the stylesheet and not in the token table",
+  },
+  {
+    row: "a table row no declaration reads",
+    read: ["--sdt-border"],
+    guide: GUIDE_TABLE(
+      "| `--sdt-border` | x | `GrayText` |\n| `--sdt-unused` | x | `Canvas` |",
+    ),
+    expect: "--sdt-unused is in the token table and no declaration reads it",
+  },
+  {
+    row: "no token table",
+    read: ["--sdt-border"],
+    guide: "# Styling\n\nNo table.\n",
+    expect: "cannot",
+  },
+  {
+    row: "a table without the Fallback column",
+    read: ["--sdt-border"],
+    guide:
+      "## Tokens\n\n| Token | Paints |\n|---|---|\n| `--sdt-border` | x |\n",
+    expect: "cannot",
+  },
+  {
+    row: "0 names read from the stylesheet",
+    read: [],
+    guide: GUIDE_TABLE("| `--sdt-border` | x | `GrayText` |"),
+    expect: "cannot",
+  },
+];
+
+/** THEME-02: the findings of the token table against the names read, or a string saying why it cannot be checked. */
+export function tokens(read: string[], guide: string): Finding[] | string {
+  const lines = guide.split("\n");
+  const start = lines.findIndex((l) => /^## Tokens\s*$/.test(l));
+  const table = lines
+    .slice(start + 1)
+    .filter(
+      (l, i, rest) =>
+        !rest.slice(0, i).some((x) => x.startsWith("#")) && l.startsWith("|"),
+    )
+    .map((l) =>
+      l
+        .split("|")
+        .slice(1, -1)
+        .map((c) => c.trim()),
+    );
+  if (start < 0 || !table.length)
+    return "no token table under the heading ## Tokens";
+  if (table[0].join() !== "Token,Paints,Fallback")
+    return `the token table's columns are ${table[0].join(", ")}, not Token, Paints, Fallback`;
+  if (!read.length) return "0 --sdt-* names read from the stylesheet";
+  const listed = table.slice(2).map((r) => r[0].replace(/`/g, ""));
+  const finding = (message: string): Finding => ({ id: "THEME-02", message });
+  return [
+    ...read
+      .filter((n) => !listed.includes(n))
+      .map((n) =>
+        finding(`${n} is read by the stylesheet and not in the token table`),
+      ),
+    ...listed
+      .filter((n) => !read.includes(n))
+      .map((n) =>
+        finding(`${n} is in the token table and no declaration reads it`),
+      ),
   ];
 }

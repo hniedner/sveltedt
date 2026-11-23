@@ -8,6 +8,8 @@ import {
   CANARY_SPECS,
   LAYOUT_CANARIES,
   layout,
+  TOKEN_CANARIES,
+  tokens,
 } from "./check-stylesheet.ts";
 
 const found = (css: string, id: string): string[] =>
@@ -141,5 +143,25 @@ test("THEME-04: a css file outside src/lib and a <style> element nested in marku
       "src/lib/A.svelte": "<svelte:head><style>.x{}</style></svelte:head>",
     }),
     [],
+  );
+});
+
+for (const c of TOKEN_CANARIES)
+  test(`THEME-02 row: ${c.row}`, () => {
+    const got = tokens(c.read, c.guide);
+    if (c.expect === "cannot") assert.equal(typeof got, "string");
+    else
+      assert.deepEqual(
+        got,
+        c.expect === "pass" ? [] : [{ id: "THEME-02", message: c.expect }],
+      );
+  });
+test("THEME-02: the names a stylesheet reads are collected from every var(), once each, fallbacks included", () => {
+  assert.deepEqual(
+    analyse(
+      ".a { color: var(--sdt-a, Canvas); border-color: var(--sdt-b, var(--sdt-a, Canvas)); padding: var(--app-x, 1px) }",
+      CANARY_SPECS,
+    ).reads.tokens,
+    ["--sdt-a", "--sdt-b"],
   );
 });
