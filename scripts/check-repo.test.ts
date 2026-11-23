@@ -1299,7 +1299,11 @@ test("selftest: a shard with no tracked file cannot be checked", () => {
 test("selftest: a tracked test file in no shard is a finding where a shard runs, and where the job has the step", () => {
   const plant = (root: string): void =>
     put(root, "scripts/other.test.mjs", PASSING_TEST);
-  const ci = { GITHUB_ACTIONS: "true", GATE_SELFTEST: "job" };
+  const ci = {
+    GITHUB_ACTIONS: "true",
+    GATE_SELFTEST: "job",
+    GITHUB_JOB: "static",
+  };
   for (const extraEnv of [{ GATE_SHARD: "2" }, ci])
     assert.match(
       expect("selftest", repo(plant), 1, { extraEnv }),
@@ -1307,7 +1311,11 @@ test("selftest: a tracked test file in no shard is a finding where a shard runs,
     );
 });
 test("selftest: left to the CI job selftest by GATE_SELFTEST in CI only", () => {
-  const ci = { GITHUB_ACTIONS: "true", GATE_SELFTEST: "job" };
+  const ci = {
+    GITHUB_ACTIONS: "true",
+    GATE_SELFTEST: "job",
+    GITHUB_JOB: "static",
+  };
   const left = run(["selftest", "--root", repo()], { extraEnv: ci });
   assert.equal(left.code, 0, left.out);
   assert.match(
