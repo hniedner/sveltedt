@@ -9,7 +9,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -207,20 +206,10 @@ const git = (root: string, ...args: string[]) =>
     maxBuffer: 1 << 28,
   });
 
-/** Every node_modules folder of the tree at `root`, as paths under it, not looking inside one. */
-const packageFolders = (root: string, at = ""): string[] =>
-  readdirSync(join(root, at), { withFileTypes: true }).flatMap((e) =>
-    e.name === "node_modules"
-      ? [join(at, e.name)]
-      : e.isDirectory() && ![".git", "dist", "reports"].includes(e.name)
-        ? packageFolders(root, join(at, e.name))
-        : [],
-  );
-
 /**
- * The parent's tree in a fresh folder, with the checked tree's packages: its root node_modules as one link, and every
- * other node_modules folder (the site's) as a copy of the links inside it, with the same link text. A workspace link
- * such as `../../..` then leads into the parent's tree, never into the checked one. Nothing is installed.
+ * The parent's tree in a fresh folder, with the checked tree's packages: its root node_modules as one link, and the
+ * site's node_modules as a copy of the links inside it, with the same link text. The workspace link `../../..` then
+ * leads into the parent's tree, never into the checked one. Nothing is installed.
  */
 function parentTree(root: string, sha: string): { dir: string } | Result {
   const dir = mkdtempSync(join(tmpdir(), "red-check-"));
@@ -235,14 +224,18 @@ function parentTree(root: string, sha: string): { dir: string } | Result {
     rmSync(dir, { recursive: true, force: true });
     return result(CANNOT, `cannot unpack ${sha}^`, [x.stderr.trim()]);
   }
-  for (const rel of packageFolders(root))
-    if (rel === "node_modules")
-      symlinkSync(realpathSync(join(root, rel)), join(dir, rel));
-    else
-      cpSync(join(root, rel), join(dir, rel), {
-        recursive: true,
-        verbatimSymlinks: true,
-      });
+  symlinkSync(
+    realpathSync(join(root, "node_modules")),
+    join(dir, "node_modules"),
+  );
+  cpSync(
+    join(root, "site", "node_modules"),
+    join(dir, "site", "node_modules"),
+    {
+      recursive: true,
+      verbatimSymlinks: true,
+    },
+  );
   return { dir: realpathSync(dir) };
 }
 
