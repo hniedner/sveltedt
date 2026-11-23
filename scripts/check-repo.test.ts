@@ -1306,11 +1306,11 @@ test("needs: an empty or unreadable list cannot be checked", () => {
 
 test("all: passes when every step passes, and counts a step that was not applicable apart", () => {
   // The fixture has no component, no site, no test file, no spec, no browser test and no commit after origin/main:
-  // svelte, site, inline, test, trace, diff-coverage, browser, commits and secrets have nothing to check.
+  // svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits and secrets have nothing to check.
   const out = expect("all", repo(), 0);
   assert.match(
     out,
-    /^PASS all: 16 checks passed, 9 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, browser, commits$/m,
+    /^PASS all: 16 checks passed, 10 not applicable: secrets, svelte, site, inline, test, trace, diff-coverage, red-check, browser, commits$/m,
   );
 });
 test("all: test, trace and diff-coverage share one vitest run", () => {
