@@ -1,10 +1,16 @@
 // Tests for check-stylesheet.ts. The checks are pure functions of the stylesheet's text, so they are called directly;
 // the step's exit codes are run once each through the script.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { after, test } from "node:test";
+import { HERE } from "./gate-step.ts";
 import {
   analyse,
   CANARIES,
+  check,
   CANARY_SPECS,
   LAYOUT_CANARIES,
   layout,
@@ -164,4 +170,117 @@ test("THEME-02: the names a stylesheet reads are collected from every var(), onc
     ).reads.tokens,
     ["--sdt-a", "--sdt-b"],
   );
+});
+
+// ---- the step over a repository: a fixture is a git repository holding the files the step reads
+const SPEC_TEXT = `# Spec
+
+**THEME-10** A real-browser statement.
+- Reason: r.
+- Layer: real browser (Chromium, Firefox, WebKit).
+
+**THEME-12** A static statement.
+- Reason: r.
+- Layer: static check.
+`;
+const GUIDE =
+  "## Tokens\n\n| Token | Paints | Fallback |\n|---|---|---|\n| `--sdt-border` | x | `GrayText` |\n";
+const GOOD_SHEET =
+  '/* @spec("THEME-10") */\n.sdt-x { border-color: var(--sdt-border, GrayText) }\n';
+const tmp = mkdtempSync(join(tmpdir(), "check-stylesheet-"));
+after(() => rmSync(tmp, { recursive: true, force: true }));
+let n = 0;
+function fixture(files: Record<string, string>): string {
+  const root = join(tmp, `repo${n++}`);
+  for (const [f, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, f)), { recursive: true });
+    writeFileSync(join(root, f), text);
+  }
+  execFileSync("git", ["init", "-q"], { cwd: root });
+  execFileSync("git", ["add", "-A"], { cwd: root });
+  return root;
+}
+const GOOD = {
+  "src/lib/styles.css": GOOD_SHEET,
+  "spec/table.md": SPEC_TEXT,
+  "docs/styling.md": GUIDE,
+};
+const run = (root: string): { status: number | null; out: string } => {
+  const r = spawnSync(
+    process.execPath,
+    [join(HERE, "check-stylesheet.ts"), "--root", root],
+    { encoding: "utf8" },
+  );
+  return { status: r.status, out: r.stdout };
+};
+
+test("the step passes on a stylesheet that every statement accepts, exit 0, and says what it read", () => {
+  const r = run(fixture(GOOD));
+  assert.equal(r.status, 0, r.out);
+  assert.match(
+    r.out,
+    /PASS check-stylesheet: 1 declaration\(s\), 1 selector\(s\), 1 rule\(s\), 1 token name\(s\) read; canaries found/,
+  );
+});
+test("the step exits 1 with each finding listed when a statement finds one", () => {
+  const r = run(
+    fixture({
+      ...GOOD,
+      "src/lib/styles.css": `${GOOD_SHEET}.sdt-y { color: #333 }\n`,
+    }),
+  );
+  assert.equal(r.status, 1, r.out);
+  assert.match(r.out, /THEME-01 .*color: #333/);
+  assert.match(r.out, /THEME-13 .*\.sdt-y: no marker comment/);
+});
+test("the step exits 3 when the token table cannot be read", () => {
+  const files: Record<string, string> = { ...GOOD };
+  delete files["docs/styling.md"];
+  const r = run(fixture(files));
+  assert.equal(r.status, 3, r.out);
+  assert.match(r.out, /COULD NOT CHECK check-stylesheet: .*docs\/styling\.md/);
+});
+test("a marker names a statement the tracked specs hold, and only a real-browser one passes", () => {
+  const sheet = (id: string): string =>
+    `/* @spec("${id}") */\n.sdt-x { color: inherit }\n`;
+  for (const [id, part] of [
+    ["THEME-12", "THEME-12 is not a real-browser statement"],
+    ["THEME-99", "no spec holds THEME-99"],
+  ])
+    assert.match(
+      check(fixture({ ...GOOD, "src/lib/styles.css": sheet(id) })).details.join(
+        "\n",
+      ),
+      new RegExp(part),
+    );
+});
+test("no stylesheet under src/lib is a finding of THEME-04", () => {
+  const files: Record<string, string> = { ...GOOD };
+  delete files["src/lib/styles.css"];
+  const r = check(fixture(files));
+  assert.equal(r.code, 1);
+  assert.match(r.details.join("\n"), /THEME-04 no stylesheet under src\/lib/);
+});
+test("no spec file tracked cannot be checked", () => {
+  const files: Record<string, string> = { ...GOOD };
+  delete files["spec/table.md"];
+  assert.equal(check(fixture(files)).code, 3);
+});
+test("a stylesheet with 0 declarations or 0 rules cannot be checked", () => {
+  const r = check(
+    fixture({ ...GOOD, "src/lib/styles.css": '@charset "utf-8";\n' }),
+  );
+  assert.equal(r.code, 3);
+  assert.match(r.summary, /^0 declaration\(s\) read/);
+});
+test("a folder that is not a git repository cannot be checked", () => {
+  assert.equal(check(join(tmp, "not-a-repository")).code, 3);
+});
+test("an unknown argument is a usage error, exit 2", () => {
+  const r = spawnSync(
+    process.execPath,
+    [join(HERE, "check-stylesheet.ts"), "--nope"],
+    { encoding: "utf8" },
+  );
+  assert.equal(r.status, 2);
 });

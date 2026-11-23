@@ -1,10 +1,18 @@
 // check-stylesheet: THEME-01, 02, 04, 12 and 13 (spec/table.md) over the package's stylesheet.
 //   node scripts/check-stylesheet.ts [--root <dir>]
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import postcss, { list } from "postcss";
 import type { AtRule, ChildNode, Node, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
 import { parse } from "svelte/compiler";
+import { result } from "./gate-step.ts";
+import type { Result } from "./gate-step.ts";
+import { CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
+import { parseSpec } from "./trace.ts";
 
 export interface Finding {
   id: string;
@@ -581,4 +589,145 @@ export function tokens(read: string[], guide: string): Finding[] | string {
         finding(`${n} is in the token table and no declaration reads it`),
       ),
   ];
+}
+
+// ---- the step: the canary tables first, then the tracked files of the repository at `root`
+
+/** Every statement id of the spec files, with whether its Layer line says real browser. */
+function specIds(texts: string[]): Map<string, boolean> {
+  const ids = new Map<string, boolean>();
+  for (const text of texts) {
+    const lines = text.split("\n");
+    const { statements } = parseSpec("", text);
+    statements.forEach((st, i) => {
+      const end = statements[i + 1]?.line ?? lines.length + 1;
+      ids.set(
+        st.id,
+        lines
+          .slice(st.line - 1, end - 1)
+          .some((l) => /^- Layer: real browser/.test(l)),
+      );
+    });
+  }
+  return ids;
+}
+
+/** The canary rows that did not give their stated result, as text. */
+function missedCanaries(): string[] {
+  const hit = (id: string, css: string): boolean =>
+    analyse(css, CANARY_SPECS).findings.some((f) => f.id === id);
+  return [
+    ...CANARIES.filter((c) => hit(c.id, c.css) !== c.found).map(
+      (c) => `${c.id}: ${c.row}`,
+    ),
+    ...LAYOUT_CANARIES.filter(
+      (c) => layout(c.files).length > 0 !== c.found,
+    ).map((c) => `THEME-04: ${c.row}`),
+    ...TOKEN_CANARIES.filter((c) => {
+      const got = tokens(c.read, c.guide);
+      return c.expect === "cannot"
+        ? typeof got !== "string"
+        : typeof got === "string" ||
+            (got.length === 0) !== (c.expect === "pass");
+    }).map((c) => `THEME-02: ${c.row}`),
+  ];
+}
+
+export function check(root: string): Result {
+  const missed = missedCanaries();
+  if (missed.length)
+    return result(
+      CANNOT,
+      "a canary row did not give its stated result",
+      missed,
+    );
+  const ls = spawnSync("git", ["-C", root, "ls-files", "-z"], {
+    encoding: "utf8",
+  });
+  if (ls.status !== 0) return result(CANNOT, `${root}: git ls-files failed`);
+  const tracked = ls.stdout.split("\0").filter(Boolean);
+  const text = (f: string): string => readFileSync(join(root, f), "utf8");
+  const files = Object.fromEntries(
+    tracked
+      .filter((f) => /^src\/lib\/.+\.(?:css|svelte)$/.test(f))
+      .map((f) => [f, text(f)]),
+  );
+  const specFiles = tracked.filter((f) => /^spec\/.+\.md$/.test(f));
+  if (!specFiles.length)
+    return result(CANNOT, "no spec file is tracked under spec/");
+  const guide = tracked.includes("docs/styling.md")
+    ? text("docs/styling.md")
+    : undefined;
+  if (guide === undefined)
+    return result(CANNOT, "docs/styling.md is not tracked");
+  const specs = specIds(specFiles.map(text));
+  const reads: Reads = { selectors: 0, declarations: 0, rules: 0, tokens: [] };
+  const findings = layout(files);
+  for (const [f, css] of Object.entries(files).filter(([f]) =>
+    f.endsWith(".css"),
+  )) {
+    const one = analyse(css, specs);
+    reads.selectors += one.reads.selectors;
+    reads.declarations += one.reads.declarations;
+    reads.rules += one.reads.rules;
+    reads.tokens.push(
+      ...one.reads.tokens.filter((t) => !reads.tokens.includes(t)),
+    );
+    findings.push(
+      ...one.findings.map((x) => ({ ...x, message: `${f}: ${x.message}` })),
+    );
+  }
+  const table = tokens(reads.tokens, guide);
+  if (typeof table !== "string") findings.push(...table);
+  const details = findings.map((x) => `${x.id} ${x.message}`);
+  if (findings.length)
+    return result(FINDING, `${findings.length} finding(s)`, details);
+  const empty = [
+    ["declaration", reads.declarations],
+    ["selector", reads.selectors],
+    ["rule", reads.rules],
+  ].filter(([, n]) => n === 0);
+  if (empty.length)
+    return result(CANNOT, `0 ${empty[0][0]}(s) read from the stylesheet`);
+  if (typeof table === "string") return result(CANNOT, table);
+  return result(
+    PASS,
+    `${reads.declarations} declaration(s), ${reads.selectors} selector(s), ${reads.rules} rule(s), ${reads.tokens.length} token name(s) read; canaries found`,
+  );
+}
+
+const WORD: Record<number, string> = {
+  [PASS]: "PASS",
+  [FINDING]: "FINDING",
+  [USAGE]: "USAGE",
+  [CANNOT]: "COULD NOT CHECK",
+};
+function main(argv: string[]): number {
+  const at = argv.indexOf("--root");
+  if (argv.length !== (at >= 0 ? 2 : 0) || (at >= 0 && !argv[at + 1])) {
+    console.log(
+      "USAGE check-stylesheet: node scripts/check-stylesheet.ts [--root <dir>]",
+    );
+    return USAGE;
+  }
+  const r = check(
+    at >= 0
+      ? argv[at + 1]
+      : join(dirname(fileURLToPath(import.meta.url)), ".."),
+  );
+  for (const d of r.details) console.log(`  ${d}`);
+  console.log(`${WORD[r.code]} check-stylesheet: ${r.summary}`);
+  return r.code;
+}
+
+// Run as a program, not when a test imports the checks
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    process.exitCode = main(process.argv.slice(2));
+  } catch (e) {
+    console.log(
+      `USAGE check-stylesheet: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
+    );
+    process.exitCode = USAGE;
+  }
 }
