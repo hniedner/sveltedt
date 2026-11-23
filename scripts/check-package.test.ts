@@ -10,9 +10,12 @@ import { HERE } from "./gate-step.ts";
 import { CANNOT, FINDING, PASS } from "./pinned.ts";
 import {
   analyse,
+  attwProblems,
   CANARIES,
   check,
   missedCanaries,
+  planted,
+  publintProblems,
   runnable,
   verdict,
 } from "./check-package.ts";
@@ -24,6 +27,7 @@ const REPO: Repo = {
 };
 const MANIFEST = {
   name: "@hniedner/sveltedt",
+  type: "module",
   exports: {
     ".": { types: "./dist/index.d.ts", svelte: "./dist/index.js" },
     "./styles.css": {
@@ -128,6 +132,78 @@ test("PKG-03: the finding names the file and what is wrong with it", () => {
   assert.deepEqual(found(c, "PKG-03"), ["dist/a.test.js: a test file"]);
 });
 
+// publint and attw run on tarballs made from the synthetic package, each under a name in a new folder
+const ROOT = join(HERE, "..");
+const tmp = mkdtempSync(join(tmpdir(), "package-tools-"));
+const withManifest = (change: (m: Record<string, unknown>) => void): string => {
+  const m = JSON.parse(GOOD.get("package.json")?.toString() ?? "") as Record<
+    string,
+    unknown
+  >;
+  change(m);
+  return planted(
+    new Map(GOOD).set("package.json", Buffer.from(JSON.stringify(m))),
+    tmp,
+    `t${String(Math.random()).slice(2)}`,
+  );
+};
+test("PKG-02: publint reports nothing on the good package, an error for a missing file and a warning for a bad repository", () => {
+  assert.deepEqual(
+    publintProblems(
+      ROOT,
+      withManifest(() => {}),
+    ),
+    [],
+  );
+  const missing = publintProblems(
+    ROOT,
+    withManifest((m) => {
+      (m.exports as Record<string, Record<string, string>>)["."].svelte =
+        "./dist/missing.js";
+    }),
+  );
+  assert.match(missing?.join("\n") ?? "", /^Errors: 1\. .*missing\.js/m);
+  const repository = publintProblems(
+    ROOT,
+    withManifest((m) => {
+      m.repository = "not a url";
+    }),
+  );
+  assert.match(repository?.join("\n") ?? "", /^Warnings: 1\. pkg\.repository/m);
+});
+test("PKG-02: a tarball with no package is could not check, not a pass", () => {
+  assert.equal(
+    publintProblems(
+      ROOT,
+      planted(new Map([["x.txt", Buffer.from("x")]]), tmp, "none"),
+    ),
+    undefined,
+  );
+});
+test("attw: nothing on the good package, a problem for a types file the tarball lacks", () => {
+  assert.deepEqual(
+    attwProblems(
+      ROOT,
+      withManifest(() => {}),
+    ),
+    [],
+  );
+  const bad = attwProblems(
+    ROOT,
+    withManifest((m) => {
+      (m.exports as Record<string, Record<string, string>>)["."].types =
+        "./dist/missing.d.ts";
+    }),
+  );
+  assert.ok(bad && bad.length > 0);
+  assert.equal(
+    attwProblems(
+      ROOT,
+      planted(new Map([["x.txt", Buffer.from("x")]]), tmp, "none2"),
+    ),
+    undefined,
+  );
+});
 test("the verdict: pass, finding, and could not check for an unreadable manifest or no file to read", () => {
   assert.equal(verdict(GOOD, REPO).code, PASS);
   const bad = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));

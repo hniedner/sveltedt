@@ -10,11 +10,12 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { childEnv, result } from "./gate-step.ts";
+import { childEnv, COLOUR, result } from "./gate-step.ts";
 import type { Result } from "./gate-step.ts";
 import { binaryOf, CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
 
@@ -316,7 +317,10 @@ const run = (cmd: string, args: string[], cwd: string) =>
   spawnSync(cmd, args, { cwd, encoding: "utf8", env: childEnv() });
 
 /** Build with svelte-package, pack with pnpm, unpack: the tarball's contents, or the reason none could be read. */
-function packed(root: string, dir: string): Contents | string {
+function packed(
+  root: string,
+  dir: string,
+): { contents: Contents; tgz: string } | string {
   const build = run(
     join(root, "node_modules", ".bin", "svelte-package"),
     ["-i", "src/lib", "-o", "dist"],
@@ -332,13 +336,132 @@ function packed(root: string, dir: string): Contents | string {
   if (run("tar", ["-xzf", join(dir, tgz), "-C", out], dir).status !== 0)
     return "the tarball could not be unpacked";
   const files: Contents = new Map();
-  for (const f of readdirSync(join(out, "package"), { recursive: true }))
+  for (const f of readdirSync(join(out, "package"), {
+    recursive: true,
+    encoding: "utf8",
+  }))
     try {
       files.set(f, readFileSync(join(out, "package", f)));
     } catch {
       // a directory entry
     }
-  return files;
+  return { contents: files, tgz: join(dir, tgz) };
+}
+
+/** A tarball of `c` laid out as npm packs it (everything under package/), for the tools to read. */
+export function planted(c: Contents, dir: string, name: string): string {
+  const base = join(dir, name);
+  for (const [path, bytes] of c) {
+    mkdirSync(dirname(join(base, "package", path)), { recursive: true });
+    writeFileSync(join(base, "package", path), bytes);
+  }
+  const tgz = `${base}.tgz`;
+  const r = spawnSync("tar", ["-czf", tgz, "-C", base, "package"], {
+    env: { ...childEnv(), COPYFILE_DISABLE: "1" }, // macOS tar would add ._ files that publint reads as a package
+  });
+  if (r.status !== 0) throw new Error(`tar could not write ${tgz}`);
+  return tgz;
+}
+
+const LEVEL = /^(Errors|Warnings|Suggestions):$/;
+/** publint's errors and warnings on a tarball as "Level: line"; undefined when it did not report on a package. */
+export function publintProblems(
+  root: string,
+  tgz: string,
+): string[] | undefined {
+  const r = run(
+    join(root, "node_modules", ".bin", "publint"),
+    ["run", tgz],
+    root,
+  );
+  const lines = r.stdout.split("\n").map((l) => l.trim());
+  if (!lines.includes("All good!") && !lines.some((l) => LEVEL.test(l)))
+    return undefined;
+  let level = "";
+  const problems: string[] = [];
+  for (const l of lines) {
+    const header = LEVEL.exec(l);
+    if (header) level = header[1];
+    else if (/^\d+\. /.test(l) && level !== "Suggestions")
+      problems.push(`${level}: ${l}`);
+  }
+  return problems;
+}
+
+/**
+ * "Are the types wrong?" on a tarball: its problem lines, [] when it reports none, undefined when it printed no
+ * resolution table. The profile and the two exclusions each have their reason:
+ * - esm-only: the package is ESM only, so a CommonJS consumer's resolution is not a defect;
+ * - ./styles.css is excluded: a CSS file is not a module, attw cannot resolve it;
+ * - internal-resolution-error is ignored: under node16 the `./X.svelte` re-exports of svelte-package's output do not
+ *   resolve, while Svelte consumers resolve with `bundler` (green); CON-04 proves the types for a real consumer.
+ */
+export function attwProblems(root: string, tgz: string): string[] | undefined {
+  const r = run(
+    join(root, "node_modules", ".bin", "attw"),
+    [
+      tgz,
+      "--profile",
+      "esm-only",
+      "--exclude-entrypoints",
+      "./styles.css",
+      "--ignore-rules",
+      "internal-resolution-error",
+    ],
+    root,
+  );
+  const lines = r.stdout
+    .replace(COLOUR, "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^[┌├└│]/.test(l));
+  if (!r.stdout.includes("bundler") || ![0, 1].includes(r.status ?? -1))
+    return undefined;
+  return r.status === 0 ? [] : lines;
+}
+
+/** The manifest of `c` changed by `change`, as the contents of a new tarball. */
+function changed(
+  c: Contents,
+  change: (m: { exports: Record<string, Record<string, unknown>> }) => void,
+): Contents {
+  const m = manifest(c) as { exports: Record<string, Record<string, unknown>> };
+  change(m);
+  return put(c, "package.json", JSON.stringify(m));
+}
+
+/** The tool rows: a planted tarball each, which the tool must report (PKG-02 rows and the attw canary). */
+function toolRows(root: string, c: Contents, dir: string): string[] {
+  const rows: [
+    string,
+    (tgz: string) => string[] | undefined,
+    Contents,
+    RegExp,
+  ][] = [
+    [
+      "publint: the svelte condition at ./dist/missing.js",
+      (t) => publintProblems(root, t),
+      changed(c, (m) => (m.exports["."].svelte = "./dist/missing.js")),
+      /^Errors: .*missing\.js/,
+    ],
+    [
+      "publint: a repository value that is a warning",
+      (t) => publintProblems(root, t),
+      changed(c, (m) => Object.assign(m, { repository: "not a url" })),
+      /^Warnings: .*pkg\.repository/,
+    ],
+    [
+      "attw: the types condition at a file the tarball does not hold",
+      (t) => attwProblems(root, t),
+      changed(c, (m) => (m.exports["."].types = "./dist/missing.d.ts")),
+      /./,
+    ],
+  ];
+  return rows.flatMap(([row, tool, planted_, want], i) =>
+    tool(planted(planted_, dir, `row${i}`))?.some((l) => want.test(l))
+      ? []
+      : [`${row}: not found`],
+  );
 }
 
 /** The verdict on one tarball's contents: canaries first, then the statements. */
@@ -374,10 +497,29 @@ export function check(root: string): Result {
   };
   const dir = mkdtempSync(join(tmpdir(), "package-"));
   try {
-    const contents = packed(root, dir);
-    return typeof contents === "string"
-      ? result(CANNOT, contents)
-      : verdict(contents, repo);
+    const made = packed(root, dir);
+    if (typeof made === "string") return result(CANNOT, made);
+    const v = verdict(made.contents, repo);
+    if (v.code !== PASS) return v;
+    const missed = toolRows(root, made.contents, dir);
+    if (missed.length)
+      return result(
+        CANNOT,
+        "a canary row did not give its stated result",
+        missed,
+      );
+    const tools = [
+      ["publint", publintProblems(root, made.tgz)],
+      ["attw", attwProblems(root, made.tgz)],
+    ] as const;
+    const silent = tools.find(([, got]) => got === undefined);
+    if (silent) return result(CANNOT, `${silent[0]} reported on no package`);
+    const found = tools.flatMap(([name, got]) =>
+      (got ?? []).map((l) => `${name} ${l}`),
+    );
+    return found.length
+      ? result(FINDING, `${found.length} finding(s)`, found)
+      : result(PASS, `${v.summary}; publint and attw report nothing`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
