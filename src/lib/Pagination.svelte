@@ -39,7 +39,7 @@
 {#if fault !== null}
   <div role="alert">{words[fault]}</div>
 {:else}
-  <nav aria-label={props.label}>
+  <nav class="sdt-pager" aria-label={props.label}>
     {#if sizes.length > 0}
       <label
         >{words.sizeLabel}
