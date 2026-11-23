@@ -27,7 +27,7 @@
     "could not check", which blocks like a finding (PRD rule 4.0).
 - **The workflows** are the files under `.github/workflows/`; the actions of this repository are those under
   `.github/actions/`.
-- **Jobs, by workflow file and job id.** `ci.yml`: `static`, `gate`. `dependency-review.yml`: `dependency-review`.
+- **Jobs, by workflow file and job id.** `ci.yml`: `static`, `selftest`, `browser`, `mutation`, `gate`. `dependency-review.yml`: `dependency-review`.
   `scorecard.yml`: `analysis` (**the scorecard job**). `release.yml` (written with part 1b): `tag` (**the tag job**:
   creates the version tag and the GitHub release), `publish` (**the publish job**: runs `npm publish`), `deploy`
   (**the deploy job**: deploys the public site to GitHub Pages).

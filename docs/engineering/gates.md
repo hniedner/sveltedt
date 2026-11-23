@@ -285,6 +285,12 @@ $0 budget, no self-hosted runners.
     `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
     (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
     `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
+  - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
+    (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
+    `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
+    its matrix and that the matrix holds exactly the table's shards, and the step itself that every tracked test file is
+    in exactly one shard, so a new file cannot run nowhere. Measured 2026-11-23: in one job the step took 591 s of the
+    `static` job's 11 min 11 s.
   - `red-check` (G7) in the `static` job, on each commit of the pull request.
   - `mutation` (G8) on the pull request's changed lines, Linux only, in its own job `mutation`. The `static` job leaves
     the step to it through `GATE_MUTATION`, under the same rule as `GATE_BROWSER` (gate-needs checks both).

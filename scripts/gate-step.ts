@@ -35,7 +35,7 @@ export const errorCode = (
 ): string | undefined => e?.code;
 
 /**
- * The variables that change a step's context (`inCI()`, `canaries()`, the range, the browser step's CI hand-off). `childEnv()` strips them, so a child
+ * The variables that change a step's context (`inCI()`, `canaries()`, the range, the CI hand-offs of the browser, mutation and selftest steps). `childEnv()` strips them, so a child
  * started with `env: childEnv()` never sees them; a spawn that passes no `env` inherits them.
  */
 export const GATE_VARS: readonly string[] = [
@@ -45,6 +45,8 @@ export const GATE_VARS: readonly string[] = [
   "GATE_EVENT",
   "GATE_HEAD",
   "GATE_MUTATION",
+  "GATE_SELFTEST",
+  "GATE_SHARD",
   "GITHUB_ACTIONS",
 ];
 
