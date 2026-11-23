@@ -81,10 +81,10 @@ test("files: an Apache-2.0 LICENSE is a finding that names the MIT text", () => 
     /LICENSE: not the MIT text/,
   );
 });
-test("files: a NOTICE without the copyright line is a finding", () => {
+test("files: a NOTICE without the vincjo/datatables notice is a finding", () => {
   expect(
     "files",
-    repo(edit("NOTICE", "Copyright 2026 R. Hannes Niedner", "Copyright")),
+    repo(edit("NOTICE", "vincjo/datatables", "another/library")),
     1,
   );
 });
