@@ -2,15 +2,19 @@
 // synthetic good package; the build and pack are run once through the script on the real repository.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { HERE } from "./gate-step.ts";
 import { CANNOT } from "./pinned.ts";
 import { analyse, CANARIES, check, missedCanaries } from "./check-package.ts";
-import type { Contents } from "./check-package.ts";
+import type { Contents, Repo } from "./check-package.ts";
 
+const REPO: Repo = {
+  license: Buffer.from("MIT License\n"),
+  notice: Buffer.from("Notices\n"),
+};
 const MANIFEST = {
   name: "@hniedner/sveltedt",
   exports: {
@@ -25,8 +29,8 @@ const GOOD: Contents = new Map(
   Object.entries({
     "package.json": JSON.stringify(MANIFEST),
     "README.md": "readme",
-    LICENSE: "MIT License\n",
-    NOTICE: "Notices\n",
+    LICENSE: REPO.license.toString(),
+    NOTICE: REPO.notice.toString(),
     "dist/index.js": 'export { default as A } from "./A.svelte";\n',
     "dist/index.d.ts": "export {};\n",
     "dist/A.svelte": "<div></div>\n",
@@ -35,13 +39,13 @@ const GOOD: Contents = new Map(
   }).map(([k, v]) => [k, Buffer.from(v)]),
 );
 const found = (c: Contents, id: string): string[] =>
-  analyse(c)
+  analyse(c, REPO)
     .filter((f) => f.id === id)
     .map((f) => f.message);
 
 test("the synthetic good package gives no finding, and every canary row gives its stated result", () => {
-  assert.deepEqual(analyse(GOOD), []);
-  assert.deepEqual(missedCanaries(GOOD), []);
+  assert.deepEqual(analyse(GOOD, REPO), []);
+  assert.deepEqual(missedCanaries(GOOD, REPO), []);
 });
 for (const k of CANARIES)
   test(`${k.id} row: ${k.row} is ${k.found ? "a finding" : "not a finding"}`, () => {
@@ -61,6 +65,14 @@ test("PKG-01: the finding names the condition and the path", () => {
     "svelte is ./src/a.ts, not under ./dist/",
   ]);
 });
+test("PKG-04: the finding names the file and how it differs", () => {
+  const c = new Map(GOOD).set("NOTICE", Buffer.from("x"));
+  c.delete("LICENSE");
+  assert.deepEqual(found(c, "PKG-04"), [
+    "LICENSE is not in the tarball",
+    "NOTICE differs from the repository's",
+  ]);
+});
 test("PKG-03: the finding names the file and what is wrong with it", () => {
   const c = new Map(GOOD).set("dist/a.test.js", Buffer.from("x"));
   assert.deepEqual(found(c, "PKG-03"), ["dist/a.test.js: a test file"]);
@@ -77,6 +89,7 @@ test("the script builds, packs and reads the real package, and passes", () => {
 });
 test("a root that cannot build is could not check, exit 3", () => {
   const root = mkdtempSync(join(tmpdir(), "package-test-"));
+  for (const f of ["LICENSE", "NOTICE"]) writeFileSync(join(root, f), "x");
   const r = check(root);
   assert.equal(r.code, CANNOT);
   assert.match(r.summary, /svelte-package exited/);

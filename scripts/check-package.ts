@@ -24,6 +24,11 @@ export interface Finding {
 }
 /** The tarball's files by their path inside the package ("package.json", "dist/index.js"). */
 export type Contents = Map<string, Buffer>;
+/** The repository's own LICENSE and NOTICE bytes, which the tarball's must equal (PKG-04). */
+export interface Repo {
+  license: Buffer;
+  notice: Buffer;
+}
 /** One row of a statement's example table: a change planted in a copy of the tarball's contents, and whether the
  *  statement must find it. A `found: false` row is a change that must still pass. */
 export interface Canary {
@@ -33,6 +38,11 @@ export interface Canary {
   found: boolean;
 }
 
+const drop = (c: Contents, path: string): Contents => {
+  const copy = new Map(c);
+  copy.delete(path);
+  return copy;
+};
 const put = (c: Contents, path: string, text: string): Contents =>
   new Map(c).set(path, Buffer.from(text));
 
@@ -96,9 +106,27 @@ function root(c: Contents): Finding[] {
   });
 }
 
+/** PKG-04: LICENSE and NOTICE are in the tarball with the repository's bytes. */
+function notices(c: Contents, repo: Repo): Finding[] {
+  return (
+    [
+      ["LICENSE", repo.license],
+      ["NOTICE", repo.notice],
+    ] as const
+  ).flatMap(([name, bytes]) => {
+    const got = c.get(name);
+    const message = !got
+      ? `${name} is not in the tarball`
+      : got.equals(bytes)
+        ? ""
+        : `${name} differs from the repository's`;
+    return message ? [{ id: "PKG-04", message }] : [];
+  });
+}
+
 /** Every statement over one tarball's contents, in the spec's order. */
-export function analyse(c: Contents): Finding[] {
-  return [...root(c), ...shape(c)];
+export function analyse(c: Contents, repo: Repo): Finding[] {
+  return [...root(c), ...shape(c), ...notices(c, repo)];
 }
 
 /** The packed manifest with `exports["."]` replaced, or removed when `value` is undefined. */
@@ -148,6 +176,24 @@ export const CANARIES: Canary[] = [
     found: true,
   })),
   {
+    id: "PKG-04",
+    row: "without NOTICE",
+    plant: (c) => drop(c, "NOTICE"),
+    found: true,
+  },
+  {
+    id: "PKG-04",
+    row: "without LICENSE",
+    plant: (c) => drop(c, "LICENSE"),
+    found: true,
+  },
+  {
+    id: "PKG-04",
+    row: "a NOTICE that differs from the repository's",
+    plant: (c) => put(c, "NOTICE", "another notice"),
+    found: true,
+  },
+  {
     id: "PKG-03",
     row: "dist/index.js, dist/DataTable.svelte, dist/DataTable.svelte.d.ts, dist/styles.css",
     plant: (c) =>
@@ -165,12 +211,12 @@ export const CANARIES: Canary[] = [
 ];
 
 /** The canary rows whose stated result the statements did not give, each as a line; none is a working check. */
-export function missedCanaries(base: Contents): string[] {
-  const missed = analyse(base).map(
+export function missedCanaries(base: Contents, repo: Repo): string[] {
+  const missed = analyse(base, repo).map(
     (f) => `the real contents gave ${f.id} ${f.message}`,
   );
   for (const k of CANARIES) {
-    const got = analyse(k.plant(base)).filter((f) => f.id === k.id);
+    const got = analyse(k.plant(base), repo).filter((f) => f.id === k.id);
     if (got.length > 0 !== k.found)
       missed.push(`${k.id} row "${k.row}": ${k.found ? "not found" : "found"}`);
   }
@@ -207,20 +253,24 @@ function packed(root: string, dir: string): Contents | string {
 }
 
 export function check(root: string): Result {
+  const repo = {
+    license: readFileSync(join(root, "LICENSE")),
+    notice: readFileSync(join(root, "NOTICE")),
+  };
   const dir = mkdtempSync(join(tmpdir(), "package-"));
   try {
     const contents = packed(root, dir);
     if (typeof contents === "string") return result(CANNOT, contents);
     if (!manifest(contents))
       return result(CANNOT, "the packed package.json cannot be read");
-    const missed = missedCanaries(contents);
+    const missed = missedCanaries(contents, repo);
     if (missed.length)
       return result(
         CANNOT,
         "a canary row did not give its stated result",
         missed,
       );
-    const findings = analyse(contents);
+    const findings = analyse(contents, repo);
     if (findings.length)
       return result(
         FINDING,
