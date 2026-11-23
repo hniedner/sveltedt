@@ -120,7 +120,7 @@ target of the `./styles.css` export (PKG-05).
 - Reason: what is not listed is either noise a consumer downloads or something that should never leave the
   repository; the build of the component files from `src/lib` also copies test files beside them unless they are
   kept out, so the list is checked on the tarball, not on the configuration. `LICENSE` and `NOTICE` travel with the
-  code, as the Apache-2.0 licence asks; that they are there is PKG-04.
+  code, as the MIT licences of the adapted code ask; that they are there is PKG-04.
 - Layer: pack.
 - Traces: PRD-K2.
 
@@ -136,8 +136,8 @@ target of the `./styles.css` export (PKG-05).
 
   Break that turns it red: the manifest's `files` field lists `dist` only, so the package manager adds `LICENSE` by
   itself but not `NOTICE`.
-- Reason: Apache-2.0 asks that a redistribution carry the licence and the `NOTICE` file; the package manager packs
-  `LICENSE` without being asked but never `NOTICE`.
+- Reason: the MIT licences of the adapted code ask that their notice is kept with every copy, and the `NOTICE` file
+  holds it; the package manager packs `LICENSE` without being asked but never `NOTICE`.
 - Layer: pack.
 - Traces: PRD-L1, PRD-K2.
 

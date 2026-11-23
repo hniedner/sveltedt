@@ -121,7 +121,7 @@ export const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
   type: "module", // as the repository's
-  license: "Apache-2.0",
+  license: "MIT",
   packageManager: "pnpm@12.19.0",
   prettier: { plugins: ["prettier-plugin-svelte"] },
   devDependencies: {
@@ -161,7 +161,7 @@ export function repo(change: (root: string) => void = () => {}): string {
   const files = {
     "README.md": "# Fixture\n\nSee [the method](docs/engineering/method.md).\n",
     LICENSE,
-    NOTICE: "Fixture\nCopyright 2026 R. Hannes Niedner\n",
+    NOTICE: "Fixture\nadapted from vincjo/datatables\n",
     "CONTRIBUTING.md": "# Contributing\n",
     "SECURITY.md": "# Security\n",
     ".gitignore": "/tmp/\n/node_modules\n/reports/\n/coverage/\n",

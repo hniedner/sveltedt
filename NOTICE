@@ -1,7 +1,7 @@
-SvelteDT
-Copyright 2026 R. Hannes Niedner
+SvelteDT is MIT licensed (see LICENSE). This file holds the notices of third-party code that the MIT licences
+of that code ask to keep with every copy.
 
-This product includes code adapted from vincjo/datatables (src/lib/src/server/AbstractTableHandler.svelte.ts,
+This package includes code adapted from vincjo/datatables (src/lib/src/server/AbstractTableHandler.svelte.ts,
 commit fe6f7bb1, createPagesWithEllipsis), used in pageNumbers in src/lib/pager.ts, under the MIT License:
 
 MIT License

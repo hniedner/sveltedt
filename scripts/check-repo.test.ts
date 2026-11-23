@@ -61,15 +61,30 @@ test("files: a LICENSE that differs by one byte is a finding", () => {
   expect(
     "files",
     repo((root) =>
-      put(root, "LICENSE", LICENSE.toString().replace("Apache", "Apachf")),
+      put(
+        root,
+        "LICENSE",
+        LICENSE.toString().replace("Permission", "Permissioo"),
+      ),
     ),
     1,
   );
 });
-test("files: a NOTICE without the copyright line is a finding", () => {
+test("files: an Apache-2.0 LICENSE is a finding that names the MIT text", () => {
+  const apache = "Apache License\n Version 2.0, January 2004\n";
+  assert.match(
+    expect(
+      "files",
+      repo((root) => put(root, "LICENSE", apache)),
+      1,
+    ),
+    /LICENSE: not the MIT text/,
+  );
+});
+test("files: a NOTICE without the vincjo/datatables notice is a finding", () => {
   expect(
     "files",
-    repo(edit("NOTICE", "Copyright 2026 R. Hannes Niedner", "Copyright")),
+    repo(edit("NOTICE", "vincjo/datatables", "another/library")),
     1,
   );
 });

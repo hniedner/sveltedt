@@ -65,8 +65,8 @@ const WORD: Record<number, string> = {
   [NA]: "NOT APPLICABLE",
 };
 const LICENSE_SHA256 =
-  "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"; // apache.org LICENSE-2.0.txt
-const COPYRIGHT = "Copyright 2026 R. Hannes Niedner";
+  "fad8ffc0a6640606321397fb81db18cccd038dad7ecb4bb0ad33b941e544cf86"; // the MIT text, "Copyright (c) 2026 R. Hannes Niedner"
+const NOTICED = "vincjo/datatables"; // the adapted code that ships asks for its notice
 const REQUIRED = [
   "README.md",
   "LICENSE",
@@ -142,9 +142,9 @@ function files(root: string, list: Set<string>): Result {
     createHash("sha256").update(read("LICENSE")).digest("hex") !==
     LICENSE_SHA256
   )
-    details.push("LICENSE: not the Apache-2.0 text");
-  if (!read("NOTICE").includes(COPYRIGHT))
-    details.push(`NOTICE: no line "${COPYRIGHT}"`);
+    details.push("LICENSE: not the MIT text with the copyright line");
+  if (!read("NOTICE").includes(NOTICED))
+    details.push(`NOTICE: no notice of ${NOTICED}`);
   // Run output stays out of commits: /reports/ (the steps' reports, coverage included), /coverage/ (a hand run)
   for (const line of ["/tmp/", "/reports/", "/coverage/"])
     if (!read(".gitignore").split("\n").includes(line))

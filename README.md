@@ -92,4 +92,4 @@ vulnerability privately as [SECURITY.md](SECURITY.md) says.
 
 ## Licence
 
-Apache-2.0: see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT: see [LICENSE](LICENSE); third-party notices are in [NOTICE](NOTICE).
