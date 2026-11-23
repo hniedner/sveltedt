@@ -696,4 +696,4 @@ export function check(root: string): Result {
   );
 }
 
-scriptMain("check-stylesheet", import.meta.url, check);
+await scriptMain("check-stylesheet", import.meta.url, check);

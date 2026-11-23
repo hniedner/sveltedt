@@ -15,7 +15,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { childEnv, COLOUR, result, scriptMain } from "./gate-step.ts";
+import {
+  childEnv,
+  COLOUR,
+  missedRows,
+  result,
+  scriptMain,
+} from "./gate-step.ts";
+import type { Row } from "./gate-step.ts";
 import type { Result } from "./gate-step.ts";
 import { binaryOf, CANNOT, FINDING, PASS } from "./pinned.ts";
 
@@ -30,14 +37,7 @@ export interface Repo {
   license: Buffer;
   notice: Buffer;
 }
-/** One row of a statement's example table: a change planted in a copy of the tarball's contents, and whether the
- *  statement must find it. A `found: false` row is a change that must still pass. */
-export interface Canary {
-  id: string;
-  row: string;
-  plant: (c: Contents) => Contents;
-  found: boolean;
-}
+export type Canary = Row<Contents>;
 
 const drop = (c: Contents, path: string): Contents => {
   const copy = new Map(c);
@@ -294,34 +294,17 @@ export const CANARIES: Canary[] = [
   },
 ];
 
-/**
- * The canary rows whose stated result the statements did not give, each as a line; none is a working check. A row is
- * judged by the findings its planting adds to those the base already has, so a finding in the real tarball is a
- * finding, not a failed canary.
- */
-export function missedCanaries(
+export const missedCanaries = (
   base: Contents,
   repo: Repo,
   rows: Canary[] = CANARIES,
-): string[] {
-  const text = (f: Finding): string => `${f.id} ${f.message}`;
-  const before = new Set(analyse(base, repo).map(text));
-  const missed: string[] = [];
-  for (const k of rows) {
-    const added = analyse(k.plant(base), repo).filter(
-      (f) => f.id === k.id && !before.has(text(f)),
-    );
-    if (added.length > 0 !== k.found)
-      missed.push(`${k.id} row "${k.row}": ${k.found ? "not found" : "found"}`);
-  }
-  return missed;
-}
+): string[] => missedRows(base, rows, (c) => analyse(c, repo));
 
-const run = (cmd: string, args: string[], cwd: string) =>
+export const run = (cmd: string, args: string[], cwd: string) =>
   spawnSync(cmd, args, { cwd, encoding: "utf8", env: childEnv() });
 
 /** Build with svelte-package, pack with pnpm, unpack: the tarball's contents, or the reason none could be read. */
-function packed(
+export function packed(
   root: string,
   dir: string,
 ): { contents: Contents; tgz: string } | string {
@@ -535,4 +518,4 @@ export function check(root: string): Result {
   }
 }
 
-scriptMain("check-package", import.meta.url, check);
+await scriptMain("check-package", import.meta.url, check);
