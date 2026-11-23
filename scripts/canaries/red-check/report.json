@@ -1,0 +1,17 @@
+{
+  "testResults": [
+    {
+      "name": "/canary/src/a.test.ts",
+      "status": "failed",
+      "message": "Failed to resolve import \"./gone.ts\" from \"src/a.test.ts\". Does the file exist?",
+      "assertionResults": []
+    },
+    {
+      "name": "/canary/src/b.test.ts",
+      "status": "passed",
+      "assertionResults": [
+        { "fullName": "b passes on the parent", "status": "passed" }
+      ]
+    }
+  ]
+}
