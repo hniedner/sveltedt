@@ -131,8 +131,18 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   cannot be checked if one gives another result; it also cannot be checked with no spec, no guide, no token table or
   0 declarations, selectors or rules read. Limits: a colour keyword used as a custom identifier in a non-colour
   property (`font-family: Tan`) reads as a colour; a `var()` of a width inside a `border` or `outline` shorthand is judged as a
-  colour (stricter, never open); the tarball halves wait for PRD-K2. With nothing tracked under
-  `src/lib` it is NOT APPLICABLE.
+  colour (stricter, never open); the tarball's half of THEME-04 is PKG-03 of the `package` step. With nothing tracked
+  under `src/lib` it is NOT APPLICABLE.
+- **package:** `scripts/check-package.ts` builds `src/lib` with `svelte-package` into `dist/` (not tracked), packs it with
+  `pnpm pack` and reads the tarball, never the repository's `package.json`. PKG-01: the root export has `types` and
+  `svelte` under `./dist/`. PKG-02: publint reports no error and no warning, and attw (profile `esm-only`, without
+  `./styles.css`, `internal-resolution-error` ignored, each with its reason in the code) no problem. PKG-03: only the
+  listed files. PKG-04: `LICENSE` and `NOTICE` equal the repository's. PKG-05: `./styles.css` has `style` and
+  `default` naming one file. PKG-07: no `.svelte` or `.js` file imports a relative `.ts` module. It first runs every
+  canary row, planting a change in a copy of the real contents, and cannot be checked if one gives another result, if
+  the build or the pack fails, or if no `.svelte` or `.js` file is read. Limits: the Svelte peer floor is not run in CI
+  (#159); attw does not cover the node16 resolution of the `.svelte` re-exports (CON-04 proves the types); PKG-06
+  waits for the connection export. With nothing tracked under `src/lib` it is NOT APPLICABLE.
 - **test:** Vitest runs with the one `vitest.config.ts`, at the version `package.json` pins; every tracked test file
   outside `scripts/` (`*.test.ts`, `*.spec.ts`) must be in that run with at least one passing test, no test may
   fail, and vitest itself must exit 0 (an unhandled error is not in the JSON report). With no test file and no `.ts`

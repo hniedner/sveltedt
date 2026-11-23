@@ -1997,6 +1997,14 @@ function scan(root: string, script: string): Result {
   );
 }
 
+// PKG-01 to 05 and 07: check-package.ts builds the package, packs it and reads the tarball. With nothing tracked under
+// src/lib there is nothing to build: not applicable.
+function pack(root: string, list: Set<string>): Result {
+  if (![...list].some((f) => f.startsWith("src/lib/")))
+    return result(NA, "nothing is tracked under src/lib");
+  return scan(root, "check-package.ts");
+}
+
 // THEME-01, 02, 04, 12 and 13: check-stylesheet.ts over the stylesheet and the guide. With nothing tracked under
 // src/lib there is no stylesheet to read yet: not applicable.
 function stylesheet(root: string, list: Set<string>): Result {
@@ -2997,6 +3005,7 @@ const CHECKS: Record<
   site,
   inline,
   stylesheet,
+  package: pack,
   test,
   trace,
   "diff-coverage": diffCoverage,
