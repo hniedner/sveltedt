@@ -1656,6 +1656,7 @@ differs between ascending and descending.
   | `[code asc, name desc]` and `[code asc, name asc]` | Name | different (the rank "2" left out) |
 
   A difference only in a class or a style (a rotation, say) does not count: it does not show in a simulated DOM.
+  The mark is the text ▲ for ascending and ▼ for descending, the widespread convention: the test reads both.
 
 - Reason: sighted users read the direction at a glance; assistive technology gets it from `aria-sort` and the
   description (SORT-06), so the mark is hidden. Its contrast and forced-colours visibility are later statements.
