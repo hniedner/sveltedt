@@ -49,7 +49,7 @@
 - **Date:** 2026-11-17.
 - **Priority (owner, binding):** quality over speed: architecture and engineering quality, accessibility,
   correctness, a clean public interface, documentation. Effort is reported, never a reason to cut scope.
-- **Settled (owner):** licence Apache-2.0, "Copyright 2026 R. Hannes Niedner"; npm package `@hniedner/sveltedt` (npm
+- **Settled (owner):** licence MIT, "Copyright (c) 2026 R. Hannes Niedner"; npm package `@hniedner/sveltedt` (npm
   refuses the bare name `sveltedt` as too similar to `svelte`, MEASURED 2026-11-17; the bare name is the one the owner
   wants and asks npm support for later; if granted, it is published and the scoped package deprecated with a pointer;
   repo and brand are unchanged);
@@ -1438,8 +1438,8 @@ outcome is measured before it is written.
 
 #### PRD-L1
 
-Apache-2.0: `LICENSE` with the full text, `NOTICE` with "Copyright 2026 R. Hannes Niedner", `"license": "Apache-2.0"` in
-`package.json`.
+MIT: `LICENSE` with the full text and the line "Copyright (c) 2026 R. Hannes Niedner", `"license": "MIT"` in
+`package.json`, and `NOTICE` with the notices of the third-party code that ships.
 
 - **Reason:** Settled by the owner.
 - **Priority:** must
