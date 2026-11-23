@@ -25,6 +25,14 @@ const UNMET = [
   "    ^6.0.0:",
   "      @hniedner/sveltedt@0.0.0",
 ].join("\n");
+const NUMBERS =
+  "07 03 15 01 20 11 05 18 09 13 02 17 06 14 10 19 04 12 16 08".split(" ");
+const page = (n = NUMBERS, extra = ""): string =>
+  `<!doctype html><html><body>${extra}<table><caption>Orders</caption><tbody>${n
+    .map((x) => `<tr><td>Order ${x}</td></tr>`)
+    .join("")}</tbody></table></body></html>`;
+const policy = (nonce: string): string =>
+  `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self'; style-src-attr 'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=' 'report-sample'`;
 const COPY = "/tmp/copy";
 const FILES = new Map([
   ["package.json", Buffer.from('{"name":"@hniedner/sveltedt"}')],
@@ -46,6 +54,15 @@ const GOOD: State = {
     tarball: FILES,
     lock: "'@hniedner/sveltedt@file:../x/hniedner-sveltedt-0.0.0.tgz':\n",
     tarballName: "hniedner-sveltedt-0.0.0.tgz",
+  },
+  http: {
+    home: { status: 200, csp: policy("N1"), html: page() },
+    again: { status: 200, csp: policy("N2"), html: page() },
+    missing: {
+      status: 404,
+      csp: policy("N3"),
+      html: "<!doctype html><p>Not found</p>",
+    },
   },
   peers: {
     real: { status: 0, text: OK },
@@ -147,6 +164,26 @@ test("CON-11: the peer report is read, and none when pnpm gave no report", () =>
     undefined,
   );
   assert.equal(parsePeerReport({ status: null, stdout: "" }), undefined);
+});
+test("CON-02: the finding names what the table lacks", () => {
+  const home = (html: string): State => ({
+    ...GOOD,
+    http: { ...GOOD.http, home: { ...GOOD.http.home, html } },
+  });
+  assert.deepEqual(found(home(page(NUMBERS.slice(0, 19))), "CON-02"), [
+    "the list page holds 19 body rows, not 20",
+    'row 20 starts with "", not "Order 08"',
+  ]);
+  assert.deepEqual(
+    found(home(page(NUMBERS.slice().reverse())), "CON-02")[0],
+    'row 1 starts with "Order 08", not "Order 07"',
+  );
+  assert.deepEqual(found(home("<p>no table</p>"), "CON-02"), [
+    "the list page holds 0 tables, not 1",
+  ]);
+  assert.deepEqual(found(home(page().replace("Orders<", "Other<")), "CON-02"), [
+    'the table\'s caption reads "Other", not "Orders"',
+  ]);
 });
 test("the verdict: pass on the good state, finding on a real defect even when a canary misses", () => {
   assert.equal(verdict(GOOD).code, PASS);

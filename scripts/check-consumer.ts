@@ -2,7 +2,7 @@
 // installed into.
 //   node scripts/check-consumer.ts [--root <dir>]
 // Exit codes (docs/engineering/gates.md, G1): 0 pass, 1 finding, 2 usage or crash, 3 could not check.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   mkdirSync,
@@ -14,8 +14,11 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { parse } from "parse5";
+import type { DefaultTreeAdapterTypes as Tree } from "parse5";
 import {
   childEnv,
   COLOUR,
@@ -58,10 +61,18 @@ export interface PeerReport {
   status: number;
   text: string;
 }
+/** One answer of the consumer's production server: its status, its policy header and its HTML. */
+export interface Page {
+  status: number;
+  csp: string;
+  html: string;
+}
 export interface State {
   before: Committed;
   after: Committed;
   copy: Copy;
+  /** `GET /`, `GET /` again, and `GET /no-such-page` on the production server. */
+  http: { home: Page; again: Page; missing: Page };
   /** `real`: the consumer; `planted`: the same copy with a page that passes `rows={42}` (CON-09's second row). */
   types: { real: TypeReport; planted: TypeReport };
   /** `real`: the consumer with the real tarball; `planted`: with a tarball whose peer range is `^6.0.0` (CON-11's second row). */
@@ -116,6 +127,63 @@ function install(s: State): Finding[] {
 const types = (s: State): Finding[] =>
   s.types.real.errors.map((message) => ({ id: "CON-09", message }));
 
+const nodes = (n: Tree.Node): Tree.Node[] => [
+  n,
+  ...("childNodes" in n ? n.childNodes.flatMap(nodes) : []),
+];
+const elements = (html: string, tag: string): Tree.Element[] =>
+  nodes(parse(html)).filter(
+    (n): n is Tree.Element => "tagName" in n && n.tagName === tag,
+  );
+const textOf = (n: Tree.Node): string =>
+  nodes(n)
+    .filter((x): x is Tree.TextNode => x.nodeName === "#text")
+    .map((x) => x.value)
+    .join("")
+    .trim();
+/** The first cell of each body row, as text. */
+const firstCells = (html: string): string[] =>
+  nodes(parse(html))
+    .filter(
+      (n): n is Tree.Element =>
+        "tagName" in n &&
+        n.tagName === "tr" &&
+        (n.parentNode as Tree.Element).tagName === "tbody",
+    )
+    .map((row) => {
+      const cell = row.childNodes.find(
+        (c) => "tagName" in c && c.tagName === "td",
+      );
+      return cell ? textOf(cell) : "";
+    });
+const ORDERS = "07 03 15 01 20 11 05 18 09 13 02 17 06 14 10 19 04 12 16 08"
+  .split(" ")
+  .map((n) => `Order ${n}`);
+
+/** CON-02: the list page holds one table named "Orders" with the 20 rows of the fixed list, in its order. */
+function listPage(s: State): Finding[] {
+  const html = s.http.home.html;
+  const tables = elements(html, "table");
+  const found: string[] = [];
+  if (tables.length !== 1)
+    found.push(`the list page holds ${tables.length} tables, not 1`);
+  else {
+    const caption = elements(html, "caption").map(textOf)[0];
+    if (caption !== "Orders")
+      found.push(`the table's caption reads "${caption}", not "Orders"`);
+    const cells = firstCells(html);
+    if (cells.length !== 20)
+      found.push(`the list page holds ${cells.length} body rows, not 20`);
+    ORDERS.forEach((want, i) => {
+      if (cells[i] !== want)
+        found.push(
+          `row ${i + 1} starts with "${cells[i] ?? ""}", not "${want}"`,
+        );
+    });
+  }
+  return found.map((message) => ({ id: "CON-02", message }));
+}
+
 /** CON-11: no issue of `pnpm peers check` names the package; an issue that names only others is not this statement's. */
 function peers(s: State): Finding[] {
   const { status, text } = s.peers.real;
@@ -131,7 +199,7 @@ function peers(s: State): Finding[] {
 
 /** Every statement over one state, in the spec's order. */
 export function analyse(s: State): Finding[] {
-  return [...install(s), ...types(s), ...peers(s)];
+  return [...install(s), ...listPage(s), ...types(s), ...peers(s)];
 }
 
 export const CANARIES: Canary[] = [
@@ -167,6 +235,23 @@ export const CANARIES: Canary[] = [
     }),
     found: true,
   },
+  ...(
+    [
+      ["no table (the render threw)", "<p>Internal Error</p>"],
+      [
+        "a table with a different caption",
+        "<table><caption>x</caption></table>",
+      ],
+    ] as const
+  ).map(([row, html]): Canary => ({
+    id: "CON-02",
+    row,
+    plant: (s) => ({
+      ...s,
+      http: { ...s.http, home: { ...s.http.home, html } },
+    }),
+    found: true,
+  })),
   {
     id: "CON-09",
     row: "a page that passes rows={42} to DataTable gives an error",
@@ -272,8 +357,60 @@ function typeCheck(copy: string): TypeReport | undefined {
   return parseTypeReport(r.stdout);
 }
 
+/** A free port on the loopback address. */
+const freePort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer().once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+const answer = async (url: string): Promise<Page> => {
+  const r = await fetch(url, { redirect: "manual" });
+  return {
+    status: r.status,
+    csp: r.headers.get("content-security-policy") ?? "",
+    html: await r.text(),
+  };
+};
+
+/** The consumer's production server on a free port, asked for the three pages; the server is stopped afterwards. */
+async function serve(copy: string): Promise<State["http"] | string> {
+  const port = await freePort();
+  const server = spawn(process.execPath, ["build"], {
+    cwd: copy,
+    env: { ...childEnv(), HOST: "127.0.0.1", PORT: String(port) },
+    stdio: "ignore",
+  });
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    for (let tries = 0; tries < 60; tries++) {
+      try {
+        return {
+          home: await answer(`${base}/`),
+          again: await answer(`${base}/`),
+          missing: await answer(`${base}/no-such-page`),
+        };
+      } catch {
+        if (server.exitCode !== null) return "the consumer server exited";
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+    return "the consumer server did not answer within 15 s";
+  } finally {
+    server.kill();
+  }
+}
+
 /** The verdict on one state: the statements, then the canary rows that show they can fail. */
 export function verdict(s: State): Result {
+  const { home, missing } = s.http;
+  if (home.status !== 200 || missing.status !== 404)
+    return result(
+      CANNOT,
+      `the consumer server answered ${home.status} and ${missing.status}, not 200 and 404`,
+    );
   if (s.peers.real.status !== 0 && s.peers.planted.status === 0)
     return result(
       CANNOT,
@@ -301,7 +438,7 @@ export function verdict(s: State): Result {
   );
 }
 
-export function check(root: string): Result {
+export async function check(root: string): Promise<Result> {
   const dir = mkdtempSync(join(tmpdir(), "consumer-"));
   try {
     const made = packed(root, dir);
@@ -354,6 +491,8 @@ export function check(root: string): Result {
         CANNOT,
         "svelte-check exited without a report in the consumer copy",
       );
+    const http = await serve(copy);
+    if (typeof http === "string") return result(CANNOT, http);
     // What the real tarball installed, read before CON-11 replaces it with a planted one
     const installedCopy: Copy = {
       dir: realpathSync(copy),
@@ -393,6 +532,7 @@ export function check(root: string): Result {
     return verdict({
       before,
       after: committed(root),
+      http,
       types: { real: typed, planted: typedPlanted },
       peers: { real: peerReal, planted: peerPlanted },
       copy: installedCopy,
