@@ -301,7 +301,12 @@ export const missedCanaries = (
 ): string[] => missedRows(base, rows, (c) => analyse(c, repo));
 
 export const run = (cmd: string, args: string[], cwd: string) =>
-  spawnSync(cmd, args, { cwd, encoding: "utf8", env: childEnv() });
+  spawnSync(cmd, args, {
+    cwd,
+    encoding: "utf8",
+    env: childEnv(),
+    timeout: 300_000, // not forever
+  });
 
 /** Build with svelte-package, pack with pnpm, unpack: the tarball's contents, or the reason none could be read. */
 export function packed(

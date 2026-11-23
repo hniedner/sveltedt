@@ -165,6 +165,8 @@ function listPage(s: State): Finding[] {
   const html = s.http.home.html;
   const tables = elements(html, "table");
   const found: string[] = [];
+  if (s.http.home.status !== 200)
+    found.push(`the list page answered ${s.http.home.status}, not 200`);
   if (tables.length !== 1)
     found.push(`the list page holds ${tables.length} tables, not 1`);
   else {
@@ -422,12 +424,14 @@ const committed = (root: string): Committed => ({
 
 /** The report in `svelte-check --output machine` text, or undefined when it did not report on any file. */
 export function parseTypeReport(out: string): TypeReport | undefined {
-  const done = /^\d+ COMPLETED (\d+) FILES /m.exec(out);
+  const done = /^\d+ COMPLETED (\d+) FILES (\d+) ERRORS /m.exec(out);
   if (!done) return undefined;
   const errors = [
     ...out.matchAll(/^\d+ ERROR "([^"]*)" (\d+:\d+) "(.*)"$/gm),
   ].map((m) => `${m[1]} ${m[2]} "${m[3]}"`);
-  return { files: Number(done[1]), errors };
+  return errors.length === Number(done[2])
+    ? { files: Number(done[1]), errors }
+    : undefined;
 }
 
 /** The peer report of a `pnpm peers check` run, or undefined when it printed neither of pnpm's two verdicts. */
@@ -470,7 +474,11 @@ const freePort = (): Promise<number> =>
     });
   });
 const answer = async (url: string): Promise<Page> => {
-  const r = await fetch(url, { redirect: "manual" });
+  const r = await fetch(url, {
+    redirect: "manual",
+    headers: { accept: "text/html" },
+    signal: AbortSignal.timeout(10_000),
+  });
   return {
     status: r.status,
     csp: r.headers.get("content-security-policy") ?? "",
@@ -508,13 +516,9 @@ async function serve(copy: string): Promise<State["http"] | string> {
 
 /** The verdict on one state: the statements, then the canary rows that show they can fail. */
 export function verdict(s: State): Result {
-  const { home, missing } = s.http;
-  if (home.status !== 200 || missing.status !== 404)
-    return result(
-      CANNOT,
-      `the consumer server answered ${home.status} and ${missing.status}, not 200 and 404`,
-    );
-  if (s.peers.real.status !== 0 && s.peers.planted.status === 0)
+  if (s.http.missing.status !== 404)
+    return result(CANNOT, `/no-such-page answered ${s.http.missing.status}`);
+  if (s.peers.planted.status === 0)
     return result(
       CANNOT,
       "pnpm peers check did not report the planted peer range",

@@ -7,7 +7,7 @@
 node_modules/
 /site/dist/
 /dist/
-/.svelte-kit/
+.svelte-kit/
 /consumer/build/
 # Playwright's output folder, beside each config it runs (the browser step and its canary)
 test-results/

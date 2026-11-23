@@ -127,6 +127,7 @@ test("CON-09: svelte-check's machine output is read: files, errors, and none whe
     ],
   });
   assert.equal(parseTypeReport('1795 START "/x"\n'), undefined);
+  assert.ok(!parseTypeReport(out.replace("1 ERRORS", "2 ERRORS")));
 });
 test("CON-09: a type check that read no file cannot be checked", () => {
   const none: State = {
@@ -181,6 +182,12 @@ test("CON-02: the finding names what the table lacks", () => {
   assert.deepEqual(found(home("<p>no table</p>"), "CON-02"), [
     "the list page holds 0 tables, not 1",
   ]);
+  const thrown = home("<p>Internal Error</p>"); // a render that throws
+  thrown.http.home.status = 500;
+  assert.equal(
+    found(thrown, "CON-02")[0],
+    "the list page answered 500, not 200",
+  );
   assert.deepEqual(found(home(page().replace("Orders<", "Other<")), "CON-02"), [
     'the table\'s caption reads "Other", not "Orders"',
   ]);
