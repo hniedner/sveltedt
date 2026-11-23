@@ -65,6 +65,31 @@ test("PKG-01: the finding names the condition and the path", () => {
     "svelte is ./src/a.ts, not under ./dist/",
   ]);
 });
+test("PKG-05: a condition besides style and default, and two different files, are findings", () => {
+  const manifest = (styles: unknown): Contents =>
+    new Map(GOOD).set(
+      "package.json",
+      Buffer.from(JSON.stringify({ exports: { "./styles.css": styles } })),
+    );
+  assert.deepEqual(
+    found(
+      manifest({
+        style: "./dist/styles.css",
+        default: "./dist/styles.css",
+        import: "./dist/styles.css",
+      }),
+      "PKG-05",
+    ),
+    ["the condition import is neither style nor default"],
+  );
+  assert.deepEqual(
+    found(
+      manifest({ style: "./dist/styles.css", default: "./dist/A.svelte" }),
+      "PKG-05",
+    ),
+    ["style and default name different files"],
+  );
+});
 test("PKG-04: the finding names the file and how it differs", () => {
   const c = new Map(GOOD).set("NOTICE", Buffer.from("x"));
   c.delete("LICENSE");

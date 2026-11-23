@@ -106,6 +106,28 @@ function root(c: Contents): Finding[] {
   });
 }
 
+/** PKG-05: `./styles.css` has exactly `style` and `default`, naming the same file, which the tarball holds. */
+function styles(c: Contents): Finding[] {
+  const e = manifest(c)?.exports;
+  const s = isObject(e) ? e["./styles.css"] : undefined;
+  const problems: string[] = [];
+  if (!isObject(s))
+    problems.push('exports["./styles.css"] is not a set of conditions');
+  else {
+    for (const cond of ["style", "default"])
+      if (typeof s[cond] !== "string") problems.push(`no ${cond} condition`);
+    for (const cond of Object.keys(s).filter(
+      (k) => !["style", "default"].includes(k),
+    ))
+      problems.push(`the condition ${cond} is neither style nor default`);
+    if (s.style !== s.default && s.style && s.default)
+      problems.push("style and default name different files");
+    const file = stylesheet(c);
+    if (file && !c.has(file)) problems.push(`${file} is not in the tarball`);
+  }
+  return problems.map((message) => ({ id: "PKG-05", message }));
+}
+
 /** PKG-04: LICENSE and NOTICE are in the tarball with the repository's bytes. */
 function notices(c: Contents, repo: Repo): Finding[] {
   return (
@@ -126,7 +148,7 @@ function notices(c: Contents, repo: Repo): Finding[] {
 
 /** Every statement over one tarball's contents, in the spec's order. */
 export function analyse(c: Contents, repo: Repo): Finding[] {
-  return [...root(c), ...shape(c), ...notices(c, repo)];
+  return [...root(c), ...shape(c), ...notices(c, repo), ...styles(c)];
 }
 
 /** The packed manifest with `exports["."]` replaced, or removed when `value` is undefined. */
@@ -137,7 +159,35 @@ const withRoot = (c: Contents, value: unknown): Contents => {
   return put(c, "package.json", JSON.stringify({ ...m, exports: e }));
 };
 
+/** The packed manifest with `exports["./styles.css"]` replaced, or removed when `value` is undefined. */
+const withStyles = (c: Contents, value: unknown): Contents => {
+  const m = manifest(c) ?? {};
+  const e: Record<string, unknown> = {
+    ...(m.exports as object),
+    "./styles.css": value,
+  };
+  if (value === undefined) delete e["./styles.css"];
+  return put(c, "package.json", JSON.stringify({ ...m, exports: e }));
+};
+
 export const CANARIES: Canary[] = [
+  ...(
+    [
+      [{ style: "./dist/styles.css" }, "no default", true],
+      [{ default: "./dist/styles.css" }, "no style", true],
+      [undefined, "absent", true],
+      [
+        { style: "./dist/x.css", default: "./dist/x.css" },
+        "a file the tarball does not hold",
+        true,
+      ],
+    ] as [unknown, string, boolean][]
+  ).map(([value, row, found]): Canary => ({
+    id: "PKG-05",
+    row,
+    plant: (c) => withStyles(c, value),
+    found,
+  })),
   ...(
     [
       [{ svelte: "./dist/index.js" }, "no types", true],
