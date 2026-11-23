@@ -14,10 +14,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { childEnv, COLOUR, result } from "./gate-step.ts";
+import { childEnv, COLOUR, result, scriptMain } from "./gate-step.ts";
 import type { Result } from "./gate-step.ts";
-import { binaryOf, CANNOT, FINDING, PASS, USAGE } from "./pinned.ts";
+import { binaryOf, CANNOT, FINDING, PASS } from "./pinned.ts";
 
 export interface Finding {
   id: string;
@@ -525,38 +524,4 @@ export function check(root: string): Result {
   }
 }
 
-const WORD: Record<number, string> = {
-  [PASS]: "PASS",
-  [FINDING]: "FINDING",
-  [USAGE]: "USAGE",
-  [CANNOT]: "COULD NOT CHECK",
-};
-function main(argv: string[]): number {
-  const at = argv.indexOf("--root");
-  if (argv.length !== (at >= 0 ? 2 : 0) || (at >= 0 && !argv[at + 1])) {
-    console.log(
-      "USAGE check-package: node scripts/check-package.ts [--root <dir>]",
-    );
-    return USAGE;
-  }
-  const r = check(
-    at >= 0
-      ? argv[at + 1]
-      : join(dirname(fileURLToPath(import.meta.url)), ".."),
-  );
-  for (const d of r.details) console.log(`  ${d}`);
-  console.log(`${WORD[r.code]} check-package: ${r.summary}`);
-  return r.code;
-}
-
-// Run as a program, not when a test imports the checks
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (e) {
-    console.log(
-      `USAGE check-package: crashed: ${(e as Error | undefined)?.stack ?? String(e)}`,
-    );
-    process.exitCode = USAGE;
-  }
-}
+scriptMain("check-package", import.meta.url, check);

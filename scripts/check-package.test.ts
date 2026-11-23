@@ -244,3 +244,12 @@ test("an unknown argument is a usage error, exit 2", () => {
   );
   assert.equal(r.status, 2);
 });
+test("a crash in the check is a usage-class exit 2 with the stack, never a pass", () => {
+  const r = spawnSync(
+    process.execPath,
+    [join(HERE, "check-package.ts"), "--root", join(tmpdir(), "no-such-root")],
+    { encoding: "utf8" },
+  );
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /^USAGE check-package: crashed: .*ENOENT/m);
+});
