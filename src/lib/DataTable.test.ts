@@ -966,6 +966,26 @@ describe("A11Y-15", () => {
   });
 });
 
+// @spec("A11Y-21", "d7a4d068")
+describe("A11Y-21", () => {
+  it.each<[string, Partial<DataTableProps<Item>> | null]>([
+    ["mounted stopped", null],
+    ["rerendered from loading", { status: "loading" }],
+    ["rerendered from failed", { status: "failed" }],
+  ])("keeps the stopped message out of any alert: %s", async (_from, first) => {
+    const columns = [nameColumn, codeColumn];
+    const { rerender } = render(
+      DataTable<Item>,
+      state({ columns, ...(first ?? { status: "stopped" }) }),
+    );
+    if (first) await rerender(state({ columns, status: "stopped" }));
+    // The message is on the page, so a page without it cannot pass
+    expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+    for (const alert of screen.queryAllByRole("alert"))
+      expect(alert.textContent).not.toContain("Loading stopped");
+  });
+});
+
 // @spec("A11Y-22", "eb8dfc31")
 describe("A11Y-22", () => {
   it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
