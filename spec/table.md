@@ -3051,8 +3051,8 @@ for the code the examples below list.
 - Traces: PRD-S4, PRD-B16.
 
 **FILT-33** Every fixed word of the filters MUST come from a prop with an English default.
-- Examples (as RND-06, for the filter words; the test runs every row in the set-up of its "Shown by" statement, the
-  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
+- Examples (as RND-06, for the filter words; the test runs every row in the set-up of its "Shown by" statement; it
+  passes a full `messages` object of non-English words, then
   checks that each replacement appears where the row says and that no English default is left on the page, in an
   accessible name or in a description):
 
