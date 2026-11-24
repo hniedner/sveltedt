@@ -4,7 +4,8 @@
 //   node scripts/consumer-serve.ts [--root <dir>]
 // It prints one line when both servers answer and then runs until it is stopped. Exit codes: 2 usage, 3 could not
 // prepare or start. Every line of both servers also goes, timed and with the copy's path replaced, to
-// test-results/consumer-serve.log (#217), beside the trace of a failed test.
+// <root>/test-results/consumer-serve.log (#217), beside the trace of a failed test; a line that cannot be written is
+// reported on stderr and skipped.
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import {

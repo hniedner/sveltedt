@@ -113,7 +113,7 @@ jobs:
           node scripts/check-repo.ts site
           node scripts/check-repo.ts browser
       # Also when the browser step fails: a failed consumer test's trace and the consumer servers' log (#217). The log is
-      # written on every run, so a folder without it is an error, not a warning.
+      # written on every run that reaches the web servers, so a folder without it is an error, not a warning.
       - name: Upload the browser step's results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

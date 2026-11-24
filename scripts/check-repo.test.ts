@@ -1037,7 +1037,7 @@ test("gate-needs: GATE_BROWSER for the whole workflow or in the browser job is a
     /GATE_BROWSER is set in the job browser/,
   );
 });
-test("gate-needs: a job browser that may pass without the step is a finding", () => {
+test("gate-needs: a job browser that may pass without the step is a finding, except the results' upload under if: ${{ !cancelled() }}", () => {
   // An if: or a continue-on-error at job level, on the step itself, after it, or on another step
   for (const shape of [
     "    continue-on-error: true\n    steps:\n      - run: node",
