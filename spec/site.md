@@ -269,8 +269,8 @@ output when it listens, and MUST write nothing there when it refuses.
 **LIST-03** The list page's Order column MUST be sortable both ways, the page sorting its own fixed list.
 - Example: the list page component mounted; press "Order" three times: the first cells read "Order 01" to
   "Order 20", then "Order 20" to "Order 01", then the fixed order of LIST-02.
-- Reason: the page shows the sort at work where a consumer uses it; the site's server answers files, and the
-  protocol route of section 7, which the list page does not use (SRV-01), so the page's handler sorts, as an
+- Reason: the page shows the sort at work where a consumer uses it; the site's server answers files (SRV-01) and the
+  protocol route of section 7; the list page does not call that route, so the page's handler sorts, as an
   application asks its server to.
 - Layer: component.
 - Traces: PRD-W5.
@@ -497,9 +497,9 @@ section 16's list on.
   | "Name" twice | by Name descending |
   | "Name", then "Code" with Shift | by Name ascending, then by Code ascending among equal Names |
 
-- Reason: the site's server answers files, and the protocol route of section 7, which the full page does not use
-  (SRV-01), so the page sorts, as LIST-03; section 16's sort intents and THEME-25's sorts by more than one column need
-  a table that follows (PRD-W6).
+- Reason: the site's server answers files (SRV-01) and the protocol route of section 7; the full page does not call
+  that route, so the page sorts, as LIST-03; section 16's sort intents and THEME-25's sorts by more than one column
+  need a table that follows (PRD-W6).
 - Layer: component.
 - Traces: PRD-W6.
 
@@ -572,7 +572,7 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
   - a search or column search is not read;
   - order entries after `order[0]` are not read (the fixed list has no ties);
   - ids order as names do, so whether column 0 or 1 is read cannot be told apart on this data;
-  - the ordering and paging are scaffolding until PRD-B21's query function serves the endpoint (PRD 5.3).
+  - the ordering and paging are the route's own, not PRD-B21's query function (PRD 5.3).
 - Layer: HTTP (`siteServer` on a port the system assigns).
 
 **API-01** A request to the route MUST be answered with status 200, the content type `application/json` and a body
@@ -623,8 +623,8 @@ whose `data` holds the rows of the fixed list from `start`, at most `length` of 
 - Reason:
   - A server orders before it pages: `ssp.class.php` builds `ORDER BY` before `LIMIT` (READ l.272-283).
   - It orders only by a column sent as orderable (l.140).
-  - R0 is the helper's own first request for a sorted page. The answer that script's source gives to it is written by
-    hand from the source; no recording exists in this branch.
+  - R0 is the helper's own first request for a sorted page. Its answer is written by hand from the source of
+    `ssp.class.php` ad98978; nothing was run.
 - Layer: HTTP.
 - Traces: PRD-W2.
 
@@ -714,8 +714,9 @@ policy.
   - Break that turns it red: a `style` attribute on the page's `main`. It is INFERRED to raise a report in each
     engine; the break is run by hand.
 - Reason: the helper's requests go out through the page's own `fetch` under the strict policy. POL-04 reads the list
-  once a table region shows, and DataTable renders its region while loading (l.169, MEASURED by the adversary), so on
-  this page POL-04 can read before the answer (PRD-S1, PRD-S3).
+  once a table region shows, and DataTable renders its region while loading (`src/lib/DataTable.svelte`, the
+  `sdt-region` div, not behind the status; MEASURED), so on this page POL-04 can read before the answer (PRD-S1,
+  PRD-S3).
 - Layer: real browser.
 - Traces: PRD-S1, PRD-W4.
 
