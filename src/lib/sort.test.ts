@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import { useConsoleErrors } from "../../test/console-spy.ts";
 import DataTable from "./DataTable.svelte";
 import type {
   DataTableColumn,
@@ -438,7 +439,12 @@ describe("SORT-06", () => {
     ).toBe(true);
   });
 });
-// The default texts of SORT-15's alert, by message key
+// The alert of RND-05 is one fixed text; SORT-15's cause is the console line of RND-17: its code and its text in
+// development
+const FIXED = "This table cannot be shown.";
+const errors = useConsoleErrors();
+const line = (code: keyof typeof SORT_ALERTS): string =>
+  `SvelteDT: ${code}: ${SORT_ALERTS[code]}`;
 const SORT_ALERTS = {
   sortableInvalid: "A column's sort directions are invalid.",
   sortHandlerMissing: "A sortable column has no sort handler.",
@@ -482,15 +488,19 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
-// @spec("SORT-15", "223f9337")
+// @spec("SORT-15", "c4bf5485")
 describe("SORT-15", () => {
-  it.each(sortFaults)("shows only the alert %s, no table", (key, props) => {
-    const { container } = mount(props);
-    expect(
-      screen.getAllByRole("alert").map((alert) => alert.textContent),
-    ).toEqual([SORT_ALERTS[key]]);
-    expect(container.querySelector("table")).toBeNull();
-  });
+  it.each(sortFaults)(
+    "shows only the fixed alert, no table, and logs the code %s",
+    (key, props) => {
+      const { container } = mount(props);
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual([FIXED]);
+      expect(container.querySelector("table")).toBeNull();
+      expect(errors()).toEqual([line(key)]);
+    },
+  );
 
   it.each<[string, Partial<DataTableProps<Item>>, keyof typeof SORT_ALERTS]>([
     [
@@ -530,7 +540,8 @@ describe("SORT-15", () => {
     ],
   ])("lets the first row that applies win: %s", (_faults, props, key) => {
     mount(props);
-    expect(screen.getByRole("alert").textContent).toBe(SORT_ALERTS[key]);
+    expect(screen.getByRole("alert").textContent).toBe(FIXED);
+    expect(errors()).toEqual([line(key)]);
   });
 
   // A caller the type does not reach (plain JavaScript, untyped state) passes these
@@ -549,13 +560,17 @@ describe("SORT-15", () => {
     ["an entry's direction 'up'", [{ id: "name", direction: "up" }]],
     ["an entry's direction 'ASC'", [{ id: "name", direction: "ASC" }]],
     ["an entry with the old boolean desc", [{ id: "name", desc: false }]],
-  ])("shows only the alert sortInvalid, no table, for %s: %j", (_row, sort) => {
-    const { container } = mount({ sort: sort as DataTableSortEntry[] });
-    expect(
-      screen.getAllByRole("alert").map((alert) => alert.textContent),
-    ).toEqual([SORT_ALERTS.sortInvalid]);
-    expect(container.querySelector("table")).toBeNull();
-  });
+  ])(
+    "shows only the fixed alert, no table, and logs sortInvalid, for %s: %j",
+    (_row, sort) => {
+      const { container } = mount({ sort: sort as DataTableSortEntry[] });
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual([FIXED]);
+      expect(container.querySelector("table")).toBeNull();
+      expect(errors()).toEqual([line("sortInvalid")]);
+    },
+  );
 
   it.each([undefined, null])(
     "takes sort given as %s as no order and no fault",
@@ -580,29 +595,34 @@ describe("SORT-15", () => {
 
   it("lets a fault of RND-05's table win: an empty caption and an unknown sort column", () => {
     mount({ caption: "", sort: order("zzz asc") });
-    expect(screen.getByRole("alert").textContent).toBe(
-      "Table caption must not be empty.",
-    );
+    expect(screen.getByRole("alert").textContent).toBe(FIXED);
+    expect(errors()).toEqual([
+      "SvelteDT: captionEmpty: Table caption must not be empty.",
+    ]);
   });
 });
-// @spec("SORT-16", "a4201716")
+// @spec("SORT-16", "79a0cfe2")
 describe("SORT-16", () => {
-  it.each<[Partial<DataTableProps<Item>>, string, string[]]>([
-    [{ sort: order("col-z3 asc") }, SORT_ALERTS.sortColumnUnknown, ["col-z3"]],
+  it.each<[Partial<DataTableProps<Item>>, keyof typeof SORT_ALERTS, string[]]>([
+    [{ sort: order("col-z3 asc") }, "sortColumnUnknown", ["col-z3"]],
     [
       {
         columns: [{ ...name, id: "col-w4", label: "Secret-5" }],
         sort: order("col-w4 asc, col-w4 desc"),
       },
-      SORT_ALERTS.sortColumnDuplicate,
+      "sortColumnDuplicate",
       ["col-w4", "Secret-5"],
     ],
-  ])("keeps the sort's values out of the alert %#", (props, message, words) => {
-    mount(props);
-    const text = screen.getByRole("alert").textContent;
-    expect(text).toBe(message);
-    for (const word of words) expect(text).not.toContain(word);
-  });
+  ])(
+    "keeps the sort's values out of the alert and the console line %#",
+    (props, code, words) => {
+      mount(props);
+      const texts = [screen.getByRole("alert").textContent, ...errors()];
+      expect(texts).toEqual([FIXED, line(code)]);
+      for (const word of words)
+        for (const text of texts) expect(text).not.toContain(word);
+    },
+  );
 });
 // Non-English sort words for SORT-17 and the texts SORT-23 passes through them
 function sortWords(text?: string) {
@@ -616,13 +636,10 @@ function sortWords(text?: string) {
       direction: SortDirection | null;
       rank: number | null;
     }) => text ?? `Richtung ${direction ?? "keine"}, Rang ${rank ?? "keiner"}`,
-    ...Object.fromEntries(
-      Object.keys(SORT_ALERTS).map((key) => [key, text ?? `F-${key}`]),
-    ),
   };
 }
 
-// @spec("SORT-17", "d35f26a9")
+// @spec("SORT-17", "87992735")
 describe("SORT-17", () => {
   const english = [
     "Column headers with buttons",
@@ -630,7 +647,6 @@ describe("SORT-17", () => {
     "sorted descending",
     "priority",
     HINT,
-    ...Object.values(SORT_ALERTS),
   ];
   // The page's text, accessible names and descriptions (aria-label values and the hidden description elements)
   const page = (): string =>
@@ -672,17 +688,8 @@ describe("SORT-17", () => {
       for (const word of english) expect(page()).not.toContain(word);
     },
   );
-
-  it.each(sortFaults)(
-    "shows the given %s alert word, and no English default",
-    (key, props) => {
-      mount({ ...props, messages: sortWords() });
-      expect(screen.getByRole("alert").textContent).toBe(`F-${key}`);
-      for (const word of english) expect(page()).not.toContain(word);
-    },
-  );
 });
-// @spec("SORT-23", "4af2da9b")
+// @spec("SORT-23", "235aef4e")
 describe("SORT-23", () => {
   const texts = ["<img src=x onerror=alert(1)>", "<none>"];
 
@@ -698,19 +705,6 @@ describe("SORT-23", () => {
       );
       // Two rank marks, the two hidden descriptions and the caption's hint
       expect(screen.getAllByText(text)).toHaveLength(5);
-      expect(container.querySelector("img, none")).toBeNull();
-    },
-  );
-
-  it.each(
-    sortFaults.flatMap(([key, props]) =>
-      texts.map((text) => [key, text, props] as const),
-    ),
-  )(
-    "renders the alert word %s %s as text, never as markup",
-    (_key, text, props) => {
-      const { container } = mount({ ...props, messages: sortWords(text) });
-      expect(screen.getByRole("alert").textContent).toBe(text);
       expect(container.querySelector("img, none")).toBeNull();
     },
   );

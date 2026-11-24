@@ -1,16 +1,5 @@
-import type { DataTableMessages, DataTableProps } from "./types.ts";
-
-// The message keys of the alert (RND-05, SORT-15)
-type Fault = Exclude<
-  keyof DataTableMessages,
-  | "loading"
-  | "failed"
-  | "empty"
-  | "rowCount"
-  | "sortableHint"
-  | "sortRank"
-  | "sortDescription"
->;
+import type { TableFault as Fault } from "./faults.ts";
+import type { DataTableProps } from "./types.ts";
 
 function firstDuplicate(values: readonly string[]): string | undefined {
   const seen = new Set<string>();
@@ -39,8 +28,7 @@ const isSortEntry = (entry: unknown): boolean =>
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
 
-// The message key of the first fault, in the order of RND-05's table, or null when the input is valid. A key, not
-// the text: a caller's empty message must not make a fault look like none.
+// The code of the first fault, in the order of RND-05's table and then SORT-15's, or null when the input is valid
 export function validateTable<Row>(
   input: Pick<
     DataTableProps<Row>,

@@ -33,19 +33,8 @@ export interface DataTableMessages {
   readonly failed: string;
   readonly empty: string;
   readonly rowCount: (count: number) => string;
-  readonly captionEmpty: string;
-  readonly regionLabelEmpty: string;
-  readonly noColumns: string;
-  readonly columnIdEmpty: string;
-  readonly columnIdDuplicate: string;
-  readonly columnLabelEmpty: string;
-  readonly columnLabelDuplicate: string;
-  readonly columnContentMissing: string;
-  readonly statusUnknown: string;
-  readonly rowsNotList: string;
-  readonly rowIdEmpty: string;
-  readonly rowIdDuplicate: string;
-  readonly rowIdUnreadable: string;
+  // The one text of the alert for invalid input (RND-05)
+  readonly invalidInput: string;
   readonly sortableHint: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
@@ -53,13 +42,6 @@ export interface DataTableMessages {
     direction: SortDirection | null;
     rank: number | null;
   }) => string;
-  readonly sortableInvalid: string;
-  readonly sortHandlerMissing: string;
-  readonly sortInvalid: string;
-  readonly sortColumnUnknown: string;
-  readonly sortColumnNotSortable: string;
-  readonly sortDirectionNotAllowed: string;
-  readonly sortColumnDuplicate: string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)

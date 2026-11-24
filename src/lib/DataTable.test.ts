@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
+import { useConsoleErrors } from "../../test/console-spy.ts";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type {
@@ -77,6 +78,30 @@ function showWithSnippets(
   return render(SnippetsTable, { ...base, ...props }).container;
 }
 
+// The alert of RND-05 is one fixed text; the cause of each fault is the console line of RND-17: its code and its text
+// in development (RND-05's table)
+const FIXED = "This table cannot be shown.";
+const FAULT_TEXTS = {
+  captionEmpty: "Table caption must not be empty.",
+  regionLabelEmpty: "Table region label must not be empty.",
+  noColumns: "Table has no columns.",
+  columnIdEmpty: "A column id is empty.",
+  columnIdDuplicate: "Two columns share an id.",
+  columnLabelEmpty: "A column label is empty.",
+  columnLabelDuplicate: "Two columns share a label.",
+  columnContentMissing: "A column has no value and no cell.",
+  statusUnknown: "Table status is not known.",
+  rowsNotList: "Table has no list of rows.",
+  rowIdEmpty: "A row id is empty.",
+  rowIdDuplicate: "Two rows share an id.",
+  rowIdUnreadable: "A row id could not be read.",
+};
+type FaultCode = keyof typeof FAULT_TEXTS;
+const line = (code: FaultCode): string =>
+  `SvelteDT: ${code}: ${FAULT_TEXTS[code]}`;
+// The texts passed to console.error since the test began
+const errors = useConsoleErrors();
+
 const LOADING = "Loading data…";
 const EMPTY = "No data.";
 
@@ -111,29 +136,6 @@ const codeColumn: DataTableColumn<Item> = {
   label: "Code",
   value: (row) => row.id,
 };
-
-// Props that raise each message of RND-05's alert, keyed by the message
-// The words of RND-05 and RND-06; the sort words are SORT-17's
-type TableWords = Omit<DataTableMessages, `sort${string}`>;
-
-const faults: [keyof TableWords, Partial<DataTableProps<Item>>][] = [
-  ["captionEmpty", { caption: "" }],
-  ["regionLabelEmpty", { regionLabel: "" }],
-  ["noColumns", { columns: [] }],
-  ["columnIdEmpty", { columns: [column("", "Name")] }],
-  ["columnIdDuplicate", { columns: [column("a", "A"), column("a", "B")] }],
-  ["columnLabelEmpty", { columns: [column("a", "")] }],
-  ["columnLabelDuplicate", { columns: [column("a", "N"), column("b", "N")] }],
-  [
-    "columnContentMissing",
-    { columns: [{ id: "a", label: "A" } as unknown as DataTableColumn<Item>] },
-  ],
-  ["statusUnknown", { status: "done" as unknown as DataTableStatus }],
-  ["rowsNotList", { rows: undefined }],
-  ["rowIdEmpty", { getRowId: () => "" }],
-  ["rowIdDuplicate", { rows: threeRows, getRowId: () => "same" }],
-  ["rowIdUnreadable", { getRowId: unreadable }],
-];
 
 // The five states of RND-14 and of EXP-01 and EXP-02
 const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
@@ -391,17 +393,11 @@ describe("RND-03", () => {
       (text) => ({ messages: { rowCount: () => text } }),
       (text) => screen.getByText(text),
     ],
-    ...faults.map(
-      ([key, props]): [
-        string,
-        (text: string) => Partial<DataTableProps<Item>>,
-        (text: string) => HTMLElement,
-      ] => [
-        `the alert message ${key}`,
-        (text) => ({ ...props, messages: { [key]: text } }),
-        (text) => screen.getByText(text),
-      ],
-    ),
+    [
+      "the alert word invalidInput",
+      (text) => ({ columns: [], messages: { invalidInput: text } }),
+      (text) => screen.getByText(text),
+    ],
   ];
   const texts = ["<img src=x onerror=alert(1)>", "<none>"];
 
@@ -429,250 +425,233 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "e545c208")
-describe("RND-05", () => {
-  it.each<[string, Partial<DataTableProps<Item>>, string]>([
-    ["caption is empty", { caption: " " }, "Table caption must not be empty."],
-    // The "not a string" rows: a caller the type does not reach (plain JavaScript, untyped server JSON) passes one
-    [
-      "caption is not a string",
-      { caption: undefined },
-      "Table caption must not be empty.",
+// The rows of RND-05's table: the invalid input, and the code of its fault
+const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
+  ["caption is empty", { caption: " " }, "captionEmpty"],
+  // The "not a string" rows: a caller the type does not reach (plain JavaScript, untyped server JSON) passes one
+  ["caption is not a string", { caption: undefined }, "captionEmpty"],
+  ["regionLabel is empty", { regionLabel: "" }, "regionLabelEmpty"],
+  ["columns is empty", { columns: [] }, "noColumns"],
+  ["columns is not an array", { columns: undefined }, "noColumns"],
+  ...[null, "name"].map(
+    (value): [string, Partial<DataTableProps<Item>>, FaultCode] => [
+      `a column is not an object (${String(value)})`,
+      {
+        columns: [
+          column("ok", "Ok"),
+          value as unknown as DataTableColumn<Item>,
+        ],
+      },
+      "columnIdEmpty",
     ],
-    [
-      "regionLabel is empty",
-      { regionLabel: "" },
-      "Table region label must not be empty.",
-    ],
-    ["columns is empty", { columns: [] }, "Table has no columns."],
-    [
-      "columns is not an array",
-      { columns: undefined },
-      "Table has no columns.",
-    ],
-    ...[null, "name"].map(
-      (value): [string, Partial<DataTableProps<Item>>, string] => [
-        `a column is not an object (${String(value)})`,
+  ),
+  [
+    "a column id is empty",
+    { columns: [column("ok", "Ok"), column("", "Name")] },
+    "columnIdEmpty",
+  ],
+  [
+    "a column id is not a string",
+    { columns: [column("ok", "Ok"), column(7 as unknown as string, "Name")] },
+    "columnIdEmpty",
+  ],
+  [
+    "two columns share an id",
+    { columns: [column("c", "Name"), column("c", "Code")] },
+    "columnIdDuplicate",
+  ],
+  [
+    "a column label is empty",
+    { columns: [column("ok", "Ok"), column("a", "")] },
+    "columnLabelEmpty",
+  ],
+  [
+    "a column label is not a string",
+    {
+      columns: [
+        column("ok", "Ok"),
+        column("a", undefined as unknown as string),
+      ],
+    },
+    "columnLabelEmpty",
+  ],
+  [
+    "two column labels are equal after trimming",
+    { columns: [column("a", "Name"), column("b", "Name ")] },
+    "columnLabelDuplicate",
+  ],
+  [
+    "a column has neither value nor cell",
+    // A caller the type does not reach (plain JavaScript): a column with neither value nor cell
+    {
+      columns: [
+        column("ok", "Ok"),
+        { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
+      ],
+    },
+    "columnContentMissing",
+  ],
+  [
+    "a column's value is not a function and it has no cell",
+    {
+      columns: [
+        column("ok", "Ok"),
         {
-          columns: [
-            column("ok", "Ok"),
-            value as unknown as DataTableColumn<Item>,
-          ],
-        },
-        "A column id is empty.",
+          id: "a",
+          label: "Name",
+          value: "name",
+        } as unknown as DataTableColumn<Item>,
       ],
-    ),
-    [
-      "a column id is empty",
-      { columns: [column("ok", "Ok"), column("", "Name")] },
-      "A column id is empty.",
-    ],
-    [
-      "a column id is not a string",
-      { columns: [column("ok", "Ok"), column(7 as unknown as string, "Name")] },
-      "A column id is empty.",
-    ],
-    [
-      "two columns share an id",
-      { columns: [column("c", "Name"), column("c", "Code")] },
-      "Two columns share an id.",
-    ],
-    [
-      "a column label is empty",
-      { columns: [column("ok", "Ok"), column("a", "")] },
-      "A column label is empty.",
-    ],
-    [
-      "a column label is not a string",
-      {
-        columns: [
-          column("ok", "Ok"),
-          column("a", undefined as unknown as string),
-        ],
-      },
-      "A column label is empty.",
-    ],
-    [
-      "two column labels are equal after trimming",
-      { columns: [column("a", "Name"), column("b", "Name ")] },
-      "Two columns share a label.",
-    ],
-    [
-      "a column has neither value nor cell",
-      // A caller the type does not reach (plain JavaScript): a column with neither value nor cell
-      {
-        columns: [
-          column("ok", "Ok"),
-          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
-        ],
-      },
-      "A column has no value and no cell.",
-    ],
-    [
-      "a column's value is not a function and it has no cell",
-      {
-        columns: [
-          column("ok", "Ok"),
-          {
-            id: "a",
-            label: "Name",
-            value: "name",
-          } as unknown as DataTableColumn<Item>,
-        ],
-      },
-      "A column has no value and no cell.",
-    ],
-    [
-      "a column's cell is not a snippet and it has no value",
-      {
-        columns: [
-          column("ok", "Ok"),
-          {
-            id: "a",
-            label: "Name",
-            cell: "name",
-          } as unknown as DataTableColumn<Item>,
-        ],
-      },
-      "A column has no value and no cell.",
-    ],
-    ...["done", null].map(
-      (status): [string, Partial<DataTableProps<Item>>, string] => [
-        `status is outside its type (${String(status)})`,
-        { status: status as unknown as DataTableStatus },
-        "Table status is not known.",
+    },
+    "columnContentMissing",
+  ],
+  [
+    "a column's cell is not a snippet and it has no value",
+    {
+      columns: [
+        column("ok", "Ok"),
+        {
+          id: "a",
+          label: "Name",
+          cell: "name",
+        } as unknown as DataTableColumn<Item>,
       ],
-    ),
-    ["a row id is empty", { getRowId: () => "" }, "A row id is empty."],
-    [
-      "two rows share an id",
-      { rows: twoRows, getRowId: () => "same" },
-      "Two rows share an id.",
+    },
+    "columnContentMissing",
+  ],
+  ...["done", null].map(
+    (status): [string, Partial<DataTableProps<Item>>, FaultCode] => [
+      `status is outside its type (${String(status)})`,
+      { status: status as unknown as DataTableStatus },
+      "statusUnknown",
     ],
-    [
-      'two rows share an id in its text form, 1 and "1"',
-      { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
-      "Two rows share an id.",
-    ],
-    [
-      "getRowId throws",
-      { getRowId: unreadable },
-      "A row id could not be read.",
-    ],
-    [
-      "getRowId returns NaN",
-      { getRowId: () => Number.NaN },
-      "A row id could not be read.",
-    ],
-    [
-      "getRowId returns Infinity",
-      { getRowId: () => Number.POSITIVE_INFINITY },
-      "A row id could not be read.",
-    ],
-    [
-      "getRowId returns null",
-      { getRowId: () => null as unknown as string },
-      "A row id could not be read.",
-    ],
-    [
-      "several faults: an empty caption and two rows sharing an id",
-      { caption: "", rows: twoRows, getRowId: () => "same" },
-      "Table caption must not be empty.",
-    ],
-    [
-      "several faults: two empty column ids",
-      { columns: [column("", "Name"), column("", "Code")] },
-      "A column id is empty.",
-    ],
-    [
-      "several faults: two empty column labels",
-      { columns: [column("a", ""), column("b", "")] },
-      "A column label is empty.",
-    ],
-    [
-      "several faults: two empty row ids",
-      { rows: twoRows, getRowId: () => "" },
-      "A row id is empty.",
-    ],
-    [
-      "several faults: an empty row id, then a row id that throws",
-      {
-        rows: twoRows,
-        getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
-      },
-      "A row id is empty.",
-    ],
-    // The pairs below are adjacent in RND-05's order of faults: each fails if its two checks swap order
-    [
-      "several faults: an empty caption and an empty region label",
-      { caption: "", regionLabel: "" },
-      "Table caption must not be empty.",
-    ],
-    [
-      "several faults: an empty region label and no columns",
-      { regionLabel: "", columns: [] },
-      "Table region label must not be empty.",
-    ],
-    [
-      "several faults: two columns sharing an id, one with an empty label",
-      { columns: [column("c", "Name"), column("c", "")] },
-      "Two columns share an id.",
-    ],
-    [
-      "several faults: two columns sharing a label, one with neither value nor cell",
-      {
-        columns: [
-          column("a", "Name"),
-          { id: "b", label: "Name" } as unknown as DataTableColumn<Item>,
-        ],
-      },
-      "Two columns share a label.",
-    ],
-    [
-      "several faults: a column with neither value nor cell and an empty row id",
-      {
-        columns: [
-          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
-        ],
-        getRowId: () => "",
-      },
-      "A column has no value and no cell.",
-    ],
-    [
-      "several faults: a column with neither value nor cell and status 'done'",
-      {
-        columns: [
-          { id: "a", label: "Name" } as unknown as DataTableColumn<Item>,
-        ],
-        status: "done" as unknown as DataTableStatus,
-      },
-      "A column has no value and no cell.",
-    ],
-    [
-      "several faults: status 'done' and rows that are not an array",
-      { status: "done" as unknown as DataTableStatus, rows: undefined },
-      "Table status is not known.",
-    ],
-    [
-      "several faults: two rows sharing an id, then a row id that throws",
-      {
-        rows: [...twoRows, { id: "r3", name: "Gamma" }],
-        getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
-      },
-      "Two rows share an id.",
-    ],
-    [
-      "rows is not an array, with status ready",
-      { rows: undefined, status: "ready" },
-      "Table has no list of rows.",
-    ],
-  ])("shows only one alert, no table, when %s", (_fault, props, message) => {
-    const component = show(props);
-    expect(
-      screen.getAllByRole("alert").map((alert) => alert.textContent),
-    ).toEqual([message]);
-    expect(component.querySelector("table")).toBeNull();
-  });
+  ),
+  ["a row id is empty", { getRowId: () => "" }, "rowIdEmpty"],
+  [
+    "two rows share an id",
+    { rows: twoRows, getRowId: () => "same" },
+    "rowIdDuplicate",
+  ],
+  [
+    'two rows share an id in its text form, 1 and "1"',
+    { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
+    "rowIdDuplicate",
+  ],
+  ["getRowId throws", { getRowId: unreadable }, "rowIdUnreadable"],
+  ["getRowId returns NaN", { getRowId: () => Number.NaN }, "rowIdUnreadable"],
+  [
+    "getRowId returns Infinity",
+    { getRowId: () => Number.POSITIVE_INFINITY },
+    "rowIdUnreadable",
+  ],
+  [
+    "getRowId returns null",
+    { getRowId: () => null as unknown as string },
+    "rowIdUnreadable",
+  ],
+  [
+    "several faults: an empty caption and two rows sharing an id",
+    { caption: "", rows: twoRows, getRowId: () => "same" },
+    "captionEmpty",
+  ],
+  [
+    "several faults: two empty column ids",
+    { columns: [column("", "Name"), column("", "Code")] },
+    "columnIdEmpty",
+  ],
+  [
+    "several faults: two empty column labels",
+    { columns: [column("a", ""), column("b", "")] },
+    "columnLabelEmpty",
+  ],
+  [
+    "several faults: two empty row ids",
+    { rows: twoRows, getRowId: () => "" },
+    "rowIdEmpty",
+  ],
+  [
+    "several faults: an empty row id, then a row id that throws",
+    {
+      rows: twoRows,
+      getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
+    },
+    "rowIdEmpty",
+  ],
+  // The pairs below are adjacent in RND-05's order of faults: each fails if its two checks swap order
+  [
+    "several faults: an empty caption and an empty region label",
+    { caption: "", regionLabel: "" },
+    "captionEmpty",
+  ],
+  [
+    "several faults: an empty region label and no columns",
+    { regionLabel: "", columns: [] },
+    "regionLabelEmpty",
+  ],
+  [
+    "several faults: two columns sharing an id, one with an empty label",
+    { columns: [column("c", "Name"), column("c", "")] },
+    "columnIdDuplicate",
+  ],
+  [
+    "several faults: two columns sharing a label, one with neither value nor cell",
+    {
+      columns: [
+        column("a", "Name"),
+        { id: "b", label: "Name" } as unknown as DataTableColumn<Item>,
+      ],
+    },
+    "columnLabelDuplicate",
+  ],
+  [
+    "several faults: a column with neither value nor cell and an empty row id",
+    {
+      columns: [{ id: "a", label: "Name" } as unknown as DataTableColumn<Item>],
+      getRowId: () => "",
+    },
+    "columnContentMissing",
+  ],
+  [
+    "several faults: a column with neither value nor cell and status 'done'",
+    {
+      columns: [{ id: "a", label: "Name" } as unknown as DataTableColumn<Item>],
+      status: "done" as unknown as DataTableStatus,
+    },
+    "columnContentMissing",
+  ],
+  [
+    "several faults: status 'done' and rows that are not an array",
+    { status: "done" as unknown as DataTableStatus, rows: undefined },
+    "statusUnknown",
+  ],
+  [
+    "several faults: two rows sharing an id, then a row id that throws",
+    {
+      rows: [...twoRows, { id: "r3", name: "Gamma" }],
+      getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
+    },
+    "rowIdDuplicate",
+  ],
+  [
+    "rows is not an array, with status ready",
+    { rows: undefined, status: "ready" },
+    "rowsNotList",
+  ],
+];
+
+// @spec("RND-05", "f571e16d")
+describe("RND-05", () => {
+  it.each(rnd05Rows)(
+    "shows only the one fixed alert, no table, and logs the code, when %s",
+    (_fault, props, code) => {
+      const component = show(props);
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual([FIXED]);
+      expect(component.querySelector("table")).toBeNull();
+      expect(errors()).toEqual([line(code)]);
+    },
+  );
 
   it("takes finite numbers as row ids: the table and no alert", () => {
     show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
@@ -708,21 +687,19 @@ describe("RND-05", () => {
 
   it("follows the props: the alert gives way to the table and comes back", async () => {
     const { rerender } = render(DataTable<Item>, { ...base, columns: [] });
-    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    expect(screen.getByRole("alert").textContent).toBe(FIXED);
     await rerender({ columns: [nameColumn] });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(firstCells()).toEqual(["Beta"]);
     await rerender({ caption: "" });
-    expect(screen.getByRole("alert").textContent).toBe(
-      "Table caption must not be empty.",
-    );
+    expect(screen.getByRole("alert").textContent).toBe(FIXED);
     expect(screen.queryByRole("table")).toBeNull();
   });
 });
 
-// @spec("RND-09", "eb114954")
+// @spec("RND-09", "109c463a")
 describe("RND-09", () => {
-  it.each<[string, Partial<DataTableProps<Item>>, string, string[]]>([
+  it.each<[string, Partial<DataTableProps<Item>>, FaultCode, string[]]>([
     [
       "two rows with id r2, the second named Hidden-77",
       {
@@ -731,7 +708,7 @@ describe("RND-09", () => {
           { id: "r2", name: "Hidden-77" },
         ],
       },
-      "Two rows share an id.",
+      "rowIdDuplicate",
       ["r2", "Hidden-77"],
     ],
     [
@@ -741,28 +718,29 @@ describe("RND-09", () => {
           throw new Error("token-9");
         },
       },
-      "A row id could not be read.",
+      "rowIdUnreadable",
       ["token-9"],
     ],
     [
       "two columns with id col-x9",
       { columns: [column("col-x9", "Name"), column("col-x9", "Code")] },
-      "Two columns share an id.",
+      "columnIdDuplicate",
       ["col-x9"],
     ],
     [
       "a column with id col-y7 and an empty label",
       { columns: [column("col-y7", "")] },
-      "A column label is empty.",
+      "columnLabelEmpty",
       ["col-y7"],
     ],
   ])(
-    "keeps the value out of the alert for %s",
-    (_input, props, message, forbidden) => {
+    "keeps the value out of the alert and the console line for %s",
+    (_input, props, code, forbidden) => {
       show(props);
-      const text = screen.getByRole("alert").textContent ?? "";
-      expect(text).toContain(message);
-      for (const word of forbidden) expect(text).not.toContain(word);
+      const texts = [screen.getByRole("alert").textContent ?? "", ...errors()];
+      expect(texts).toEqual([FIXED, line(code)]);
+      for (const word of forbidden)
+        for (const text of texts) expect(text).not.toContain(word);
     },
   );
 });
@@ -771,7 +749,7 @@ describe("RND-09", () => {
 describe("RND-10", () => {
   it("still renders the heading snippet beside the alert", () => {
     const component = showWithSnippets({ columns: [], withHeading: true });
-    expect(screen.getByRole("alert").textContent).toBe("Table has no columns.");
+    expect(screen.getByRole("alert").textContent).toBe(FIXED);
     expect(screen.getByRole("heading", { name: "Orders" }).isConnected).toBe(
       true,
     );
@@ -963,23 +941,6 @@ describe("A11Y-22", () => {
   );
 });
 
-// The default texts of RND-05's alert, one per message key
-const ALERT_TEXTS = [
-  "Table caption must not be empty.",
-  "Table region label must not be empty.",
-  "Table has no columns.",
-  "A column id is empty.",
-  "Two columns share an id.",
-  "A column label is empty.",
-  "Two columns share a label.",
-  "A column has no value and no cell.",
-  "Table status is not known.",
-  "Table has no list of rows.",
-  "A row id is empty.",
-  "Two rows share an id.",
-  "A row id could not be read.",
-];
-
 // @spec("STATE-08", "afee0d46")
 describe("STATE-08", () => {
   it.each<[DataTableStatus, unknown, string]>([
@@ -996,32 +957,20 @@ describe("STATE-08", () => {
         columns: [nameColumn, codeColumn],
       });
       expect(screen.getByText(text).isConnected).toBe(true);
-      for (const message of ALERT_TEXTS)
-        expect(component.textContent).not.toContain(message);
+      expect(component.textContent).not.toContain(FIXED);
     },
   );
 });
 
-// @spec("RND-06", "5a7fccfd")
+// @spec("RND-06", "d2591ea5")
 describe("RND-06", () => {
-  const foreign: TableWords = {
+  // The words of RND-06; the sort words are SORT-17's
+  const foreign: Omit<DataTableMessages, `sort${string}`> = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",
     empty: "Keine Daten.",
     rowCount: (count) => (count === 1 ? "1 Zeile" : `${count} Zeilen`),
-    captionEmpty: "F-captionEmpty",
-    regionLabelEmpty: "F-regionLabelEmpty",
-    noColumns: "F-noColumns",
-    columnIdEmpty: "F-columnIdEmpty",
-    columnIdDuplicate: "F-columnIdDuplicate",
-    columnLabelEmpty: "F-columnLabelEmpty",
-    columnLabelDuplicate: "F-columnLabelDuplicate",
-    columnContentMissing: "F-columnContentMissing",
-    statusUnknown: "F-statusUnknown",
-    rowsNotList: "F-rowsNotList",
-    rowIdEmpty: "F-rowIdEmpty",
-    rowIdDuplicate: "F-rowIdDuplicate",
-    rowIdUnreadable: "F-rowIdUnreadable",
+    invalidInput: "Diese Tabelle kann nicht gezeigt werden.",
   };
   const english = [
     LOADING,
@@ -1029,7 +978,7 @@ describe("RND-06", () => {
     EMPTY,
     "rows displayed",
     "row displayed",
-    ...ALERT_TEXTS,
+    FIXED,
   ];
   const status = (): string => screen.getByRole("status").textContent;
   const alert = (): string => screen.getByRole("alert").textContent;
@@ -1042,15 +991,12 @@ describe("RND-06", () => {
     ["empty", { rows: [] }, cell, "Keine Daten."],
     ["rowCount, 2 rows", { rows: twoRows }, live, "2 Zeilen"],
     ["rowCount, 1 row", {}, live, "1 Zeile"],
-    ...faults.map(
-      ([key, props]) =>
-        [key, props, alert, foreign[key]] as [
-          string,
-          Partial<DataTableProps<Item>>,
-          () => string,
-          string,
-        ],
-    ),
+    [
+      "invalidInput",
+      { columns: [] },
+      alert,
+      "Diese Tabelle kann nicht gezeigt werden.",
+    ],
   ])(
     "shows the given %s word where its statement says, and no English default",
     (_message, props, where, text) => {
@@ -1068,10 +1014,10 @@ describe("RND-06", () => {
 
   it.each<[string, Partial<DataTableProps<Item>>, () => string, string]>([
     [
-      "noColumns",
-      { columns: [], messages: { noColumns: undefined } },
+      "invalidInput",
+      { columns: [], messages: { invalidInput: undefined } },
       alert,
-      "Table has no columns.",
+      FIXED,
     ],
     [
       "rowCount",
@@ -1097,10 +1043,10 @@ describe("RND-06", () => {
   it.each<
     [string, unknown, Partial<DataTableProps<Item>>, () => string, string]
   >([
-    ["noColumns", null, { columns: [] }, alert, "Table has no columns."],
+    ["invalidInput", null, { columns: [] }, alert, FIXED],
     ["loading", 5, { status: "loading" }, status, LOADING],
     ["rowCount", "Zeilen", {}, live, "1 row displayed"],
-    ["noColumns", "", { columns: [] }, alert, "Table has no columns."],
+    ["invalidInput", "", { columns: [] }, alert, FIXED],
     ["loading", "  ", { status: "loading" }, status, LOADING],
   ])(
     "keeps the English default of %s when its entry is %j",
@@ -1114,7 +1060,7 @@ describe("RND-06", () => {
   );
 });
 
-// @spec("RND-13", "fcf0e08a")
+// @spec("RND-13", "a2270154")
 describe("RND-13", () => {
   it.each<[DataTableStatus, boolean, string[]]>([
     ["loading", false, [LOADING]],
@@ -1127,12 +1073,74 @@ describe("RND-13", () => {
       const component = show({ columns: [], rows: [], status, busy });
       expect(
         screen.getAllByRole("alert").map((alert) => alert.textContent),
-      ).toEqual(["Table has no columns."]);
+      ).toEqual([FIXED]);
       for (const text of hidden)
         expect(component.textContent).not.toContain(text);
       // Both live elements stay in the document, empty, beside the alert
       expect(liveCount(component)?.textContent.trim()).toBe("");
       expect(screen.getByRole("status").textContent.trim()).toBe("");
+    },
+  );
+});
+
+// @spec("RND-17", "048e2060")
+describe("RND-17", () => {
+  const bad: Partial<DataTableProps<Item>> = { columns: [] };
+
+  it("writes nothing for valid input", () => {
+    show();
+    expect(errors()).toEqual([]);
+  });
+
+  it("writes one line, once, when the same fault is rerendered", async () => {
+    const { rerender } = render(DataTable<Item>, { ...base, ...bad });
+    await rerender({ ...bad, caption: "Orders again" });
+    await rerender({ ...bad, busy: true });
+    expect(errors()).toEqual([line("noColumns")]);
+  });
+
+  it("writes one line for each change of the fault: a fault, then another fault", async () => {
+    const { rerender } = render(DataTable<Item>, { ...base, ...bad });
+    await rerender({ columns: [nameColumn], caption: "" });
+    expect(errors()).toEqual([line("noColumns"), line("captionEmpty")]);
+  });
+
+  it("writes the same line again after a valid state", async () => {
+    const { rerender } = render(DataTable<Item>, { ...base, ...bad });
+    await rerender({ columns: [nameColumn] });
+    await rerender({ columns: [] });
+    expect(errors()).toEqual([line("noColumns"), line("noColumns")]);
+  });
+
+  it("writes one line for each mounted table", () => {
+    show(bad);
+    show({ caption: "" });
+    expect(errors()).toEqual([line("noColumns"), line("captionEmpty")]);
+  });
+
+  it("writes one line naming the first fault that applies", () => {
+    show({ caption: "", columns: [] });
+    expect(errors()).toEqual([line("captionEmpty")]);
+  });
+
+  // The code alone in production: a test-side mock of the constant that esm-env's export conditions decide (CON-14
+  // proves the bundler's own production condition)
+  it.each(rnd05Rows)(
+    "writes only the code in production when %s",
+    async (_fault, props, code) => {
+      vi.resetModules();
+      vi.doMock("esm-env", () => ({ DEV: false, BROWSER: true, NODE: false }));
+      try {
+        const { render: renderAgain, cleanup } =
+          await import("@testing-library/svelte");
+        const { default: Table } = await import("./DataTable.svelte");
+        renderAgain(Table<Item>, { ...base, ...props });
+        cleanup();
+      } finally {
+        vi.doUnmock("esm-env");
+        vi.resetModules();
+      }
+      expect(errors()).toEqual([`SvelteDT: ${code}`]);
     },
   );
 });

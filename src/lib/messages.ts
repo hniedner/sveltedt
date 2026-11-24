@@ -11,19 +11,7 @@ export const defaultMessages: DataTableMessages = {
   empty: "No data.",
   rowCount: (count) =>
     `${number.format(count)} ${count === 1 ? "row" : "rows"} displayed`,
-  captionEmpty: "Table caption must not be empty.",
-  regionLabelEmpty: "Table region label must not be empty.",
-  noColumns: "Table has no columns.",
-  columnIdEmpty: "A column id is empty.",
-  columnIdDuplicate: "Two columns share an id.",
-  columnLabelEmpty: "A column label is empty.",
-  columnLabelDuplicate: "Two columns share a label.",
-  columnContentMissing: "A column has no value and no cell.",
-  statusUnknown: "Table status is not known.",
-  rowsNotList: "Table has no list of rows.",
-  rowIdEmpty: "A row id is empty.",
-  rowIdDuplicate: "Two rows share an id.",
-  rowIdUnreadable: "A row id could not be read.",
+  invalidInput: "This table cannot be shown.",
   sortableHint: "Column headers with buttons are sortable.",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
@@ -33,13 +21,6 @@ export const defaultMessages: DataTableMessages = {
     const words = direction === "asc" ? "ascending" : "descending";
     return `sorted ${words}${rank === null ? "" : `, priority ${rank}`}. ${hint}`;
   },
-  sortableInvalid: "A column's sort directions are invalid.",
-  sortHandlerMissing: "A sortable column has no sort handler.",
-  sortInvalid: "The sort is not valid.",
-  sortColumnUnknown: "The sort names an unknown column.",
-  sortColumnNotSortable: "The sort names a column that cannot be sorted.",
-  sortDirectionNotAllowed: "The sort uses a direction a column does not allow.",
-  sortColumnDuplicate: "The sort names a column twice.",
 };
 
 // The pager's English words, the information line's included (PAGE-37, PAGE-38), and the alert texts of PAGE-16
