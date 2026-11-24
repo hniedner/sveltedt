@@ -278,6 +278,16 @@ test(
   },
 );
 test(
+  "an error event of a child that did start does not turn the rejection into could-not-start",
+  { timeout: 5000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(pids, "-e", "process.exit(4)");
+    child.emit("error", new Error("late"));
+    await assert.rejects(readyLine(child, "x"), /the program ended \(exit 4\)/);
+  },
+);
+test(
   "a child that cannot be spawned: no throw, stop resolves at once, readyLine rejects naming the command and the error",
   { timeout: 5000 },
   async () => {

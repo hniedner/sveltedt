@@ -12,7 +12,7 @@ import type { Readable } from "node:stream";
 
 type Piped = ChildProcessByStdio<null, Readable, Readable>;
 const running = new Set<ChildProcess>();
-const notStarted = new WeakMap<ChildProcess, Error>();
+const couldNotStart = new WeakMap<ChildProcess, Error>();
 // Children whose group was seen gone: a group id that is free may be reused, so such a group is never signalled again
 const gone = new WeakSet<ChildProcess>();
 let installed = false;
@@ -83,7 +83,9 @@ export function spawnGroup(
   install();
   const child = spawn(cmd, args, { ...options, detached: true });
   // A child that cannot be started has no pid and ends with `close`; its `error` must not end this process
-  child.on("error", (e) => notStarted.set(child, e));
+  child.on("error", (e) => {
+    if (child.pid === undefined) couldNotStart.set(child, e);
+  });
   if (child.pid !== undefined) {
     running.add(child);
     // `close` waits for the stdio to end: a grandchild that holds the pipes defers this signal to the group
@@ -129,8 +131,8 @@ export function readyLine(child: Piped, prefix: string): Promise<string> {
     child.on("close", (code, signal) =>
       reject(
         new Error(
-          notStarted.has(child)
-            ? `could not start ${child.spawnfile}: ${notStarted.get(child)?.message}`
+          couldNotStart.has(child)
+            ? `could not start ${child.spawnfile}: ${couldNotStart.get(child)?.message}`
             : `the program ended (exit ${code ?? signal}) before "${prefix}"\nstdout: ${out}\nstderr: ${err}`,
         ),
       ),
