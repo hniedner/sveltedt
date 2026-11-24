@@ -185,3 +185,30 @@ describe("CONN-02", () => {
     );
   });
 });
+
+// Outside every statement: a sort id that no column entry serves gets no order entry, and nothing is thrown
+describe("an unserved sort id", () => {
+  it("sends no order entry and throws nothing", () => {
+    const { send } = mount({
+      query: { sort: [{ id: "unknown", direction: "asc" }], limit: 10 },
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(orderOf(send.mock.calls[0]?.[0])).toEqual({});
+  });
+  it("leaves the served entries of the sort numbered from 0", () => {
+    const { send } = mount({
+      query: {
+        sort: [
+          { id: "unknown", direction: "asc" },
+          { id: "code", direction: "desc" },
+        ],
+        limit: 10,
+      },
+    });
+    expect(orderOf(send.mock.calls[0]?.[0])).toEqual({
+      "order[0][column]": "1",
+      "order[0][dir]": "desc",
+      "order[0][name]": "c",
+    });
+  });
+});

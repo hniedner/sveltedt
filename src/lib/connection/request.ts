@@ -4,7 +4,7 @@ import type { ConnectionColumn, ConnectionQuery } from "./types.ts";
 const nameOf = (column: ConnectionColumn): string => column.name ?? "";
 
 // The bracketed request for one query: the paging, search and column keys, then one order entry per sort entry
-// (spec/connection.md, section 1)
+// that a column map entry serves (spec/connection.md, section 1)
 export function buildRequest(
   columns: readonly ConnectionColumn[],
   query: ConnectionQuery,
@@ -24,11 +24,16 @@ export function buildRequest(
     request.set(`columns[${i}][search][value]`, "");
     request.set(`columns[${i}][search][regex]`, "false");
   });
-  (query.sort ?? []).forEach((entry, i) => {
-    const column = columns.findIndex((c) => c.id === entry.id);
-    request.set(`order[${i}][column]`, String(column));
-    request.set(`order[${i}][dir]`, entry.direction);
-    request.set(`order[${i}][name]`, nameOf(columns[column]));
-  });
+  (query.sort ?? [])
+    .map((entry) => ({
+      entry,
+      column: columns.findIndex((c) => c.id === entry.id),
+    }))
+    .filter(({ column }) => column >= 0)
+    .forEach(({ entry, column }, i) => {
+      request.set(`order[${i}][column]`, String(column));
+      request.set(`order[${i}][dir]`, entry.direction);
+      request.set(`order[${i}][name]`, nameOf(columns[column]));
+    });
   return request;
 }
