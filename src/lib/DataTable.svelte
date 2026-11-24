@@ -20,6 +20,7 @@
     messages,
     sort,
     onsort,
+    oncancel,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -143,6 +144,7 @@
     {fault === null && status === "loading" ? words.loading : ""}
     {#if still}<div>{words.stillLoading}</div>{/if}
   </div>
+  {#if oncancel && still}<button type="button">{words.cancel}</button>{/if}
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
     <div role="alert">{words.invalidInput}</div>

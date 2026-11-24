@@ -1130,7 +1130,7 @@ describe("RND-06", () => {
   // The words of RND-06; the sort words are SORT-17's, the stopped and still-loading messages are STATE-26's
   const foreign: Omit<
     DataTableMessages,
-    `sort${string}` | "stopped" | "stillLoading"
+    `sort${string}` | "stopped" | "stillLoading" | "cancel"
   > = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",

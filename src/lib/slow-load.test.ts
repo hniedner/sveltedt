@@ -1,4 +1,4 @@
-import { render } from "@testing-library/svelte";
+import { render, within } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableProps } from "./types.ts";
@@ -258,6 +258,43 @@ function watchAdditions(table: ReturnType<typeof mount>, words: string) {
     },
   };
 }
+
+// @spec("STATE-17", "aa4c0297")
+describe("STATE-17", () => {
+  const oncancel = (): void => {};
+  const cancel = (container: HTMLElement): HTMLElement | null =>
+    within(container).queryByRole("button", { name: "Cancel" });
+
+  it("shows Cancel at 6000 ms of loading with oncancel, not at 5999 ms", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(5999);
+    expect(cancel(table.container)).toBeNull();
+    await table.at(6000);
+    expect(cancel(table.container)).not.toBeNull();
+  });
+
+  it("shows no Cancel without oncancel while the still-loading text is shown", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+    expect(cancel(table.container)).toBeNull();
+  });
+
+  it("shows Cancel at 6000 ms of busy with rows", async () => {
+    const table = mount({ rows: twoRows, busy: true, oncancel });
+    await table.at(6000);
+    expect(cancel(table.container)).not.toBeNull();
+  });
+
+  it("removes Cancel with the answer at 7000 ms", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6999);
+    expect(cancel(table.container)).not.toBeNull();
+    await table.at(7000);
+    await table.change({ rows: twoRows, busy: false, oncancel });
+    expect(cancel(table.container)).toBeNull();
+  });
+});
 
 // @spec("A11Y-20", "42a3ade6")
 describe("A11Y-20", () => {

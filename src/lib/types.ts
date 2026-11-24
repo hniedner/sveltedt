@@ -34,6 +34,7 @@ export interface DataTableMessages {
   readonly empty: string;
   readonly stopped: string;
   readonly stillLoading: string;
+  readonly cancel: string;
   readonly rowCount: (count: number) => string;
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
@@ -67,6 +68,9 @@ export interface DataTableProps<Row> {
   sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
+  // Called with no argument on a press of "Cancel", which shows beside the still-loading text; the table stops
+  // nothing itself (PRD-B23)
+  oncancel?: () => void;
   heading?: Snippet;
   actions?: Snippet;
 }
