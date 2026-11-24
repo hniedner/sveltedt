@@ -2986,6 +2986,7 @@ come with the column statements (milestone 5), which state the badges and focus 
   | Columns | `onreset` | "Reset table" |
   |---|---|---|
   | Code sortable, no filter | given | shown |
+  | Code sortable and Note neither sortable nor with a filter | given | shown |
   | Name with a filter, none sortable | given | shown |
   | Code sortable | not given | not shown |
   | neither sortable nor with a filter | given | not shown (RND-12) |
