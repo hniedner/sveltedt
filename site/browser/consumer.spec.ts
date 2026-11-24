@@ -5,6 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 const PROD = "http://127.0.0.1:4174";
 const DEV = "http://127.0.0.1:4175";
+// A failed test keeps its trace (#217): its page, requests and console, beside test-results/consumer-serve.log
+test.use({ trace: "retain-on-failure" });
 // SvelteKit's route announcer is rendered by the client only: its element is the sign that the page is hydrated
 const hydrated = (page: Page) =>
   page.waitForSelector("#svelte-announcer", {

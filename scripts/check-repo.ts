@@ -214,9 +214,14 @@ function leftToJob(
   );
   if ([...jobs.values()].some(sets) && !runs)
     found.push(`${variable} is set but no job named ${name} runs the step`);
-  // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
-  // on failure) narrows this rule in its own branch, with its rows
-  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+  // Fails closed: an `if:` or a continue-on-error anywhere in the job, but the one step condition the results' upload
+  // needs: `!cancelled()` is true on every run that was not cancelled, so it can never skip a step
+  const upload = /^ {8}if: \$\{\{ !cancelled\(\) \}\}\s*$/;
+  if (
+    job?.some(
+      (l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l) && !upload.test(l),
+    )
+  )
     found.push(
       `the job ${name} has continue-on-error or if: it may pass without the step`,
     );
