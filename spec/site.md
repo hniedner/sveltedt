@@ -780,7 +780,7 @@ policy.
 | PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04, FULL-03 | in part: the token set, the density and the variants (`hover` on shows its surface once a later theming branch states it); `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
 | PRD-T4 | VIEW-01 | in part: the site ships the set; its values and pairs are `spec/table.md`'s THEME-17, THEME-33 and THEME-34 |
 | PRD-W2 | API-01, API-02, API-03, API-04, API-05 | in part: the route answers the first part of the endpoint, with paging, one ordering column, a refusal of malformed requests and a fixed list; search, column search, further order entries and the query function behind it come with later parts |
-| PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-03 | in part: the connection page shows the helper loading and paging a fixed list through the route; sort, size and filters on that page come with the helper's later parts |
+| PRD-B20 | CPAGE-01, CPAGE-02 | in part: the connection page shows the helper loading and paging a fixed list through the route; sort, size and filters on that page come with the helper's later parts |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 
 PRD musts of the site left to later parts: PRD-W2 (in part), PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
