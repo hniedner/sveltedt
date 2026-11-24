@@ -73,6 +73,8 @@ export interface DataTableMessages {
   }) => string;
   // The name of a badge's button: "Clear filter" and the badge's words (FILT-08)
   readonly clearFilter: (words: string) => string;
+  // The button that clears every applied filter (FILT-10)
+  readonly clearFilters: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (state: {

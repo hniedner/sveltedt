@@ -20,6 +20,7 @@ export const defaultMessages: DataTableMessages = {
   badgeText: ({ label, text }) => `${label}: contains “${text}”`,
   badgeOptions: ({ label, options }) => `${label}: ${options.join(", ")}`,
   clearFilter: (words) => `Clear filter ${words}`,
+  clearFilters: "Clear column filters",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

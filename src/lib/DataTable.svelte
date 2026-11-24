@@ -168,6 +168,9 @@
         onclearfilter?.({ id: badge.id })}>{badge.text}</button
     >
   {/each}
+  {#if badgeList.length > 0}
+    <button type="button">{defaultMessages.clearFilters}</button>
+  {/if}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
   <div role="status" aria-atomic="false">

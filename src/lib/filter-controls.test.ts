@@ -122,6 +122,43 @@ describe("FILT-08", () => {
   });
 });
 
+const CLEAR_ALL = "Clear column filters";
+const clearAll = (): HTMLElement[] =>
+  screen.queryAllByRole("button", { name: CLEAR_ALL });
+
+// @spec("FILT-10", "d4f0090f")
+describe("FILT-10", () => {
+  it.each<[string, Partial<DataTableProps<Item>>, number]>([
+    ["no filter", { filters: {} }, 0],
+    [
+      "a text that is empty",
+      { filters: { name: { kind: "text", text: "" } } },
+      0,
+    ],
+    [
+      "an applied text",
+      { filters: { name: { kind: "text", text: "Beta" } } },
+      1,
+    ],
+    [
+      "a fault of filters (the alert of RND-05)",
+      {
+        filters: {
+          name: { kind: "text", text: "Beta" },
+          zzz: { kind: "text", text: "x" },
+        },
+      },
+      0,
+    ],
+  ])(
+    "with %s shows the button as often as the row says",
+    (_row, props, shown) => {
+      mount(props);
+      expect(clearAll()).toHaveLength(shown);
+    },
+  );
+});
+
 // @spec("FILT-09", "48cff703")
 describe("FILT-09", () => {
   it("emits onclearfilter once with the column id on a badge press, and calls no other handler", async () => {
