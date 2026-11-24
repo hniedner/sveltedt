@@ -52,7 +52,9 @@ There is nothing to install yet. What is on `main` today:
 - the connection helper, first part, not yet importable from the package: `createConnection` sends the first request
   through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once through
   `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers written by
-  hand; an answer recorded from a real backend comes later.
+  hand; an answer recorded from a real backend comes later. It does not yet handle a `send` that rejects or throws, a
+  superseded request (a stale answer of an earlier request), an answer that arrives after unmount, or the `error`
+  field of an answer; they belong to the next part.
 
 Not yet: search,
 filters, column features,

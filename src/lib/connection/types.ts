@@ -22,9 +22,8 @@ export interface ConnectionQuery {
 }
 
 export interface ConnectionOptions {
-  // The application's transport: it returns the parsed answer body, not a `Response`, and rejects for an HTTP status
-  // outside 2xx; the helper hands it the request and an abort signal. With fetch: `(request, signal) =>
-  // fetch("/rows?" + request, { signal }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))`
+  // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper hands it the
+  // request and an abort signal. A rejection of `send` is not handled by the helper.
   readonly send: (
     request: URLSearchParams,
     signal: AbortSignal,
