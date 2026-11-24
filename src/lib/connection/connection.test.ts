@@ -116,3 +116,71 @@ describe("CONN-04", () => {
     },
   );
 });
+
+// The six pairs of column entry `i`, as the spec lists them, and the five that hold no column or order
+const columnPairs = (
+  i: number,
+  data: string,
+  name: string,
+): [string, string][] => [
+  [`columns[${i}][data]`, data],
+  [`columns[${i}][name]`, name],
+  [`columns[${i}][searchable]`, "true"],
+  [`columns[${i}][orderable]`, "true"],
+  [`columns[${i}][search][value]`, ""],
+  [`columns[${i}][search][regex]`, "false"],
+];
+const basePairs: [string, string][] = [
+  ["draw", "1"],
+  ["start", "0"],
+  ["length", "10"],
+  ["search[value]", ""],
+  ["search[regex]", "false"],
+];
+const byKey = ([a]: [string, string], [b]: [string, string]) =>
+  a < b ? -1 : 1;
+
+// @spec("CONN-02", "96921bb8")
+describe("CONN-02", () => {
+  const mapPairs = [
+    ...columnPairs(0, "name", "n"),
+    ...columnPairs(1, "code", "c"),
+    ...columnPairs(2, "status", "s"),
+  ];
+  const rows: [string, Partial<ConnectionOptions>, [string, string][]][] = [
+    [
+      "M, Q0 (26 pairs)",
+      {},
+      [
+        ...basePairs,
+        ...mapPairs,
+        ["order[0][column]", "0"],
+        ["order[0][dir]", "asc"],
+        ["order[0][name]", "n"],
+      ],
+    ],
+    [
+      "M plus an entry with no name and no id, Q0",
+      { columns: [...M, { data: "internal" }] },
+      [
+        ...basePairs,
+        ...mapPairs,
+        ...columnPairs(3, "internal", ""),
+        ["order[0][column]", "0"],
+        ["order[0][dir]", "asc"],
+        ["order[0][name]", "n"],
+      ],
+    ],
+    [
+      "M, the query { limit: 10 } only (23 pairs)",
+      { query: { limit: 10 } },
+      [...basePairs, ...mapPairs],
+    ],
+  ];
+  it.each(rows)("sends exactly the keys of %s", (_row, options, pairs) => {
+    const { send } = mount(options);
+    expect([...(send.mock.calls[0]?.[0] ?? [])].sort(byKey)).toEqual(
+      [...pairs].sort(byKey),
+    );
+  });
+});
