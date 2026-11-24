@@ -6,9 +6,10 @@ import { buildRequest } from "./request.js";
 import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
-// the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount, from the options as they are
-// then, and one more for each `pager.onpage`, and maps each answer. Read `table` and `pager` from the returned object,
-// never destructured from it: each is read from the helper's state when it is read.
+// the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each
+// `pager.onpage`, reading `options` when it builds each request, and maps each answer. Read `pager` from the returned
+// object, never destructured from it: it is a getter, so a copy would hold the value it had when it was copied.
+// `table` is a plain object whose getters read the helper's state, so it may be destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {

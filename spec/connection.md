@@ -439,7 +439,7 @@ filters is served (else CONN-16).
   After a failed page change the pager stays at the page asked for, with the totals of the last answer mapped.
 
 - Reason: the pager has no state for a total not yet known, so the application shows it only once its props exist
-  (PRD-B20, PRD-B9). A retry (`reload()`, CONN-24; `onretry`, a later part) sends the page that failed, as DataTables
+  (PRD-B20, PRD-B9). A retry (`reload()`, CONN-24) sends the page that failed, as DataTables
   keeps the start of a failed page change (FETCHED 2026-11-23, DataTablesSrc ad98978, js/core/page.ts l.58-64), and
   the failed state shows no rows that the pager could contradict (STATE-07 in `spec/table.md`).
 - Layer: component.

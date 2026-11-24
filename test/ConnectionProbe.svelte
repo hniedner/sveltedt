@@ -24,7 +24,7 @@
     options: ConnectionOptions;
     onconnect: (connection: Connection<Row>) => void;
   } = $props();
-  // The helper reads its options once, at mount, on purpose: the probe never changes them
+  // The probe never changes its options, so what the helper reads of them at each request stays the same.
   const connection = untrack(() => createConnection<Row>(options));
   untrack(() => onconnect(connection));
   const columns: DataTableColumn<Row>[] = [

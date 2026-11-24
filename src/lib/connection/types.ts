@@ -23,7 +23,9 @@ export interface ConnectionQuery {
 
 export interface ConnectionOptions {
   // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper hands it the
-  // request and an abort signal. A rejection of `send` is not handled by the helper.
+  // request and an abort signal. A rejection of `send` is not handled by the helper,
+  // and `send` must not throw synchronously either: the helper has no catch around the call, so a synchronous throw
+  // escapes.
   readonly send: (
     request: URLSearchParams,
     signal: AbortSignal,
@@ -32,7 +34,7 @@ export interface ConnectionOptions {
   // The form of the request: the bracketed one
   readonly form?: "bracketed";
   readonly query: ConnectionQuery;
-  // The application's handler of a failure, given its error
+  // Called once with an Error when an answer cannot be mapped; it does not hear a rejection of `send`
   readonly onerror: (error: unknown) => void;
 }
 
