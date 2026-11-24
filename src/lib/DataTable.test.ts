@@ -1300,6 +1300,19 @@ describe("RND-13", () => {
       expect(screen.getByRole("status").textContent.trim()).toBe("");
     },
   );
+
+  it("shows no progress indicator and no still-loading text beside the alert at 6000 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      const component = show({ columns: [], rows: [], status: "loading" });
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(component.querySelector("[data-sdt-progress]")).toBeNull();
+      expect(component.textContent).not.toContain("Still loading");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // @spec("RND-14", "ca53efc4")
