@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, test } from "node:test";
+import { after, mock, test } from "node:test";
 import { HERE } from "./gate-step.ts";
 import { start } from "./consumer-serve.ts";
 
@@ -265,6 +265,8 @@ test(
     const logs = mkdtempSync(join(tmpdir(), "serve-log-"));
     after(() => rmSync(logs, { recursive: true, force: true }));
     const log = join(logs, "consumer-serve.log");
+    const said = mock.method(console, "error", () => undefined);
+    after(() => said.mock.restore());
     const copy = fake({
       ...GOOD,
       dev: `${GOOD.dev} setTimeout(() => console.log("late"), 1500);`,
@@ -285,6 +287,12 @@ test(
       new Promise<string>((r) => setTimeout(() => r("alive"), 2500)),
     ]);
     assert.equal(outcome, "alive");
+    // Skipped, but not silently
+    assert.ok(
+      said.mock.calls.some((c) =>
+        String(c.arguments[0]).includes("the log was not written"),
+      ),
+    );
   },
 );
 test("the program: SIGTERM after both servers answer ends them and removes the copy", async () => {
