@@ -877,6 +877,7 @@ describe("STATE-04", () => {
     ["ready", true, "true"],
     ["loading", false, "true"],
     ["failed", false, "false"],
+    ["stopped", false, "false"],
   ])(
     "with status %s and busy %s, the table's aria-busy is %s and the region has none",
     (status, busy, expected) => {
