@@ -15,7 +15,7 @@ const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
 // undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
-const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
+const STATUSES: readonly unknown[] = ["loading", "ready", "failed", "stopped"];
 
 // An entry of the order as its type says: an object with a string id and a direction, asc or desc (SORT-15)
 const isSortEntry = (entry: unknown): boolean =>
@@ -71,9 +71,10 @@ export function validateTable<Row>(
   )
     return "columnContentMissing";
   if (!STATUSES.includes(status)) return "statusUnknown";
-  // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
+  // Only with status ready are rows that are not a list a fault; with loading, failed or stopped they are not
+  // (STATE-08, STATE-22), and a sort fault still counts
   if (!isList(rows)) {
-    if (status !== "loading" && status !== "failed") return "rowsNotList";
+    if (status === "ready") return "rowsNotList";
   } else {
     const fault = rowFault(rows, getRowId);
     if (fault) return fault;

@@ -32,6 +32,7 @@ export interface DataTableMessages {
   readonly loading: string;
   readonly failed: string;
   readonly empty: string;
+  readonly stopped: string;
   readonly rowCount: (count: number) => string;
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
@@ -44,8 +45,9 @@ export interface DataTableMessages {
   }) => string;
 }
 
-// Where the rows stand: on their way (`loading`), shown (`ready`) or not arrived (`failed`)
-export type DataTableStatus = "loading" | "ready" | "failed";
+// Where the rows stand: on their way (`loading`), shown (`ready`), not arrived (`failed`) or the load ended by the
+// user before an answer (`stopped`)
+export type DataTableStatus = "loading" | "ready" | "failed" | "stopped";
 
 export interface DataTableProps<Row> {
   rows: readonly Row[];

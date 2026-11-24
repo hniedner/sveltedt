@@ -28,6 +28,8 @@ There is nothing to install yet. What is on `main` today:
 - the loading, failed and busy states: the loading text in a status element, the failure in an alert, `aria-busy`
   on the table, the rows kept while busy, and the row count in a polite live region, its digits grouped the
   English way ("1,000") whatever the runtime's locale;
+- the stopped state: `status="stopped"` shows "Loading stopped" in one cell where the rows would be, with the header
+  kept and no empty message, as plain text and not as an alert;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named

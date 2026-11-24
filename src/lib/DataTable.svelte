@@ -156,7 +156,14 @@
           </tr>
         </thead>
         <tbody>
-          {#if status === "ready"}
+          <!-- STATE-20: stopped shows one spanning cell and no rows; loading and failed leave the body empty and
+             show their message outside the table (STATE-01, STATE-02, STATE-06, STATE-07) -->
+          {#if status === "stopped"}
+            <tr
+              ><td class="sdt-cell" colspan={columns.length}>{words.stopped}</td
+              ></tr
+            >
+          {:else if status === "ready"}
             {#each rows as row (getRowId(row))}
               <tr class="sdt-row">
                 {#each columns as column (column.id)}
