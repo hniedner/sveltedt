@@ -40,3 +40,64 @@ describe("CONN-01", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+// The pairs of the request whose key starts with `order`
+const orderOf = (
+  request: URLSearchParams | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    [...(request ?? [])].filter(([key]) => key.startsWith("order")),
+  );
+
+// @spec("CONN-08", "3387c5ec")
+describe("CONN-08", () => {
+  const MReversed = [M[2], M[1], M[0]] as ConnectionColumn[];
+  const rows: [
+    string,
+    ConnectionColumn[],
+    ConnectionOptions["query"]["sort"],
+    Record<string, string>,
+  ][] = [
+    [
+      "M, [name asc]",
+      M,
+      [{ id: "name", direction: "asc" }],
+      {
+        "order[0][column]": "0",
+        "order[0][dir]": "asc",
+        "order[0][name]": "n",
+      },
+    ],
+    [
+      "M, [code desc, name asc]",
+      M,
+      [
+        { id: "code", direction: "desc" },
+        { id: "name", direction: "asc" },
+      ],
+      {
+        "order[0][column]": "1",
+        "order[0][dir]": "desc",
+        "order[0][name]": "c",
+        "order[1][column]": "0",
+        "order[1][dir]": "asc",
+        "order[1][name]": "n",
+      },
+    ],
+    [
+      "M reversed (Status 0, Code 1, Name 2), [name asc]",
+      MReversed,
+      [{ id: "name", direction: "asc" }],
+      {
+        "order[0][column]": "2",
+        "order[0][dir]": "asc",
+        "order[0][name]": "n",
+      },
+    ],
+    ["M, []", M, [], {}],
+  ];
+  it.each(rows)("sends the order of %s", (_row, columns, sort, order) => {
+    const { send } = mount({ columns, query: { sort, limit: 10 } });
+    expect(orderOf(send.mock.calls[0]?.[0])).toEqual(order);
+  });
+});

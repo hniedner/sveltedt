@@ -1,5 +1,8 @@
 import type { ConnectionColumn, ConnectionQuery } from "./types.ts";
 
+// The name the server knows a column by: none given is the empty text
+const nameOf = (column: ConnectionColumn): string => column.name ?? "";
+
 // The bracketed request of one query (CONN-01); each later statement adds its keys
 export function buildRequest(
   columns: readonly ConnectionColumn[],
@@ -14,6 +17,7 @@ export function buildRequest(
     const column = columns.findIndex((c) => c.id === entry.id);
     request.set(`order[${i}][column]`, String(column));
     request.set(`order[${i}][dir]`, entry.direction);
+    request.set(`order[${i}][name]`, nameOf(columns[column]));
   });
   return request;
 }
