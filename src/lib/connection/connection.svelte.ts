@@ -54,7 +54,10 @@ export function createConnection<Row = unknown>(
     void (
       options.form === "json"
         ? options.send({ request, signal })
-        : options.send({ request: toParams(request), signal })
+        : options.send({
+            request: toParams(request, options.form === "dotted"),
+            signal,
+          })
     ).then((body) => {
       busy = false;
       const read = readAnswer<Row>(body, sent);

@@ -66,8 +66,9 @@ export interface ConnectionParamsOptions extends ConnectionBaseOptions {
     readonly request: URLSearchParams;
     readonly signal: AbortSignal;
   }) => Promise<unknown>;
-  // The form of the request: the bracketed one when not given
-  readonly form?: "bracketed";
+  // The form of the request: the bracketed one when not given; the dotted one keeps list indexes in brackets and joins
+  // object keys with a dot
+  readonly form?: "bracketed" | "dotted";
 }
 
 // The options of the JSON form: `send` receives the plain object, which the application stringifies itself

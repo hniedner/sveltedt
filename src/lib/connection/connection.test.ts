@@ -265,6 +265,37 @@ describe("CONN-02", () => {
   });
 });
 
+// @spec("CONN-05", "eeaee859")
+describe("CONN-05", () => {
+  const rows: [string, string][] = [
+    ["columns[0][data]", "columns[0].data"],
+    ["columns[0][search][value]", "columns[0].search.value"],
+    ["order[0][column]", "order[0].column"],
+    ["search[value]", "search.value"],
+    ["draw", "draw"],
+  ];
+  it.each(rows)("sends the value of %s under %s", (bracketed, dotted) => {
+    const sent = mount({ form: "dotted" }).send.mock.calls[0]?.[0]?.request;
+    const reference = mount().send.mock.calls[0]?.[0]?.request;
+    expect(reference?.get(bracketed)).not.toBeNull();
+    expect(sent?.get(dotted)).toBe(reference?.get(bracketed));
+  });
+  it("sends no bracketed key with an object key in brackets", () => {
+    const keys = [
+      ...(mount({ form: "dotted" }).send.mock.calls[0]?.[0]?.request.keys() ??
+        []),
+    ];
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.filter((key) => /\[[^\d\]]/.test(key))).toEqual([]);
+  });
+  it("sends no key starting with order for the sort []", () => {
+    const { send } = mount({ form: "dotted", query: { sort: [], limit: 10 } });
+    const request = send.mock.calls[0]?.[0]?.request;
+    expect(request?.get("draw")).toBe("1");
+    expect(orderOf(request)).toEqual({});
+  });
+});
+
 // @spec("CONN-06", "fb038033")
 describe("CONN-06", () => {
   const fixed = { value: "", regex: false };

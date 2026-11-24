@@ -45,14 +45,22 @@ export function buildRequest(
   };
 }
 
-// The bracketed pairs of a request: every object and list key below the top is written as `[key]`
-export function toParams(request: ConnectionRequest): URLSearchParams {
+// The pairs of a request, bracketed or dotted: a list index is always written as `[i]`, an object key below the top as
+// `[key]` or `.key`
+export function toParams(
+  request: ConnectionRequest,
+  dotted: boolean,
+): URLSearchParams {
   const params = new URLSearchParams();
   const walk = (value: unknown, key: string): void => {
-    if (typeof value === "object" && value !== null)
+    if (typeof value === "object" && value !== null) {
+      const listed = Array.isArray(value);
       for (const [k, v] of Object.entries(value))
-        walk(v, key === "" ? k : `${key}[${k}]`);
-    else params.set(key, String(value));
+        walk(
+          v,
+          key === "" ? k : dotted && !listed ? `${key}.${k}` : `${key}[${k}]`,
+        );
+    } else params.set(key, String(value));
   };
   walk(request, "");
   return params;
