@@ -237,7 +237,11 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   a spec without `playwright.config.ts` cannot be checked. `site/browser/consumer.spec.ts` (CON-06 hydration in place,
   CON-08 no hydration warning on the development server) runs against the consumer's servers on 4174 and 4175, which
   `scripts/consumer-serve.ts` starts from one prepared copy (the webServer command prepares, because Playwright starts
-  it before any global setup); the preparation and both servers must answer within 3 minutes (each server within 60 s), and a server that dies, or a taken port, cannot be checked; the output of a failed server is in the message. In CI the
+  it before any global setup); the preparation and both servers must answer within 3 minutes (each server within 60 s), and a server that dies, or a taken port, cannot be checked; the output of a failed server is in the message. A failed
+  consumer test keeps its Playwright trace in `test-results/`, beside `consumer-serve.log`, a timed log of both servers
+  with the copy's path replaced (the same files are in the artifact `browser-results` of a CI run): copy
+  `test-results/` aside before rerunning, since the next browser run, and the selftest of consumer-serve, replace the
+  log, and never attach a local trace to an issue (it holds local paths). In CI the
   static job leaves it to the job `browser`
   through the variable `GATE_BROWSER`, which gate-needs allows only outside that job and only beside a job `browser`
   that runs the step.
