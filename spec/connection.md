@@ -128,7 +128,8 @@ keys that keep the list indexes in brackets and join object keys with a dot.
   { data: 'code', name: 'c', searchable: true, orderable: true, search: { value: '', regex: false } },
   { data: 'status', name: 's', searchable: true, orderable: true, search: { value: '', regex: false } }],
   order: [{ column: 0, dir: 'asc', name: 'n' }] }`. It is an object, not a string: the
-  application stringifies it and sets its own content type. With the sort `[]`, `order` is `[]`.
+  application stringifies it and sets its own content type. With the sort `[]`, `order` is `[]`. With offset 20 and
+  limit 25: `start: 20`, `length: 25`, numbers.
 - Reason: a backend that binds a JSON body (spring-data-jpa-datatables' `@RequestBody DataTablesInput`, FETCHED
   2026-11-20) expects what the client's `JSON.stringify(d)` gives (PRD-B20). The client's `search.fixed` and
   `columns[i].search.fixed` lists (READ, DataTables 2.1.8 source) carry its own fixed searches, which the helper has
@@ -138,8 +139,8 @@ keys that keep the list indexes in brackets and join object keys with a dot.
 
 **CONN-07** `start` MUST be the query's offset and `length` its limit.
 - Examples (the test runs every row): offset 0, limit 10: `start=0`, `length=10`; offset 20, limit 25: `start=20`,
-  `length=25`; the same with `form: 'json'`: `start: 20`, `length: 25`, numbers; from offset 20, limit 10, answered,
-  `pager.onpage(30)`: one request, `start=30`, `length=10`, and `pager.offset` 30 before it is settled.
+  `length=25`; from offset 20, limit 10, answered, `pager.onpage(30)`: one request, `start=30`, `length=10`, and
+  `pager.offset` 30 before it is settled.
 - Reason: the pager is offset-based, as the protocol is (PRD-B9, PRD-B20).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
@@ -266,9 +267,8 @@ the first row shown, and send one request for it.
 - Traces: PRD-B20, PRD-B8.
 
 **CONN-15** `draw` MUST be 1 in the first request and one more in every later request, whatever sent it.
-- Examples (the test runs every row): mount, `table.onsort([code desc])`, `reload()`, `table.onsearch('x')`, none
-  answered: `draw` 1, 2, 3, 4. Map M without entry 1's `id`: mount, then `table.onsort([code asc])` (refused, CONN-16,
-  nothing sent), then `table.onsearch('x')`: `draw` 1, then 2.
+- Example: mount, answered by A1; `pager.onpage(10)`, answered by A1 with `draw: 2`; `pager.onpage(20)`: `draw` 1,
+  2, 3.
 - Reason: the answer echoes `draw` as a check that it answers the request sent (CONN-18); which request an answer
   belongs to the helper knows from the call of `send` itself (CONN-22) (PRD-B20). Stated limit, not tested: the
   counter starts at 1 for each helper and has no upper bound; at ten requests a second it reaches 2^31-1, where a
@@ -331,6 +331,9 @@ as before, and `onerror` called once with an `Error`.
   | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'`, `'1e0'`, `'+1'`, `'1.0'` | `draw` given and neither the number sent nor its decimal text |
 
   With A1 on screen, the second request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false.
+  With A1 on screen, `pager.onpage(10)`, its request sent with `draw=2` and answered by A1 (`draw: 1`, the first
+  request's): `'failed'`, `table.rows === D`. In every row `onerror` receives an `Error` whose message is `The answer
+  does not match the request.`, which holds no value from the answer.
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
   `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20).
@@ -431,10 +434,14 @@ filters is served (else CONN-16).
   | mount, nothing settled | `undefined` | none |
   | the first request fails | `undefined` | none |
   | A1 | `offset` 0, `limit` 10, `total` 57, `unfilteredTotal` 1000 | shown |
-  | A1, then a failed request | as after A1 | shown |
+  | A1, then `pager.onpage(10)` answered by an answer it cannot map (CONN-18) | `offset` 10, `limit` 10, `total` 57, `unfilteredTotal` 1000 | shown |
+
+  After a failed page change the pager stays at the page asked for, with the totals of the last answer mapped.
 
 - Reason: the pager has no state for a total not yet known, so the application shows it only once its props exist
-  (PRD-B20, PRD-B9).
+  (PRD-B20, PRD-B9). A retry (`reload()`, CONN-24; `onretry`, a later part) sends the page that failed, as DataTables
+  keeps the start of a failed page change (FETCHED 2026-11-23, DataTablesSrc ad98978, js/core/page.ts l.58-64), and
+  the failed state shows no rows that the pager could contradict (STATE-07 in `spec/table.md`).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
 
