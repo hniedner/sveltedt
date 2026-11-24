@@ -61,17 +61,19 @@ There is nothing to install yet. What is on `main` today:
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
   column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
   search input gets the alert; the filter fields and dialog are not done yet;
-- the connection helper, first part, not yet importable from the package: `createConnection` sends the first request
-  through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once through
-  `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers written by
-  hand. It does not yet handle a `send` that rejects or throws, a superseded request (a stale answer of an earlier
-  request), an answer that arrives after unmount, or the `error` field of an answer.
+- the connection helper, first part, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first
+  request through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once
+  through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers
+  written by hand. The test site's connection page (`/connection.html`) loads its orders through it from the site's own
+  route `/api/orders` and pages them with `Pagination`, proved in Chromium, Firefox and WebKit. It does not yet handle a
+  `send` that rejects or throws, a superseded request (a stale answer of an earlier request), an answer that arrives
+  after unmount, or the `error` field of an answer.
 
-Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (the
-export path; sort, filter and search intents; `reload()`; the dotted and JSON forms; cancel and retry; a `send` that
-rejects or throws, or an answer whose properties throw when read, after which the table stays loading, or shows the
-old rows with the new page, and `onerror` is not called; a sort id no column serves, which the helper throws at mount,
-until a refused sort is reported through `onerror`) and the published package. The order is in the
+Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (sort,
+filter and search intents; `reload()`; the dotted and JSON forms; cancel and retry; a `send` that rejects or throws,
+or an answer whose properties throw when read, after which the table stays loading, or shows the old rows with the new
+page, and `onerror` is not called; a sort id no column serves, which the helper throws at mount, until a refused sort
+is reported through `onerror`) and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
@@ -90,8 +92,9 @@ pnpm site:build
 pnpm site:serve
 ```
 
-Then open <http://127.0.0.1:4173>. The site listens on that address only and sends the strict content-security
-policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
+Then open <http://127.0.0.1:4173>, or <http://127.0.0.1:4173/connection.html> for the page whose rows come from the
+site's route `/api/orders` through the connection helper. The site listens on that address only and sends the strict
+content-security policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
 
 The browser tests open the built site in Chromium, Firefox and WebKit (stop `pnpm site:serve` first: they start the
 server on that address themselves; on Linux, `pnpm exec playwright install --with-deps` also installs the system
