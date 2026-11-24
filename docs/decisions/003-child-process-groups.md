@@ -39,5 +39,8 @@ fetched or measured.
     SIGKILL, the exit handler does not.
   - A program that starts a detached child and then returns normally does not exit while the child holds its pipes, so
     its `exit` handler never runs; `--test-force-exit` covers that case for test files.
+- A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `signalGroup`
+  guards a missing pid itself, so removing the check in `spawnGroup` changes no outcome. It is a second guard, not a
+  behaviour a test could pin.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
   platform, or if the helper grows past about 150 lines.
