@@ -1,7 +1,7 @@
 // Tests for consumer-serve.ts. The servers of a copy are faked by two small scripts, so every branch of `start` runs in
 // well under a second; the script's own exits are run through the program.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import {
   chmodSync,
@@ -16,9 +16,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { after, mock, test } from "node:test";
-import { readyLine } from "./children.ts";
+import { readyLine, spawnGroup, stop } from "./children.ts";
 import { HERE } from "./gate-step.ts";
 import { start } from "./consumer-serve.ts";
 
@@ -58,6 +59,10 @@ function fake(opts: { dev: string; prod: string }): string {
   writeFileSync(join(copy, "build", "index.js"), opts.prod);
   return copy;
 }
+// A server that listens on `port` but answers 503, so `wait` keeps polling, and writes `stamp` once it listens. It writes
+// nothing to stdout or stderr: a write into the dead program's pipe ends it and hides the leak
+const HELD = (port: string, stamp: string): string =>
+  `setTimeout(() => process.exit(0), 20000); import("node:http").then((h) => h.createServer((q, r) => { r.statusCode = 503; r.end("x"); }).listen(Number(${port}), "127.0.0.1", () => require("node:fs").writeFileSync("${stamp}", "up")));`;
 const GOOD = {
   dev: LISTEN('process.argv[process.argv.indexOf("--port") + 1]', 0),
   prod: LISTEN("process.env.PORT", 0),
@@ -298,28 +303,64 @@ test(
   },
 );
 test(
+  "start: a test's stop ends the servers that start() has launched while it still waits, so a stop during start-up frees both ports",
+  { timeout: 30_000 },
+  async () => {
+    const dev = HELD(
+      'process.argv[process.argv.indexOf("--port") + 1]',
+      "dev-bound",
+    );
+    const prod = HELD("process.env.PORT", "prod-bound");
+    const rows = [
+      { name: "dev", opts: { dev, prod: GOOD.prod }, stamp: "dev-bound" },
+      { name: "prod", opts: { dev: GOOD.dev, prod }, stamp: "prod-bound" },
+    ];
+    for (const { name, opts, stamp } of rows) {
+      const copy = fake(opts);
+      const ports = { dev: await free(), prod: await free() };
+      const url = pathToFileURL(join(HERE, "consumer-serve.ts")).href;
+      const child = spawnGroup(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `import { start } from "${url}"; await start(${JSON.stringify(copy)}, ${JSON.stringify(ports)}, 15000);`,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      after(() => stop(child));
+      assert.equal(
+        await holds(join(copy, stamp), ["up"]),
+        "up",
+        `${name}: the fake did not bind within 3 s`,
+      );
+      await stop(child);
+      assert.ok(
+        (await closed(ports.dev)) && (await closed(ports.prod)),
+        `${name}: a listener is left`,
+      );
+    }
+  },
+);
+test(
   "the program: SIGTERM after both servers answer ends them and removes the copy",
   { timeout: 120_000 },
   async () => {
     const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
     const began = Date.now();
-    const child = spawn(process.execPath, [join(HERE, "consumer-serve.ts")], {
-      env: { ...process.env, TMPDIR: mine },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawnGroup(
+      process.execPath,
+      [join(HERE, "consumer-serve.ts")],
+      {
+        env: { ...process.env, TMPDIR: mine },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     const code = new Promise<number | null>((r) => child.on("close", r));
     // node:test runs `after` hooks in registration order, and a throwing hook skips the later ones (rmSync can throw
-    // ENOTEMPTY while the servers still write), so this hook comes before the folder's. It waits for the program to end
-    // after SIGTERM, whose handler stops the servers; after 5 s it sends SIGKILL, which kills the program alone, leaves
-    // the servers bound to their ports, and returns without waiting.
-    after(async () => {
-      child.kill("SIGTERM");
-      const ended = await Promise.race([
-        code,
-        new Promise((r) => setTimeout(r, 5000, "late").unref()),
-      ]);
-      if (ended === "late") child.kill("SIGKILL");
-    });
+    // ENOTEMPTY while the servers still write), so this hook comes before the folder's: `stop` ends the program's whole
+    // group, the servers included
+    after(() => stop(child));
     after(() => rmSync(mine, { recursive: true, force: true }));
     await readyLine(child, "The consumer:");
     // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
@@ -353,12 +394,12 @@ test(
     const empty = mkdtempSync(join(tmpdir(), "serve-root-"));
     after(() => rmSync(empty, { recursive: true, force: true }));
     const began = Date.now();
-    const child = spawn(
+    const child = spawnGroup(
       process.execPath,
       [join(HERE, "consumer-serve.ts"), "--root", empty],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
-    after(() => child.kill("SIGKILL"));
+    after(() => stop(child));
     await assert.rejects(
       readyLine(child, "The consumer:"),
       /exit 3\)[\s\S]*COULD NOT CHECK consumer-serve: svelte-package exited/,
