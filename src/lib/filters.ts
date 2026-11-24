@@ -2,9 +2,12 @@ import { SORT_FILTER_FAULTS } from "./faults.js";
 import type { TableFault } from "./faults.ts";
 import type {
   DataTableColumn,
+  DataTableFilter,
   DataTableMessages,
   DataTableProps,
 } from "./types.ts";
+
+type CategoricalFilter = Extract<DataTableFilter, { kind: "categorical" }>;
 
 // One badge of an applied filter: the column's id and the badge's visible words (FILT-08)
 export interface Badge {
@@ -24,18 +27,15 @@ export function badges<Row>(
   const found: Badge[] = [];
   for (const column of columns) {
     const state = filters?.[column.id];
-    const filter = column.filter;
     if (state?.kind === "text" && state.text.trim() !== "")
       found.push({
         id: column.id,
         text: words.badgeText({ label: column.label, text: state.text }),
       });
-    else if (
-      state?.kind === "categorical" &&
-      filter?.kind === "categorical" &&
-      state.selected.length > 0
-    ) {
-      const options = filter.options
+    else if (state?.kind === "categorical" && state.selected.length > 0) {
+      // An applied categorical state sits on a column whose filter is categorical (FILT-32 refuses the rest)
+      const { options: given } = column.filter as CategoricalFilter;
+      const options = given
         .filter((option) => state.selected.includes(option.value))
         .map((option) => option.label);
       if (state.selected.includes("")) options.push(words.emptyOption);
