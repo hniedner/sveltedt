@@ -1411,7 +1411,8 @@ test("selftest: as many test files run at once as the machine has cores", () => 
   assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
 });
 test("selftest: the line of a passing file gives the seconds it took (CI-SHARD balance)", () => {
-  // A file that waits 2.2 s: the line says 2 s, so a fixed figure cannot pass
+  // A file that waits 2.2 s: the line measures the whole child process (node start included), and a loaded runner
+  // can push it past 2.5 s, so 2 to 4 s is accepted; a missing figure, "0 s" and the old line still fail
   const slow = PASSING_TEST.replace(
     "() => {}",
     "() => new Promise((done) => setTimeout(done, 2200))",
@@ -1421,7 +1422,7 @@ test("selftest: the line of a passing file gives the seconds it took (CI-SHARD b
     repo((root) => put(root, "scripts/slow.test.mjs", slow)),
     0,
   );
-  assert.match(out, /scripts\/slow\.test\.mjs: 1 passed in 2 s\n/);
+  assert.match(out, /scripts\/slow\.test\.mjs: 1 passed in [2-4] s\n/);
 });
 test("selftest: no more test files run at once than the machine has cores", () => {
   // One file more than the cores, each needing all the others beside it: the first to end cannot have had them all
