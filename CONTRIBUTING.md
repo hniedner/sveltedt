@@ -63,8 +63,8 @@ The checks today:
   signal); its `process.exit` or an uncaught error signals them with SIGTERM.
   `stop` throws `process group N still running after SIGKILL` if the group is still there 2 s after SIGKILL.
   `readyLine` waits for a complete line from a child and rejects when the child closes first (a grandchild that holds
-  the pipes defers that), naming its exit and what it printed. The program test that runs the real preparation has a timeout of 120 s. A failing file's lines name
-  each failed test with the error it reported.
+  the pipes defers that), naming its exit and what it printed. The program test that runs the real preparation has a
+  timeout of 120 s. A failing file's lines name each failed test with the error it reported.
 - **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
   declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
   indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or

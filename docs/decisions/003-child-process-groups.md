@@ -27,7 +27,7 @@ fetched or measured.
   - Playwright's `launchProcess` (measured by reading its source): detached, group SIGTERM then SIGKILL, an `exit`
     handler. Not taken: internal, not a public API. Its practice is followed.
   - Node built-ins: `spawn` with `detached`, `process.kill(-pid, signal)`, and `process.on`. `scripts/children.ts` is
-    130 lines (measured with `wc -l`; 109 without comments and blank lines).
+    141 lines (measured with `wc -l`; 118 without comments and blank lines).
 - **Limits:**
   - Synchronous calls (`spawnSync`, `execFileSync`) are not covered, and a `timeout` bounds them. Measured: a
     `spawnSync` whose child had already exited still blocked 4.18 s, until a grandchild holding the inherited stdout
@@ -45,10 +45,9 @@ fetched or measured.
     adds it).
   - `close` waits for a child's stdio to end, so a grandchild that holds the pipes defers `readyLine`'s rejection and
     the close handler's SIGTERM to the group.
-- A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `signalGroup`
-  guards a missing pid itself, so removing the check in `spawnGroup` changes no outcome. The same holds for the `pid ===
-undefined` checks in `signalGroup` and `stop`: all three are redundant with the catch in `send` (a signal to
-  `-undefined` throws, and `send` reports it as not sent). They are second guards, not behaviour a test could pin.
+- A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `groupGone` and
+  `send` handle a missing pid themselves, so removing the check in `spawnGroup` or in `signalGroup` changes no outcome.
+  They are second guards: `-undefined` is NaN, which `send`'s integer guard refuses. `stop` has no check of its own.
 - `stop` throws when a group is still there 2 s after SIGKILL (a process the kernel cannot end). No test pins that
   throw: it needs an unkillable process, and none is built.
 - `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review
@@ -56,8 +55,18 @@ undefined` checks in `signalGroup` and `stop`: all three are redundant with the 
   that is alive but not ours cannot occur while the group still exists: the helper only signals groups it started. Once
   a group has no member its id may be reused, so a group that was seen gone is never signalled again (`stop` returns at
   once).
-- `send` refuses a target of 0, 1, -1 or one that is not an integer, and the test reaper does the same for the pid it
-  reads from a file: `kill(-0)` signals the caller's own process group (measured: `process.kill(-Number(""), 0)` returns
-  true). No test pins either guard: it would have to send SIGKILL to group 0, which would end the gate.
+- `send` refuses a target of 0, 1, -1 or one that is not an integer: `kill(-0)` signals the caller's own process group
+  (measured: `process.kill(-Number(""), 0)` returns true). That guard is pinned by a test that replaces `process.kill`
+  with a mock before it calls `stop` for the bad pids, so none reaches the real call. The same guard on the pid file
+  that the test hook reads stays unpinned: pinning it would send SIGKILL to group 0, which would end the gate.
+- An `error` event on a child that did start is dropped without a record, because `couldNotStart` is kept only for a
+  child with no pid. No caller passes `signal` or `timeout` today, so no such event is expected.
+- The test that a second `stop` makes no call proves the skip through the close handler's marking (the child had ended),
+  not through `stop`'s own marking after its SIGTERM or SIGKILL.
+- The cleanup hooks in `children.test.ts` (the reaper and the pid-file hook) still send SIGKILL to `-pid` when the group
+  is gone, so a pid reused within one test would be hit. That is very unlikely and is not guarded.
+- EPERM is a permanent "gone" for a child: a group that still had live members and answered EPERM would be abandoned.
+  That is unverified and none was seen; the only EPERM case measured is a zombie-only leader on macOS.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
-  platform, or if `scripts/children.ts` grows past about 150 lines (130 now, which leaves a margin of 20).
+  platform, or if `scripts/children.ts` grows past about 150 lines (141 now: a margin of 9; the trigger is
+  already close, so raising it, or reopening on the next addition, is for the reviewer to decide).
