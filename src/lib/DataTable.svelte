@@ -178,7 +178,12 @@
     >
   {/if}
   {#if resetShown(fault, columns, onreset)}
-    <button type="button">{defaultMessages.reset}</button>
+    <button
+      type="button"
+      onclick={() =>
+        // Stryker disable next-line OptionalChaining: unreachable fallback, the button shows only with an onreset (FILT-30)
+        onreset?.()}>{defaultMessages.reset}</button
+    >
   {/if}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->

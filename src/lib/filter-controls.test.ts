@@ -34,6 +34,10 @@ const statusColumn = column("status", "Status", {
     ],
   },
 });
+const codeColumn = column("code", "Code", {
+  sortable: ["asc", "desc"],
+  filter: { kind: "text" },
+});
 const noteColumn = column("note", "Note");
 
 // Every handler is passed, as the spec's examples do, and returned so a test reads its calls
@@ -207,6 +211,23 @@ describe("FILT-30", () => {
     });
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(resetButtons()).toEqual([]);
+  });
+});
+
+// @spec("FILT-26", "58072d25")
+describe("FILT-26", () => {
+  it("emits onreset once with no argument on a press, and calls neither onsort nor onclearfilters", async () => {
+    const onreset = vi.fn();
+    const { onsort, onclearfilters } = mount({
+      columns: [codeColumn, nameColumn],
+      sort: [{ id: "code", direction: "asc" }],
+      filters: { name: { kind: "text", text: "Beta" } },
+      onreset,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: RESET }));
+    expect(onreset.mock.calls).toEqual([[]]);
+    expect(onsort).not.toHaveBeenCalled();
+    expect(onclearfilters).not.toHaveBeenCalled();
   });
 });
 
