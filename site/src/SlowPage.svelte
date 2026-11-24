@@ -36,7 +36,7 @@
     { id: "name", label: "Name", value: ({ row }) => row.name },
     { id: "open", label: "Link", cell: open },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const oncancel = (): void => {
     calls.cancel += 1;
   };

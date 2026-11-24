@@ -18,7 +18,7 @@
     { id: "id", label: "Id", value: ({ row }) => row.id },
     { id: "name", label: "Name", value: ({ row }) => row.name },
   ];
-  const getRowId = (row: Item): string => row.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
 </script>
 
 {#snippet table(caption: string, regionLabel: string)}

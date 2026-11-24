@@ -56,7 +56,7 @@ function fixture(props: Partial<DataTableProps<Item>> = {}) {
   const all: DataTableProps<Item> = {
     rows,
     columns: [nameColumn, noteColumn],
-    getRowId: (row: Item) => row.id,
+    getRowId: ({ row }: { row: Item }) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",
     ...handlers,

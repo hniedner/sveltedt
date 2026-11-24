@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
+import type { Snippet } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import { inProduction, useConsoleErrors } from "../../test/console-spy.ts";
@@ -9,6 +10,7 @@ import type {
   DataTableMessages,
   DataTableProps,
   DataTableStatus,
+  PaginationProps,
 } from "./types.ts";
 
 interface Item {
@@ -57,7 +59,7 @@ function cellTexts(): string[][] {
 const base: DataTableProps<Item> = {
   rows: [{ id: "r1", name: "Beta" }],
   columns: [nameColumn],
-  getRowId: (row) => row.id,
+  getRowId: ({ row }) => row.id,
   caption: "Orders",
   regionLabel: "Orders table",
 };
@@ -601,7 +603,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
   ],
   [
     'two rows share an id in its text form, 1 and "1"',
-    { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
+    { rows: twoRows, getRowId: ({ row }) => (row.id === "r1" ? 1 : "1") },
     "rowIdDuplicate",
   ],
   ["getRowId throws", { getRowId: unreadable }, "rowIdUnreadable"],
@@ -640,7 +642,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
     "several faults: an empty row id, then a row id that throws",
     {
       rows: twoRows,
-      getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
+      getRowId: ({ row }) => (row.id === "r2" ? unreadable() : ""),
     },
     "rowIdEmpty",
   ],
@@ -695,7 +697,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
     "several faults: two rows sharing an id, then a row id that throws",
     {
       rows: [...twoRows, { id: "r3", name: "Gamma" }],
-      getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
+      getRowId: ({ row }) => (row.id === "r3" ? unreadable() : "same"),
     },
     "rowIdDuplicate",
   ],
@@ -721,7 +723,7 @@ describe("RND-05", () => {
   );
 
   it("takes finite numbers as row ids: the table and no alert", () => {
-    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
+    show({ rows: twoRows, getRowId: ({ row }) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(firstCells()).toEqual(["Alpha", "Beta"]);
   });
@@ -1562,5 +1564,82 @@ describe("DataTableColumn's type", () => {
       DataTableColumn<Item>
     > = false;
     expect(neither).toBe(false);
+  });
+});
+
+// Compiles only while T is never; an error prints T, here the keys the guard found
+type None<T extends never> = T;
+// A stand-in row: a parameter of exactly this type is the row itself
+interface RowMark {
+  readonly rowMark: true;
+}
+// The keys, at any depth, whose function or snippet breaks RND-18: two or more parameters, the row itself, or an
+// argument object that is not read-only
+type Broken<T> = T extends (...args: infer A) => unknown
+  ? A["length"] extends 0 | 1
+    ? A extends [infer P]
+      ? [P] extends [RowMark]
+        ? true
+        : P extends readonly unknown[]
+          ? never
+          : P extends object
+            ? Same<P, Readonly<P>> extends true
+              ? never
+              : true
+            : never
+      : never
+    : true
+  : T extends readonly (infer E)[]
+    ? Broken<E>
+    : T extends object
+      ? {
+          [K in keyof T]-?: [Broken<NonNullable<T[K]>>] extends [never]
+            ? never
+            : K;
+        }[keyof T]
+      : never;
+
+// @spec("RND-18", "0ea1e0a4")
+describe("RND-18", () => {
+  const given: Item[] = [
+    { id: "r1", name: "Beta" },
+    { id: "r2", name: "Gamma" },
+  ];
+
+  it("passes getRowId one object holding the given row itself", () => {
+    const getRowId = vi.fn(({ row }: { row: Item }) => row.id);
+    render(DataTable<Item>, { ...base, rows: given, getRowId });
+    expect(getRowId.mock.calls.length).toBeGreaterThan(0);
+    for (const call of getRowId.mock.calls) {
+      expect(call).toHaveLength(1);
+      expect(Object.keys(call[0])).toEqual(["row"]);
+      expect(given).toContain(call[0].row);
+    }
+    for (const row of given)
+      expect(getRowId.mock.calls.some(([arg]) => arg.row === row)).toBe(true);
+  });
+
+  it("passes the cell snippet the given row and the given column themselves", () => {
+    render(CellSnippetTable, { rows: given, identity: true });
+    expect(screen.getAllByText("given row and column")).toHaveLength(2);
+  });
+
+  it("types every function and snippet of the props with at most one argument, read-only if an object", () => {
+    // Each line compiles only while its check holds: the svelte step checks it, and an error prints the keys
+    const found: [
+      None<Broken<DataTableProps<RowMark>>>[],
+      None<Broken<PaginationProps>>[],
+    ] = [[], []];
+    // Each planted break is found: a guard that finds nothing makes these lines type errors
+    const canaries: [
+      Same<Broken<{ on: (a: string, b: number) => void }>, "on">,
+      Same<Broken<{ value: (row: RowMark) => string }>, "value">,
+      Same<Broken<{ cell: Snippet<[RowMark, string]> }>, "cell">,
+      Same<Broken<{ f: (x: { a: string }) => void }>, "f">,
+    ] = [true, true, true, true];
+    expect([found, canaries]).toEqual([
+      [[], []],
+      [true, true, true, true],
+    ]);
   });
 });

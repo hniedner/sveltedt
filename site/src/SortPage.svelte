@@ -65,7 +65,7 @@
     },
     { id: "open", label: "Link", cell: open },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const onsort = (next: DataTableSortEntry[]): void => {
     sorts.push($state.snapshot(next));
   };

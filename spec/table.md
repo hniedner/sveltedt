@@ -49,7 +49,8 @@ to the consumer as one callback (stated with the statements that add user action
   statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
   sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
   snippet `detail` (rendered with `{ row }`), `detailName({ row })`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
-  a column's `class`, `headerClass` and `align`, `rowClass({ row })` and `cellClass({ row, column })` (section 17).
+  a column's `class`, `headerClass` and `align`, `rowClass({ row })` and `cellClass({ row, column })` (section 17). Every function and snippet in these props follows
+  "One object argument" below.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ id, direction: 'asc' }`.
   Column Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -82,6 +83,20 @@ to the consumer as one callback (stated with the statements that add user action
   classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
   hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
+- **One object argument.** Every function in the props of `DataTable` and `Pagination`, and every snippet among them
+  that receives anything, takes at most ONE argument: an object, read-only in its type, whose fields a later release
+  only adds (it never removes, renames or reorders one), or a single value. A row is passed inside the object
+  (`value({ row })`, `getRowId({ row })`), never alone. A callback that reports one new state value receives that
+  value alone (`onsort(next)`, `onpage(offset)`); one with nothing to report receives nothing (`onclearfilters()`);
+  a snippet with nothing to show takes nothing (`heading`, `actions`); none receives two or more arguments
+  (`onfilter({ id, state })`, never `onfilter(id, state)`). The words' functions follow the same rule
+  (`rowCount(count)`, `info({ first, last, total })`). Reason: a positional list can only grow at its end and never
+  drop a place without breaking every caller, and PRD-K3 makes each signature public; one object lets a later
+  release add a field without a break and lets a consumer take only the fields it needs. AG Grid passes one object
+  to `getRowId`, `valueGetter` and `getRowClass`; TanStack Table and MUI X to their cell renderers (FETCHED
+  2026-11-24). Example: `value: ({ row }) => row.name`, `getRowId: ({ row }) => row.id`, and a `cell` snippet
+  written `{#snippet open({ row })}`, which takes one of the two fields it is given. RND-18 states it and checks the
+  types.
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group; A11Y-33 and A11Y-34 (reserved for the slow-load group, which needed
@@ -309,6 +324,37 @@ the fault, in the browser only.
   the code is what they search for; texts that only development shows keep every production bundle free of them.
 - Layer: component; the server row is a component test in a Node environment.
 - Traces: PRD-B16, PRD-S4.
+
+**RND-18** Every function and every snippet in the props of `DataTable` and `Pagination` MUST take at most one
+argument: an object, read-only in its type, or a single value (a row is a field of the object, as `{ row }`, never the
+single value).
+- Examples. At run time (rows r1 `{ id: 'r1', name: 'Beta' }` and r2 `{ id: 'r2', name: 'Gamma' }`; columns Id and
+  Name, Name with a `cell` snippet; every call recorded):
+
+  | Called | Every call receives |
+  |---|---|
+  | `getRowId` | one argument, `{ row: r1 }` or `{ row: r2 }`, the row objects themselves; each at least once |
+  | Name's `cell` | an object whose `row` is r1 or r2, the row object itself, and whose `column` is the Name column object itself |
+
+  In the exported types, for every function and snippet of the props of `DataTable` and `Pagination` at any depth
+  (the columns, the filters, the messages): none takes two or more parameters, none takes the row itself, and every
+  argument object other than a list is read-only. A planted function with two parameters, a planted
+  `(row: Row) => string`, a planted snippet `Snippet<[Row, string]>` and a planted function of a mutable object are
+  each found. (`value`'s call shape is RND-08's, the snippet's fields RND-02's.)
+  Stated limits: a component or props type added later is checked once it is added to the test's list (today
+  `DataTableProps` and `PaginationProps`); whether a one-value callback reports a new state value, or should pass an
+  object, is judged in review, not by the check. The check reads each function's parameter list as declared, so it
+  misses: a row taken as a single OPTIONAL parameter (`(row?: Row) => string`), overloads whose last signature has one
+  parameter, and an argument that is a read-only tuple; and it flags as a mutable object an argument of a type that
+  is not a plain record: a Svelte `Component<...>`, `Date`, `Map`, `ReadonlyMap`, `AbortSignal`, `Event`, or an
+  intersection of read-only objects. None of these is in the props today; one added later is judged in review and,
+  for a flagged type, the guard is narrowed in that statement's own commit.
+- Reason: a list of positional arguments can only grow at its end and never lose a place without breaking each
+  caller, and PRD-K3 makes every signature public; one object lets a later release add a field without a break and
+  lets a consumer take only what it needs (Conventions, "One object argument").
+- Layer: component; the types half a static check: the gate's `svelte` step type-checks the test file, and the
+  planted types are its canaries.
+- Traces: PRD-K3.
 
 **RND-14** The `heading` snippet MUST render before the region, or before the alert where there is no region, in
 every state.
@@ -5073,6 +5119,7 @@ pointer.
 | RND-15 | PRD-B1 |
 | RND-16 | PRD-B1 |
 | RND-17 | PRD-B16, PRD-S4 |
+| RND-18 | PRD-K3 |
 | RND-06 | PRD-I1, PRD-I2 |
 | RND-07 | PRD-B3 |
 | RND-11 | PRD-B3 |
@@ -5476,7 +5523,7 @@ state in their own statements.
 | PRD-T7 | THEME-23, THEME-31 | in full |
 | PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
 | PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
-| PRD-K3 | THEME-09, THEME-48 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
+| PRD-K3 | THEME-09, THEME-48, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 

@@ -12,7 +12,7 @@
 <DataTable
   rows={orders}
   {columns}
-  getRowId={(order) => order.id}
+  getRowId={({ row }) => row.id}
   caption="Orders"
   regionLabel="Orders"
 />

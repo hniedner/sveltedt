@@ -46,7 +46,7 @@ function mount(props: Partial<DataTableProps<Item>> = {}) {
   return render(DataTable<Item>, {
     rows,
     columns: [nameColumn, statusColumn],
-    getRowId: (row: Item) => row.id,
+    getRowId: ({ row }: { row: Item }) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",
     onfilter: vi.fn(),

@@ -47,7 +47,7 @@ function order(text: string): DataTableSortEntry[] {
       });
 }
 
-const getRowId = (row: Item): string => row.id;
+const getRowId = ({ row }: { row: Item }): string => row.id;
 
 // Mounts the table with Code and Name sortable and an onsort that records its calls and passes nothing back
 function mountProps(

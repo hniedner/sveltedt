@@ -30,7 +30,7 @@ const items = (count: number): Item[] =>
   }));
 
 // Typed here, not inline: the type-aware lint reads an inline callback's row as any
-const getRowId = (row: Item): string => row.id;
+const getRowId = ({ row }: { row: Item }): string => row.id;
 
 function table(props: Partial<DataTableProps<Item>>, messages?: Words): void {
   render(DataTable<Item>, {

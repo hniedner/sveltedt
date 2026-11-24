@@ -20,7 +20,7 @@ export function footprintProps(
   return {
     rows: [{ id: "r1", name: "Beta" }],
     columns: [{ id: "name", label: "Name", value: ({ row }) => row.name }],
-    getRowId: (row) => row.id,
+    getRowId: ({ row }) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",
     status: "ready",

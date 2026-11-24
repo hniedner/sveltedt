@@ -318,7 +318,7 @@
               ></tr
             >
           {:else if status === "ready"}
-            {#each rows as row (getRowId(row))}
+            {#each rows as row (getRowId({ row }))}
               <tr class="sdt-row">
                 {#each columns as column (column.id)}
                   <td class="sdt-cell"

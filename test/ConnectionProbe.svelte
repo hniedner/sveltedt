@@ -30,7 +30,7 @@
   const columns: DataTableColumn<Row>[] = [
     { id: "name", label: "Name", value: ({ row }) => row.name },
   ];
-  const getRowId = (row: Row): string => row.id;
+  const getRowId = ({ row }: { row: Row }): string => row.id;
 </script>
 
 <DataTable

@@ -30,7 +30,7 @@
     query: { limit: 10 },
     onerror: (error) => console.error(error),
   });
-  const getRowId = (order: Order): string => order.id;
+  const getRowId = ({ row }: { row: Order }): string => row.id;
 </script>
 
 <main>

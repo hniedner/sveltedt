@@ -30,7 +30,7 @@
     },
     { id: "open", label: "Link", cell: open, filter: { kind: "text" } },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const nothing = (): void => undefined;
 </script>
 
