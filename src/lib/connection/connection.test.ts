@@ -323,3 +323,17 @@ describe("CONN-07", () => {
     expect(probe.connection.pager?.offset).toBe(30);
   });
 });
+
+// @spec("CONN-15", "55774a4d")
+describe("CONN-15", () => {
+  it("sends draw 1 on mount, then 2 and 3 for two page changes", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    await probe.answer(1, A1({ draw: 2 }));
+    probe.connection.pager?.onpage(20);
+    expect(
+      probe.send.mock.calls.map(([request]) => request.get("draw")),
+    ).toEqual(["1", "2", "3"]);
+  });
+});

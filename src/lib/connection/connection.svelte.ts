@@ -16,10 +16,12 @@ export function createConnection<Row = unknown>(
   let answer = $state.raw<Answer<Row>>();
   let status = $state<DataTableStatus>("loading");
   let offset = $state(options.query.offset ?? 0);
+  // The draw of the last request sent, 0 before the first
+  let draw = 0;
   function load(): void {
     void options
       .send(
-        buildRequest(options.columns, { ...options.query, offset }, 1),
+        buildRequest(options.columns, { ...options.query, offset }, ++draw),
         new AbortController().signal,
       )
       .then((body) => {
