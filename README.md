@@ -39,8 +39,10 @@ There is nothing to install yet. What is on `main` today:
   alert; a press calls its callback once with no argument, ignores what it returns, and changes nothing on screen
   by itself (a double press calls it twice); the status element also says "Loading stopped" once when `status` becomes
   `stopped`. Until the stylesheet is done, "Cancel" can add a second line of shift at 6 seconds and "Loading stopped"
-  shows twice; and until the focus work lands, once new props remove the pressed button the focus falls to the page
-  body;
+  shows twice. When new props remove a focused "Cancel" or "Try again", focus moves to the table without scrolling, and
+  the table can take focus only until focus leaves it (proved in Chromium, Firefox and WebKit on the test site's
+  slow-load page). If the window loses focus right after the move, for example when the user switches window, the table
+  gives up that focus while it is still the active element and focus lands on the page body;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named
