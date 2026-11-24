@@ -1,4 +1,4 @@
-import { render } from "@testing-library/svelte";
+import { render, screen } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import Probe from "../../../test/ConnectionProbe.svelte";
@@ -335,5 +335,120 @@ describe("CONN-15", () => {
     expect(
       probe.send.mock.calls.map(([request]) => request.get("draw")),
     ).toEqual(["1", "2", "3"]);
+  });
+});
+
+// What a failure of CONN-18 leaves: the table's state, and the message of each Error `onerror` received (a value
+// that is no Error stays as it is, so the comparison fails on it)
+const outcome = (probe: ReturnType<typeof mount>) => ({
+  status: probe.connection.table.status,
+  busy: probe.connection.table.busy,
+  rows: probe.connection.table.rows,
+  errors: probe.onerror.mock.calls.map(([error]) =>
+    error instanceof Error ? error.message : error,
+  ),
+});
+const failed = (rows: unknown) => ({
+  status: "failed",
+  busy: false,
+  rows,
+  errors: ["The answer does not match the request."],
+});
+
+// @spec("CONN-18", "9fef58fa")
+describe("CONN-18", () => {
+  const badCounts = [
+    -1,
+    1.5,
+    "5x",
+    "-1",
+    "",
+    2 ** 53,
+    null,
+    "1e3",
+    "+5",
+    " 5",
+    "5.0",
+    "9007199254740993",
+  ];
+  const rows: [string, unknown][] = [
+    ["null", null],
+    ["'ok'", "ok"],
+    ["[]", []],
+    ["A1 without recordsTotal", A1without("recordsTotal")],
+    ["A1 without recordsFiltered", A1without("recordsFiltered")],
+    ["A1 without data", A1without("data")],
+    ...["recordsFiltered", "recordsTotal"].flatMap((field): [string, Body][] =>
+      badCounts.map((count) => [
+        `A1 with ${field} ${JSON.stringify(count)}`,
+        A1({ [field]: count }),
+      ]),
+    ),
+    ["A1 with data {}", A1({ data: {} })],
+    ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0"].map(
+      (draw): [string, Body] => [
+        `A1 with draw ${JSON.stringify(draw)}`,
+        A1({ draw }),
+      ],
+    ),
+  ];
+  it.each(rows)("fails on %s", async (_row, body) => {
+    const probe = mount();
+    await probe.answer(0, body);
+    expect(outcome(probe)).toEqual(failed([]));
+  });
+  it("fails the second request answered without data, not busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    await probe.answer(1, { ...A1without("data"), draw: 2 });
+    expect(outcome(probe)).toEqual(failed(D));
+  });
+  it("fails an answer of the first request's draw to the second request, the rows kept", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    expect(probe.send.mock.calls[1]?.[0].get("draw")).toBe("2");
+    await probe.answer(1, A1());
+    expect(outcome(probe)).toEqual(failed(D));
+  });
+});
+
+// The pager's props, as the spec lists them for A1 and the page asked for
+const pagerAt = (offset: number) => ({
+  offset,
+  limit: 10,
+  total: 57,
+  unfilteredTotal: 1000,
+});
+const pagination = () =>
+  screen.queryByRole("navigation", { name: "Rows pages" });
+
+// @spec("CONN-25", "9825a667")
+describe("CONN-25", () => {
+  it("has no pager and no Pagination after mount, nothing settled", () => {
+    const probe = mount();
+    expect(probe.connection.pager).toBeUndefined();
+    expect(pagination()).toBeNull();
+  });
+  it("has no pager and no Pagination after the first request failed", async () => {
+    const probe = mount();
+    await probe.answer(0, A1({ recordsFiltered: "5x" }));
+    expect(probe.connection.pager).toBeUndefined();
+    expect(pagination()).toBeNull();
+  });
+  it("gives the pager and shows Pagination after A1", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    expect(probe.connection.pager).toMatchObject(pagerAt(0));
+    expect(pagination()).not.toBeNull();
+  });
+  it("keeps the pager at the page asked for, with the last totals, after a failed page change", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    await probe.answer(1, A1({ draw: 2, recordsFiltered: "5x" }));
+    expect(probe.connection.pager).toMatchObject(pagerAt(10));
+    expect(pagination()).not.toBeNull();
   });
 });

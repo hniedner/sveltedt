@@ -19,13 +19,20 @@ export function createConnection<Row = unknown>(
   // The draw of the last request sent, 0 before the first
   let draw = 0;
   function load(): void {
+    const sent = ++draw;
     void options
       .send(
-        buildRequest(options.columns, { ...options.query, offset }, ++draw),
+        buildRequest(options.columns, { ...options.query, offset }, sent),
         new AbortController().signal,
       )
       .then((body) => {
-        answer = readAnswer<Row>(body);
+        const read = readAnswer<Row>(body, sent);
+        if (read === undefined) {
+          status = "failed";
+          options.onerror(new Error("The answer does not match the request."));
+          return;
+        }
+        answer = read;
         status = "ready";
       });
   }
