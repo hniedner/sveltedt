@@ -318,7 +318,7 @@ describe("A11Y-20", () => {
 
 // @spec("FOOT-05", "9f08d2c3")
 describe("FOOT-05", () => {
-  // Mounted loading; `answer` is the status at 1100 ms, if any; the table is unmounted at `unmountAt`
+  // Mounted loading; `answered`: ready with two rows arrives at 1100 ms; the table is unmounted at `unmountAt`
   it.each([
     ["before the indicator", 500, false],
     ["inside the indicator's minimum", 1200, true],

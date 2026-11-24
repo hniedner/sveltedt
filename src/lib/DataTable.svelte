@@ -81,7 +81,7 @@
   const pending = $derived(fault === null && (status === "loading" || busy));
   // The progress indicator is in the component; it is inside its 500 ms minimum; the still-loading text is shown (PRD-B2)
   let shown = $state(false);
-  // Stryker disable next-line BooleanLiteral: equivalent, held is read only after shown is set
+  // Stryker disable next-line BooleanLiteral: equivalent, a wrongly true start only skips a reset of shown and still, which are false then
   let held = $state(false);
   let still = $state(false);
   // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
