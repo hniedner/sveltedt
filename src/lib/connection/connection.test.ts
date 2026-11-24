@@ -296,6 +296,14 @@ describe("CONN-17", () => {
       expect(probe.onerror).not.toHaveBeenCalled();
     },
   );
+  it("is ready and not busy when the second request is answered, after A1", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    await probe.answer(1, A1({ draw: 2 }));
+    expect(probe.connection.table.status).toBe("ready");
+    expect(probe.connection.table.busy).toBe(false);
+  });
 });
 
 // @spec("CONN-07", "2031b1f6")
@@ -304,12 +312,14 @@ describe("CONN-07", () => {
     [0, 10],
     [20, 25],
   ])(
-    "sends start and length from the query's offset %i and limit %i",
-    (offset, limit) => {
-      const { send } = mount({ query: { ...Q0, offset, limit } });
-      const request = send.mock.calls[0]?.[0];
+    "sends start and length from the query's offset %i and limit %i, the pager keeping that limit",
+    async (offset, limit) => {
+      const probe = mount({ query: { ...Q0, offset, limit } });
+      const request = probe.send.mock.calls[0]?.[0];
       expect(request?.get("start")).toBe(String(offset));
       expect(request?.get("length")).toBe(String(limit));
+      await probe.answer(0, A1());
+      expect(probe.connection.pager?.limit).toBe(limit);
     },
   );
   it("sends one request with start 30 and length 10 on pager.onpage(30) from offset 20, the pager at 30 before it is settled", async () => {
@@ -338,7 +348,7 @@ describe("CONN-15", () => {
   });
 });
 
-// What a failure of CONN-18 leaves: the table's state, and the message of each Error `onerror` received (a value
+// What a failed answer leaves: the table's state, and the message of each Error `onerror` received (a value
 // that is no Error stays as it is, so the comparison fails on it)
 const outcome = (probe: ReturnType<typeof mount>) => ({
   status: probe.connection.table.status,
@@ -370,6 +380,7 @@ describe("CONN-18", () => {
     " 5",
     "5.0",
     "9007199254740993",
+    [5],
   ];
   const rows: [string, unknown][] = [
     ["null", null],
@@ -385,7 +396,7 @@ describe("CONN-18", () => {
       ]),
     ),
     ["A1 with data {}", A1({ data: {} })],
-    ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0"].map(
+    ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0", [1]].map(
       (draw): [string, Body] => [
         `A1 with draw ${JSON.stringify(draw)}`,
         A1({ draw }),
