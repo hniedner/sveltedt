@@ -256,3 +256,20 @@ describe("API-01", () => {
     },
   );
 });
+
+// @spec("API-02", "6212b706")
+describe("API-02", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX })).server;
+  });
+
+  it.each([
+    ["1", 1],
+    ["7", 7],
+    ["007", 7],
+  ])("answers draw=%s with the number %i", async (draw, number) => {
+    const answer = await get(server, route({ draw }));
+    expect((JSON.parse(answer.body) as { draw?: unknown }).draw).toBe(number);
+  });
+});

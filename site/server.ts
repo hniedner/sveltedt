@@ -43,12 +43,14 @@ function readBuild(buildFolder: string): Map<string, BuiltFile> {
   return files;
 }
 
-// The route's answer: the fixed list from `start`, at most `length` rows, both counts the whole list
+// The route's answer: `draw` as a number, the fixed list from `start`, at most `length` rows, both counts the whole
+// list
 function answerOrders(query: URLSearchParams, response: ServerResponse): void {
   const start = Number(query.get("start"));
   const length = Number(query.get("length"));
   response.writeHead(200, { "Content-Type": "application/json" }).end(
     JSON.stringify({
+      draw: Number(query.get("draw")),
       recordsTotal: orders.length,
       recordsFiltered: orders.length,
       data: orders.slice(start, start + length),
