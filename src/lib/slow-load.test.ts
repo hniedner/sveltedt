@@ -428,8 +428,9 @@ describe("A11Y-20", () => {
   });
 });
 
-// @spec("FOOT-05", "9f08d2c3")
+// @spec("FOOT-05", "9f0dae50")
 describe("FOOT-05", () => {
+  const oncancel = (): void => {};
   // Mounted loading; `answered`: ready with two rows arrives at 1100 ms; the table is unmounted at `unmountAt`
   it.each([
     ["before the indicator", 500, false],
@@ -437,10 +438,10 @@ describe("FOOT-05", () => {
   ] as const)(
     "leaves no timer pending when unmounted %s at %i ms",
     async (_where, unmountAt, answered) => {
-      const table = mount({ status: "loading" });
+      const table = mount({ status: "loading", oncancel });
       if (answered) {
         await table.at(1100);
-        await table.change({ rows: twoRows });
+        await table.change({ rows: twoRows, oncancel });
       }
       await table.at(unmountAt);
       expect(vi.getTimerCount()).toBeGreaterThan(0);
@@ -450,9 +451,21 @@ describe("FOOT-05", () => {
   );
 
   it("leaves no timer pending when unmounted at 5999 ms, before the still-loading text", async () => {
-    const table = mount({ status: "loading" });
+    const table = mount({ status: "loading", oncancel });
     await table.at(5999);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
+    table.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // No timer is pending at 6000 ms today; the row guards the focus code of #147 against one that outlives the table
+  it("leaves no timer pending when unmounted at 6000 ms, with the still-loading text and Cancel shown", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).not.toBeNull();
     table.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });

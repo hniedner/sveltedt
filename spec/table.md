@@ -1224,7 +1224,8 @@ anything to the document head.
 **FOOT-05** After unmount, the table MUST leave no timer pending.
 - Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
   unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
-  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown).
+  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown); at
+  6000 ms (the still-loading text and "Cancel" shown).
 - Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
   first to time anything (PRD-B22).
 - Layer: component.
