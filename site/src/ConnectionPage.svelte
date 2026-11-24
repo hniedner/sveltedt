@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { DataTable, type DataTableColumn } from "@hniedner/sveltedt";
+  import {
+    DataTable,
+    Pagination,
+    type DataTableColumn,
+  } from "@hniedner/sveltedt";
   import { createConnection } from "@hniedner/sveltedt/connection";
   import type { Order } from "./orders.ts";
 
@@ -39,4 +43,14 @@
     status={connection.table.status}
     busy={connection.table.busy}
   />
+  {#if connection.pager}
+    <Pagination
+      offset={connection.pager.offset}
+      limit={connection.pager.limit}
+      total={connection.pager.total}
+      unfilteredTotal={connection.pager.unfilteredTotal}
+      onpage={connection.pager.onpage}
+      label="Orders pages"
+    />
+  {/if}
 </main>
