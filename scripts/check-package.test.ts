@@ -359,6 +359,8 @@ test("a package whose files list lets the tests in is a finding of check(), the 
   assert.ok(!existsSync(join(root, "dist")));
 });
 test("PKG-07: a .ts value import and an inline-type import in a src/lib module are findings of the built package", () => {
+  // Pins the build's output: svelte-package keeps the `.ts` ending because `rewriteRelativeImportExtensions` is not set;
+  // if that setting is ever turned on, this test goes red on purpose
   const root = packageCopy();
   const append = (file: string, text: string) =>
     writeFileSync(join(root, "src/lib", file), text, { flag: "a" });
