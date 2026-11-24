@@ -67,8 +67,8 @@ There is nothing to install yet. What is on `main` today:
   column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
   search input gets the alert; the filter fields and dialog are not done yet;
 - the connection helper, first part, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first
-  request through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once
-  through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers
+  request through the application's `send({ request, signal })`, maps the answer to rows and totals, reports an answer
+  it cannot map once through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers
   written by hand. The test site's connection page (`/connection.html`) loads its orders through it from the site's own
   route `/api/orders` and pages them with `Pagination`, proved in Chromium, Firefox and WebKit. It does not yet handle a
   `send` that rejects or throws, a superseded request (a stale answer of an earlier request), an answer that arrives
