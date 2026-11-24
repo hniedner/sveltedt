@@ -278,6 +278,19 @@ describe("STATE-17", () => {
     expect(cancel(table.container)).not.toBeNull();
   });
 
+  it("puts Cancel outside the status element and after it", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const button = cancel(table.container);
+    const status = within(table.container).getByRole("status");
+    expect(button).not.toBeNull();
+    expect(status.contains(button)).toBe(false);
+    expect(
+      status.compareDocumentPosition(button as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows no Cancel without oncancel while the still-loading text is shown", async () => {
     const table = mount({ status: "loading" });
     await table.at(6000);
