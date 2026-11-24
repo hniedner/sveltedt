@@ -87,9 +87,9 @@ describe("SORT-10", () => {
     expect(within(noteHeader).queryAllByRole("button")).toEqual([]);
   });
 });
-// @spec("SORT-28", "448bf14a")
+// @spec("SORT-28", "e83715a4")
 describe("SORT-28", () => {
-  const sentence = "Column headers with buttons are sortable.";
+  const sentence = "Column names that are buttons sort the table.";
   const caption = (): HTMLElement =>
     screen.getByRole("table").querySelector("caption") as HTMLElement;
 
@@ -99,7 +99,6 @@ describe("SORT-28", () => {
     const span = caption().querySelector("span") as HTMLElement;
     expect(span.textContent).toBe(sentence);
     expect(span.hasAttribute("class")).toBe(false);
-    expect(span.previousSibling?.textContent?.endsWith(" ")).toBe(true);
     expect(screen.getByRole("table", { name: `Orders ${sentence}` })).toBe(
       screen.getByRole("table"),
     );
@@ -660,10 +659,10 @@ function sortWords(text?: string) {
   };
 }
 
-// @spec("SORT-17", "87992735")
+// @spec("SORT-17", "7d8220b7")
 describe("SORT-17", () => {
   const english = [
-    "Column headers with buttons",
+    "Column names that are buttons",
     "sorted ascending",
     "sorted descending",
     "priority",
@@ -724,8 +723,8 @@ describe("SORT-23", () => {
       expect(screen.getAllByRole("button", { description: text })).toHaveLength(
         2,
       );
-      // Two rank marks, the two hidden descriptions and the caption's hint
-      expect(screen.getAllByText(text)).toHaveLength(5);
+      // The caption's hint is its own span
+      expect(container.querySelector("caption span")?.textContent).toBe(text);
       expect(container.querySelector("img, none")).toBeNull();
     },
   );

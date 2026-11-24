@@ -20,6 +20,13 @@
     messages,
     sort,
     onsort,
+    filters,
+    onfilter,
+    onclearfilter,
+    onclearfilters,
+    search,
+    searchDelay,
+    maxLength,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -70,6 +77,14 @@
       status,
       sort,
       onsort,
+      filters,
+      onfilter,
+      onclearfilter,
+      onclearfilters,
+      search,
+      searchDelay,
+      maxLength,
+      emptyOption: words.emptyOption,
     }),
   );
   // The cause of a fault goes to the developer (RND-17). `fault` is a derived code, so the effect runs again only when
