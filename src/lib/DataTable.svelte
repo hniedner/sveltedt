@@ -1,15 +1,13 @@
 <script lang="ts" generics="Row">
   import { untrack } from "svelte";
   import { faultLine } from "./faults.js";
-  import { badges, resetShown } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
-  import { nextOrder } from "./sort.js";
-  import type {
-    DataTableColumn,
-    DataTableProps,
-    SortDirection,
-  } from "./types.js";
+  import HeaderCell from "./parts/HeaderCell.svelte";
+  import Toolbar from "./parts/Toolbar.svelte";
+  import { nextOrder, sortState } from "./sort.js";
+  import type { DataTableColumn, DataTableProps } from "./types.js";
   import { validateTable } from "./validate.js";
+  import { TableView } from "./view.svelte.js";
 
   const {
     rows,
@@ -59,11 +57,8 @@
     onsort?.(
       nextOrder(order, column.id, column.sortable ?? [], shiftOf(event)),
     );
-    // Stryker restore OptionalChaining,ArrayDeclaration
   }
-  // The direction mark of a sorted column (SORT-13)
-  const arrow = (direction: SortDirection): string =>
-    direction === "asc" ? "▲" : "▼";
+  // Stryker restore OptionalChaining,ArrayDeclaration
   // The text of a cell without a snippet; RND-05 refuses a column with neither, so its value is there
   // Stryker disable OptionalChaining: unreachable, see above
   const textOf = (column: DataTableColumn<Row>, row: Row) =>
@@ -98,11 +93,6 @@
   $effect(() => {
     if (fault !== null) console.error(faultLine(fault));
   });
-  // The applied filters as badges; none while the alert shows, as the table cannot vouch for filters it could not
-  // validate (FILT-08)
-  const badgeList = $derived(
-    fault === null ? badges(columns, filters, words) : [],
-  );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
     fault === null && status === "ready" && !busy
@@ -111,46 +101,14 @@
   );
   // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
   const pending = $derived(fault === null && (status === "loading" || busy));
-  // The slow-load state of PRD-B2: `shown` is the progress indicator being in the component, `held` its 500 ms
-  // minimum still running, `still` the still-loading text being shown
-  let shown = $state(false);
-  // Stryker disable next-line BooleanLiteral: equivalent, a wrongly true start only skips a reset of shown and still, which are false then
-  let held = $state(false);
-  let still = $state(false);
-  // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
-  // the minimum has passed, the indicator goes (STATE-10) and the still-loading text with it (STATE-12)
-  $effect(() => {
-    if (!pending) {
-      if (!held) {
-        // A block that depends on state a plain $effect writes is removed in the same flush, before any pre-effect runs
-        // (measured with Svelte 5.57.3, an effect-order detail that may change): so focus is kept here, before `still`
-        // is written
-        untrack(() => keepFocus(cancelButton));
-        shown = false;
-        still = false;
-      }
-      return;
-    }
-    if (shown) return;
-    const delay = setTimeout(() => {
-      shown = true;
-      held = true;
-    }, 1000);
-    return () => clearTimeout(delay);
-  });
-  // While the indicator is shown: its 500 ms minimum (STATE-10) and the still-loading text 5 s after it appeared
-  // (STATE-12), both ended when it goes or the table unmounts (FOOT-05)
-  $effect(() => {
-    if (!shown) return;
-    const minimum = setTimeout(() => (held = false), 500);
-    const long = setTimeout(() => (still = true), 5000);
-    return () => {
-      clearTimeout(minimum);
-      clearTimeout(long);
-    };
-  });
+  // The slow-load state of PRD-B2; its first effect keeps focus off a Cancel that is about to go (A11Y-28; why it is
+  // there: see TableView)
+  const view = new TableView(
+    () => pending,
+    () => keepFocus(cancelButton),
+  );
   // The callback of "Cancel" while it is shown (STATE-17), nothing otherwise; the markup and the focus hand-off read it
-  const cancel = $derived(still ? oncancel : undefined);
+  const cancel = $derived(view.still ? oncancel : undefined);
   // The callback of "Try again" while it is shown (STATE-23), nothing otherwise
   const retry = $derived(
     status === "stopped" || status === "failed" ? onretry : undefined,
@@ -179,56 +137,26 @@
       if (goneRetry) keepFocus(retryButton);
     });
   });
-  // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
-  function sortState(id: string): {
-    direction: SortDirection | null;
-    rank: number | null;
-  } {
-    const place = order.findIndex((entry) => entry.id === id);
-    const entry = order[place];
-    if (!entry) return { direction: null, rank: null };
-    return {
-      direction: entry.direction,
-      rank: order.length > 1 ? place + 1 : null,
-    };
-  }
 </script>
 
 <div class="sdt">
   {@render heading?.()}
   {@render actions?.()}
-  {#each badgeList as badge (badge.id)}
-    <!-- A badge exists only for a column with a filter, so the table has an onclearfilter (FILT-32) -->
-    <button
-      type="button"
-      aria-label={words.clearFilter(badge.text)}
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, see above
-        onclearfilter?.({ id: badge.id })}>{badge.text}</button
-    >
-  {/each}
-  {@render criteria?.()}
-  {#if badgeList.length > 0}
-    <button
-      type="button"
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, the table has an onclearfilters (FILT-32)
-        onclearfilters?.()}>{words.clearFilters}</button
-    >
-  {/if}
-  {#if resetShown(fault, columns, onreset)}
-    <button
-      type="button"
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, the button shows only with an onreset (FILT-30)
-        onreset?.()}>{words.reset}</button
-    >
-  {/if}
+  <Toolbar
+    {fault}
+    {columns}
+    {filters}
+    {words}
+    {criteria}
+    {onclearfilter}
+    {onclearfilters}
+    {onreset}
+  />
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
   <div role="status" aria-atomic="false">
     {fault === null && status === "loading" ? words.loading : ""}
-    {#if still}<div>{words.stillLoading}</div>{/if}
+    {#if view.still}<div>{words.stillLoading}</div>{/if}
     {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
   </div>
   {#if cancel}<button
@@ -243,7 +171,7 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
-    {#if shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
+    {#if view.shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table
         bind:this={table}
@@ -259,53 +187,15 @@
         <thead>
           <tr class="sdt-head-row">
             {#each columns as column, index (column.id)}
-              {@const state = sortState(column.id)}
-              <!-- aria-sort on the lead column's header only (A11Y-03) -->
-              <th
-                class="sdt-th"
-                scope="col"
-                aria-label={column.label}
-                aria-sort={order[0]?.id !== column.id
-                  ? undefined
-                  : state.direction === "asc"
-                    ? "ascending"
-                    : "descending"}
-              >
-                {#if column.sortable}
-                  <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
-                  <button
-                    type="button"
-                    aria-describedby={`${uid}-sort-${index}`}
-                    onkeydown={sortKey}
-                    onblur={() => (keyShift = null)}
-                    onclick={(event) => press(column, event)}
-                    >{column.label}</button
-                  >{#if state.direction}<span aria-hidden="true"
-                      >{arrow(state.direction)}</span
-                    >{/if}{#if state.rank !== null}<span aria-hidden="true"
-                      >{words.sortRank(state.rank)}</span
-                    >{/if}
-                {:else}
-                  {column.label}
-                {/if}{#if column.filter}
-                  <!-- No handler yet: the filter dialog is a later statement -->
-                  <button
-                    type="button"
-                    aria-label={words.filterButton(column.label)}
-                    ><svg
-                      aria-hidden="true"
-                      focusable="false"
-                      viewBox="0 0 16 16"
-                      width="12"
-                      height="12"
-                      ><path
-                        d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"
-                        fill="currentColor"
-                      /></svg
-                    ></button
-                  >
-                {/if}
-              </th>
+              <HeaderCell
+                {column}
+                {order}
+                describedBy={`${uid}-sort-${index}`}
+                {words}
+                onkeydown={sortKey}
+                onblur={() => (keyShift = null)}
+                onpress={(event: MouseEvent) => press(column, event)}
+              />
             {/each}
           </tr>
         </thead>
@@ -349,7 +239,7 @@
       {#each columns as column, index (column.id)}
         {#if column.sortable}
           <span id={`${uid}-sort-${index}`}
-            >{words.sortDescription(sortState(column.id))}</span
+            >{words.sortDescription(sortState(order, column.id))}</span
           >
         {/if}
       {/each}

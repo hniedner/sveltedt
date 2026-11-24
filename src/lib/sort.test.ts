@@ -193,6 +193,12 @@ describe("SORT-02, Shift+click rows", () => {
     await fireEvent.click(sortButton("Date"), { shiftKey: true });
     expect(onsort.mock.calls).toEqual([[order("code asc, date desc")]]);
   });
+
+  it("a Shift+click on Name with the order null (counts as []) emits [name asc] once", async () => {
+    const { onsort } = mount({ sort: null });
+    await fireEvent.click(sortButton("Name"), { shiftKey: true });
+    expect(onsort.mock.calls).toEqual([[order("name asc")]]);
+  });
 });
 // What Firefox does for Shift+Enter and Shift+Space: a keydown with Shift, then a click with no pointer (detail 0)
 // and no shiftKey. The order is [code asc]: with Shift Name joins it, without Shift Name replaces it.
