@@ -51,6 +51,7 @@ import {
   vitestBin,
 } from "./gate-step.ts";
 import type { Check, Result } from "./gate-step.ts";
+import { SHARDS, shardProblems } from "./shards.ts";
 import { check as diffCoverage } from "./diff-coverage.ts";
 import { check as mutation } from "./mutation.ts";
 import { check as redCheck } from "./red-check.ts";
@@ -189,11 +190,12 @@ function pins(root: string, list: Set<string>): Result {
 }
 
 /**
- * GATE_BROWSER and GATE_MUTATION leave their step to the job of that name (`browser`, `mutation`), which gate must need
+ * GATE_BROWSER, GATE_MUTATION and GATE_SELFTEST leave their step to the job of that name (`browser`, `mutation`,
+ * `selftest`), which gate must need
  * (gateNeeds) and which runs it; the problems, given the workflow's lines above `jobs:` and its jobs.
  */
 function leftToJob(
-  name: "browser" | "mutation",
+  name: "browser" | "mutation" | "selftest",
   top: string[],
   jobs: Map<string, string[]>,
 ): string[] {
@@ -218,6 +220,27 @@ function leftToJob(
     found.push(
       `the job ${name} has continue-on-error or if: it may pass without the step`,
     );
+  return found;
+}
+
+/** The job selftest runs one shard of scripts/shards.ts per matrix entry: GATE_SHARD from the matrix, one entry per shard. */
+function shardJob(job: string[] | undefined): string[] {
+  if (!job) return [];
+  const found = [];
+  if (
+    !job.some((l) =>
+      /^\s+GATE_SHARD:\s*\$\{\{\s*matrix\.shard\s*\}\}\s*$/.test(l),
+    )
+  )
+    found.push("the job selftest does not set GATE_SHARD from matrix.shard");
+  const want = `[${SHARDS.map((_, i) => i + 1).join(", ")}]`;
+  if (!job.some((l) => l.trim() === `shard: ${want}`))
+    found.push(
+      `the matrix of the job selftest is not shard: ${want} (the ${SHARDS.length} shards of scripts/shards.ts)`,
+    );
+  // exclude or include would drop a shard while the listed values still read as all of them
+  if (job.some((l) => /^\s+(exclude|include)\s*:/.test(l)))
+    found.push("the matrix of the job selftest has an exclude or include");
   return found;
 }
 
@@ -261,8 +284,9 @@ function gateNeeds(root: string, list: Set<string>): Result {
     .map((j) => `gate does not need job ${j}`);
   if (!body.some((l) => /^ {4}if: always\(\)\s*$/.test(l)))
     details.push("gate has no line `if: always()`");
-  for (const name of ["browser", "mutation"] as const)
+  for (const name of ["browser", "mutation", "selftest"] as const)
     details.push(...leftToJob(name, lines.slice(0, start), jobs));
+  details.push(...shardJob(jobs.get("selftest")));
   if (details.length)
     return result(
       FINDING,
@@ -460,12 +484,34 @@ async function runTestFile(
 
 // Every tracked test file runs in its own process, each with its own count, as many at once as the machine has cores;
 // a file with no test is could-not-check. The lines keep the order of the names, whichever file ends first.
+// GATE_SHARD=n runs only shard n of scripts/shards.ts (the CI job selftest); where not every file runs here, in a shard or
+// left to that job by GATE_SELFTEST, each tracked test file must be in exactly one shard, so none runs nowhere.
 async function selftest(root: string, list: Set<string>): Promise<Result> {
-  const files = [...list].filter((f) => TEST_FILES.test(f)).sort();
+  let files = [...list].filter((f) => TEST_FILES.test(f)).sort();
+  const shard = process.env.GATE_SHARD;
+  const toJob =
+    inCI() &&
+    process.env.GATE_SELFTEST === "job" &&
+    process.env.GITHUB_JOB !== "selftest";
+  if (shard !== undefined || toJob) {
+    const bad = shardProblems(files);
+    if (bad.length) return result(FINDING, `${bad.length} problem(s)`, bad);
+  }
+  if (toJob) return result(NA, "left to the CI job selftest (GATE_SELFTEST)");
+  if (shard !== undefined) {
+    const n = Number(shard);
+    if (!Number.isInteger(n) || n < 1 || n > SHARDS.length)
+      return result(
+        CANNOT,
+        `GATE_SHARD is "${shard}", not 1 to ${SHARDS.length}`,
+      );
+    files = files.filter((f) => SHARDS[n - 1].includes(f));
+  }
   if (!files.length)
     return result(
       CANNOT,
-      "no tracked test file scripts/*.test.mjs or scripts/*.test.ts",
+      "no tracked test file scripts/*.test.mjs or scripts/*.test.ts" +
+        (shard === undefined ? "" : ` in shard ${shard}`),
     );
   const runs: { code: number; line: string }[] = [];
   let next = 0;

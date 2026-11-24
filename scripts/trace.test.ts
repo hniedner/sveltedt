@@ -652,7 +652,7 @@ test("trace: a canary run of the trace and test steps writes no file under the c
   assert.deepEqual(listing(), before);
 });
 
-test("gate: GATE_VARS names the seven context variables, and childEnv strips each from a child", () => {
+test("gate: GATE_VARS names the nine context variables, and childEnv strips each from a child", () => {
   assert.deepEqual([...GATE_VARS].sort(), [
     "CANARY_DIR",
     "GATE_BASE",
@@ -660,6 +660,8 @@ test("gate: GATE_VARS names the seven context variables, and childEnv strips eac
     "GATE_EVENT",
     "GATE_HEAD",
     "GATE_MUTATION",
+    "GATE_SELFTEST",
+    "GATE_SHARD",
     "GITHUB_ACTIONS",
   ]);
   const probe = `import { childEnv } from "${join(here, "gate-step.ts")}"; console.log(JSON.stringify(Object.keys(childEnv())));`;
