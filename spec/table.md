@@ -611,7 +611,7 @@ neither the region nor a control of the `heading` or `actions` snippet, and MUST
   | "Try again", `status 'failed'` | click | `onretry` |
 
 - Reason: two emits are two requests whose answers can race (PRD-B2).
-- Layer: component.
+- Layer: component; the Enter and Space rows in a real browser (Chromium, Firefox, WebKit), since an engine makes that key's click itself.
 - Traces: PRD-B23, PRD-B24, PRD-B2.
 
 **STATE-19** A press on "Cancel" or on "Try again" MUST NOT change what the table shows until the consumer passes new
@@ -900,7 +900,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
   Where the region is a Tab stop (A11Y-12), it comes before "Try again", since the button follows the region in
   document order (STATE-25).
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
-- Layer: component.
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
 **A11Y-25** axe MUST find no serious or critical violation in the slow-load states (as A11Y-06, for this group).
@@ -1021,7 +1021,7 @@ controls in the cells (as A11Y-10, for this group).
   "Open Gamma".
 - Reason: a keyboard user reaches the way out of a long load before the rows, not after every control in them
   (WCAG 2.4.3).
-- Layer: component.
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3, PRD-B23.
 
 **A11Y-32** The still-loading text and the stopped message MUST each be visible in exactly one place.
@@ -1224,7 +1224,8 @@ anything to the document head.
 **FOOT-05** After unmount, the table MUST leave no timer pending.
 - Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
   unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
-  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown).
+  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown); at
+  6000 ms (the still-loading text and "Cancel" shown).
 - Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
   first to time anything (PRD-B22).
 - Layer: component.

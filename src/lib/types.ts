@@ -56,6 +56,8 @@ export interface DataTableMessages {
   readonly empty: string;
   readonly stopped: string;
   readonly stillLoading: string;
+  readonly cancel: string;
+  readonly retry: string;
   readonly rowCount: (count: number) => string;
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
@@ -106,6 +108,12 @@ export interface DataTableProps<Row> {
   sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
+  // Called with no argument on a press of "Cancel", which shows after the status element while the still-loading
+  // text shows, a busy refresh included; the table stops nothing itself and ignores what this returns (PRD-B23)
+  oncancel?: () => void;
+  // Called with no argument on a press of "Try again", which shows while stopped or failed and the input is valid,
+  // never beside the invalid-input alert; the table ignores what this returns (PRD-B24)
+  onretry?: () => void;
   // The filters the server applied, by column id; the table shows them and never filters the rows itself
   filters?: Readonly<Record<string, DataTableFilterState>> | null;
   // Called with the column and its next filter; with onclearfilter and onclearfilters required while any column has a filter (FILT-32)

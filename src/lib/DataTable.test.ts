@@ -150,6 +150,10 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
 // RND-12 list the five states and not stopped: fold the two lists together if their statements are widened
 const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
   ["status 'stopped'", { status: "stopped" }],
+  [
+    "status 'stopped', onretry passed",
+    { status: "stopped", onretry: () => {} },
+  ],
 ];
 const sixStates = [...fiveStates, ...stoppedState];
 
@@ -1087,19 +1091,91 @@ describe("STATE-28", () => {
   );
 });
 
+// @spec("STATE-23", "3f97102f")
+describe("STATE-23", () => {
+  it.each<[DataTableStatus, boolean, boolean, boolean]>([
+    ["stopped", false, true, true],
+    ["failed", false, true, true],
+    ["stopped", true, true, true],
+    ["failed", true, true, true],
+    ["stopped", false, false, false],
+    ["failed", false, false, false],
+    ["loading", false, true, false],
+    ["ready", false, true, false],
+    ["ready", true, true, false],
+  ])(
+    "with status %s, busy %s and onretry passed %s, shows Try again: %s",
+    (status, busy, passed, shown) => {
+      show({
+        status,
+        busy,
+        rows: status === "ready" ? threeRows.slice(0, 2) : [],
+        ...(passed ? { onretry: () => {} } : {}),
+      });
+      // The state is drawn first, so an absent button is not an absent page
+      if (status === "stopped")
+        expect(
+          within(screen.getByRole("table")).getByText("Loading stopped")
+            .isConnected,
+        ).toBe(true);
+      if (status === "failed")
+        expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+      if (status === "loading")
+        expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
+      if (status === "ready") expect(firstCells()).toEqual(["Beta", "Gamma"]);
+      expect(
+        screen.queryAllByRole("button", { name: "Try again", hidden: true }),
+      ).toHaveLength(shown ? 1 : 0);
+    },
+  );
+});
+
 // @spec("STATE-24", "768017fd")
 describe("STATE-24", () => {
-  // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
   it.each<DataTableStatus>(["stopped", "failed"])(
-    "with status %s and invalid input, shows the one alert and no table",
+    "with status %s and invalid input, shows the one alert, no table and no Try again",
     (status) => {
-      show({ status, columns: [] });
+      show({ status, columns: [], onretry: () => {} });
       expect(
         screen.getAllByRole("alert").map((alert) => alert.textContent),
       ).toEqual([FIXED]);
       expect(screen.queryByRole("table")).toBeNull();
+      expect(
+        screen.queryAllByRole("button", { name: "Try again", hidden: true }),
+      ).toHaveLength(0);
     },
   );
+});
+
+// @spec("STATE-25", "5f0b20b4")
+describe("STATE-25", () => {
+  it.each<DataTableStatus>(["stopped", "failed"])(
+    "with status %s, puts Try again outside the region and after it",
+    (status) => {
+      show({ status, onretry: () => {} });
+      const region = screen.getByRole("region");
+      const button = screen.getByRole("button", { name: "Try again" });
+      expect(region.contains(button)).toBe(false);
+      expect(
+        region.compareDocumentPosition(button) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+});
+
+// @spec("A11Y-23", "76417191")
+describe("A11Y-23", () => {
+  it("puts Try again outside the failed notice and after it", () => {
+    show({ status: "failed", onretry: () => {} });
+    const notice = screen.getByRole("alert");
+    const button = screen.getByRole("button", { name: "Try again" });
+    expect(notice.textContent.trim()).toBe(FAILED);
+    expect(notice.contains(button)).toBe(false);
+    expect(
+      notice.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 // @spec("STATE-22", "f2c984f4")
@@ -1252,11 +1328,20 @@ describe("RND-13", () => {
   it("shows no progress indicator and no still-loading text beside the alert at 6000 ms", async () => {
     vi.useFakeTimers();
     try {
-      const component = show({ columns: [], rows: [], status: "loading" });
+      const component = show({
+        columns: [],
+        rows: [],
+        status: "loading",
+        oncancel: () => {},
+      });
       await vi.advanceTimersByTimeAsync(6000);
       expect(screen.getAllByRole("alert")).toHaveLength(1);
       expect(component.querySelector("[data-sdt-progress]")).toBeNull();
       expect(component.textContent).not.toContain("Still loading");
+      // hidden: true, so a button inside a hidden element counts too
+      expect(
+        screen.queryAllByRole("button", { name: "Cancel", hidden: true }),
+      ).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }
