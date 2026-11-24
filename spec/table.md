@@ -218,7 +218,8 @@ its cells.
   | `getRowId` returns a value that is neither a string nor a finite number (`NaN`, `Infinity`, `null`) | `rowIdUnreadable` | "A row id could not be read." |
 
   A finite number is a valid row id: rows with ids 0 and 1 (numbers, as server JSON gives them) show the table and
-  no alert. `rows` that is not an array is no fault while `status` is `loading` or `failed` (STATE-08).
+  no alert. `rows` that is not an array is no fault while `status` is `loading`, `failed` or `stopped` (STATE-08,
+  STATE-22).
 
   `status` left out or given as `undefined` takes its default, `'ready'`, and is no fault.
 
