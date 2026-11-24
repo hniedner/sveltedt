@@ -2550,21 +2550,22 @@ of the example. "Filter Name text" is the text field of Name's dialog. `maxLengt
 - Traces: PRD-B6, PRD-B7, PRD-B3.
 
 **FILT-56** A column header cell MUST be named by its column label alone, whatever buttons it holds.
-- Examples (the test runs every row; the name is matched exactly, `getByRole('columnheader', { name })`):
+- Examples (the test runs every row on the example page of the sort tests, `site/sort.html`, which has a filter on
+  Link and on Region; the name is matched exactly, `getByRole('columnheader', { name, exact: true })`):
 
   | Column | Header cell holds | Its name |
   |---|---|---|
-  | Name, with a text filter | the filter button | "Name" |
-  | Code, sortable, with a text filter | the sort button and the filter button | "Code" |
+  | Link, with a text filter | the filter button | "Link" |
+  | Region, sortable, with a text filter | the sort button and the filter button | "Region" |
   | Name, sortable | the sort button | "Name" |
-  | Note, no filter, not sortable | no button | "Note" |
 
 - Reason: a header cell's accessible name is computed from its content, and screen readers repeat it for every body
-  cell; a button named "Filter Name" in the cell would make the column "Name Filter Name" (the reason of SORT-09).
+  cell; a button named "Filter Link" in the cell would make the column "Link Filter Link" (the reason of SORT-09).
   The author's `aria-label` on the cell wins over its content (Accessible Name and Description Computation 1.2).
-  Stated limit: whether NVDA and JAWS read the cell's `aria-label` for body cells is checked with the harness of
-  PRD-A5, not here.
-- Layer: component.
+  The simulated DOM does not fold a nested button's name into a header's name as a browser does (MEASURED: a
+  header with a filter button keeps the name "Name" there), so only a browser proves it. Stated limit: whether NVDA
+  and JAWS read the cell's `aria-label` for body cells is checked with the harness of PRD-A5, not here.
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A2, PRD-A1.
 
 **FILT-01** A text filter MUST emit `onfilter` once typing pauses for `searchDelay` milliseconds, with the field's
