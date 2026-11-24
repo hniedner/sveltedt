@@ -211,6 +211,12 @@ test("lockfile: no dependencies is a finding (SUP-04)", () => {
     /esm-env/,
   );
 });
+test("lockfile: dependencies without esm-env is a finding that says esm-env is missing (SUP-04)", () => {
+  assert.match(
+    expect("lockfile", repo(pkg((p) => (p.dependencies = {}))), 1),
+    /esm-env is missing/,
+  );
+});
 test("lockfile: an esm-env range other than Svelte's is a finding (SUP-04)", () => {
   assert.match(
     expect(
