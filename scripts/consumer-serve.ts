@@ -57,16 +57,21 @@ function launch(
     const lines = String(d).split("\n").filter(Boolean);
     server.out.push(...lines);
     server.out.splice(0, Math.max(0, server.out.length - 5));
+    // Evidence must never end the servers it observes: a log that cannot be written is said on stderr and skipped
     if (log)
-      appendFileSync(
-        log,
-        lines
-          .map(
-            (l) =>
-              `${new Date().toISOString()} ${name}: ${l.replaceAll(real, "<copy>").replaceAll(cwd, "<copy>")}\n`,
-          )
-          .join(""),
-      );
+      try {
+        appendFileSync(
+          log,
+          lines
+            .map(
+              (l) =>
+                `${new Date().toISOString()} ${name}: ${l.replaceAll(real, "<copy>").replaceAll(cwd, "<copy>")}\n`,
+            )
+            .join(""),
+        );
+      } catch (e) {
+        console.error(`consumer-serve: the log was not written: ${String(e)}`);
+      }
   };
   server.child.stdout?.on("data", keep);
   server.child.stderr?.on("data", keep);

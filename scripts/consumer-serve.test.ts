@@ -258,6 +258,35 @@ test(
     assert.equal(await started.died, "the production server exited with 7");
   },
 );
+test(
+  "start: a log that cannot be written does not end the servers it observes",
+  { timeout: 30_000 },
+  async () => {
+    const logs = mkdtempSync(join(tmpdir(), "serve-log-"));
+    after(() => rmSync(logs, { recursive: true, force: true }));
+    const log = join(logs, "consumer-serve.log");
+    const copy = fake({
+      ...GOOD,
+      dev: `${GOOD.dev} setTimeout(() => console.log("late"), 1500);`,
+    });
+    const started = await start(
+      copy,
+      { dev: await free(), prod: await free() },
+      5000,
+      log,
+    );
+    assert.ok(typeof started !== "string", "the servers did not start");
+    after(() => started.stop());
+    // A directory in the log's place: the next append fails
+    rmSync(log);
+    mkdirSync(log);
+    const outcome = await Promise.race([
+      started.died,
+      new Promise<string>((r) => setTimeout(() => r("alive"), 2500)),
+    ]);
+    assert.equal(outcome, "alive");
+  },
+);
 test("the program: SIGTERM after both servers answer ends them and removes the copy", async () => {
   const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
   after(() => rmSync(mine, { recursive: true, force: true }));
