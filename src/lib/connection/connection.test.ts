@@ -237,6 +237,33 @@ describe("CONN-02", () => {
   });
 });
 
+// @spec("CONN-03", "1bdcf223")
+describe("CONN-03", () => {
+  const rows: [string, Partial<ConnectionColumn>, string, string][] = [
+    ["as in M", {}, "true", "true"],
+    ["orderable false", { orderable: false }, "true", "false"],
+    [
+      "searchable false, orderable false",
+      { searchable: false, orderable: false },
+      "false",
+      "false",
+    ],
+  ];
+  it.each(rows)(
+    "sends the flags of entry 1 with %s",
+    (_row, flags, searchable, orderable) => {
+      const { send } = mount({
+        columns: M.map((column, i) =>
+          i === 1 ? { ...column, ...flags } : column,
+        ),
+      });
+      const request = send.mock.calls[0]?.[0]?.request;
+      expect(request?.get("columns[1][searchable]")).toBe(searchable);
+      expect(request?.get("columns[1][orderable]")).toBe(orderable);
+    },
+  );
+});
+
 // A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
 // name; nothing is sent
 describe("an unserved sort id (stated limit)", () => {

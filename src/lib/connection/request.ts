@@ -19,8 +19,8 @@ export function buildRequest(
   columns.forEach((column, i) => {
     request.set(`columns[${i}][data]`, column.data);
     request.set(`columns[${i}][name]`, nameOf(column));
-    request.set(`columns[${i}][searchable]`, "true");
-    request.set(`columns[${i}][orderable]`, "true");
+    request.set(`columns[${i}][searchable]`, String(column.searchable ?? true));
+    request.set(`columns[${i}][orderable]`, String(column.orderable ?? true));
     request.set(`columns[${i}][search][value]`, "");
     request.set(`columns[${i}][search][regex]`, "false");
   });

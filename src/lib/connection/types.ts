@@ -12,6 +12,9 @@ export interface ConnectionColumn {
   readonly name?: string;
   // The table column id the entry serves
   readonly id?: string;
+  // Whether the server may search or order by the column; `true` when not given, as in DataTables
+  readonly searchable?: boolean;
+  readonly orderable?: boolean;
 }
 
 // The query (spec/connection.md, Conventions, The query)
