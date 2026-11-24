@@ -77,6 +77,7 @@ export function spawnGroup(
   child.on("error", (e) => notStarted.set(child, e));
   if (child.pid !== undefined) {
     running.add(child);
+    // `close` waits for the stdio to end: a grandchild that holds the pipes defers this signal to the group
     child.on("close", () => {
       signalGroup(child, "SIGTERM");
       running.delete(child);
@@ -85,7 +86,8 @@ export function spawnGroup(
   return child;
 }
 
-/** SIGTERM to the group, polls until the group is gone, SIGKILL to the group after `ms`; resolves once it is gone, and throws if SIGKILL did not end it. */
+/** SIGTERM to the group, polls until the group is gone, SIGKILL to the group after `ms`, then polls up to 2 s more;
+ * resolves once the group is gone, and throws if it is still there. */
 export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
   const { pid } = child;
   if (pid === undefined || groupGone(pid)) return;
@@ -100,7 +102,8 @@ export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
     throw new Error(`process group ${pid} still running after SIGKILL`);
 }
 
-/** The first COMPLETE stdout line starting with `prefix`; rejects at once, with exit and both streams, if `child` ends first. */
+/** The first COMPLETE stdout line starting with `prefix`; rejects, with exit and both streams, when `child` closes first.
+ * `close` waits for the child's stdio to end, so a grandchild that holds the pipes defers the rejection. */
 export function readyLine(child: Piped, prefix: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let out = "";

@@ -303,7 +303,7 @@ test(
   },
 );
 test(
-  "start: a test's stop ends the servers that start() has launched while it still waits, so a stop during start-up frees both ports",
+  "start: a test's stop ends the servers that start() has launched while it still waits, so a stop during start-up frees the ports it had bound",
   { timeout: 30_000 },
   async () => {
     const dev = HELD(

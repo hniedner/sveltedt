@@ -10,12 +10,14 @@ fetched or measured.
   timeout, a signal to the test, `process.exit`), together with what it started, and a wait for a child races the
   child's exit.
 - **Constraints:** Node 26.13.1 (`.node-version`), macOS and Linux (Windows is not a gate platform); no new
-  dependency without a reason (method section 6).
+  dependency without a reason (method section 6). Port 4173 stays fixed: the site's address is a spec statement
+  (SRV-05 to SRV-07), so the rule against fixed ports does not apply to it.
 - **Candidates:**
   - execa 10.2.1 (MIT): 12 direct dependencies, more transitively (registry, fetched). `killDescendants` runs the
-    child in its own group and signals the group, so Ctrl-C no longer reaches it. Its docs say "Descendants that call
-    setsid() ... escape termination" (docs/termination.md, fetched). Not taken: a dependency tree and a second process
-    API for 8 call sites, to replace about 40 lines, and it has the same nested-group limit.
+    child in its own group and signals the group, so Ctrl-C no longer reaches it. Its page docs/termination.md (fetched)
+    says that descendant processes that create their own process group or session (for example, daemons calling
+    `setsid()`) escape termination. Not taken: a dependency tree and a second process API for 8 call sites, and it has
+    the same nested-group limit.
   - tree-kill 1.2.2 (MIT, no dependencies; registry, fetched): kills a tree by walking the process table. Not taken: it
     kills and starts nothing, forwards no signal and has no exit hook; a table walk is also racier than one group
     signal.
@@ -24,7 +26,8 @@ fetched or measured.
     the case we need.
   - Playwright's `launchProcess` (measured by reading its source): detached, group SIGTERM then SIGKILL, an `exit`
     handler. Not taken: internal, not a public API. Its practice is followed.
-  - Node built-ins: `spawn` with `detached`, `process.kill(-pid, signal)`, and `process.on`. About 90 lines.
+  - Node built-ins: `spawn` with `detached`, `process.kill(-pid, signal)`, and `process.on`. `scripts/children.ts` is 130
+    lines (measured with `wc -l`; 109 without comments and blank lines).
 - **Limits:**
   - Synchronous calls (`spawnSync`, `execFileSync`) are not covered, and a `timeout` bounds them. Measured: a
     `spawnSync` whose child had already exited still blocked 4.18 s, until a grandchild holding the inherited stdout
@@ -38,14 +41,18 @@ fetched or measured.
   - A child that ignores SIGTERM survives its parent's exit, because the exit handler only signals; `stop` escalates to
     SIGKILL, the exit handler does not.
   - A program that starts a detached child and then returns normally does not exit while the child holds its pipes, so
-    its `exit` handler never runs; `--test-force-exit` covers that case for test files.
+    its `exit` handler never runs; `--test-force-exit` would cover that case for test files (nothing uses it today; the
+    gate-script issue that follows adds it).
+  - `close` waits for a child's stdio to end, so a grandchild that holds the pipes defers `readyLine`'s rejection and the
+    close handler's SIGTERM to the group.
 - A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `signalGroup`
-  guards a missing pid itself, so removing the check in `spawnGroup` changes no outcome. It is a second guard, not a
-  behaviour a test could pin.
+  guards a missing pid itself, so removing the check in `spawnGroup` changes no outcome. The same holds for the
+  `pid === undefined` checks in `signalGroup` and `stop`: all three are redundant with the catch in `send` (a signal to
+  `-undefined` throws, and `send` reports it as not sent). They are second guards, not behaviour a test could pin.
 - `stop` throws when a group is still there 2 s after SIGKILL (a process the kernel cannot end). No test pins that throw:
   it needs an unkillable process, and none is built.
 - `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review measured
   EPERM for a group that holds only a zombie leader on macOS; ESRCH follows once the leader is reaped. A group that is
   alive but not ours cannot occur: the helper only signals groups it started.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
-  platform, or if the helper grows past about 150 lines.
+  platform, or if `scripts/children.ts` grows past about 150 lines (130 now, which leaves a margin of 20).

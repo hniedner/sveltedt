@@ -59,7 +59,8 @@ The checks today:
   `.github/workflows/ci.yml`, which gate-needs checks). A test starts a child process with `spawnGroup` from
   `scripts/children.ts` and ends it with `stop` in an `after` hook: the child leads its own process group, and `stop`
   ends the whole group (SIGTERM, then SIGKILL after 5 s). A SIGINT, SIGTERM or SIGHUP to the test's process is
-  forwarded to every group still running; its `process.exit` or an uncaught error signals them with SIGTERM.
+  forwarded to every group still running (then re-raised, but only when this process has no other listener for the
+  signal); its `process.exit` or an uncaught error signals them with SIGTERM.
   `readyLine` waits for a complete line from a child and fails at once when the child ends first, naming its exit and
   what it printed. The program test that runs the real preparation has a timeout of 120 s. A failing file's lines name
   each failed test with the error it reported.
