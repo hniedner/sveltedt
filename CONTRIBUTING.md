@@ -56,7 +56,9 @@ The checks today:
   `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard in
   `scripts/shards.ts`, and `scripts/shards.test.ts` fails locally while one is in none or in two, or while an entry is
   not a tracked file; in CI the step fails too. A fourth shard also needs the matrix of the job `selftest` in
-  `.github/workflows/ci.yml`, which gate-needs checks).
+  `.github/workflows/ci.yml`, which gate-needs checks). A test that waits for a line from a child process fails at once
+  when the child ends first, naming its exit and what it printed; the program test that runs the real preparation has a
+  timeout of 120 s.
 - **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
   declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
   indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or
