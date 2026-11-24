@@ -1,6 +1,6 @@
 import { DEV } from "esm-env";
 
-// The code of each fault of the table: RND-05's table, then SORT-15's
+// The code of each fault of the table: RND-05's table, then SORT-15's, then FILT-32's
 export type TableFault =
   | "captionEmpty"
   | "regionLabelEmpty"
@@ -21,7 +21,13 @@ export type TableFault =
   | "sortColumnUnknown"
   | "sortColumnNotSortable"
   | "sortDirectionNotAllowed"
-  | "sortColumnDuplicate";
+  | "sortColumnDuplicate"
+  | "filterInvalid"
+  | "filterHandlerMissing"
+  | "filterStateInvalid"
+  | "searchInvalid"
+  | "searchDelayInvalid"
+  | "maxLengthInvalid";
 
 // The line of RND-17. The texts are for the developer: English only, no entry of `messages`, and none holds a value
 // from the input (RND-09). They sit behind DEV, so a production bundle drops them and keeps the code (CON-14 is to
@@ -50,6 +56,12 @@ export function faultLine(code: TableFault): string {
     sortDirectionNotAllowed:
       "The sort uses a direction a column does not allow.",
     sortColumnDuplicate: "The sort names a column twice.",
+    filterInvalid: "A column filter is not valid.",
+    filterHandlerMissing: "A filter has no handler.",
+    filterStateInvalid: "An applied filter is not valid.",
+    searchInvalid: "The applied search is not valid.",
+    searchDelayInvalid: "The search delay is not a valid number.",
+    maxLengthInvalid: "The text length limit is not a valid number.",
   };
   return `SvelteDT: ${code}: ${texts[code]}`;
 }
