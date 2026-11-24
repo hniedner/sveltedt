@@ -24,7 +24,7 @@ export const defaultMessages: DataTableMessages = {
   rowIdEmpty: "A row id is empty.",
   rowIdDuplicate: "Two rows share an id.",
   rowIdUnreadable: "A row id could not be read.",
-  sortBy: (label) => `Sort by ${label}`,
+  sortableHint: "Column headers with buttons are sortable.",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

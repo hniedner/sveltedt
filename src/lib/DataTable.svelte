@@ -22,6 +22,8 @@
     heading,
     actions,
   }: DataTableProps<Row> = $props();
+  // The caption text and the hint (SORT-28) are one name: Svelte trims a bare space beside a tag, so it is a value
+  const SPACE = " ";
   // Ties each sort button to its description, unique per table on the page
   const uid = $props.id();
   // Shift held at the Enter or Space keydown (null: no such key pending) decides the next click with no pointer,
@@ -84,7 +86,7 @@
     const entry = order[place];
     if (!entry) return { direction: null, rank: null };
     return {
-      direction: entry.desc ? "desc" : "asc",
+      direction: entry.direction,
       rank: order.length > 1 ? place + 1 : null,
     };
   }
@@ -107,7 +109,11 @@
     {/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table class="sdt-table" aria-busy={busy || status === "loading"}>
-        <caption class="sdt-caption">{caption}</caption>
+        <caption class="sdt-caption"
+          >{caption}{#if columns.some((column) => column.sortable)}{SPACE}<span
+              >{words.sortableHint}</span
+            >{/if}</caption
+        >
         <thead>
           <tr class="sdt-head-row">
             {#each columns as column, index (column.id)}
@@ -126,7 +132,6 @@
                   <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
                   <button
                     type="button"
-                    aria-label={words.sortBy(column.label)}
                     aria-describedby={`${uid}-sort-${index}`}
                     onkeydown={sortKey}
                     onblur={() => (keyShift = null)}

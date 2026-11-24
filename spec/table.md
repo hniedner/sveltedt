@@ -36,8 +36,9 @@ to the consumer as one callback (stated with the statements that add user action
   (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
-  order, a list of `{ id, desc }`, lead first), a column's `sortable` (the directions it allows, `'asc'` and/or
-  `'desc'`; a press steps through them in the order listed) and `onsort(next)`; and the props of `Pagination`:
+  order, a list of `{ id, direction }`, `direction` being `'asc'` or `'desc'`, lead first), a column's `sortable`
+  (the directions it allows, `'asc'` and/or `'desc'`; a press steps through them in the order listed) and
+  `onsort(next)`; and the props of `Pagination`:
   `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
@@ -49,8 +50,8 @@ to the consumer as one callback (stated with the statements that add user action
   sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
   snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
   a column's `class`, `headerClass` and `align`, `rowClass(row)` and `cellClass(row, column)` (section 17).
-- **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ desc: false }`. Column
-  Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
+- **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ id, direction: 'asc' }`.
+  Column Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
   `onclearfilter` and `onclearfilters`; an example pager
   passes an `onpage`, and an `onsize` when it has `sizes`.
@@ -335,8 +336,8 @@ cells MUST be rendered by the same element as before.
 - Traces: PRD-I1, PRD-I2.
 
 **RND-07** A column that is not sortable MUST NOT show a sort button.
-- Example: the columns Name and Note, neither configured as sortable: no button whose name starts with "Sort by"
-  exists, and neither header cell holds a button. (SORT-10 is the positive half.)
+- Example: the columns Name and Note, neither configured as sortable: neither header cell holds a button, and the
+  page holds no button named "Name" or "Note". (SORT-10 is the positive half.)
 - Reason: a control that does nothing misleads.
 - Layer: component.
 - Traces: PRD-B3.
@@ -691,7 +692,8 @@ never as markup (as RND-03, for this group).
 
 **A11Y-01** The table MUST be a native `table` element named by a `caption` element holding the `caption` prop.
 - Example: `caption="Orders"` gives `getByRole('table', { name: 'Orders' })`, and that table's first child is a
-  `caption` holding "Orders".
+  `caption` holding "Orders". While the table shows a sort button, the name is the caption text, a space and the
+  sentence of SORT-28: "Orders Column headers with buttons are sortable."
 - Reason: a native table keeps the screen reader's own table commands, and the caption names it.
 - Layer: component.
 - Traces: PRD-A2.
@@ -1027,8 +1029,8 @@ own focus indicator.
 
   | Intent |
   |---|
-  | press "Sort by Name" |
-  | Shift+press "Sort by Code" |
+  | press "Name" |
+  | Shift+press "Code" |
   | press each of "First page", "Previous page", "Next page", "Last page" and a page number |
   | choose another page size |
 
@@ -1046,7 +1048,7 @@ MUST emit nothing.
 
   | Button |
   |---|
-  | "Sort by Name" (SORT-01) |
+  | "Name" (SORT-01) |
   | "Next page" (PAGE-01) |
   | "Page 5" (PAGE-01) |
 
@@ -1064,7 +1066,7 @@ that does not focus a button on a click.
 
   | Click on | Focused afterwards |
   |---|---|
-  | "Sort by Name" | "Sort by Name" |
+  | "Name" | "Name" |
   | "Next page" | "Next page" |
   | "Page 5" | "Page 5" |
 
@@ -1505,7 +1507,7 @@ tests of the statement its marker names red by a failed assertion.
 
 **SORT-10** A sortable column MUST show exactly one sort button, in its header cell.
 - Example: of the columns Name (`sortable: ['asc', 'desc']`) and Note (not sortable), the Name header cell holds one
-  button "Sort by Name" and the Note header cell holds none. (RND-07 is the negative half.)
+  button "Name" and the Note header cell holds none. (RND-07 is the negative half.)
 - Reason: the header is where a user looks to change the order of a column.
 - Layer: component.
 - Traces: PRD-B3, PRD-B4.
@@ -1600,8 +1602,8 @@ moved on one step and every other column keeps its relative order and direction.
 
 **SORT-11** After a sort button is pressed with Enter, focus MUST stay on that button while the consumer loads and
 after it passes the new order and rows, or a failure.
-- Examples (the test runs every row; focus "Sort by Name" with order `[]`, press Enter, then the consumer passes the
-  props of each step in turn; after every step the focused element is "Sort by Name"):
+- Examples (the test runs every row; focus "Name" with order `[]`, press Enter, then the consumer passes the
+  props of each step in turn; after every step the focused element is "Name"):
 
   | Steps the consumer takes |
   |---|
@@ -1632,18 +1634,40 @@ after it passes the new order and rows, or a failure.
 - Layer: component.
 - Traces: PRD-A2.
 
-**SORT-09** A sort button's accessible name MUST be "Sort by <label>" in every sort state.
+**SORT-09** A sort button's accessible name MUST be its visible label alone, in every sort state, and the button MUST
+carry no `aria-label` attribute.
 - Examples (the test runs every row; the Name button):
 
-  | Order | Accessible name |
-  |---|---|
-  | `[]` | "Sort by Name" |
-  | `[name asc]` | "Sort by Name" |
-  | `[code asc, name desc]` | "Sort by Name" (not "Sort by Name 2") |
+  | Order | Accessible name | `aria-label` attribute |
+  |---|---|---|
+  | `[]` | "Name" | none |
+  | `[name asc]` | "Name" | none |
+  | `[code asc, name desc]` | "Name" (not "Name 2") | none |
 
-- Reason: the accessible name contains the visible label (WCAG 2.5.3), so voice-control users can say what they see.
+  The header cell keeps its `aria-sort` (A11Y-03).
+- Reason: a header cell's accessible name is computed from its content, so a button named "Sort by Name" made "Sort
+  by Name" the column name that screen readers repeat for every body cell; the visible label as the name also meets
+  WCAG 2.5.3, and the description (SORT-06) and `aria-sort` carry the state. SORT-28 tells that the headers are
+  buttons.
 - Layer: component.
 - Traces: PRD-B5, PRD-A1.
+
+**SORT-28** While the table shows at least one sort button, its caption MUST hold one visually hidden sentence, the
+message `sortableHint`, in its own element after the caption text; with no sort button shown it MUST NOT.
+- Examples (the test runs every row; the caption text is "Orders", `sortableHint` has its English default "Column
+  headers with buttons are sortable."):
+
+  | Columns | The caption's text content | The table's accessible name |
+  |---|---|---|
+  | Name sortable, Note not | "Orders Column headers with buttons are sortable." | the same |
+  | Name and Note, neither sortable | "Orders" | "Orders" |
+
+  The sentence sits in a `span` with no class, after a space; the caption is itself visually hidden (A11Y-13).
+  `messages={{ sortableHint: 'Spaltenköpfe mit Schaltflächen sind sortierbar.' }}` shows that text instead.
+- Reason: the WAI-ARIA Authoring Practices sortable table says to tell users, in the table's description or caption,
+  that the headers are buttons; without it a screen-reader user has no word that a header can be pressed.
+- Layer: component.
+- Traces: PRD-B5, PRD-A2.
 
 **SORT-13** A sorted header MUST show a direction mark, hidden from assistive technology, whose text or SVG drawing
 differs between ascending and descending.
@@ -1685,10 +1709,10 @@ how to add a column.
 
   | Order | Button | Accessible description |
   |---|---|---|
-  | `[name asc]` | Sort by Name | "sorted ascending. H" |
-  | `[name desc, code asc]` | Sort by Name | "sorted descending, priority 1. H" |
-  | `[code asc, date asc, name desc]` | Sort by Name | "sorted descending, priority 3. H" |
-  | `[code asc]` | Sort by Name | "H" |
+  | `[name asc]` | "Name" | "sorted ascending. H" |
+  | `[name desc, code asc]` | "Name" | "sorted descending, priority 1. H" |
+  | `[code asc, date asc, name desc]` | "Name" | "sorted descending, priority 3. H" |
+  | `[code asc]` | "Name" | "H" |
 
   The whole description is one message, `sortDescription({ direction, rank })`, so a translation can order and
   punctuate it freely (SORT-17). `direction` is `'asc'`, `'desc'` or `null` (unsorted); `rank` is the column's place
@@ -1716,10 +1740,10 @@ list.
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column is sortable and `onsort` is not given | `sortHandlerMissing` | "A sortable column has no sort handler." |
-  | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', desc: false }`) | `sortInvalid` | "The sort is not valid." |
+  | `sort` is given, is neither `undefined` nor `null`, and is not an array (the text "name", `{ id: 'name', direction: 'asc' }`) | `sortInvalid` | "The sort is not valid." |
   | an entry of `sort` is `null`, an array or not an object (`[null]`, `[['name']]`, `["name"]`) | `sortInvalid` | "The sort is not valid." |
-  | an entry's `id` is left out or is not a string (`[{ desc: false }]`, `[{ id: 5, desc: false }]`, `[{ id: null, desc: false }]`) | `sortInvalid` | "The sort is not valid." |
-  | an entry's `desc` is left out or is not a boolean (`[{ id: 'name' }]`, `[{ id: 'name', desc: undefined }]`, `[{ id: 'name', desc: null }]`, `[{ id: 'name', desc: 'true' }]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `id` is left out or is not a string (`[{ direction: 'asc' }]`, `[{ id: 5, direction: 'asc' }]`, `[{ id: null, direction: 'asc' }]`) | `sortInvalid` | "The sort is not valid." |
+  | an entry's `direction` is left out or is neither `'asc'` nor `'desc'` (`[{ id: 'name' }]`, `[{ id: 'name', direction: undefined }]`, `[{ id: 'name', direction: null }]`, `[{ id: 'name', direction: 'up' }]`, `[{ id: 'name', direction: 'ASC' }]`, `[{ id: 'name', desc: false }]`) | `sortInvalid` | "The sort is not valid." |
   | `sort` names a column that is not configured | `sortColumnUnknown` | "The sort names an unknown column." |
   | `sort` names a column that is not sortable | `sortColumnNotSortable` | "The sort names a column that cannot be sorted." |
   | `sort` gives a column a direction it does not allow | `sortDirectionNotAllowed` | "The sort uses a direction a column does not allow." |
@@ -1758,7 +1782,7 @@ list.
 
   | Message | English default | Shown by |
   |---|---|---|
-  | `sortBy` (a function of the label) | "Sort by Name" for the label "Name" | SORT-09 |
+  | `sortableHint` | "Column headers with buttons are sortable." | SORT-28 |
   | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
   | `sortDescription` (a function of `{ direction, rank }`, SORT-06) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
   | each alert message of SORT-15 | its default in SORT-15 | SORT-15 |
@@ -1776,7 +1800,7 @@ list.
 - Traces: PRD-A10, PRD-A1.
 
 **SORT-19** A sort button MUST show a visible focus indicator when it is focused by keyboard.
-- Example (as A11Y-07, for the sort buttons): Tab to "Sort by Name"; its computed outline, or at least one entry of
+- Example (as A11Y-07, for the sort buttons): Tab to "Name"; its computed outline, or at least one entry of
   its computed box shadow, has a width (outline) or a spread or blur (shadow) of at least 1 CSS px with a colour
   whose alpha is above 0, and differs from its unfocused style; a transparent outline fails. Its contrast is a later
   statement (PRD-A12).
@@ -1817,7 +1841,7 @@ SORT-20.
 
   | Prop that carries the text | Set-up |
   |---|---|
-  | the returned text of `sortBy`, `sortRank` and `sortDescription` | SORT-17 |
+  | `sortableHint`, and the returned text of `sortRank` and `sortDescription` | SORT-17 |
   | each alert message of SORT-15 | SORT-15 |
 
   In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
@@ -1832,7 +1856,7 @@ or `window` beyond those Svelte adds for any component.
   `removeEventListener` on `document` and `window`; mount and unmount a control component that handles every event
   type the sort buttons handle to measure the listeners Svelte itself delegates to the
   document, which are excluded. Then mount a table with three sortable columns and the order `[code asc, name desc]`,
-  press "Sort by Name" with and without Shift, rerender it with a new order, and unmount it: while it is mounted, the
+  press "Name" with and without Shift, rerender it with a new order, and unmount it: while it is mounted, the
   listeners added minus those removed, per target and event type, are none; after unmount, likewise none.
 - Reason: a global listener (for example one that tracks the Shift key) outlives the component or fights the app's own
   handlers.
@@ -2757,7 +2781,7 @@ case, and MUST NOT emit anything or change the selection.
   | Press on | Also after it |
   |---|---|
   | the text of a body cell | no callback called |
-  | "Sort by Code" | `onsort` called once |
+  | "Code" | `onsort` called once |
 
   Where focus goes after the press is the engine's: Chromium and Firefox focus a pressed button, WebKit does not
   (MDN, the `button` element, "Clicking and focus", FETCHED 2026-11-19).
@@ -2781,7 +2805,7 @@ case, and MUST NOT emit anything or change the selection.
   | in "Filter Name text", "Name filter" open | closes | 0 |
   | on "Filter Name" after Shift+Tab from "Filter Name text" (FILT-21), "Name filter" open | closes | 0 |
   | after a mouse press on the checkbox "Inactive" in "Status filter", which stays open | closes | 0 |
-  | on "Sort by Code", no dialog open | - | 1 |
+  | on "Code", no dialog open | - | 1 |
   | on "Filter Name", no dialog open | - | 1 |
 
 - Reason: an application that closes its own modal on Escape must not close it too when the user only closed the
@@ -3164,7 +3188,7 @@ and Date (id `date`), in that order, all three sortable, with no filter unless t
   |---|---|
   | press Escape | "Columns" |
   | press on the text of a body cell | not in the dialog and not on "Columns" |
-  | press Tab from "Move later Date", the last control in the dialog (`aria-disabled`, still focusable: COL-10) | "Sort by Name", the next control |
+  | press Tab from "Move later Date", the last control in the dialog (`aria-disabled`, still focusable: COL-10) | "Name", the next control |
   | press "Filter Name" (Name with a text filter) | "Filter Name text", in the open "Name filter" |
 
 - Reason: the chooser behaves like the table's other dialogs, so the user learns one way to leave them (PRD-B10,
@@ -3234,7 +3258,7 @@ checked exactly while the column is shown.
 
 **SORT-07** The ranks of the shown sorted columns MUST count the hidden sorted columns.
 - Example: the order `[code asc, name asc]` with Code hidden: Name shows the rank mark "2", and the description of
-  "Sort by Name" starts "sorted ascending, priority 2".
+  "Name" starts "sorted ascending, priority 2".
 - Reason: hiding is a view change, not a sort change; renumbering would misstate the order the server applies
   (PRD-B5).
 - Layer: component.
@@ -3245,15 +3269,15 @@ checked exactly while the column is shown.
 
   | Order before | Press | `onsort` receives |
   |---|---|---|
-  | `[code asc, name asc]` | Shift and "Sort by Name" | `[code asc, name desc]` |
-  | `[code asc]` | Shift and "Sort by Date" | `[code asc, date asc]` |
+  | `[code asc, name asc]` | Shift and "Name" | `[code asc, name desc]` |
+  | `[code asc]` | Shift and "Date" | `[code asc, date asc]` |
 
 - Reason: a hidden column keeps its place (PRD-B4), so the server keeps ordering by it.
 - Layer: component.
 - Traces: PRD-B4, PRD-B10.
 
 **SORT-27** A sort press without Shift MUST emit the order of SORT-01 also while columns in the order are hidden.
-- Example: the order `[code asc]` with Code hidden; press "Sort by Name": `onsort([name asc])`.
+- Example: the order `[code asc]` with Code hidden; press "Name": `onsort([name asc])`.
 - Reason: a press without Shift starts a new order for every column alike (SORT-01); the summary of SORT-08 showed the
   hidden sort before the press, so the user saw what the press replaces (PRD-B4).
 - Layer: component.
@@ -3328,7 +3352,7 @@ below list.
   |---|---|---|
   | `columns` | "Columns", the button and its dialog | COL-24, COL-26 |
   | `hiddenColumn` (a function of the label) | "Code (hidden column)" for "Code" | FILT-23, SORT-08 |
-  | `sortSummary` (a function of the order's entries, each `{ label, desc, hidden }`) | "Sort: Code (hidden column) ascending, then Name descending" | SORT-08 |
+  | `sortSummary` (a function of the order's entries, each `{ label, direction, hidden }`) | "Sort: Code (hidden column) ascending, then Name descending" | SORT-08 |
   | the alert message of COL-25 | its default in COL-25 | COL-25 |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
@@ -3480,8 +3504,8 @@ reorder.
 
   | Steps | Calls |
   |---|---|
-  | press "Sort by Code" | `onsort([code asc])`, once |
-  | press on "Sort by Code", move 40 px towards Date, release over Date's header cell | no `oncolumnstate` |
+  | press "Code" | `onsort([code asc])`, once |
+  | press on "Code", move 40 px towards Date, release over Date's header cell | no `oncolumnstate` |
 
 - Reason: a grip keeps sort and reorder apart, so a press on the header has one meaning (PRD-B11 (b)).
 - Layer: real browser (Chromium, Firefox, WebKit).
@@ -3494,7 +3518,7 @@ reorder.
   | Steps | `oncolumnstate` | Escapes the listener counts |
   |---|---|---|
   | press Name's grip, move over Date's header cell, press Escape, release there | no call | 0 |
-  | press Escape with focus on "Sort by Code", no drag | no call | 1 |
+  | press Escape with focus on "Code", no drag | no call | 1 |
   | press Name's grip and release it with no move; focus is on Name's grip; press Escape | no call | 1 |
 
   A press on a grip leaves focus on that grip, which takes focus by script and is no Tab stop (COL-13), so the key
@@ -5146,6 +5170,7 @@ pointer.
 | SORT-07 | PRD-B5, PRD-B10 |
 | SORT-26 | PRD-B4, PRD-B10 |
 | SORT-27 | PRD-B4, PRD-B10 |
+| SORT-28 | PRD-B5, PRD-A2 |
 | SORT-08 | PRD-B5, PRD-A2 |
 | A11Y-35 | PRD-A2, PRD-B5 |
 | FILT-23 | PRD-B8, PRD-B10 |
@@ -5282,7 +5307,7 @@ state in their own statements.
 | PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
-| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35 | in full |
+| PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
@@ -5309,7 +5334,7 @@ state in their own statements.
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
-| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09 | in full |
+| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09, SORT-28 | in full |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |

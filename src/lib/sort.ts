@@ -8,9 +8,9 @@ function step(
 ): DataTableSortEntry | null {
   // A press steps through the directions in the order the column lists them (SORT-01)
   const next = entry
-    ? sortable[sortable.indexOf(entry.desc ? "desc" : "asc") + 1]
+    ? sortable[sortable.indexOf(entry.direction) + 1]
     : sortable[0];
-  return next ? { id, desc: next === "desc" } : null;
+  return next ? { id, direction: next } : null;
 }
 
 // The whole order after a press on a column's sort button: without Shift (SORT-01) a lead column steps on alone and
