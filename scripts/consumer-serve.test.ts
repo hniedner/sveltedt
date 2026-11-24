@@ -269,7 +269,8 @@ test(
     after(() => said.mock.restore());
     const copy = fake({
       ...GOOD,
-      dev: `${GOOD.dev} setTimeout(() => console.log("late"), 1500);`,
+      // A line every 200 ms until the fake ends: some append lands after the swap however long start took
+      dev: `${GOOD.dev} setInterval(() => console.log("late"), 200);`,
     });
     const started = await start(
       copy,
