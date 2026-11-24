@@ -17,7 +17,7 @@ describe("LIST-01", () => {
     render(ListPage);
     expect(screen.getAllByRole("table")).toHaveLength(1);
     const table = screen.getByRole("table", {
-      name: "Orders Column headers with buttons are sortable.",
+      name: "Orders Column names that are buttons sort the table.",
     });
     expect(within(table).getByText("Orders").tagName).toBe("CAPTION");
     expect(orders).toHaveLength(20);

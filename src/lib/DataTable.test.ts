@@ -153,7 +153,7 @@ const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
 ];
 const sixStates = [...fiveStates, ...stoppedState];
 
-// @spec("A11Y-01", "7eb5c1e0")
+// @spec("A11Y-01", "500332d8")
 describe("A11Y-01", () => {
   it("names a table that shows a sort button by the caption text, a space and the hint of SORT-28", () => {
     show({
@@ -162,7 +162,7 @@ describe("A11Y-01", () => {
     });
     expect(
       screen.getByRole("table", {
-        name: "Orders Column headers with buttons are sortable.",
+        name: "Orders Column names that are buttons sort the table.",
       }).isConnected,
     ).toBe(true);
   });
