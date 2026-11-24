@@ -79,15 +79,28 @@
   );
   // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
   const pending = $derived(fault === null && (status === "loading" || busy));
-  // The progress indicator is in the component (PRD-B2)
+  // The progress indicator is in the component; it is inside its 500 ms minimum (PRD-B2)
   let shown = $state(false);
-  // 1 s of pending without a gap shows the indicator; a gap clears the delay (STATE-09)
+  // Stryker disable next-line BooleanLiteral: equivalent, held is read only after shown is set
+  let held = $state(false);
+  // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
+  // the minimum has passed, the indicator goes (STATE-10)
   $effect(() => {
-    if (!pending) return;
+    if (!pending) {
+      if (!held) shown = false;
+      return;
+    }
+    if (shown) return;
     const delay = setTimeout(() => {
       shown = true;
+      held = true;
     }, 1000);
     return () => clearTimeout(delay);
+  });
+  // While the indicator is shown: its 500 ms minimum (STATE-10)
+  $effect(() => {
+    if (!shown) return;
+    setTimeout(() => (held = false), 500);
   });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {

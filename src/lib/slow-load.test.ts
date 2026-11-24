@@ -92,3 +92,47 @@ describe("STATE-09", () => {
     expect(table.present()).toBe(true);
   });
 });
+
+// @spec("STATE-10", "fe290072")
+describe("STATE-10", () => {
+  // Mounted loading, so the indicator appears at 1000 ms; the answer comes at `answerAt`
+  it.each([
+    ["ready", 1100, 1499, 1500],
+    ["failed", 1100, 1499, 1500],
+    ["ready", 2000, 1999, 2000],
+    ["stopped", 2000, 1999, 2000],
+  ] as const)(
+    "after an answer of status %s at %i ms, keeps the indicator at %i ms and removes it at %i ms",
+    async (status, answerAt, presentAt, goneAt) => {
+      const table = mount({ status: "loading" });
+      const answer = () =>
+        table.change({ status, rows: status === "ready" ? twoRows : [] });
+      if (presentAt < answerAt) {
+        await table.at(presentAt);
+        expect(table.present()).toBe(true);
+        await table.at(answerAt);
+        await answer();
+      } else {
+        await table.at(answerAt);
+        await answer();
+        await table.at(presentAt);
+        expect(table.present()).toBe(true);
+      }
+      await table.at(goneAt);
+      expect(table.present()).toBe(false);
+    },
+  );
+
+  it("keeps the indicator when loading resumes inside the minimum, until the next answer", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(1100);
+    await table.change({ rows: twoRows });
+    await table.at(1200);
+    await table.change({ status: "loading" });
+    await table.at(2499);
+    expect(table.present()).toBe(true);
+    await table.change({ rows: twoRows });
+    await table.at(2500);
+    expect(table.present()).toBe(false);
+  });
+});
