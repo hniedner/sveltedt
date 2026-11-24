@@ -66,4 +66,6 @@ export interface Connection<Row> {
         >
       >
     | undefined;
+  // Sends the current query again, the page included
+  readonly reload: () => void;
 }

@@ -322,6 +322,55 @@ describe("CONN-27", () => {
   );
 });
 
+// The pairs of a request without its draw
+const withoutDraw = (request: URLSearchParams | undefined) =>
+  [...(request ?? [])].filter(([key]) => key !== "draw");
+
+// @spec("CONN-24", "1938413e")
+describe("CONN-24", () => {
+  const unmapped = A1({ recordsFiltered: "5x" });
+  const rows: [
+    string,
+    (probe: ReturnType<typeof mount>) => Promise<void>,
+    string,
+    number,
+  ][] = [
+    // the settles before `reload()`, the draw it sends, the request whose other pairs it repeats
+    ["A1", (probe) => probe.answer(0, A1()), "2", 0],
+    [
+      "request 1 answered by an answer it cannot map",
+      (probe) => probe.answer(0, unmapped),
+      "2",
+      0,
+    ],
+    [
+      "A1, then pager.onpage(10) answered by an answer it cannot map",
+      async (probe) => {
+        await probe.answer(0, A1());
+        probe.connection.pager?.onpage(10);
+        await probe.answer(1, { ...unmapped, draw: 2 });
+      },
+      "3",
+      1,
+    ],
+  ];
+  it.each(rows)(
+    "sends the current query again with the next draw after %s",
+    async (_row, settle, draw, same) => {
+      const probe = mount();
+      await settle(probe);
+      const before = probe.send.mock.calls.length;
+      probe.connection.reload();
+      expect(probe.send).toHaveBeenCalledTimes(before + 1);
+      const request = probe.send.mock.calls[before]?.[0]?.request;
+      expect(request?.get("draw")).toBe(draw);
+      expect(withoutDraw(request)).toEqual(
+        withoutDraw(probe.send.mock.calls[same]?.[0]?.request),
+      );
+    },
+  );
+});
+
 // A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
 // name; nothing is sent
 describe("an unserved sort id (stated limit)", () => {
@@ -433,6 +482,16 @@ describe("CONN-15", () => {
     expect(
       probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
     ).toEqual(["1", "2", "3"]);
+  });
+  it("counts a sort, a reload and a size change, none answered, as draw 2, 3 and 4 after A1", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    probe.connection.reload();
+    probe.connection.pager?.onsize(25);
+    expect(
+      probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
+    ).toEqual(["1", "2", "3", "4"]);
   });
 });
 
