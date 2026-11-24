@@ -323,9 +323,11 @@ test("a real defect is a finding even when a canary row misses: the findings com
   assert.equal(r.code, FINDING);
   assert.deepEqual(r.details, ["PKG-03 dist/a.test.js: a test file"]);
 });
-test("a package whose files list lets the tests in is a finding of check(), the tools do not turn it into a pass", () => {
-  // A copy of the repository's package inputs, with the test exclusion removed from `files` (a real defect)
-  const root = mkdtempSync(join(tmpdir(), "package-defect-"));
+// A copy of the repository's package inputs, with `manifest` as its package.json (the repository's own by default)
+function packageCopy(
+  manifest = readFileSync(join(ROOT, "package.json"), "utf8"),
+): string {
+  const root = mkdtempSync(join(tmpdir(), "package-copy-"));
   after(() => rmSync(root, { recursive: true, force: true }));
   for (const f of [
     "src",
@@ -337,10 +339,16 @@ test("a package whose files list lets the tests in is a finding of check(), the 
   ])
     cpSync(join(ROOT, f), join(root, f), { recursive: true });
   symlinkSync(join(ROOT, "node_modules"), join(root, "node_modules"));
-  const manifest = readFileSync(join(ROOT, "package.json"), "utf8");
-  writeFileSync(
-    join(root, "package.json"),
-    manifest.replace('"!dist/**/*.test.*",', ""),
+  writeFileSync(join(root, "package.json"), manifest);
+  return root;
+}
+test("a package whose files list lets the tests in is a finding of check(), the tools do not turn it into a pass", () => {
+  // The test exclusion removed from `files` (a real defect)
+  const root = packageCopy(
+    readFileSync(join(ROOT, "package.json"), "utf8").replace(
+      '"!dist/**/*.test.*",',
+      "",
+    ),
   );
   const r = check(root);
   assert.equal(r.code, FINDING, r.summary);
@@ -349,6 +357,25 @@ test("a package whose files list lets the tests in is a finding of check(), the 
   );
   // The build is private to the run: two runs at once (selftest runs the test files in parallel) share no dist
   assert.ok(!existsSync(join(root, "dist")));
+});
+test("PKG-07: a .ts value import and an inline-type import in a src/lib module are findings of the built package", () => {
+  const root = packageCopy();
+  const append = (file: string, text: string) =>
+    writeFileSync(join(root, "src/lib", file), text, { flag: "a" });
+  append(
+    "validate.ts",
+    'import { faultLine } from "./faults.ts";\nexport const planted = faultLine;\n',
+  );
+  append(
+    "sort.ts",
+    'import { type SortDirection as Planted } from "./types.ts";\nexport type PlantedDirection = Planted;\n',
+  );
+  const r = check(root);
+  assert.equal(r.code, FINDING, r.summary);
+  assert.deepEqual(r.details.filter((d) => d.startsWith("PKG-07")).sort(), [
+    "PKG-07 dist/sort.js imports ./types.ts",
+    "PKG-07 dist/validate.js imports ./faults.ts",
+  ]);
 });
 test("PKG-07: a backtick specifier is found", () => {
   const c = new Map(GOOD).set(
