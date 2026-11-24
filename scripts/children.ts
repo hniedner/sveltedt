@@ -38,7 +38,7 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
 /** Sends `signal` to `child`'s group; does nothing for a child with no pid or a group that is gone. */
-export function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
   if (child.pid !== undefined && !groupGone(child)) send(-child.pid, signal);
 }
 
