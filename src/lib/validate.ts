@@ -28,7 +28,7 @@ const isSortEntry = (entry: unknown): boolean =>
 // No type guard on purpose: Array.isArray would widen a readonly array to any[]
 const isList = (value: unknown): boolean => Array.isArray(value);
 
-// The code of the first fault, in the order of RND-05's table and then SORT-15's, or null when the input is valid
+// The code of the first fault, in the order of RND-05's table, SORT-15's and then FILT-32's, or null when the input is valid
 export function validateTable<Row>(
   input: Pick<
     DataTableProps<Row>,
@@ -40,7 +40,14 @@ export function validateTable<Row>(
     | "status"
     | "sort"
     | "onsort"
-  >,
+    | "filters"
+    | "onfilter"
+    | "onclearfilter"
+    | "onclearfilters"
+    | "search"
+    | "searchDelay"
+    | "maxLength"
+  > & { emptyOption: string },
 ): TableFault | null {
   const { rows, columns, getRowId, caption, regionLabel, status } = input;
   if (isEmpty(caption)) return "captionEmpty";
@@ -79,8 +86,12 @@ export function validateTable<Row>(
     const fault = rowFault(rows, getRowId);
     if (fault) return fault;
   }
-  // The sort faults come after every fault of RND-05's table (SORT-15)
-  return sortFault(input.columns, input.sort, input.onsort);
+  // The sort faults come after every fault of RND-05's table (SORT-15), the filter faults after those (FILT-32)
+  return (
+    sortFault(input.columns, input.sort, input.onsort) ??
+    filterFault(input) ??
+    searchFault(input)
+  );
 }
 
 // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
@@ -149,4 +160,111 @@ function sortFault<Row>(
   return firstDuplicate(order.map((entry) => entry.id)) === undefined
     ? null
     : "sortColumnDuplicate";
+}
+
+// The props the filter checks read, as unknown: callers the types do not reach can pass anything
+interface FilterInput {
+  columns: readonly { id: string; filter?: unknown }[];
+  filters?: unknown;
+  onfilter?: unknown;
+  onclearfilter?: unknown;
+  onclearfilters?: unknown;
+  search?: unknown;
+  searchDelay?: unknown;
+  maxLength?: unknown;
+  // The shown label of the option of FILT-53; it takes part in the duplicate-label check
+  emptyOption: string;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+// The values a categorical filter accepts as selected: its options' values, and '' with the option of FILT-53
+function optionValues(filter: Record<string, unknown>): string[] {
+  const values = (filter["options"] as { value: string }[]).map(
+    (option) => option.value,
+  );
+  return filter["emptyOption"] === true ? [...values, ""] : values;
+}
+
+// One filter as its type says (the filterInvalid rows of FILT-32); the label of FILT-53's option counts for the duplicate check
+function filterShapeFault(filter: unknown, emptyLabel: string): boolean {
+  // Not null here; a filter that is no object has no kind, and is refused with the kinds that are none of the two
+  const { kind, emptyOption } = filter as Record<string, unknown>;
+  if (kind === "text") return emptyOption === true;
+  if (kind !== "categorical") return true;
+  const options = (filter as Record<string, unknown>)["options"];
+  if (!isList(options) || (options as unknown[]).length === 0) return true;
+  const given = options as unknown[];
+  if (
+    given.some(
+      (option) =>
+        !isObject(option) ||
+        isEmpty(option["value"]) ||
+        isEmpty(option["label"]),
+    )
+  )
+    return true;
+  if (emptyOption != null && typeof emptyOption !== "boolean") return true;
+  const labels = (given as { label: string }[]).map((option) =>
+    option.label.trim(),
+  );
+  if (emptyOption === true) labels.push(emptyLabel.trim());
+  return (
+    firstDuplicate(optionValues({ options: given })) !== undefined ||
+    firstDuplicate(labels) !== undefined
+  );
+}
+
+// An applied entry as its column's filter allows (FILT-32, filterStateInvalid)
+function entryFault(entry: unknown, filter: unknown): boolean {
+  if (!isObject(entry) || !isObject(filter) || entry["kind"] !== filter["kind"])
+    return true;
+  if (entry["kind"] === "text") return typeof entry["text"] !== "string";
+  const selected = entry["selected"];
+  if (!isList(selected)) return true;
+  const allowed = optionValues(filter);
+  return (
+    (selected as string[]).some((value) => !allowed.includes(value)) ||
+    firstDuplicate(selected as string[]) !== undefined
+  );
+}
+
+// The filter faults of FILT-32's table, the first row that applies; a filter given as null is no filter, as left out
+function filterFault(input: FilterInput): TableFault | null {
+  const { columns, filters, emptyOption } = input;
+  const filtered = columns.filter(
+    (column) => (column.filter ?? undefined) !== undefined,
+  );
+  if (filtered.some((column) => filterShapeFault(column.filter, emptyOption)))
+    return "filterInvalid";
+  if (
+    filtered.length > 0 &&
+    [input.onfilter, input.onclearfilter, input.onclearfilters].some(
+      (handler) => typeof handler !== "function",
+    )
+  )
+    return "filterHandlerMissing";
+  if (filters === undefined || filters === null) return null;
+  if (!isObject(filters)) return "filterStateInvalid";
+  const bad = Object.entries(filters).some(([id, entry]) =>
+    entryFault(entry, columns.find((column) => column.id === id)?.filter),
+  );
+  return bad ? "filterStateInvalid" : null;
+}
+
+// A whole number of at least `min`; Number.isInteger refuses everything that is no number, NaN and Infinity included
+const wholeFrom = (value: unknown, min: number): boolean =>
+  Number.isInteger(value) && (value as number) >= min;
+
+// The search, its delay and its length limit; the application sets the last two, so null is a fault for them
+function searchFault(input: FilterInput): TableFault | null {
+  const { search, searchDelay, maxLength } = input;
+  if (search !== undefined && search !== null && typeof search !== "string")
+    return "searchInvalid";
+  if (searchDelay !== undefined && !wholeFrom(searchDelay, 0))
+    return "searchDelayInvalid";
+  if (maxLength !== undefined && !wholeFrom(maxLength, 1))
+    return "maxLengthInvalid";
+  return null;
 }

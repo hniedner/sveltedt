@@ -43,7 +43,7 @@ to the consumer as one callback (stated with the statements that add user action
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
   milestone 3 add the `status` value `'stopped'`, `oncancel()`, `onretry()` and the `messages` keys `stillLoading`,
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
-  `onfilter(columnId, state)`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter(columnId)`,
+  `onfilter({ id, state })`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter({ id })`,
   `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search);
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
   statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
@@ -744,7 +744,7 @@ never as markup (as RND-03, for this group).
 **A11Y-01** The table MUST be a native `table` element named by a `caption` element holding the `caption` prop.
 - Example: `caption="Orders"` gives `getByRole('table', { name: 'Orders' })`, and that table's first child is a
   `caption` holding "Orders". While the table shows a sort button, the name is the caption text, a space and the
-  sentence of SORT-28: "Orders Column headers with buttons are sortable."
+  sentence of SORT-28: "Orders Column names that are buttons sort the table."
 - Reason: a native table keeps the screen reader's own table commands, and the caption names it.
 - Layer: component.
 - Traces: PRD-A2.
@@ -1707,11 +1707,11 @@ carry no `aria-label` attribute.
 **SORT-28** While the table shows at least one sort button, its caption MUST hold one visually hidden sentence, the
 message `sortableHint`, in its own element after the caption text; with no sort button shown it MUST NOT.
 - Examples (the test runs every row; the caption text is "Orders", `sortableHint` has its English default "Column
-  headers with buttons are sortable."):
+  names that are buttons sort the table."):
 
   | Columns | The caption's text content | The table's accessible name |
   |---|---|---|
-  | Name sortable, Note not | "Orders Column headers with buttons are sortable." | the same |
+  | Name sortable, Note not | "Orders Column names that are buttons sort the table." | the same |
   | Name and Note, neither sortable | "Orders" | "Orders" |
 
   The sentence sits in a `span` with no class, after a space; the caption is itself visually hidden (A11Y-13).
@@ -1835,7 +1835,7 @@ the columns it names.
 
   | Message | English default | Shown by |
   |---|---|---|
-  | `sortableHint` | "Column headers with buttons are sortable." | SORT-28 |
+  | `sortableHint` | "Column names that are buttons sort the table." | SORT-28 |
   | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
   | `sortDescription` (a function of `{ direction, rank }`, SORT-06) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
 
@@ -2525,7 +2525,7 @@ receives that number.
 These statements add a column's `filter`, either `{ kind: 'text' }` or `{ kind: 'categorical', options }` with
 `options` a list of `{ value, label }` and an optional `emptyOption`, a boolean (default `false`, FILT-53);
 `filters`, the applied filter of each column id, `{ kind: 'text', text }` or
-`{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter(columnId, state)`, called
+`{ kind: 'categorical', selected }` with `selected` a list of option values; `onfilter({ id, state })`, called
 with a state of that shape; `searchDelay` (milliseconds, default 400), `searchOnEnter` (default `false`) and
 `maxLength` (default 255) (PRD-B6, PRD-B7). A column's filter is edited in its filter dialog, opened by the filter
 button of FILT-29. The dialog is a popover in the top layer (the dialog statements state how it opens and closes);
@@ -2557,7 +2557,7 @@ text, and not while typing goes on.
   | Steps | `onfilter` calls |
   |---|---|
   | type "beta"; at 399 ms | none |
-  | type "beta"; at 400 ms | one: `('name', { kind: 'text', text: 'beta' })` |
+  | type "beta"; at 400 ms | one: `({ id: 'name', state: { kind: 'text', text: 'beta' } })` |
   | type "be"; at 300 ms type "ta"; at 699 ms | none |
   | type "be"; at 300 ms type "ta"; at 700 ms | one, with "beta" |
   | `searchDelay={1000}`; type "beta"; at 999 ms, then at 1000 ms | none, then one with "beta" |
@@ -2664,9 +2664,9 @@ the options' order.
 
   | `selected` before | Press | `onfilter` call |
   |---|---|---|
-  | `[]` | "Inactive" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
-  | `['inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['active', 'inactive'] })` |
-  | `['active', 'inactive']` | "Active" | `('status', { kind: 'categorical', selected: ['inactive'] })` |
+  | `[]` | "Inactive" | `({ id: 'status', state: { kind: 'categorical', selected: ['inactive'] } })` |
+  | `['inactive']` | "Active" | `({ id: 'status', state: { kind: 'categorical', selected: ['active', 'inactive'] } })` |
+  | `['active', 'inactive']` | "Active" | `({ id: 'status', state: { kind: 'categorical', selected: ['inactive'] } })` |
 
 - Reason: the server matches on values, labels are for people, and a click has no half-typed state to wait for
   (PRD-B7).
@@ -2783,9 +2783,9 @@ checkbox named by the `emptyOption` message, whose value in `selected` and in `o
 
   | `selected` before | Checkboxes, in order (checked) | Press | `onfilter` call |
   |---|---|---|---|
-  | `[]` | "Active", "Inactive", "(empty)" (none) | "(empty)" | `('status', { kind: 'categorical', selected: [''] })` |
-  | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `('status', { kind: 'categorical', selected: ['active', ''] })` |
-  | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `('status', { kind: 'categorical', selected: ['active'] })` |
+  | `[]` | "Active", "Inactive", "(empty)" (none) | "(empty)" | `({ id: 'status', state: { kind: 'categorical', selected: [''] } })` |
+  | `['']` | "Active", "Inactive", "(empty)" ("(empty)") | "Active" | `({ id: 'status', state: { kind: 'categorical', selected: ['active', ''] } })` |
+  | `['active', '']` | "Active", "Inactive", "(empty)" ("Active", "(empty)") | "(empty)" | `({ id: 'status', state: { kind: 'categorical', selected: ['active'] } })` |
 
   Without `emptyOption`, Status's dialog holds "Active" and "Inactive" only (FILT-17). FILT-18, FILT-22 and FILT-52
   each hold an example with the option.
@@ -2898,7 +2898,7 @@ case, and MUST NOT emit anything or change the selection.
 
 ### Badges, clearing, "Reset table" and the application's criteria (milestone 4)
 
-These statements add `onclearfilter(columnId)`, `onclearfilters()`, `onreset()` and the snippet `criteria` (PRD-B8,
+These statements add `onclearfilter({ id })`, `onclearfilters()`, `onreset()` and the snippet `criteria` (PRD-B8,
 section 5.2 of the PRD). A filter applies when its entry in `filters` holds a non-empty text or a non-empty
 selection. The examples use the columns of section 11 and Code (sortable), with every handler passed. Hidden columns
 come with the column statements (milestone 5), which state the badges and focus for them.
@@ -2910,6 +2910,7 @@ come with the column statements (milestone 5), which state the badges and focus 
   |---|---|
   | `name: { kind: 'text', text: 'Beta' }` | one button, text "Name: contains “Beta”", name "Clear filter Name: contains “Beta”" |
   | `name: { kind: 'text', text: '' }` | none |
+  | `name: { kind: 'text', text: ' ' }` | none |
   | `status: { kind: 'categorical', selected: [] }` | none |
 
 - Reason: the user sees what narrows the rows, and the visible words stay in the accessible name (PRD-B8, WCAG
@@ -2924,8 +2925,8 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Layer: component.
 - Traces: PRD-B7, PRD-B8.
 
-**FILT-09** A press on a badge MUST emit `onclearfilter` once, with its column id.
-- Example: press "Clear filter Name: contains “Beta”": `onclearfilter('name')`, as "emits once" defines it.
+**FILT-09** A press on a badge MUST emit `onclearfilter` once, with `{ id }` of its column.
+- Example: press "Clear filter Name: contains “Beta”": `onclearfilter({ id: 'name' })`, as "emits once" defines it.
 - Reason: one press is one query (PRD-B2, PRD-B8).
 - Layer: component.
 - Traces: PRD-B8, PRD-B2.
@@ -2978,11 +2979,17 @@ come with the column statements (milestone 5), which state the badges and focus 
   | Applied | Not called |
   |---|---|
   | the order `[code asc]` and Name's text "Beta" | `onsort`, `onclearfilters` |
-  | the order `[code asc]` and `search` "beta", `onsearch` given | `onsort`, `onsearch`; "Search" still reads "beta" until `search` changes (FILT-44) |
 
 - Reason: the application restores sort and filters in one query (PRD-B2, PRD-B8).
 - Layer: component.
-- Traces: PRD-B8, PRD-B2, PRD-B25.
+- Traces: PRD-B8, PRD-B2.
+
+**FILT-54** A press on "Reset table" MUST leave the search field's text as it is until `search` changes.
+- Example: the order `[code asc]` and `search` "beta" apply, `onsearch` given; one press of "Reset table": `onsearch`
+  is not called, and "Search" still reads "beta" until `search` changes (FILT-44).
+- Reason: the application resets the search itself, with the rest of the state it returns (PRD-B8, PRD-B25).
+- Layer: component.
+- Traces: PRD-B8, PRD-B25.
 
 **FILT-31** The badges, the `criteria` snippet, "Clear column filters" and "Reset table" MUST come in that order, all
 before the region, in document order.
@@ -2998,12 +3005,12 @@ before the region, in document order.
 - Layer: component.
 - Traces: PRD-B8, PRD-A3.
 
-**FILT-32** For invalid filter input the table MUST render the alert of RND-05 with the fixed message the examples
-below list.
+**FILT-32** For invalid filter input the table MUST render the alert of RND-05 and write the console line of RND-17
+for the code the examples below list.
 - Examples (as RND-05, for the filter props; the test runs every row and every value or alternative in it: one
-  element with `role="alert"` holding the default text, and no `table` element):
+  element with `role="alert"` holding `invalidInput`'s text, no `table` element, and the console line of the row):
 
-  | Invalid input | Message key | Alert text (default) |
+  | Invalid input | Code | Console text (development) |
   |---|---|---|
   | a column's `filter` has a `kind` other than `'text'` and `'categorical'` | `filterInvalid` | "A column filter is not valid." |
   | a categorical filter's `options` is empty or not a list | `filterInvalid` | "A column filter is not valid." |
@@ -3011,6 +3018,7 @@ below list.
   | a categorical filter's `emptyOption` is `'yes'` or `1`, or a text filter's is `true` (`undefined` and `null` are not given) | `filterInvalid` | "A column filter is not valid." |
   | two options share a value, or labels equal after trimming, the option of FILT-53 with its shown label included (Status with an option `none` "(empty)" and `emptyOption: true`) | `filterInvalid` | "A column filter is not valid." |
   | a column has a filter and `onfilter`, `onclearfilter` or `onclearfilters` is not given | `filterHandlerMissing` | "A filter has no handler." |
+  | `filters`, one of its entries, or a categorical entry's `selected` is not of its type (`filters` a list or the text "name"; an entry `null`; `selected` the text "active") | `filterStateInvalid` | "An applied filter is not valid." |
   | `filters` names a column that is not configured or has no filter | `filterStateInvalid` | "An applied filter is not valid." |
   | an entry of `filters` has another `kind` than its column's filter | `filterStateInvalid` | "An applied filter is not valid." |
   | `selected` holds a value that is no option (`''` without `emptyOption: true` included), or a value twice | `filterStateInvalid` | "An applied filter is not valid." |
@@ -3019,19 +3027,24 @@ below list.
   | `searchDelay` is -1, 1.5, `NaN` or `Infinity` | `searchDelayInvalid` | "The search delay is not a valid number." |
   | `maxLength` is 0, -1, 1.5, `NaN` or `Infinity` | `maxLengthInvalid` | "The text length limit is not a valid number." |
 
-  With several faults at once, a fault of RND-05's table wins, then one of SORT-15's, then the first row above that
-  applies. An applied text that the field would refuse (FILT-03) is no fault: the rows are already narrowed by it, its
-  badge shows it, and the field marks it as FILT-15 says when the dialog opens.
+  With several faults at once, the console line names a fault of RND-05's table first, then SORT-15's, then the first
+  row above that applies. An applied text that the field would refuse (FILT-03) is no fault: the rows are already
+  narrowed by it, its badge shows it, and the field marks it as FILT-15 says when the dialog opens.
+
+  `filter` given as `null` means the column has no filter, as when it is left out (the rule of `sortable` in SORT-15),
+  and is no fault. `filters` given as `null` is not given. `search` given as `null` is not given, like `sort`: it is
+  state the server returns. `searchDelay` and `maxLength` given as `null` are faults, because the application sets
+  them. A text filter's `emptyOption: false` is no fault. `searchDelay` 0 and `maxLength` 1 are valid.
 - Reason: a filter the table cannot show is a wrong table: the user would believe a narrowing the rows do not have,
   or press a control that does nothing (PRD-B16).
 - Layer: component.
 - Traces: PRD-B16, PRD-B7, PRD-B6, PRD-B25.
 
-**FILT-39** The alert MUST hold no value taken from the filter props.
-- Examples (as RND-09, for the filter props; the test runs every row, and in each it first finds the alert holding
-  the FILT-32 message for that input):
+**FILT-39** The alert and the console line MUST hold no value taken from the filter props.
+- Examples (as RND-09, for the filter props; the test runs every row, and in each it first finds the alert and the
+  console line FILT-32 gives that input):
 
-  | Invalid input | Text that must not appear in the alert |
+  | Invalid input | Text that must not appear in the alert or the console line |
   |---|---|
   | two options of Status with the value `val-q8`, labelled "Secret-6" and "Other" | "val-q8", "Secret-6" |
   | Status's `selected` holds `val-p3`, which is no option | "val-p3" |
@@ -3041,8 +3054,8 @@ below list.
 - Traces: PRD-S4, PRD-B16.
 
 **FILT-33** Every fixed word of the filters MUST come from a prop with an English default.
-- Examples (as RND-06, for the filter words; the test runs every row in the set-up of its "Shown by" statement, the
-  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
+- Examples (as RND-06, for the filter words; the test runs every row in the set-up of its "Shown by" statement; it
+  passes a full `messages` object of non-English words, then
   checks that each replacement appears where the row says and that no English default is left on the page, in an
   accessible name or in a description):
 
@@ -3054,10 +3067,19 @@ below list.
   | `clearFilter` (a function of the badge's words) | "Clear filter Name: contains “Beta”" | FILT-08 |
   | `clearFilters` | "Clear column filters" | FILT-10 |
   | `reset` | "Reset table" | FILT-30 |
-  | `searchLabel` | "Search" | FILT-40 |
-  | each alert message of FILT-32 | its default in FILT-32 | FILT-32 |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1).
+- Layer: component.
+- Traces: PRD-I1.
+
+**FILT-55** Every fixed word of the global search MUST come from a prop with an English default.
+- Examples (as FILT-33, for the search words; the test runs every row in the set-up of its "Shown by" statement):
+
+  | Message | English default | Shown by |
+  |---|---|---|
+  | `searchLabel` | "Search" | FILT-40 |
+
+- Reason: consumers translate and reword without forking the component (PRD-I1, PRD-B25).
 - Layer: component.
 - Traces: PRD-I1, PRD-B25.
 
@@ -5195,11 +5217,13 @@ pointer.
 | FILT-10 | PRD-B8 |
 | FILT-25 | PRD-B8, PRD-B2 |
 | FILT-30 | PRD-B8, PRD-B3 |
-| FILT-26 | PRD-B8, PRD-B2, PRD-B25 |
+| FILT-26 | PRD-B8, PRD-B2 |
+| FILT-54 | PRD-B8, PRD-B25 |
 | FILT-31 | PRD-B8, PRD-A3 |
 | FILT-32 | PRD-B16, PRD-B7, PRD-B6, PRD-B25 |
 | FILT-39 | PRD-S4, PRD-B16 |
-| FILT-33 | PRD-I1, PRD-B25 |
+| FILT-33 | PRD-I1 |
+| FILT-55 | PRD-I1, PRD-B25 |
 | FILT-47 | PRD-I1, PRD-I2, PRD-B29, PRD-B7 |
 | FILT-40 | PRD-B25 |
 | FILT-41 | PRD-B25, PRD-B6 |
@@ -5373,9 +5397,9 @@ state in their own statements.
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
 | PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full, by the clipping check of PRD section 4.3, which tests overlap between controls only |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
-| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-33, FILT-26 | in full |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-45, FILT-46, FILT-32, FILT-55, FILT-54 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
-| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
+| PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-54, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21, STATE-28 | in full |
@@ -5392,7 +5416,7 @@ state in their own statements.
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |
-| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, THEME-39, STK-15 | in part: later groups state their own words in their own statements |
+| PRD-I1 | RND-06, SORT-17, PAGE-19, I18N-01, STATE-26, FILT-33, FILT-55, FILT-47, COL-23, COL-30, COL-36, PAGE-37, PAGE-38, SEL-11, CHILD-10, A11Y-47, THEME-32, THEME-39, STK-15 | in part: later groups state their own words in their own statements |
 | PRD-A9 | A11Y-36, A11Y-46, A11Y-48 | in full |
 | PRD-I2 | RND-06, SORT-17, I18N-01, FILT-47, COL-30, PAGE-37, PAGE-38 | in part: later groups state the numbers they show in their own statements |
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |

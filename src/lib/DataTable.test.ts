@@ -157,7 +157,7 @@ const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
 ];
 const sixStates = [...fiveStates, ...stoppedState];
 
-// @spec("A11Y-01", "7eb5c1e0")
+// @spec("A11Y-01", "500332d8")
 describe("A11Y-01", () => {
   it("names a table that shows a sort button by the caption text, a space and the hint of SORT-28", () => {
     show({
@@ -166,7 +166,7 @@ describe("A11Y-01", () => {
     });
     expect(
       screen.getByRole("table", {
-        name: "Orders Column headers with buttons are sortable.",
+        name: "Orders Column names that are buttons sort the table.",
       }).isConnected,
     ).toBe(true);
   });
@@ -1203,10 +1203,10 @@ describe("STATE-22", () => {
 
 // @spec("RND-06", "d2591ea5")
 describe("RND-06", () => {
-  // The words of RND-06; the sort words are SORT-17's, the stopped and still-loading messages and the Cancel and Try again names are STATE-26's
-  const foreign: Omit<
+  // Only the words of RND-06: the other statements own the rest (SORT-17, STATE-26, FILT-47)
+  const foreign: Pick<
     DataTableMessages,
-    `sort${string}` | "stopped" | "stillLoading" | "cancel" | "retry"
+    "loading" | "failed" | "empty" | "rowCount" | "invalidInput"
   > = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",
