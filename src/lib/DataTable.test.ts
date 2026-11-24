@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
-import { useConsoleErrors } from "../../test/console-spy.ts";
+import { inProduction, useConsoleErrors } from "../../test/console-spy.ts";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type {
@@ -1128,18 +1128,13 @@ describe("RND-17", () => {
   it.each(rnd05Rows)(
     "writes only the code in production when %s",
     async (_fault, props, code) => {
-      vi.resetModules();
-      vi.doMock("esm-env", () => ({ DEV: false, BROWSER: true, NODE: false }));
-      try {
+      await inProduction(async () => {
         const { render: renderAgain, cleanup } =
           await import("@testing-library/svelte");
         const { default: Table } = await import("./DataTable.svelte");
         renderAgain(Table<Item>, { ...base, ...props });
         cleanup();
-      } finally {
-        vi.doUnmock("esm-env");
-        vi.resetModules();
-      }
+      });
       expect(errors()).toEqual([`SvelteDT: ${code}`]);
     },
   );

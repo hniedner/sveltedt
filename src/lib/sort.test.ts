@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
-import { useConsoleErrors } from "../../test/console-spy.ts";
+import { inProduction, useConsoleErrors } from "../../test/console-spy.ts";
 import DataTable from "./DataTable.svelte";
 import type {
   DataTableColumn,
@@ -50,9 +50,11 @@ function order(text: string): DataTableSortEntry[] {
 const getRowId = (row: Item): string => row.id;
 
 // Mounts the table with Code and Name sortable and an onsort that records its calls and passes nothing back
-function mount(props: Partial<DataTableProps<Item>> = {}) {
-  const onsort = vi.fn<(next: DataTableSortEntry[]) => void>();
-  const view = render(DataTable<Item>, {
+function mountProps(
+  onsort: DataTableProps<Item>["onsort"],
+  props: Partial<DataTableProps<Item>>,
+): DataTableProps<Item> {
+  return {
     rows,
     columns: [code, name],
     getRowId,
@@ -61,7 +63,11 @@ function mount(props: Partial<DataTableProps<Item>> = {}) {
     sort: [],
     onsort,
     ...props,
-  });
+  };
+}
+function mount(props: Partial<DataTableProps<Item>> = {}) {
+  const onsort = vi.fn<(next: DataTableSortEntry[]) => void>();
+  const view = render(DataTable<Item>, mountProps(onsort, props));
   return { ...view, onsort };
 }
 
@@ -569,6 +575,21 @@ describe("SORT-15", () => {
       ).toEqual([FIXED]);
       expect(container.querySelector("table")).toBeNull();
       expect(errors()).toEqual([line("sortInvalid")]);
+    },
+  );
+
+  // RND-17's production rows for SORT-15's table: the code alone, a test-side mock of esm-env's DEV
+  it.each(sortFaults)(
+    "writes only the code %s in production",
+    async (key, props) => {
+      await inProduction(async () => {
+        const { render: renderAgain, cleanup } =
+          await import("@testing-library/svelte");
+        const { default: Table } = await import("./DataTable.svelte");
+        renderAgain(Table<Item>, mountProps(vi.fn(), props));
+        cleanup();
+      });
+      expect(errors()).toEqual([`SvelteDT: ${key}`]);
     },
   );
 
