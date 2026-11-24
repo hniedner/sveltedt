@@ -470,6 +470,21 @@ describe("CONN-23", () => {
     const { connection } = mount();
     expect(connection.table).toMatchObject({ status: "loading", busy: false });
   });
+  it("is loading and not busy from creation, before onMount runs", () => {
+    // `onconnect` is called from the probe's script, before the helper's onMount has run
+    let atCreation: unknown;
+    render(Probe, {
+      options: {
+        send: () => new Promise(() => {}),
+        onerror: vi.fn(),
+        columns: M,
+        query: Q0,
+      },
+      onconnect: (connection: Connection<Row>) =>
+        (atCreation = { ...connection.table }),
+    });
+    expect(atCreation).toMatchObject({ status: "loading", busy: false });
+  });
   it("runs a request with A1 on screen as busy, ready, the rows kept", async () => {
     const probe = mount();
     await probe.answer(0, A1());
