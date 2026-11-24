@@ -28,6 +28,42 @@ import {
   tempDir,
 } from "./check-repo.fixture.ts";
 
+// The finding rows share one lint run: ESLint reports each file on its own line, a run costs about 2.5 s (measured)
+// and 75 more files add 0.45 s. A case plants its own path before the run starts and reads that file's line.
+const planted = new Map<string, string>();
+let sharedOut: string | undefined;
+const plant = (file: string, text: string): string => {
+  assert.ok(sharedOut === undefined, `${file} is planted after the run`);
+  assert.ok(!planted.has(file), `${file} is planted twice`);
+  planted.set(file, text);
+  return file;
+};
+const shared = (): string =>
+  (sharedOut ??= expect(
+    "lint",
+    repo((root) => {
+      for (const [file, text] of planted) {
+        // Only svelte.config.js may replace a fixture file.
+        assert.ok(
+          file === "svelte.config.js" || !existsSync(join(root, file)),
+          `${file} replaces a fixture file`,
+        );
+        put(root, file, text);
+      }
+    }),
+    1,
+  ));
+const finding = (file: string, text: string): void => {
+  const out = shared();
+  assert.ok(
+    out.split("\n").some((l) => {
+      const line = l.trim();
+      return line.startsWith(`${file}:`) && line.includes(text);
+    }),
+    `${file} ${text}: ${out}`,
+  );
+};
+
 // ESLint throws when a name it is given matches no file: an empty folder, or a link to a file that is gone.
 test("lint: an ESLint that fails on the canaries cannot be checked", () => {
   const dir = canaryDir("lint", { "canary.mjs": "x\n" });
@@ -106,30 +142,27 @@ test("lint and format: the Svelte config, the one .js file, is linted and format
   );
   expect("format", repo(config("export default {}\n")), 1);
 });
+const EVAL_MJS = plant("scripts/eval.mjs", 'export const x = eval("1");\n');
 test("lint: eval is a finding that names the rule", () => {
-  assert.match(
-    expect("lint", repo(script('export const x = eval("1");\n')), 1),
-    /no-eval/,
-  );
+  finding(EVAL_MJS, "no-eval");
 });
+const UNDEF = plant("scripts/undef.mjs", "export const x = nope;\n");
 test("lint: an undefined global is a finding", () => {
-  assert.match(
-    expect("lint", repo(script("export const x = nope;\n")), 1),
-    /no-undef/,
-  );
+  finding(UNDEF, "no-undef");
 });
+const COMPLEX = plant(
+  "scripts/complexity.mjs",
+  `export function f(a) {\n${BRANCHES}\n  return -1;\n}\n`,
+);
 test("lint: a function over the complexity limit is a finding", () => {
-  const body = `export function f(a) {\n${BRANCHES}\n  return -1;\n}\n`;
-  assert.match(expect("lint", repo(script(body)), 1), /complexity/);
+  finding(COMPLEX, "complexity");
 });
+const UNUSED = plant(
+  "scripts/unused.mjs",
+  "// eslint-disable-next-line no-eval\nexport const one = 1;\n",
+);
 test("lint: an unused disable directive is a finding", () => {
-  expect(
-    "lint",
-    repo(
-      script("// eslint-disable-next-line no-eval\nexport const one = 1;\n"),
-    ),
-    1,
-  );
+  finding(UNUSED, "has no effect because you have 'noInlineConfig'");
 });
 test("lint: another ESLint version than the pin cannot be checked", () => {
   expect("lint", repo(pkg((p) => (p.devDependencies.eslint = "9.0.0"))), 3);
@@ -149,35 +182,30 @@ test("lint: a tracked file of no known class cannot be checked", () => {
     3,
   );
 });
-const tsScript =
-  (body: string) =>
-  (root: string): void =>
-    put(root, "scripts/y.ts", body);
+const ANY = plant("scripts/any.ts", "export const v: any = 1;\n");
 test("lint: an explicit any in a TypeScript script is a finding that names the rule", () => {
-  const out = expect("lint", repo(tsScript("export const v: any = 1;\n")), 1);
-  assert.match(out, /@typescript-eslint\/no-explicit-any/);
+  finding(ANY, "@typescript-eslint/no-explicit-any");
 });
+const FLOATING = plant(
+  "scripts/floating.ts",
+  "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n",
+);
 test("lint: a floating promise in a TypeScript script is a finding (type-aware)", () => {
-  const body =
-    "export async function f(): Promise<void> {\n  Promise.resolve(1);\n}\n";
-  assert.match(expect("lint", repo(tsScript(body)), 1), /no-floating-promises/);
+  finding(FLOATING, "no-floating-promises");
 });
+const NO_ASSERTION = plant(
+  "scripts/a.test.ts",
+  'import { test } from "vitest";\ntest("nothing", () => {});\n',
+);
 test("lint: a Vitest test without an assertion is a finding that names the rule", () => {
-  const out = expect(
-    "lint",
-    repo((root) =>
-      put(
-        root,
-        "scripts/a.test.ts",
-        'import { test } from "vitest";\ntest("nothing", () => {});\n',
-      ),
-    ),
-    1,
-  );
-  assert.match(out, /vitest\/expect-expect/);
+  finding(NO_ASSERTION, "vitest/expect-expect");
 });
+const EVAL_TS = plant(
+  "scripts/eval.ts",
+  'export const x: unknown = eval("1");\n',
+);
 test("lint: eval in a TypeScript script is a finding", () => {
-  expect("lint", repo(tsScript('export const x: unknown = eval("1");\n')), 1);
+  finding(EVAL_TS, "no-eval");
 });
 test("lint: a canary folder without a TypeScript canary cannot be checked", () => {
   const onlyMjs = canaryDir("lint", {
@@ -207,32 +235,19 @@ test("lint: a component in allowed markup passes, and the summary counts it per 
   );
   assert.match(out, /\.svelte 1$/m);
 });
+const CLASS_DIRECTIVE = plant(
+  "src/Class.svelte",
+  COMPONENT.replace("<p>{count}</p>", "<p class:many={count > 1}>{count}</p>"),
+);
 test("lint: a class: directive in a component is a finding that names the ban", () => {
-  const out = expect(
-    "lint",
-    repo(
-      component(
-        COMPONENT.replace(
-          "<p>{count}</p>",
-          "<p class:many={count > 1}>{count}</p>",
-        ),
-      ),
-    ),
-    1,
-  );
-  assert.match(out, /no-restricted-syntax class: directive/);
+  finding(CLASS_DIRECTIVE, "no-restricted-syntax class: directive");
 });
+const STYLE_BLOCK = plant(
+  "src/Style.svelte",
+  `${COMPONENT}\n<style>\n  p {\n    margin: 0;\n  }\n</style>\n`,
+);
 test("lint: a <style> block in a component is a finding that names the ban", () => {
-  const out = expect(
-    "lint",
-    repo(
-      component(
-        `${COMPONENT}\n<style>\n  p {\n    margin: 0;\n  }\n</style>\n`,
-      ),
-    ),
-    1,
-  );
-  assert.match(out, /no-restricted-syntax <style> block/);
+  finding(STYLE_BLOCK, "no-restricted-syntax <style> block");
 });
 test("lint: markup and code beside the injection bans pass in a component (setAttribute once would not: on plus letters, like any handler)", () => {
   // Near misses: another element through svelte:element, literal or computed; an iframe without srcdoc; reading
@@ -265,229 +280,201 @@ test("lint: markup and code beside the injection bans pass in a component (setAt
 // innerHTML).
 const SINK = (body: string) =>
   `export function sink(el: HTMLElement, html: string): unknown {\n  ${body}\n  return el;\n}\n`;
+const RND04 = [
+  [
+    "src/Html.svelte",
+    `${COMPONENT}{@html String(count)}\n`,
+    "svelte/no-at-html-tags",
+  ],
+  [
+    "scripts/rnd-innerHTML.ts",
+    SINK("el.innerHTML = html;"),
+    "no-restricted-syntax assigning innerHTML",
+  ],
+  [
+    "scripts/rnd-outerHTML.ts",
+    SINK("el.outerHTML = html;"),
+    "no-restricted-syntax assigning innerHTML, outerHTML",
+  ],
+  [
+    "scripts/rnd-insertAdjacentHTML.ts",
+    SINK('el.insertAdjacentHTML("beforeend", html);'),
+    "no-restricted-syntax insertAdjacentHTML",
+  ],
+  [
+    "scripts/rnd-documentWrite.ts",
+    SINK("document.write(html);"),
+    "no-restricted-syntax document.write",
+  ],
+  [
+    "scripts/rnd-createContextualFragment.ts",
+    SINK("document.createRange().createContextualFragment(html);"),
+    "no-restricted-syntax setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
+  ],
+  [
+    "scripts/rnd-DOMParser.ts",
+    SINK('new DOMParser().parseFromString(html, "text/html");'),
+    "no-restricted-syntax DOMParser",
+  ],
+  [
+    "src/Srcdoc.svelte",
+    COMPONENT.replace(
+      "<p>{count}</p>",
+      '<iframe title="t" srcdoc={String(count)}></iframe>',
+    ),
+    "no-restricted-syntax srcdoc attribute",
+  ],
+].map(([file, text, ban]) => [plant(file, text), ban]);
 test("lint: the raw-HTML forms of RND-04 are findings that name their ban", () => {
-  for (const [form, change, ban] of [
-    [
-      "{@html",
-      component(`${COMPONENT}{@html String(count)}\n`),
-      "svelte/no-at-html-tags",
-    ],
-    [
-      "innerHTML",
-      (r: string) => put(r, "scripts/x.ts", SINK("el.innerHTML = html;")),
-      "no-restricted-syntax assigning innerHTML",
-    ],
-    [
-      "outerHTML",
-      (r: string) => put(r, "scripts/x.ts", SINK("el.outerHTML = html;")),
-      "no-restricted-syntax assigning innerHTML, outerHTML",
-    ],
-    [
-      "insertAdjacentHTML",
-      (r: string) =>
-        put(
-          r,
-          "scripts/x.ts",
-          SINK('el.insertAdjacentHTML("beforeend", html);'),
-        ),
-      "no-restricted-syntax insertAdjacentHTML",
-    ],
-    [
-      "document.write",
-      (r: string) => put(r, "scripts/x.ts", SINK("document.write(html);")),
-      "no-restricted-syntax document.write",
-    ],
-    [
-      "createContextualFragment",
-      (r: string) =>
-        put(
-          r,
-          "scripts/x.ts",
-          SINK("document.createRange().createContextualFragment(html);"),
-        ),
-      "no-restricted-syntax setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
-    ],
-    [
-      "DOMParser",
-      (r: string) =>
-        put(
-          r,
-          "scripts/x.ts",
-          SINK('new DOMParser().parseFromString(html, "text/html");'),
-        ),
-      "no-restricted-syntax DOMParser",
-    ],
-    [
-      "srcdoc",
-      component(
-        COMPONENT.replace(
-          "<p>{count}</p>",
-          '<iframe title="t" srcdoc={String(count)}></iframe>',
-        ),
-      ),
-      "no-restricted-syntax srcdoc attribute",
-    ],
-  ] as const) {
-    const out = expect("lint", repo(change), 1);
-    assert.ok(out.includes(ban), `${form}: ${out}`);
-  }
+  for (const [file, ban] of RND04) finding(file, ban);
 });
-test("lint: every name a ban lists is a finding of that ban", () => {
-  const scripts = [
-    ['document.createElement("style");', "createElement of style"],
-    ['document.createElement("link");', "createElement of style"],
-    ['document.createElement("script");', "createElement of style"],
-    ['el.setAttribute("SRCDOC", html);', "setAttribute srcdoc"],
-    [
-      'el.setAttribute("onclick", html);',
-      "setAttribute srcdoc or an on* handler",
-    ],
-    ["el.setHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
-    ["Document.parseHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
-    ["el.setHTML(html);", "setHTML or createRawSnippet"],
-    ["void createRawSnippet;", "setHTML or createRawSnippet"],
-    [
-      "(el as HTMLIFrameElement).srcdoc = html;",
-      "assigning innerHTML, outerHTML or srcdoc",
-    ],
-    ['el["innerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
-    [
-      'Object.assign(el, { "outerHTML": html });',
-      "innerHTML, outerHTML or srcdoc in an object literal",
-    ],
-    [
-      "Object.assign(el, { srcdoc: html });",
-      "innerHTML, outerHTML or srcdoc in an object literal",
-    ],
-    ["document.writeln(html);", "document.write"],
-    ["window.document.write(html);", "document.write"],
-    ["el.ownerDocument.write(html);", "document.write"],
-    ["void new CSSStyleSheet();", "constructed or inserted style sheet"],
-    [
-      "void document.adoptedStyleSheets;",
-      "constructed or inserted style sheet",
-    ],
-    [
-      'document.styleSheets[0]?.insertRule("p {}");',
-      "a rule inserted into a style sheet",
-    ],
-    [
-      'document.styleSheets[0]?.addRule("p", "margin: 0");',
-      "a rule inserted into a style sheet",
-    ],
-    [
-      "(el as HTMLIFrameElement).contentDocument?.write(html);",
-      "document.write",
-    ],
-    ["window.Document.parseHTML(html);", "Document.parseHTML"],
-    [
-      'document.createElementNS("http://www.w3.org/2000/svg", "style");',
-      "createElementNS of style",
-    ],
-    ['el["insertAdjacentHTML"]("beforeend", html);', "a sink name in brackets"],
-    ['document["write"](html);', "a sink name in brackets"],
-    ['el["setAttribute"]("style", "");', "a sink name in brackets"],
-    [
-      'document.execCommand("INSERTHTML", false, html);',
-      "execCommand insertHTML",
-    ],
-    ["Document.parseHTML(html);", "Document.parseHTML"],
-    ['document.createElement("SCRIPT");', "createElement of style"],
-    [
-      'document.createElementNS("http://www.w3.org/2000/svg", "script");',
-      "createElementNS of style",
-    ],
-    [
-      'document.createElementNS("http://www.w3.org/1999/xhtml", "link");',
-      "createElementNS of style",
-    ],
-    ['el["outerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
-    [
-      '(el as HTMLIFrameElement)["srcdoc"] = html;',
-      "assigning innerHTML, outerHTML or srcdoc",
-    ],
-    [
-      "Object.assign(el, { outerHTML: html });",
-      "innerHTML, outerHTML or srcdoc in an object literal",
-    ],
-    [
-      'Object.assign(el, { "innerHTML": html });',
-      "innerHTML, outerHTML or srcdoc in an object literal",
-    ],
-    [
-      'Object.assign(el, { "srcdoc": html });',
-      "innerHTML, outerHTML or srcdoc in an object literal",
-    ],
-    [
-      "const { ownerDocument } = el;\n  ownerDocument.write(html);",
-      "document.write",
-    ],
-    [
-      "const { contentDocument } = el as HTMLIFrameElement;\n  contentDocument?.write(html);",
-      "document.write",
-    ],
-    ["el.innerHTML += html;", "assigning innerHTML, outerHTML or srcdoc"],
-    [
-      'el.setAttribute("ONCLICK", html);',
-      "setAttribute srcdoc or an on* handler",
-    ],
-    // Every name the bracket ban lists, in brackets: a name dropped from its list cannot stay green.
-    ...[
-      "insertAdjacentHTML",
-      "setHTML",
-      "setHTMLUnsafe",
-      "parseHTML",
-      "parseHTMLUnsafe",
-      "createContextualFragment",
-      "createRawSnippet",
-      "DOMParser",
-      "write",
-      "writeln",
-      "execCommand",
-      "setAttribute",
-      "createElement",
-      "createElementNS",
-      "CSSStyleSheet",
-      "adoptedStyleSheets",
-      "insertRule",
-      "addRule",
-    ].map((name) => [`void el["${name}"];`, "a sink name in brackets"]),
-  ].map(([body, ban], i) => [`scripts/s${i}.ts`, SINK(body), ban]);
-  const markup = [
-    ['<iframe SRCDOC="<p>x</p>" title="t"></iframe>', "srcdoc attribute"],
-    [
-      '<svelte:element this={"STYLE"}></svelte:element>',
-      "svelte:element this={...} as style",
-    ],
-    ["<x-raw {outerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
-    ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
-    ["<div><script>alert(1)</script></div>", "style, link or script element"],
-    ["<div><style></style></div>", "style, link or script element"],
-    ["<div><sCRIPT>alert(1)</sCRIPT></div>", "style, link or script element"],
-    [
-      '<svelte:element this="script"></svelte:element>',
-      "svelte:element as style",
-    ],
-    [
-      '<svelte:element this="link"></svelte:element>',
-      "svelte:element as style",
-    ],
-    [
-      '<svelte:element this="SCRIPT"></svelte:element>',
-      "svelte:element as style",
-    ],
-    [
-      '<svelte:element this={"style"}></svelte:element>',
-      "svelte:element this={...} as style",
-    ],
-    [
-      '<svelte:element this={"link"}></svelte:element>',
-      "svelte:element this={...} as style",
-    ],
-    ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
-    ["<x-raw outerHTML={srcdoc}></x-raw>", "innerHTML or outerHTML attribute"],
-    ["<x-raw {innerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
-  ].map(([tag, ban], i) => [
+const BAN_SCRIPTS = [
+  ['document.createElement("style");', "createElement of style"],
+  ['document.createElement("link");', "createElement of style"],
+  ['document.createElement("script");', "createElement of style"],
+  ['el.setAttribute("SRCDOC", html);', "setAttribute srcdoc"],
+  [
+    'el.setAttribute("onclick", html);',
+    "setAttribute srcdoc or an on* handler",
+  ],
+  ["el.setHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+  ["Document.parseHTMLUnsafe(html);", "setHTMLUnsafe, parseHTMLUnsafe"],
+  ["el.setHTML(html);", "setHTML or createRawSnippet"],
+  ["void createRawSnippet;", "setHTML or createRawSnippet"],
+  [
+    "(el as HTMLIFrameElement).srcdoc = html;",
+    "assigning innerHTML, outerHTML or srcdoc",
+  ],
+  ['el["innerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+  [
+    'Object.assign(el, { "outerHTML": html });',
+    "innerHTML, outerHTML or srcdoc in an object literal",
+  ],
+  [
+    "Object.assign(el, { srcdoc: html });",
+    "innerHTML, outerHTML or srcdoc in an object literal",
+  ],
+  ["document.writeln(html);", "document.write"],
+  ["window.document.write(html);", "document.write"],
+  ["el.ownerDocument.write(html);", "document.write"],
+  ["void new CSSStyleSheet();", "constructed or inserted style sheet"],
+  ["void document.adoptedStyleSheets;", "constructed or inserted style sheet"],
+  [
+    'document.styleSheets[0]?.insertRule("p {}");',
+    "a rule inserted into a style sheet",
+  ],
+  [
+    'document.styleSheets[0]?.addRule("p", "margin: 0");',
+    "a rule inserted into a style sheet",
+  ],
+  ["(el as HTMLIFrameElement).contentDocument?.write(html);", "document.write"],
+  ["window.Document.parseHTML(html);", "Document.parseHTML"],
+  [
+    'document.createElementNS("http://www.w3.org/2000/svg", "style");',
+    "createElementNS of style",
+  ],
+  ['el["insertAdjacentHTML"]("beforeend", html);', "a sink name in brackets"],
+  ['document["write"](html);', "a sink name in brackets"],
+  ['el["setAttribute"]("style", "");', "a sink name in brackets"],
+  [
+    'document.execCommand("INSERTHTML", false, html);',
+    "execCommand insertHTML",
+  ],
+  ["Document.parseHTML(html);", "Document.parseHTML"],
+  ['document.createElement("SCRIPT");', "createElement of style"],
+  [
+    'document.createElementNS("http://www.w3.org/2000/svg", "script");',
+    "createElementNS of style",
+  ],
+  [
+    'document.createElementNS("http://www.w3.org/1999/xhtml", "link");',
+    "createElementNS of style",
+  ],
+  ['el["outerHTML"] = html;', "assigning innerHTML, outerHTML or srcdoc"],
+  [
+    '(el as HTMLIFrameElement)["srcdoc"] = html;',
+    "assigning innerHTML, outerHTML or srcdoc",
+  ],
+  [
+    "Object.assign(el, { outerHTML: html });",
+    "innerHTML, outerHTML or srcdoc in an object literal",
+  ],
+  [
+    'Object.assign(el, { "innerHTML": html });',
+    "innerHTML, outerHTML or srcdoc in an object literal",
+  ],
+  [
+    'Object.assign(el, { "srcdoc": html });',
+    "innerHTML, outerHTML or srcdoc in an object literal",
+  ],
+  [
+    "const { ownerDocument } = el;\n  ownerDocument.write(html);",
+    "document.write",
+  ],
+  [
+    "const { contentDocument } = el as HTMLIFrameElement;\n  contentDocument?.write(html);",
+    "document.write",
+  ],
+  ["el.innerHTML += html;", "assigning innerHTML, outerHTML or srcdoc"],
+  [
+    'el.setAttribute("ONCLICK", html);',
+    "setAttribute srcdoc or an on* handler",
+  ],
+  // Every name the bracket ban lists, in brackets: a name dropped from its list cannot stay green.
+  ...[
+    "insertAdjacentHTML",
+    "setHTML",
+    "setHTMLUnsafe",
+    "parseHTML",
+    "parseHTMLUnsafe",
+    "createContextualFragment",
+    "createRawSnippet",
+    "DOMParser",
+    "write",
+    "writeln",
+    "execCommand",
+    "setAttribute",
+    "createElement",
+    "createElementNS",
+    "CSSStyleSheet",
+    "adoptedStyleSheets",
+    "insertRule",
+    "addRule",
+  ].map((name) => [`void el["${name}"];`, "a sink name in brackets"]),
+].map(([body, ban], i) => [plant(`scripts/s${i}.ts`, SINK(body)), ban]);
+const BAN_MARKUP = [
+  ['<iframe SRCDOC="<p>x</p>" title="t"></iframe>', "srcdoc attribute"],
+  [
+    '<svelte:element this={"STYLE"}></svelte:element>',
+    "svelte:element this={...} as style",
+  ],
+  ["<x-raw {outerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
+  ['<link rel="stylesheet" href="x.css" />', "style, link or script element"],
+  ["<div><script>alert(1)</script></div>", "style, link or script element"],
+  ["<div><style></style></div>", "style, link or script element"],
+  ["<div><sCRIPT>alert(1)</sCRIPT></div>", "style, link or script element"],
+  [
+    '<svelte:element this="script"></svelte:element>',
+    "svelte:element as style",
+  ],
+  ['<svelte:element this="link"></svelte:element>', "svelte:element as style"],
+  [
+    '<svelte:element this="SCRIPT"></svelte:element>',
+    "svelte:element as style",
+  ],
+  [
+    '<svelte:element this={"style"}></svelte:element>',
+    "svelte:element this={...} as style",
+  ],
+  [
+    '<svelte:element this={"link"}></svelte:element>',
+    "svelte:element this={...} as style",
+  ],
+  ['<iframe {srcdoc} title="t"></iframe>', "srcdoc attribute"],
+  ["<x-raw outerHTML={srcdoc}></x-raw>", "innerHTML or outerHTML attribute"],
+  ["<x-raw {innerHTML}></x-raw>", "innerHTML or outerHTML attribute"],
+].map(([tag, ban], i) => [
+  plant(
     `src/C${i}.svelte`,
     COMPONENT.replace(
       "$props();",
@@ -496,98 +483,61 @@ test("lint: every name a ban lists is a finding of that ban", () => {
       "<p>{count}</p>",
       `<p>{count}{srcdoc}{innerHTML}{outerHTML}</p>\n${tag}`,
     ),
-    ban,
-  ]);
-  const out = expect(
-    "lint",
-    repo((root) => {
-      component(COMPONENT)(root);
-      for (const [file, text] of [...scripts, ...markup]) put(root, file, text);
-    }),
-    1,
-  );
-  const lines = out.split("\n").map((l) => l.trim());
-  for (const [file, , ban] of [...scripts, ...markup])
-    assert.ok(
-      lines.some(
-        (l) =>
-          l.startsWith(`${file}:`) && l.includes(`no-restricted-syntax ${ban}`),
-      ),
-      `${file} ${ban}: ${out}`,
-    );
+  ),
+  ban,
+]);
+plant("src/Count.svelte", COMPONENT);
+test("lint: every name a ban lists is a finding of that ban", () => {
+  for (const [file, ban] of [...BAN_SCRIPTS, ...BAN_MARKUP])
+    finding(file, `no-restricted-syntax ${ban}`);
 });
+const NAMED = [
+  ["const Parser = DOMParser;\n  void new Parser();", "DOMParser"],
+  [
+    "const write = document.write.bind(document);\n  write(html);",
+    "document.write",
+  ],
+  [
+    "const fragment = document.createRange().createContextualFragment;\n  void fragment;",
+    "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
+  ],
+].map(([body, ban], i) => [plant(`scripts/named-${i}.ts`, SINK(body)), ban]);
 test("lint: a raw-HTML sink named without being called or assigned is a finding", () => {
-  for (const [body, ban] of [
-    ["const Parser = DOMParser;\n  void new Parser();", "DOMParser"],
-    [
-      "const write = document.write.bind(document);\n  write(html);",
-      "document.write",
-    ],
-    [
-      "const fragment = document.createRange().createContextualFragment;\n  void fragment;",
-      "setHTMLUnsafe, parseHTMLUnsafe or createContextualFragment",
-    ],
-  ]) {
-    const out = expect(
-      "lint",
-      repo((r) => put(r, "scripts/x.ts", SINK(body))),
-      1,
-    );
-    assert.ok(out.includes(`no-restricted-syntax ${ban}`), `${body}: ${out}`);
-  }
+  for (const [file, ban] of NAMED) finding(file, `no-restricted-syntax ${ban}`);
 });
+// The case for svelte.config.js replaces the fixture's own file, which svelte-eslint-parser reads for every component
+// in the run. The planted file has no default export, so it sets no options; one that did would change how every
+// component in the shared run is parsed.
+const SINKS_JS = [
+  "svelte.config.js",
+  "scripts/sink.mjs",
+  "site/public/x.js",
+].map((file) =>
+  plant(file, "export function sink(el, html) {\n  el.innerHTML = html;\n}\n"),
+);
 test("lint: a raw-HTML sink in a .js or .mjs file is a finding", () => {
-  for (const file of [
-    "svelte.config.js",
-    "scripts/x.mjs",
-    "site/public/x.js",
-  ]) {
-    const out = expect(
-      "lint",
-      repo((r) =>
-        put(
-          r,
-          file,
-          "export function sink(el, html) {\n  el.innerHTML = html;\n}\n",
-        ),
-      ),
-      1,
-    );
-    assert.ok(
-      out.includes("no-restricted-syntax assigning innerHTML"),
-      `${file}: ${out}`,
-    );
-  }
+  for (const file of SINKS_JS)
+    finding(file, "no-restricted-syntax assigning innerHTML");
 });
+const COMPAT = plant(
+  "src/Compat.svelte",
+  COMPONENT.replace(
+    "</script>",
+    "  const share = new PaymentRequest([], { total: { label: 'x', amount: { currency: 'EUR', value: '1' } } });\n</script>",
+  ).replace("{count}</p>", "{count}{String(share)}</p>"),
+);
 test("lint: a browser API above the support floor in a component is a finding that names the rule", () => {
-  const out = expect(
-    "lint",
-    repo(
-      component(
-        COMPONENT.replace(
-          "</script>",
-          "  const share = new PaymentRequest([], { total: { label: 'x', amount: { currency: 'EUR', value: '1' } } });\n</script>",
-        ).replace("{count}</p>", "{count}{String(share)}</p>"),
-      ),
-    ),
-    1,
-  );
-  assert.match(out, /compat\/compat/);
+  finding(COMPAT, "compat/compat");
 });
+const DISABLE = plant(
+  "src/Disable.svelte",
+  COMPONENT.replace(
+    "<p>{count}</p>",
+    '<!-- eslint-disable -->\n<p style="color: red">{count}</p>',
+  ),
+);
 test("lint: an HTML disable comment does not switch a rule off in a component", () => {
-  const out = expect(
-    "lint",
-    repo(
-      component(
-        COMPONENT.replace(
-          "<p>{count}</p>",
-          '<!-- eslint-disable -->\n<p style="color: red">{count}</p>',
-        ),
-      ),
-    ),
-    1,
-  );
-  assert.match(out, /no-restricted-syntax style attribute/);
+  finding(DISABLE, "no-restricted-syntax style attribute");
 });
 test("lint: a config block that changes a proven rule for the component's folders cannot be checked", () => {
   // Measured: a later block that sets no-restricted-syntax for some files replaces the list for them, while every
@@ -753,20 +703,17 @@ test("parses", () => {
   expect(new DOMParser().parseFromString("<p></p>", "text/html").body).toBeTruthy();
 });
 `;
+const PARSES_IN = [
+  plant("site/src/x.ts", PARSES),
+  plant("src/lib/x.test.ts", PARSES),
+];
 test("lint: DOMParser passes in a site test file and still fires in site/src and in a src/lib test file", () => {
   expect(
     "lint",
     repo((r) => put(r, "site/a.test.ts", PARSES)),
     0,
   );
-  for (const file of ["site/src/x.ts", "src/lib/x.test.ts"]) {
-    const out = expect(
-      "lint",
-      repo((r) => put(r, file, PARSES)),
-      1,
-    );
-    assert.ok(out.includes("DOMParser (PRD-S2)"), `${file}: ${out}`);
-  }
+  for (const file of PARSES_IN) finding(file, "DOMParser (PRD-S2)");
 });
 test("lint: a DOMParser lift elsewhere, or a wider lift for site tests, cannot be checked", () => {
   const real = join(here, "..", "eslint.config.mjs");
