@@ -159,6 +159,57 @@ describe("FILT-10", () => {
   );
 });
 
+const RESET = "Reset table";
+const resetButtons = (): HTMLElement[] =>
+  screen.queryAllByRole("button", { name: RESET });
+
+// @spec("FILT-30", "4c1187d5")
+describe("FILT-30", () => {
+  const sortableCode = column("code", "Code", { sortable: ["asc", "desc"] });
+  it.each<[string, Partial<DataTableProps<Item>>, number]>([
+    [
+      "Code sortable, no filter, onreset given",
+      { columns: [sortableCode], onreset: vi.fn() },
+      1,
+    ],
+    [
+      "Name with a filter, none sortable, onreset given",
+      { columns: [nameColumn], onreset: vi.fn() },
+      1,
+    ],
+    ["Code sortable, onreset not given", { columns: [sortableCode] }, 0],
+    [
+      "neither sortable nor with a filter, onreset given",
+      { columns: [noteColumn], onreset: vi.fn() },
+      0,
+    ],
+    [
+      "Code sortable, onreset given, and a fault of filters (the alert of RND-05)",
+      {
+        columns: [sortableCode],
+        onreset: vi.fn(),
+        filters: { zzz: { kind: "text", text: "x" } },
+      },
+      1,
+    ],
+  ])(
+    "with %s shows the button as often as the row says",
+    (_row, props, shown) => {
+      mount(props);
+      expect(resetButtons()).toHaveLength(shown);
+    },
+  );
+
+  it("shows no button while the alert is a fault of the columns, though onreset is given and a column is sortable", () => {
+    mount({
+      columns: [sortableCode, sortableCode],
+      onreset: vi.fn(),
+    });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(resetButtons()).toEqual([]);
+  });
+});
+
 // @spec("FILT-25", "55955f9d")
 describe("FILT-25", () => {
   it("emits onclearfilters once with no argument on a press, and calls no other handler", async () => {

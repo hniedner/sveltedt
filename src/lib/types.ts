@@ -75,6 +75,8 @@ export interface DataTableMessages {
   readonly clearFilter: (words: string) => string;
   // The button that clears every applied filter (FILT-10)
   readonly clearFilters: string;
+  // The button that asks the application to restore the order and the filters (FILT-30)
+  readonly reset: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (state: {
@@ -110,6 +112,8 @@ export interface DataTableProps<Row> {
   onfilter?: (change: { id: string; state: DataTableFilterState }) => void;
   onclearfilter?: (change: { id: string }) => void;
   onclearfilters?: () => void;
+  // Called on a press of "Reset table"; the button shows only while it is given (FILT-30)
+  onreset?: () => void;
   // The applied global search; null is not given, as `sort` (FILT-32)
   search?: string | null;
   // Milliseconds of typing pause before a filter emits; a whole number, 0 or more (FILT-32)

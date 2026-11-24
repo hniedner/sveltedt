@@ -21,6 +21,7 @@ export const defaultMessages: DataTableMessages = {
   badgeOptions: ({ label, options }) => `${label}: ${options.join(", ")}`,
   clearFilter: (words) => `Clear filter ${words}`,
   clearFilters: "Clear column filters",
+  reset: "Reset table",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

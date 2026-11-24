@@ -1,3 +1,5 @@
+import { SORT_FILTER_FAULTS } from "./faults.ts";
+import type { TableFault } from "./faults.ts";
 import type {
   DataTableColumn,
   DataTableMessages,
@@ -44,4 +46,20 @@ export function badges<Row>(
     }
   }
   return found;
+}
+
+// "Reset table" shows while `onreset` is given and a column is sortable or has a filter. The alert state keeps it for
+// a fault of SORT-15 or FILT-32, where the columns have passed validation: it is the application's way back from a
+// server answer the table cannot show (FILT-30).
+export function resetShown<Row>(
+  fault: TableFault | null,
+  columns: readonly DataTableColumn<Row>[],
+  onreset: unknown,
+): boolean {
+  return (
+    typeof onreset === "function" &&
+    (fault === null ||
+      (SORT_FILTER_FAULTS as readonly TableFault[]).includes(fault)) &&
+    columns.some((column) => column.sortable || column.filter)
+  );
 }

@@ -1,6 +1,6 @@
 <script lang="ts" generics="Row">
   import { faultLine } from "./faults.js";
-  import { badges } from "./filters.js";
+  import { badges, resetShown } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import { nextOrder } from "./sort.js";
   import type {
@@ -25,6 +25,7 @@
     onfilter,
     onclearfilter,
     onclearfilters,
+    onreset,
     search,
     searchDelay,
     maxLength,
@@ -175,6 +176,9 @@
         // Stryker disable next-line OptionalChaining: unreachable fallback, the table has an onclearfilters (FILT-32)
         onclearfilters?.()}>{defaultMessages.clearFilters}</button
     >
+  {/if}
+  {#if resetShown(fault, columns, onreset)}
+    <button type="button">{defaultMessages.reset}</button>
   {/if}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->

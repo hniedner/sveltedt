@@ -1,5 +1,23 @@
 import { DEV } from "esm-env";
 
+// The codes of SORT-15 and FILT-32: the columns have passed validation when one of these is the fault, so the
+// controls that read them (FILT-30) can still show
+export const SORT_FILTER_FAULTS = [
+  "sortableInvalid",
+  "sortHandlerMissing",
+  "sortInvalid",
+  "sortColumnUnknown",
+  "sortColumnNotSortable",
+  "sortDirectionNotAllowed",
+  "sortColumnDuplicate",
+  "filterInvalid",
+  "filterHandlerMissing",
+  "filterStateInvalid",
+  "searchInvalid",
+  "searchDelayInvalid",
+  "maxLengthInvalid",
+] as const;
+
 // The code of each fault of the table: RND-05's table, then SORT-15's, then FILT-32's
 export type TableFault =
   | "captionEmpty"
@@ -15,19 +33,7 @@ export type TableFault =
   | "rowIdEmpty"
   | "rowIdDuplicate"
   | "rowIdUnreadable"
-  | "sortableInvalid"
-  | "sortHandlerMissing"
-  | "sortInvalid"
-  | "sortColumnUnknown"
-  | "sortColumnNotSortable"
-  | "sortDirectionNotAllowed"
-  | "sortColumnDuplicate"
-  | "filterInvalid"
-  | "filterHandlerMissing"
-  | "filterStateInvalid"
-  | "searchInvalid"
-  | "searchDelayInvalid"
-  | "maxLengthInvalid";
+  | (typeof SORT_FILTER_FAULTS)[number];
 
 // The line of RND-17. The texts are for the developer: English only, no entry of `messages`, and none holds a value
 // from the input (RND-09). They sit behind DEV, so a production bundle drops them and keeps the code (CON-14 is to
