@@ -56,5 +56,10 @@ https://api.securityscorecards.dev/projects/github.com/benmccann/esm-env` prints
   (github.com/mui/mui-x, `packages/x-internals/src/warning/index.ts`). RND-17 follows the first two.
 - **Decision:** `esm-env`, as the one runtime dependency, at the range Svelte declares (SUP-04). The owner chose it on
   2026-11-19 for development-only output; this is its first use, for RND-17.
+- **Dependabot:** `esm-env` is a runtime dependency, so Dependabot may propose a new range for it. That pull request
+  fails the `lockfile` step on purpose: SUP-04 requires the range the installed Svelte declares. The fix is a visible
+  hand step, as for the Playwright image: set the range in `package.json` to the one Svelte's own manifest declares,
+  usually together with a Svelte bump. No `ignore` entry is added, because it would also block a security update of
+  `esm-env`.
 - **Reopens when:** Svelte drops `esm-env` (SUP-04's check would then report "could not check"), the package has an
   advisory, or its license changes.
