@@ -153,3 +153,25 @@ describe("STATE-11", () => {
     ).toBe(0);
   });
 });
+
+// @spec("FOOT-05", "9f08d2c3")
+describe("FOOT-05", () => {
+  // Mounted loading; `answer` is the status at 1100 ms, if any; the table is unmounted at `unmountAt`
+  it.each([
+    ["before the indicator", 500, false],
+    ["inside the indicator's minimum", 1200, true],
+  ] as const)(
+    "leaves no timer pending when unmounted %s at %i ms",
+    async (_where, unmountAt, answered) => {
+      const table = mount({ status: "loading" });
+      if (answered) {
+        await table.at(1100);
+        await table.change({ rows: twoRows });
+      }
+      await table.at(unmountAt);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      table.unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+});

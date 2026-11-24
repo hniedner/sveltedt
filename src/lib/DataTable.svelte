@@ -97,10 +97,11 @@
     }, 1000);
     return () => clearTimeout(delay);
   });
-  // While the indicator is shown: its 500 ms minimum (STATE-10)
+  // While the indicator is shown: its 500 ms minimum (STATE-10), ended when it goes or the table unmounts (FOOT-05)
   $effect(() => {
     if (!shown) return;
-    setTimeout(() => (held = false), 500);
+    const minimum = setTimeout(() => (held = false), 500);
+    return () => clearTimeout(minimum);
   });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
