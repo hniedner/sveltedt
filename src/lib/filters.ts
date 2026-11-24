@@ -11,20 +11,37 @@ export interface Badge {
 }
 
 // The badges of the applied filters, in column order whatever the key order of `filters` (FILT-31). A text filter
-// applies while its text is not blank; the input is valid here (FILT-32).
+// applies while its text is not blank, a categorical one while something is selected; the input is valid here
+// (FILT-32). A categorical badge names the selected options by label in the options' order, the empty option last
+// (FILT-22).
 export function badges<Row>(
   columns: readonly DataTableColumn<Row>[],
   filters: DataTableProps<Row>["filters"],
-  words: Pick<DataTableMessages, "badgeText">,
+  words: Pick<DataTableMessages, "badgeText" | "badgeOptions" | "emptyOption">,
 ): Badge[] {
   const found: Badge[] = [];
   for (const column of columns) {
     const state = filters?.[column.id];
+    const filter = column.filter;
     if (state?.kind === "text" && state.text.trim() !== "")
       found.push({
         id: column.id,
         text: words.badgeText({ label: column.label, text: state.text }),
       });
+    else if (
+      state?.kind === "categorical" &&
+      filter?.kind === "categorical" &&
+      state.selected.length > 0
+    ) {
+      const options = filter.options
+        .filter((option) => state.selected.includes(option.value))
+        .map((option) => option.label);
+      if (state.selected.includes("")) options.push(words.emptyOption);
+      found.push({
+        id: column.id,
+        text: words.badgeOptions({ label: column.label, options }),
+      });
+    }
   }
   return found;
 }

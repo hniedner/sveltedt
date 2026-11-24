@@ -121,3 +121,37 @@ describe("FILT-08", () => {
     expect(badgeButtons()).toEqual([]);
   });
 });
+
+// @spec("FILT-22", "dcf9ee27")
+describe("FILT-22", () => {
+  const withEmptyOption = column("status", "Status", {
+    filter: {
+      kind: "categorical",
+      emptyOption: true,
+      options: [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+      ],
+    },
+  });
+  it.each<[string, DataTableColumn<Item>, string[], string]>([
+    [
+      "in the options' order, not the selection's",
+      statusColumn,
+      ["inactive", "active"],
+      "Status: Active, Inactive",
+    ],
+    [
+      "with the empty option last",
+      withEmptyOption,
+      ["", "active"],
+      "Status: Active, (empty)",
+    ],
+  ])("names the selected options by label %s", (_row, def, selected, text) => {
+    mount({
+      columns: [def],
+      filters: { status: { kind: "categorical", selected } },
+    });
+    expect(badgeButtons().map((badge) => badge.textContent)).toEqual([text]);
+  });
+});

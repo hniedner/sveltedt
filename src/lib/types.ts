@@ -66,6 +66,11 @@ export interface DataTableMessages {
   readonly filterButton: (label: string) => string;
   // The visible words of a text filter's badge (FILT-08)
   readonly badgeText: (filter: { label: string; text: string }) => string;
+  // The visible words of a categorical filter's badge; `options` are the selected options' labels (FILT-22)
+  readonly badgeOptions: (filter: {
+    label: string;
+    options: readonly string[];
+  }) => string;
   // The name of a badge's button: "Clear filter" and the badge's words (FILT-08)
   readonly clearFilter: (words: string) => string;
   readonly sortRank: (rank: number) => string;
