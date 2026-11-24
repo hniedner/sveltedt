@@ -93,10 +93,8 @@ describe("STATE-09", () => {
     await table.at(1700);
     expect(table.present()).toBe(true);
   });
-});
 
-describe("STATE-09, a rerender that changes neither status nor busy", () => {
-  it("leaves the 1000 ms running", async () => {
+  it("leaves the 1000 ms running when a rerender changes neither status nor busy", async () => {
     const table = mount({ status: "loading" });
     await table.at(600);
     await table.change({ status: "loading", rows: twoRows, caption: "Late" });
