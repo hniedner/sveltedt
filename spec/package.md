@@ -428,8 +428,7 @@ hold the fault codes.
   | the same build with the `development` export condition added to the bundler's resolve conditions | at least one, found | at least one, found |
 
   Break that turns it red: the warning, or a fault text, written behind a check that is true in production; the code
-  dropped from the production line. The pager's nine fault texts join the search with their own statement (PAGE-41
-  of `spec/table.md`).
+  dropped from the production line. The pager's nine fault texts join the search with the statement of issue #204.
 - Reason: `esm-env`'s `DEV` is false under the production condition, so the bundler drops what sits behind it: the
   warning would otherwise reach every user's console and the fault texts would sit in every bundle; the codes stay,
   so a developer who meets a blank table in production has a word to search for.

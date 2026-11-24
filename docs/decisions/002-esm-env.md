@@ -57,9 +57,10 @@ https://api.securityscorecards.dev/projects/github.com/benmccann/esm-env` prints
 - **Decision:** `esm-env`, as the one runtime dependency, at the range Svelte declares (SUP-04). The owner chose it on
   2026-11-19 for development-only output; this is its first use, for RND-17.
 - **Dependabot:** `esm-env` is a runtime dependency, so Dependabot may propose a new range for it. That pull request
-  fails the `lockfile` step on purpose: SUP-04 requires the range the installed Svelte declares. The fix is a visible
-  hand step, as for the Playwright image: set the range in `package.json` to the one Svelte's own manifest declares,
-  usually together with a Svelte bump. No `ignore` entry is added, because it would also block a security update of
-  `esm-env`.
+  fails the `lockfile` step on purpose: SUP-04 requires the range the installed Svelte declares. It arrives inside the
+  `npm-minor-and-patch` group (a security update inside `npm-security`), so the whole pull request stays red until a
+  maintainer acts by hand: sets the range in `package.json` to the one Svelte's own manifest declares, usually together
+  with a Svelte bump, or takes the `esm-env` change out of the pull request. No `ignore` entry is added, because it
+  would also block a security update of `esm-env`.
 - **Reopens when:** Svelte drops `esm-env` (SUP-04's check would then report "could not check"), the package has an
   advisory, or its license changes.
