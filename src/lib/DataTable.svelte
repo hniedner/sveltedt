@@ -114,8 +114,9 @@
   $effect(() => {
     if (!pending) {
       if (!held) {
-        // A block that depends on state a post-effect writes is removed in the same flush, before any pre-effect runs
-        // (measured with Svelte 5.57.3): so focus is kept here, before `still` is written
+        // A block that depends on state a plain $effect writes is removed in the same flush, before any pre-effect runs
+        // (measured with Svelte 5.57.3, an effect-order detail that may change): so focus is kept here, before `still`
+        // is written
         untrack(() => keepFocus(cancelButton));
         shown = false;
         still = false;
@@ -151,7 +152,8 @@
   let table = $state<HTMLTableElement | null>(null);
   let cancelButton = $state<HTMLButtonElement | null>(null);
   let retryButton = $state<HTMLButtonElement | null>(null);
-  // A focused button about to go hands focus to the table, which takes it without scrolling (A11Y-28). With invalid
+  // A focused button about to go hands focus to the table, which takes it without scrolling (A11Y-28, A11Y-30). The
+  // tabindex is set only for this focus and goes with the table's `onblur`. With invalid
   // input there is no table. It must run before the button leaves the DOM
   function keepFocus(button: HTMLElement | null): void {
     if (table && button?.matches(":focus")) {

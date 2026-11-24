@@ -1,4 +1,4 @@
-// The slow-load statements that need an engine (spec/table.md section 5), against site/slow.html. The clock is
+// The slow-load statements that need an engine (spec/table.md section 3: A11Y-28, A11Y-30), against site/slow.html. The clock is
 // Playwright's, paused before the page loads: page time moves only by runFor, so "6000 ms" is exact.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
@@ -89,7 +89,7 @@ async function drawn(page: Page, state: string): Promise<void> {
   }
 }
 
-// @spec("A11Y-28", "724c142b")
+// @spec("A11Y-28", "1f207c4c")
 test.describe("A11Y-28", () => {
   const consumer: [string, string, object][] = [
     ["status 'ready' with 25 rows", "ready", { status: "ready", rows: rows25 }],
@@ -115,7 +115,7 @@ test.describe("A11Y-28", () => {
     });
 });
 
-// @spec("A11Y-30", "98aa4c29")
+// @spec("A11Y-30", "4eff370c")
 test.describe("A11Y-30", () => {
   const consumer: [string, string, string, object][] = [
     ["stopped", "loading", "loading", { status: "loading" }],

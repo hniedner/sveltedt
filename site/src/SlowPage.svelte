@@ -5,7 +5,7 @@
     type DataTableStatus,
   } from "@hniedner/sveltedt";
 
-  // The page of the real-browser slow-load tests: it mounts loading with both buttons, so the clock of a test counts
+  // The page of the real-browser slow-load tests: it mounts loading with both callbacks passed (Cancel shows from 6 seconds of loading, Try again once `status` is stopped or failed), so the clock of a test counts
   // from the mount. A test passes the consumer's next props through window.__table and reads every press of "Cancel"
   // and "Try again" from window.__calls.
   interface Item {
