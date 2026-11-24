@@ -1128,7 +1128,10 @@ describe("STATE-22", () => {
 // @spec("RND-06", "d2591ea5")
 describe("RND-06", () => {
   // The words of RND-06; the sort words are SORT-17's, the stopped message is STATE-26's
-  const foreign: Omit<DataTableMessages, `sort${string}` | "stopped"> = {
+  const foreign: Pick<
+    DataTableMessages,
+    "loading" | "failed" | "empty" | "rowCount" | "invalidInput"
+  > = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",
     empty: "Keine Daten.",

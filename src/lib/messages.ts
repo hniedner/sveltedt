@@ -14,6 +14,7 @@ export const defaultMessages: DataTableMessages = {
     `${number.format(count)} ${count === 1 ? "row" : "rows"} displayed`,
   invalidInput: "This table cannot be shown.",
   sortableHint: "Column names that are buttons sort the table.",
+  emptyOption: "(empty)",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

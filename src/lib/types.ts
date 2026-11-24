@@ -7,6 +7,8 @@ export type DataTableColumn<Row> = {
   readonly label: string;
   // The directions a press steps through, in this order; absent: the column is not sortable
   readonly sortable?: readonly SortDirection[];
+  // The filter the column offers; absent or null: none (FILT-32)
+  readonly filter?: DataTableFilter | null;
 } & (
   | {
       readonly value: (row: Row) => string;
@@ -19,6 +21,26 @@ export type DataTableColumn<Row> = {
 );
 
 export type SortDirection = "asc" | "desc";
+
+// One option of a categorical filter; neither value nor label is empty (FILT-32)
+export interface DataTableFilterOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+// A text filter, or a categorical one that may offer one more option for "no value" (FILT-53)
+export type DataTableFilter =
+  | { readonly kind: "text" }
+  | {
+      readonly kind: "categorical";
+      readonly options: readonly DataTableFilterOption[];
+      readonly emptyOption?: boolean;
+    };
+
+// The applied filter of one column; `selected` holds option values, `''` for the option of FILT-53
+export type DataTableFilterState =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "categorical"; readonly selected: readonly string[] };
 
 // One entry of the order, the lead first
 export interface DataTableSortEntry {
@@ -37,6 +59,8 @@ export interface DataTableMessages {
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
   readonly sortableHint: string;
+  // The label of a categorical filter's option for "no value" (FILT-47)
+  readonly emptyOption: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (state: {
@@ -66,6 +90,18 @@ export interface DataTableProps<Row> {
   sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
+  // The filters the server applied, by column id; the table shows them and never filters the rows itself
+  filters?: Readonly<Record<string, DataTableFilterState>> | null;
+  // Called with the column and its next filter; required while any column has a filter (FILT-32)
+  onfilter?: (change: { id: string; state: DataTableFilterState }) => void;
+  onclearfilter?: (change: { id: string }) => void;
+  onclearfilters?: () => void;
+  // The applied global search; null is not given, as `sort` (FILT-32)
+  search?: string | null;
+  // Milliseconds of typing pause before a filter emits, default 400; a whole number, 0 or more (FILT-32)
+  searchDelay?: number;
+  // The longest text a filter field accepts, default 255; a whole number, 1 or more (FILT-32)
+  maxLength?: number;
   heading?: Snippet;
   actions?: Snippet;
 }
