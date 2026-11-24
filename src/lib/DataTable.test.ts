@@ -113,8 +113,8 @@ const codeColumn: DataTableColumn<Item> = {
 };
 
 // Props that raise each message of RND-05's alert, keyed by the message
-// The words of RND-05 and RND-06; the sort words are SORT-17's
-type TableWords = Omit<DataTableMessages, `sort${string}`>;
+// The words of RND-05 and RND-06; the sort words are SORT-17's, the stopped message is STATE-26's
+type TableWords = Omit<DataTableMessages, `sort${string}` | "stopped">;
 
 const faults: [keyof TableWords, Partial<DataTableProps<Item>>][] = [
   ["captionEmpty", { caption: "" }],
@@ -143,6 +143,13 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
   ["status 'ready', with rows", {}],
   ["the alert of RND-05", { columns: [] }],
 ];
+
+// The stopped state the slow-load group adds to the five of RND-14, EXP-01 to EXP-03; kept apart because A11Y-14 and
+// RND-12 list the five states and not stopped: fold the two lists together if their statements are widened
+const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
+  ["status 'stopped'", { status: "stopped" }],
+];
+const sixStates = [...fiveStates, ...stoppedState];
 
 // @spec("A11Y-01", "7eb5c1e0")
 describe("A11Y-01", () => {
@@ -349,6 +356,54 @@ describe("STATE-03", () => {
   );
 });
 
+// @spec("STATE-20", "9e3a1a6c")
+describe("STATE-20", () => {
+  it.each<[string, Item[], string[], DataTableColumn<Item>[]]>([
+    ["no rows", [], [], [idColumn, nameColumn, noteColumn]],
+    [
+      "three rows",
+      threeRows,
+      ["Beta", "Gamma", "Delta"],
+      [idColumn, nameColumn, noteColumn],
+    ],
+    // The span follows the column count, so it cannot be a fixed number
+    ["no rows and two columns", [], [], [idColumn, nameColumn]],
+  ])(
+    "with status stopped and %s, shows the stopped message in one cell spanning every column",
+    (_rows, rows, absent, columns) => {
+      show({ rows, columns, status: "stopped" });
+      const table = screen.getByRole("table");
+      expect(within(table).getAllByRole("columnheader")).toHaveLength(
+        columns.length,
+      );
+      expect(within(table).getAllByRole("cell")).toHaveLength(1);
+      expect(
+        within(table)
+          .getByRole("cell", { name: "Loading stopped" })
+          .getAttribute("colspan"),
+      ).toBe(String(columns.length));
+      for (const name of absent)
+        expect(within(table).queryByRole("cell", { name })).toBeNull();
+    },
+  );
+});
+
+// @spec("STATE-21", "57aa083a")
+describe("STATE-21", () => {
+  it.each<[string, Item[]]>([
+    ["no rows", []],
+    ["two rows", threeRows.slice(0, 2)],
+  ])("with status stopped and %s, shows no empty message", (_rows, rows) => {
+    const component = show({ rows, status: "stopped" });
+    // The stopped message is there, so an empty page cannot pass
+    expect(
+      within(screen.getByRole("table")).getByText("Loading stopped")
+        .isConnected,
+    ).toBe(true);
+    expect(component.textContent).not.toContain(EMPTY);
+  });
+});
+
 // @spec("RND-03", "19d03ec8")
 describe("RND-03", () => {
   const places: [
@@ -429,7 +484,7 @@ function unreadable(): string {
   throw new Error("unreadable");
 }
 
-// @spec("RND-05", "e545c208")
+// @spec("RND-05", "2d5fad5a")
 describe("RND-05", () => {
   it.each<[string, Partial<DataTableProps<Item>>, string]>([
     ["caption is empty", { caption: " " }, "Table caption must not be empty."],
@@ -781,7 +836,7 @@ describe("RND-10", () => {
 
 // @spec("EXP-02", "15dd3831")
 describe("EXP-02", () => {
-  it.each(fiveStates)("renders the actions snippet in %s", (_state, props) => {
+  it.each(sixStates)("renders the actions snippet in %s", (_state, props) => {
     showWithSnippets({ ...props, withActions: true });
     expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
       true,
@@ -837,6 +892,7 @@ describe("STATE-04", () => {
     ["ready", true, "true"],
     ["loading", false, "true"],
     ["failed", false, "false"],
+    ["stopped", false, "false"],
   ])(
     "with status %s and busy %s, the table's aria-busy is %s and the region has none",
     (status, busy, expected) => {
@@ -874,6 +930,7 @@ describe("A11Y-05", () => {
     ["ready", true, 0, ""],
     ["loading", false, 2, ""],
     ["failed", false, 0, ""],
+    ["stopped", false, 0, ""],
   ])(
     "with status %s, busy %s and %i rows, the live count says %j",
     (status, busy, count, text) => {
@@ -926,6 +983,29 @@ describe("A11Y-15", () => {
   });
 });
 
+// @spec("A11Y-21", "d7a4d068")
+describe("A11Y-21", () => {
+  it.each<[string, Partial<DataTableProps<Item>> | null]>([
+    ["mounted stopped", null],
+    ["rerendered from loading", { status: "loading" }],
+    ["rerendered from failed", { status: "failed" }],
+  ])("keeps the stopped message out of any alert: %s", async (_from, first) => {
+    const columns = [nameColumn, codeColumn];
+    const { rerender } = render(
+      DataTable<Item>,
+      state({ columns, ...(first ?? { status: "stopped" }) }),
+    );
+    if (first) await rerender(state({ columns, status: "stopped" }));
+    // The message is on the page, so a page without it cannot pass
+    expect(
+      within(screen.getByRole("table")).getByText("Loading stopped")
+        .isConnected,
+    ).toBe(true);
+    for (const alert of screen.queryAllByRole("alert"))
+      expect(alert.textContent).not.toContain("Loading stopped");
+  });
+});
+
 // @spec("A11Y-22", "eb8dfc31")
 describe("A11Y-22", () => {
   it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
@@ -943,6 +1023,11 @@ describe("A11Y-22", () => {
         { status: "failed" },
       ],
       [true, false, false, true],
+    ],
+    [
+      "failed, stopped, failed",
+      [{ status: "failed" }, { status: "stopped" }, { status: "failed" }],
+      [true, false, true],
     ],
   ])(
     "holds the failed message exactly while failed: %s",
@@ -998,6 +1083,82 @@ describe("STATE-08", () => {
       expect(screen.getByText(text).isConnected).toBe(true);
       for (const message of ALERT_TEXTS)
         expect(component.textContent).not.toContain(message);
+    },
+  );
+});
+
+// @spec("STATE-28", "3b8cc640")
+describe("STATE-28", () => {
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
+    [
+      "stopped, loading, stopped",
+      [{ status: "stopped" }, { status: "loading" }, { status: "stopped" }],
+      [true, false, true],
+    ],
+    [
+      "stopped, ready with two rows, failed, stopped",
+      [
+        { status: "stopped" },
+        { status: "ready", rows: threeRows.slice(0, 2) },
+        { status: "failed" },
+        { status: "stopped" },
+      ],
+      [true, false, false, true],
+    ],
+  ])(
+    "holds the stopped message exactly while stopped: %s",
+    async (_steps, steps, held) => {
+      const columns = [nameColumn, codeColumn];
+      const { container, rerender } = render(
+        DataTable<Item>,
+        state({ columns, ...steps[0] }),
+      );
+      for (const [index, step] of steps.entries()) {
+        if (index > 0) await rerender(state({ columns, ...step }));
+        // textContent includes hidden text, so a message only hidden still counts
+        if (held[index])
+          expect(
+            within(screen.getByRole("table")).getByText("Loading stopped")
+              .isConnected,
+          ).toBe(true);
+        else expect(container.textContent).not.toContain("Loading stopped");
+      }
+    },
+  );
+});
+
+// @spec("STATE-24", "fd6b9b8c")
+describe("STATE-24", () => {
+  // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
+  it.each<DataTableStatus>(["stopped", "failed"])(
+    "with status %s and invalid input, shows the one alert and no table",
+    (status) => {
+      show({ status, columns: [] });
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.queryByRole("table")).toBeNull();
+    },
+  );
+});
+
+// @spec("STATE-22", "67351516")
+describe("STATE-22", () => {
+  it.each<[string, unknown]>([
+    ["undefined", undefined],
+    ["null", null],
+  ])(
+    "with status stopped and rows %s, shows the stopped message and no alert",
+    (_rows, rows) => {
+      // A caller the type does not reach: a load ended before any answer passes no list
+      show({
+        status: "stopped",
+        rows: rows as Item[],
+        columns: [nameColumn, codeColumn],
+      });
+      expect(
+        within(screen.getByRole("table")).getByText("Loading stopped")
+          .isConnected,
+      ).toBe(true);
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
     },
   );
 });
@@ -1121,6 +1282,7 @@ describe("RND-13", () => {
     ["failed", false, [FAILED]],
     ["ready", false, [EMPTY]],
     ["ready", true, []],
+    ["stopped", false, ["Loading stopped"]],
   ])(
     "with columns [], status %s and busy %s, shows only the alert",
     (status, busy, hidden) => {
@@ -1139,7 +1301,7 @@ describe("RND-13", () => {
 
 // @spec("RND-14", "ca53efc4")
 describe("RND-14", () => {
-  it.each(fiveStates)(
+  it.each(sixStates)(
     "renders the heading before the region, or before the alert, in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withHeading: true });
@@ -1155,7 +1317,7 @@ describe("RND-14", () => {
 
 // @spec("EXP-01", "d8229d47")
 describe("EXP-01", () => {
-  it.each(fiveStates)(
+  it.each(sixStates)(
     "offers no export or download control of its own in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withQuietActions: true });
@@ -1179,7 +1341,7 @@ describe("EXP-03", () => {
         ...state({}),
         withActions: true,
       });
-      for (const [, props] of fiveStates) {
+      for (const [, props] of sixStates) {
         await rerender({ ...state(props), withActions: true });
         expect(document.querySelector("a[download]")).toBeNull();
       }
