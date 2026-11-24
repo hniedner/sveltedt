@@ -999,7 +999,7 @@ test("gate-needs: the browser job runs in Playwright's image of the version @pla
     [
       IMAGE,
       `^${PW}`,
-      "is Playwright 1.65.1 but package.json pins @playwright/test ^1.65.1",
+      "the pin of @playwright/test is ^1.65.1, not an exact version (the image of the job browser is Playwright 1.65.1)",
     ],
   ];
   for (const [image, pin, why] of rows)
@@ -1011,6 +1011,11 @@ test("gate-needs: the browser job runs in Playwright's image of the version @pla
       ).includes(why),
       why,
     );
+  // A range pin is no reason to move the image: the finding does not send the contributor there
+  assert.doesNotMatch(
+    expect("gate-needs", repo(ciWith(browserJob(CI), `^${PW}`)), 1),
+    /update the image/,
+  );
   // The finding says how to fix it: a Playwright bump also moves the image
   assert.match(
     expect("gate-needs", repo(ciWith(browserJob(CI), "1.66.0")), 1),
@@ -1022,6 +1027,15 @@ test("gate-needs: a browser job whose image cannot be read is could-not-check", 
     [
       "",
       /the job browser has no container image line \(expected an unquoted `image: <reference>` under `container:`, no trailing comment\)/,
+    ],
+    // A hand edit after a bump: a quoted value or a trailing comment is not read as an image
+    [
+      `"${IMAGE}"`,
+      /the job browser has no container image line \(expected an unquoted/,
+    ],
+    [
+      `${IMAGE} # bumped`,
+      /the job browser has no container image line \(expected an unquoted/,
     ],
     [
       IMAGE.replace(`@${DIGEST}`, ""),
@@ -1054,6 +1068,18 @@ test("gate-needs: a browser job without a readable @playwright/test pin is could
       3,
     ),
     /package\.json has no readable @playwright\/test pin \(ENOENT/,
+  );
+  // A package.json that is not JSON says so
+  assert.match(
+    expect(
+      "gate-needs",
+      repo((root) => {
+        ciWith(ci)(root);
+        put(root, "package.json", "{");
+      }),
+      3,
+    ),
+    /package\.json has no readable @playwright\/test pin \(.*JSON/,
   );
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {

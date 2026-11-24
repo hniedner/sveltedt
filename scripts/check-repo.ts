@@ -254,8 +254,9 @@ function browserContainer(
   job: string[] | undefined,
 ): { found: string[]; cannot?: string } {
   if (!job) return { found: [] };
+  // Only an unquoted value without a comment is read: a quote or a `# note` after a hand edit is not guessed at
   const image = job
-    .map((l) => /^ {6}image:\s*(\S+)\s*$/.exec(l)?.[1])
+    .map((l) => /^ {6}image:\s*([^\s"'#]+)\s*$/.exec(l)?.[1])
     .find(Boolean);
   if (!image)
     return {
@@ -293,12 +294,18 @@ function browserContainer(
       found: [],
       cannot: `package.json has no readable @playwright/test pin (${why})`,
     };
+  if (!/^\d+\.\d+\.\d+$/.test(pin))
+    return {
+      found: [
+        `the pin of @playwright/test is ${pin}, not an exact version (the image of the job browser is Playwright ${tag})`,
+      ],
+    };
   return {
     found:
       pin === tag
         ? []
         : [
-            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (docker buildx imagetools inspect mcr.microsoft.com/playwright:v${pin.replace(/^\D+/, "")}-noble)`,
+            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (docker buildx imagetools inspect mcr.microsoft.com/playwright:v${pin}-noble)`,
           ],
   };
 }
