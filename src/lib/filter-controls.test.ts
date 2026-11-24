@@ -21,7 +21,7 @@ const rows: Item[] = [
 ];
 
 type Field = "name" | "code" | "status" | "note";
-// The spec's columns of section 11: Name (text filter), Code (sortable, text filter), Status (categorical) and Note
+// The spec's columns of section 11: Name (text filter), Code (sortable, text filter), Status (categorical), Note (none)
 function column(
   id: Field,
   label: string,
@@ -78,6 +78,17 @@ describe("FILT-29", () => {
     mount();
     expect(
       within(header("Name")).getAllByRole("button", { name: "Filter Name" }),
+    ).toHaveLength(1);
+  });
+
+  it("shows the sort button and the filter button in the header cell of a sortable, filtered column", () => {
+    mount({ columns: [codeColumn] });
+    const cell = header("Code");
+    expect(within(cell).getAllByRole("button", { name: "Code" })).toHaveLength(
+      1,
+    );
+    expect(
+      within(cell).getAllByRole("button", { name: "Filter Code" }),
     ).toHaveLength(1);
   });
 
@@ -202,6 +213,15 @@ describe("FILT-30", () => {
         columns: [sortableCode],
         onreset: vi.fn(),
         filters: { zzz: { kind: "text", text: "x" } },
+      },
+      1,
+    ],
+    [
+      "Code sortable, onreset given, and a fault of the sort (the alert of RND-05)",
+      {
+        columns: [sortableCode],
+        onreset: vi.fn(),
+        sort: [{ id: "nope", direction: "asc" }],
       },
       1,
     ],
@@ -335,6 +355,11 @@ describe("FILT-31", () => {
       },
       ["Clear my criteria", RESET],
     ],
+    [
+      "a fault of the columns (the alert of RND-05, no reset)",
+      { columns: [nameColumn, nameColumn] },
+      ["Clear my criteria"],
+    ],
   ])(
     "with %s puts the controls in the order the row says",
     (_row, props, expected) => {
@@ -396,6 +421,20 @@ describe("FILT-09", () => {
     expect(onclearfilters).not.toHaveBeenCalled();
     expect(onsort).not.toHaveBeenCalled();
   });
+
+  it("emits the id of the badge pressed when several badges show", async () => {
+    const { onclearfilter } = mount({
+      columns: [nameColumn, statusColumn],
+      filters: {
+        name: { kind: "text", text: "Beta" },
+        status: { kind: "categorical", selected: ["active"] },
+      },
+    });
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter Status: Active" }),
+    );
+    expect(onclearfilter.mock.calls).toEqual([[{ id: "status" }]]);
+  });
 });
 
 // @spec("FILT-22", "dcf9ee27")
@@ -429,5 +468,16 @@ describe("FILT-22", () => {
       filters: { status: { kind: "categorical", selected } },
     });
     expect(badgeButtons().map((badge) => badge.textContent)).toEqual([text]);
+  });
+
+  it("names the empty option by the given emptyOption word", () => {
+    mount({
+      columns: [withEmptyOption],
+      filters: { status: { kind: "categorical", selected: ["", "active"] } },
+      messages: { emptyOption: "(leer)" },
+    });
+    expect(badgeButtons().map((badge) => badge.textContent)).toEqual([
+      "Status: Active, (leer)",
+    ]);
   });
 });
