@@ -1683,7 +1683,7 @@ test("a ends last", () => {
   );
   assert.match(
     out,
-    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n(?:\s+.*\n)+? {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
+    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n {2}not ok [^\n]*\n(?: {4}.*\n)+ {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
   );
 });
 test("selftest: a test file killed by a signal cannot be checked, and its line names the signal", () => {
