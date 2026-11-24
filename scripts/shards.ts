@@ -1,5 +1,6 @@
-// The selftest step's shards: the CI job `selftest` runs one shard per matrix entry (GATE_SHARD=1..3), balanced by measured
-// CI seconds per file (the selftest line prints them); re-measure when a file is added. Moving a file is an edit here.
+// The selftest step's shards: the CI job `selftest` runs one shard per matrix entry (GATE_SHARD=1..3), balanced by
+// measured CI seconds per file (read from the selftest step output of the CI job); re-measure when a file is added.
+// Moving a file between shards is an edit here.
 export const SHARDS: readonly (readonly string[])[] = [
   [
     "scripts/check-repo-lint.test.ts",

@@ -256,7 +256,7 @@ CI is on in every repo (owner, 2026-11-17 11:06). Sources, read 2026-11-17 and c
   · *codeql-about* docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql
   · *codeql-suites* docs.github.com/en/code-security/code-scanning/managing-your-code-scanning-configuration/codeql-query-suites
 - *dep-review* github.com/actions/dependency-review-action · *scorecard* github.com/ossf/scorecard-action ·
-  *playwright-ci* playwright.dev/docs/ci · *setup-uv*
+  *playwright-ci* playwright.dev/docs/ci · *playwright-docker* playwright.dev/docs/docker · *setup-uv*
   docs.astral.sh/uv/guides/integration/github
 - *npm-tp* docs.npmjs.com/trusted-publishers · *npm-prov* docs.npmjs.com/generating-provenance-statements · *pypi-tp*
   docs.pypi.org/trusted-publishers/adding-a-publisher · *pypi-action* github.com/pypa/gh-action-pypi-publish ·
@@ -286,7 +286,9 @@ $0 budget, no self-hosted runners.
     (a later step that needs its own `if:` narrows the rule in its own branch). The job runs in Playwright's own image
     (`mcr.microsoft.com/playwright`, pinned by tag and digest, `--user 1001` as in its CI example) with the engines inside
     *(fetched, playwright-ci, playwright-docker)*; gate-needs checks that the tag's version equals the exact
-    `@playwright/test` pin, and an image line it cannot read is could-not-check.
+    `@playwright/test` pin, and an image or pin it cannot read is could-not-check. The digest is not checked against the tag (that needs the
+    registry). Dependabot does not update an image under `container:` (its supported-ecosystems page does not list it;
+    not tested), so a Playwright bump also edits the image line by hand; the finding names the command for the digest.
   - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
     (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
     `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
@@ -294,8 +296,8 @@ $0 budget, no self-hosted runners.
     cannot run nowhere, runs when `GATE_SHARD` is set, or when CI hands the step to the selftest job; locally
     `scripts/shards.test.ts` catches it, and also a table entry that is not a tracked file (the fixture repositories of
     `check-repo.test.ts` hold test files outside the table, so the step cannot check that unconditionally). The result
-    line names the shard when `GATE_SHARD` is set. Measured 2026-11-23: in one job the step took 591 s of the `static`
-    job's 11 min 11 s.
+    line names the shard when `GATE_SHARD` is set. Measured 2026-11-23, before the split: in one job the step took 591 s of
+    the `static` job's 11 min 11 s.
   - `red-check` (G7) in the `static` job, on each commit of the pull request.
   - `mutation` (G8) on the pull request's changed lines, Linux only, in its own job `mutation`. The `static` job leaves
     the step to it through `GATE_MUTATION`, under the same rule as `GATE_BROWSER` (gate-needs checks both).

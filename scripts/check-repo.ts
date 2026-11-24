@@ -542,7 +542,8 @@ async function runTestFile(
       ),
     };
   }
-  // The wall seconds of a passing file are what the CI shard table (scripts/shards.ts) is balanced on
+  // The wall seconds of a passing file (rounded, node start-up included) are what the shard table in scripts/shards.ts
+  // is balanced on
   const seconds = Math.round((Date.now() - started) / 1000);
   return { code: PASS, line: `${file}: ${tests} passed in ${seconds} s` };
 }

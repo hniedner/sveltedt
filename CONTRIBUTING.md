@@ -33,7 +33,8 @@ archives that `.github/workflows/ci.yml` installs, checked against the sha256 li
 the package manager (CI uses the runner's copy). Any other version than the pin, older or newer, makes the gate
 answer `COULD NOT CHECK` until the pin moves; Prettier, ESLint, TypeScript and jscpd are pinned by `package.json`.
 The browser step also needs the browsers of the pinned Playwright (`pnpm exec playwright install`; on Linux with
-`--with-deps`) and 127.0.0.1:4173 free: stop `pnpm site:serve` first.
+`--with-deps`; CI uses Playwright's image instead, whose tag a Playwright bump must move too, see the gate's finding)
+and 127.0.0.1:4173 free: stop `pnpm site:serve` first.
 The gate reads tracked files: a new file counts once it is added with `git add`.
 
 Each check ends with one line: `PASS`, `FINDING`, `COULD NOT CHECK`, or `NOT APPLICABLE` when there is nothing of

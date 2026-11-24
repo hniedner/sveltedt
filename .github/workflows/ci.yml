@@ -87,8 +87,8 @@ jobs:
           if-no-files-found: warn
 
   # The real-browser tests in the three engines, on the site the gate's site step builds. Run in Playwright's own image
-  # (browsers and system packages inside, the example of playwright.dev/docs/ci): the apt mirror stalled the install step
-  # twice on 2026-11-23. gate-needs checks that the tag equals the pinned @playwright/test.
+  # (browsers and system packages inside, the example of playwright.dev/docs/ci): an apt mirror stall in the install step
+  # made runs flaky. gate-needs checks that the tag equals the pinned @playwright/test.
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
