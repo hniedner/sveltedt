@@ -1172,13 +1172,18 @@ function toolRecord<T>(
   const r = spawnSync(
     process.execPath,
     ["--input-type=module", "-e", probe, url, ...extra, root, ...files],
-    // In the checked root: the TypeScript project service looks for tsconfig.json from there.
-    { encoding: "utf8", cwd: root, env: childEnv() },
+    // In the checked root: the TypeScript project service looks for tsconfig.json from there. ESLint's record holds
+    // each linted file's config (7-12 KB a file, measured): Node's default 1 MiB buffer holds about 100 files.
+    {
+      encoding: "utf8",
+      cwd: root,
+      env: childEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+    },
   );
   try {
     return JSON.parse(r.stdout) as T;
   } catch {
-    // No exit status: the spawn failed (its error code) or a signal ended the probe.
     const end = r.status ?? errorCode(r.error) ?? r.signal;
     return {
       error: `the ${pkg} probe failed (exit ${end}): ${r.stderr.split("\n")[0]}`,

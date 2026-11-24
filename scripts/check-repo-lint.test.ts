@@ -45,6 +45,14 @@ test("lint: an ESLint that fails on the repository cannot be checked", () => {
     /eslint probe failed \(exit 1\)/,
   );
 });
+// A .mjs file adds about 7 KB to ESLint's record (measured): 300 make 2.3 MB, twice what Node's default 1 MiB held.
+test("lint: a probe record over Node's default 1 MiB buffer is read whole", () => {
+  const many = (root: string) => {
+    for (let i = 0; i < 300; i++)
+      put(root, `scripts/many-${i}.mjs`, "export const one = 1;\n");
+  };
+  assert.match(expect("lint", repo(many), 0), /\.mjs 301,/);
+});
 // A probe that cannot finish names why. Each config breaks the probe before ESLint's record is printed.
 const probeBroken = (body: string, cause: RegExp) => {
   const config = join(tempDir(), "eslint.config.mjs");
