@@ -3,7 +3,7 @@
   import { faultLine } from "./faults.js";
   import { badges, resetShown } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
-  import { nextOrder } from "./sort.js";
+  import { nextOrder, sortState } from "./sort.js";
   import type {
     DataTableColumn,
     DataTableProps,
@@ -147,19 +147,6 @@
       if (goneRetry) keepFocus(retryButton);
     });
   });
-  // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
-  function sortState(id: string): {
-    direction: SortDirection | null;
-    rank: number | null;
-  } {
-    const place = order.findIndex((entry) => entry.id === id);
-    const entry = order[place];
-    if (!entry) return { direction: null, rank: null };
-    return {
-      direction: entry.direction,
-      rank: order.length > 1 ? place + 1 : null,
-    };
-  }
 </script>
 
 <div class="sdt">
@@ -227,7 +214,7 @@
         <thead>
           <tr class="sdt-head-row">
             {#each columns as column, index (column.id)}
-              {@const state = sortState(column.id)}
+              {@const state = sortState(order, column.id)}
               <!-- aria-sort on the lead column's header only (A11Y-03) -->
               <th
                 class="sdt-th"
@@ -317,7 +304,7 @@
       {#each columns as column, index (column.id)}
         {#if column.sortable}
           <span id={`${uid}-sort-${index}`}
-            >{words.sortDescription(sortState(column.id))}</span
+            >{words.sortDescription(sortState(order, column.id))}</span
           >
         {/if}
       {/each}
