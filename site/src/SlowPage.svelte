@@ -33,10 +33,10 @@
   });
 
   const columns: DataTableColumn<Item>[] = [
-    { id: "name", label: "Name", value: (r) => r.name },
+    { id: "name", label: "Name", value: ({ row }) => row.name },
     { id: "open", label: "Link", cell: open },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const oncancel = (): void => {
     calls.cancel += 1;
   };
@@ -45,7 +45,7 @@
   };
 </script>
 
-{#snippet open(item: Item)}<a href={`#${item.id}`}>Open {item.name}</a
+{#snippet open({ row }: { row: Item })}<a href={`#${row.id}`}>Open {row.name}</a
   >{/snippet}
 
 {#snippet heading()}<h1><a href="#all">All orders</a></h1>{/snippet}

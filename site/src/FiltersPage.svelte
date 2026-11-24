@@ -18,23 +18,23 @@
     {
       id: "name",
       label: "Name",
-      value: (r) => r.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
     {
       id: "region",
       label: "Region",
-      value: (r) => r.region,
+      value: ({ row }) => row.region,
       sortable: ["asc", "desc"],
       filter: { kind: "text" },
     },
     { id: "open", label: "Link", cell: open, filter: { kind: "text" } },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const nothing = (): void => undefined;
 </script>
 
-{#snippet open(item: Item)}<a href={`#${item.id}`}>Open {item.name}</a
+{#snippet open({ row }: { row: Item })}<a href={`#${row.id}`}>Open {row.name}</a
   >{/snippet}
 
 <main>

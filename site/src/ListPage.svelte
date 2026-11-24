@@ -11,7 +11,7 @@
     {
       id: "name",
       label: "Order",
-      value: (order) => order.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
   ];
@@ -44,7 +44,7 @@
   const rows = $derived(sorted.slice(offset, offset + limit));
   // Typed here, not inline: svelte-check infers an inline callback's row type, but the type-aware lint does not
   // and reads it as any
-  const getRowId = (order: Order): string => order.id;
+  const getRowId = ({ row }: { row: Order }): string => row.id;
 </script>
 
 <main>

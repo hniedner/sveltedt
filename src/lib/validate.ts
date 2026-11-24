@@ -97,13 +97,13 @@ export function validateTable<Row>(
 // An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
 function rowFault<Row>(
   rows: readonly Row[],
-  getRowId: (row: Row) => unknown,
+  getRowId: (context: { readonly row: Row }) => unknown,
 ): TableFault | null {
   const rowIds: string[] = [];
   let unreadable = false;
   for (const row of rows) {
     try {
-      const id: unknown = getRowId(row);
+      const id: unknown = getRowId({ row });
       // Compared by text form, so the number 1 and the string "1" are one id
       if (typeof id === "string" || Number.isFinite(id))
         rowIds.push(String(id));

@@ -32,12 +32,12 @@ to the consumer as one callback (stated with the statements that add user action
     planted canary.
   - **gate wrapper at step boundaries**: a gate step that runs on a step's diff against its base and runs other
     statements' tests on a changed copy, behind a wrapper that must refuse planted canaries.
-- **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value(row)` (text) or `cell`
-  (a snippet); `getRowId(row)` (a string or a finite number, handed back to the application as given wherever a
+- **Props used so far.** `rows`; `columns`, each with `id`, `label` and either `value({ row })` (text) or `cell`
+  (a snippet, rendered with `{ row, column }`); `getRowId({ row })` (a string or a finite number, handed back to the application as given wherever a
   later statement emits an id); `caption`; `regionLabel`; `status` (`'loading'`, `'failed'` or `'ready'`; default
   `'ready'`); `busy` (default `false`); `messages` (the words); the snippets `heading` and `actions`; `sort` (the
   order, a list of `{ id, direction }`, `direction` being `'asc'` or `'desc'`, lead first), a column's `sortable`
-  (the directions it allows, `'asc'` and/or `'desc'`; a press steps through them in the order listed) and
+  (the directions it allows, at least one of `'asc'` and `'desc'`; a press steps through them in the order listed) and
   `onsort(next)`; and the props of `Pagination`:
   `offset`, `limit`, `total`, `label`, `sizes`,
   `messages`, `onpage(offset)`, `onsize(n)` and `unfilteredTotal` (optional). Later groups add their own props: the slow-load statements of
@@ -48,8 +48,9 @@ to the consumer as one callback (stated with the statements that add user action
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
   statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
   sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
-  snippet `detail`, `detailName(row)`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
-  a column's `class`, `headerClass` and `align`, `rowClass(row)` and `cellClass(row, column)` (section 17).
+  snippet `detail` (rendered with `{ row }`), `detailName({ row })`, `expanded` and `onexpand(event)` (section 15); and the class hooks of milestone 8
+  a column's `class`, `headerClass` and `align`, `rowClass({ row })` and `cellClass({ row, column })` (section 17). Every function and snippet in these props follows
+  "One object argument" below.
 - **Orders in examples** are written `[code asc, name desc]`: the lead first; `asc` is `{ id, direction: 'asc' }`.
   Column Name has id `name`, Code has id `code`, Date has id `date`. Every sortable column in an example allows both
   directions unless the row says otherwise. An example with a sortable column passes an `onsort`; an example with a column filter passes `onfilter`,
@@ -82,6 +83,20 @@ to the consumer as one callback (stated with the statements that add user action
   classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
   hook props write and the THEME-09 classes beside them.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
+- **One object argument.** Every function in the props of `DataTable` and `Pagination`, and every snippet among them
+  that receives anything, takes at most ONE argument: an object, read-only in its type, whose fields a later release
+  only adds (it never removes, renames or reorders one), or a single value. A row is passed inside the object
+  (`value({ row })`, `getRowId({ row })`), never alone. A callback that reports one new state value receives that
+  value alone (`onsort(next)`, `onpage(offset)`); one with nothing to report receives nothing (`onclearfilters()`);
+  a snippet with nothing to show takes nothing (`heading`, `actions`, `criteria`); none receives two or more arguments
+  (`onfilter({ id, state })`, never `onfilter(id, state)`). The words' functions follow the same rule
+  (`rowCount(count)`, `info({ first, last, total })`). Reason: a positional list can only grow at its end and never
+  drop a place without breaking every caller, and PRD-K3 makes each signature public; one object lets a later
+  release add a field without a break and lets a consumer take only the fields it needs. AG Grid passes one object
+  to `getRowId`, `valueGetter` and `getRowClass`; TanStack Table and MUI X to their cell renderers (FETCHED
+  2026-11-24). Example: `value: ({ row }) => row.name`, `getRowId: ({ row }) => row.id`, and a `cell` snippet
+  written `{#snippet open({ row })}`, which takes one of the two fields it is given. RND-18 states it and checks the
+  types.
 - **Data.** Example data is synthetic: rows such as `{ id: 'r1', name: 'Beta' }`.
 - **Ids.** A statement keeps its id while its meaning stays, also when it is narrowed. A new or split-off behaviour
   takes the next free number in its group; A11Y-33 and A11Y-34 (reserved for the slow-load group, which needed
@@ -119,16 +134,18 @@ to the consumer as one callback (stated with the statements that add user action
 - Layer: component.
 - Traces: PRD-B1.
 
-**RND-02** A column with a `cell` snippet MUST render that snippet, called with the row and the column id, in each of
-its cells.
-- Example: a `cell` snippet that renders a link "Open Beta" for row r1 and the column id `name` shows that link in
-  r1's `name` cell, and the snippet received `(r1, 'name')`.
+**RND-02** A column with a `cell` snippet MUST render that snippet in each of its cells, called with one object
+`{ row, column }`: that cell's row and its column.
+- Example: a `cell` snippet that renders a link "Open <row's name> in <column's id>" for the Name column shows "Open
+  Beta in name" in r1's Name cell and "Open Gamma in name" in r2's.
 - Reason: links, badges and cell menus belong to the consumer, so the table needs no knowledge of what a value means.
 - Layer: component.
 - Traces: PRD-B3.
 
-**RND-08** A column without a `cell` snippet MUST render `value(row)` as the cell's text.
-- Example: the column `{ id: 'name', label: 'Name', value: (r) => r.name }` shows "Beta" in row r1.
+**RND-08** A column without a `cell` snippet MUST render as the cell's text what its `value` returns for `{ row }`, that
+cell's row.
+- Example: the column `{ id: 'name', label: 'Name', value: ({ row }) => row.name }` shows "Beta" in row r1, and each call
+  of `value` received `{ row: r1 }`.
 - Reason: most columns are plain text and should not need a snippet each.
 - Layer: component.
 - Traces: PRD-B3.
@@ -140,7 +157,7 @@ its cells.
   |---|
   | `caption` |
   | a column `label` |
-  | a default cell (`value(row)`) |
+  | a default cell (a column's `value`) |
   | each entry of `messages`, the returned text of `rowCount` included |
 
   In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
@@ -307,6 +324,37 @@ the fault, in the browser only.
   the code is what they search for; texts that only development shows keep every production bundle free of them.
 - Layer: component; the server row is a component test in a Node environment.
 - Traces: PRD-B16, PRD-S4.
+
+**RND-18** Every function and every snippet in the props of `DataTable` and `Pagination` MUST take at most one
+argument: an object, read-only in its type, or a single value (a row is a field of the object, as `{ row }`, never the
+single value).
+- Examples. At run time (rows r1 `{ id: 'r1', name: 'Beta' }` and r2 `{ id: 'r2', name: 'Gamma' }`; columns Id and
+  Name, Name with a `cell` snippet; every call recorded):
+
+  | Called | Every call receives |
+  |---|---|
+  | `getRowId` | one argument, `{ row: r1 }` or `{ row: r2 }`, the row objects themselves; each at least once |
+  | Name's `cell` | an object whose `row` is r1 or r2, the row object itself, and whose `column` is the Name column object itself |
+
+  In the exported types, for every function and snippet of the props of `DataTable` and `Pagination` at any depth
+  (the columns, the filters, the messages): none takes two or more parameters, none takes the row itself, and every
+  argument object other than a list is read-only. A planted function with two parameters, a planted
+  `(row: Row) => string`, a planted snippet `Snippet<[Row, string]>` and a planted function of a mutable object are
+  each found. (`value`'s call shape is RND-08's, the snippet's fields RND-02's.)
+  Stated limits: a component or props type added later is checked once it is added to the test's list (today
+  `DataTableProps` and `PaginationProps`); whether a one-value callback reports a new state value, or should pass an
+  object, is judged in review, not by the check. The check reads each function's parameter list as declared, so it
+  misses: a row taken as a single OPTIONAL parameter (`(row?: Row) => string`), overloads whose last signature has one
+  parameter, and an argument that is an array or a tuple, read-only or not (`onsort`'s `next` is one); and it flags as a mutable object an argument of a type that
+  is not a plain record: a Svelte `Component<...>`, `Date`, `Map`, `ReadonlyMap`, `AbortSignal`, `Event`, or an
+  intersection of read-only objects. None of these is in the props today; one added later is judged in review and,
+  for a flagged type, the guard is narrowed in that statement's own commit.
+- Reason: a list of positional arguments can only grow at its end and never lose a place without breaking each
+  caller, and PRD-K3 makes every signature public; one object lets a later release add a field without a break and
+  lets a consumer take only what it needs (Conventions, "One object argument").
+- Layer: component; the types half a static check: the gate's `svelte` step type-checks the test file, and the
+  planted types are its canaries.
+- Traces: PRD-K3.
 
 **RND-14** The `heading` snippet MUST render before the region, or before the alert where there is no region, in
 every state.
@@ -1330,9 +1378,9 @@ table.
   | `<td class={["sdt-cell", "app-x"]}>` in a `.svelte` file | finding |
   | `<td class={{ "app-x": on }}>` in a `.svelte` file (a form not in the list) | finding |
   | `export const stripe = "app-x";` in `src/lib/classes.ts` | finding |
-  | `const c = rowClass(row);` then `<tr class={c}>` (a form not in the list) | finding |
+  | `const c = rowClass({ row });` then `<tr class={c}>` (a form not in the list) | finding |
   | `<td class={["sdt-cell", end && "sdt-end", column.class]}>` | passes |
-  | `<tr class={["sdt-row", rowClass?.(row)]}>` | passes |
+  | `<tr class={["sdt-row", rowClass?.({ row })]}>` | passes |
 
   The scan reads every `class` attribute of the `.svelte` files under `src/lib`. It knows these forms: a quoted literal
   (`class="sdt-x sdt-y"`); and an expression that is a string literal or an array whose elements are each a string
@@ -3853,12 +3901,12 @@ for them below, the computed value that the literal table of its test states.
 
 ## 13. Row selection (SEL, milestone 6)
 
-These statements add `selection`, an object with `isSelected(row)` (true or false) and `name(row)` (the accessible
+These statements add `selection`, an object with `isSelected({ row })` (true or false) and `name({ row })` (the accessible
 name of that row's box), and the callbacks `onselectrow({ rowId, selected, range })`, with `range` present only on a
 range press, and `onselectpage(selected)` (PRD-B13). The application owns the selected set and the range anchor; the
 table shows what `isSelected` says. A box is "mixed" when its `indeterminate` property is true and its `checked`
 property false. In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
-`{ id: 'r2', name: 'alpha' }`, in that order, with `name: (r) => 'Select row ' + r.name` and both callbacks passed.
+`{ id: 'r2', name: 'alpha' }`, in that order, with `name: ({ row }) => 'Select row ' + row.name` and both callbacks passed.
 
 **SEL-01** With `selection`, the table MUST show a first column of boxes whose header box is named "Select all rows on
 this page" and whose header cell shows no visible text.
@@ -3868,7 +3916,7 @@ this page" and whose header cell shows no visible text.
 - Layer: component.
 - Traces: PRD-B13, PRD-A1.
 
-**SEL-06** Each row's box MUST be named by `selection.name(row)`.
+**SEL-06** Each row's box MUST be named by `selection.name({ row })`.
 - Example: the boxes "Select row Beta" and "Select row alpha", in row order.
 - Reason: a screen-reader user must know which row a box belongs to, and only the application knows which column names
   a row (PRD-A1).
@@ -3893,7 +3941,7 @@ this page" and whose header cell shows no visible text.
 **SEL-03** A press on a row's box MUST emit `onselectrow` once with the row's id and the box's next state.
 - Examples (the test runs every row; one press, as "emits once" defines it):
 
-  | `isSelected(r1)` | Press | `onselectrow` receives |
+  | `isSelected({ row: r1 })` | Press | `onselectrow` receives |
   |---|---|---|
   | false | "Select row Beta" | `{ rowId: 'r1', selected: true }` |
   | true | "Select row Beta" | `{ rowId: 'r1', selected: false }` |
@@ -4214,17 +4262,17 @@ the region scrolls sideways.
 
 ## 15. Child rows (CHILD, milestone 6)
 
-These statements add the snippet `detail` (called with a row), `detailName(row)` (the accessible name of that row's
+These statements add the snippet `detail` (called with `{ row }`), `detailName({ row })` (the accessible name of that row's
 disclosure button), `expanded` (a list of the row ids whose details are open; default empty) and the callback
 `onexpand({ rowId, expanded })` (PRD-B27). The application owns which rows are open; the table shows what `expanded`
 says. The pattern is a disclosure button in a leading column of its own, as the practice check of 2026-11-19 found in
 the accessible examples (Adrian Roselli's expandable rows, FETCHED); DataTables' row-details example uses an unnamed
 cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1', name: 'Beta' }` and r2
-`{ id: 'r2', name: 'alpha' }`, `detailName: (r) => 'Details for ' + r.name`, a `detail` snippet holding the paragraph
+`{ id: 'r2', name: 'alpha' }`, `detailName: ({ row }) => 'Details for ' + row.name`, a `detail` snippet holding the paragraph
 "More about <name>" and a link "Open <name>", and `onexpand` passed. The columns are those of section 12.
 
 **CHILD-01** With `detail`, the table MUST show a leading column whose header cell holds the word `detailsColumn`
-("Details") hidden visually, and whose body cells each hold one button named by `detailName(row)`.
+("Details") hidden visually, and whose body cells each hold one button named by `detailName({ row })`.
 - Examples (the test runs every row):
 
   | Props | Leading columns, in order |
@@ -4268,7 +4316,7 @@ cell (FETCHED; `docs/departures.md`). In the examples the rows are r1 `{ id: 'r1
 - Traces: PRD-B27, PRD-B2.
 
 **CHILD-05** Each open row MUST be followed by exactly one detail row: one cell spanning every shown column, filled by
-`detail` with that row.
+`detail`, called with `{ row }` of that row.
 - Examples (the test runs every row; three data columns):
 
   | `expanded` | Rows of the body, in order |
@@ -4632,7 +4680,8 @@ the "Cancel" and "Try again" buttons MUST stay visible.
 ## 17. Class hooks and alignment (THEME, milestone 8)
 
 These statements add a column's `class` and `headerClass` (strings), a column's `align` (`'start'`, the default,
-`'center'` or `'end'`), and the functions `rowClass(row)` and `cellClass(row, column)`, each returning a string, or
+`'center'` or `'end'`), and the functions `rowClass({ row })` and `cellClass({ row, column })`, `column` being the column definition given, with
+its `id`, the same object a `cell` snippet gets, each returning a string, or
 `undefined` or `null` for no class (PRD-T7, T8, T14; DataTables' `className`, `createdRow` and `createdCell`, FETCHED 2026-11-18 in the PRD; classes
 only, DEP-36). A hook adds classes: the component's own classes (THEME-09) stay. "Data cells" are the body cells of
 the given columns in data rows. A hook, class or alignment given as
@@ -4659,15 +4708,15 @@ the given columns in data rows. A hook, class or alignment given as
 - Layer: component.
 - Traces: PRD-T14.
 
-**THEME-24** `rowClass(row)` MUST be called for each data row, and its result MUST appear on that row's `tr`.
+**THEME-24** `rowClass({ row })` MUST be called for each data row, and its result MUST appear on that row's `tr`.
 - Examples (the test runs every row):
 
   | `rowClass` | r1's `tr` | r2's `tr` |
   |---|---|---|
-  | `(r) => r.name === 'Beta' ? 'hot' : ''` | holds `hot` and `sdt-row` | holds `sdt-row` only |
+  | `({ row }) => row.name === 'Beta' ? 'hot' : ''` | holds `hot` and `sdt-row` | holds `sdt-row` only |
   | `() => 'x  y'` | holds `x`, `y` and `sdt-row` | the same |
-  | `(r) => r.name === 'Beta' ? 'hot' : undefined` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
-  | `(r) => r.name === 'Beta' ? 'hot' : null` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+  | `({ row }) => row.name === 'Beta' ? 'hot' : undefined` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
+  | `({ row }) => row.name === 'Beta' ? 'hot' : null` | holds `hot` and `sdt-row` | holds `sdt-row` only; no alert |
 
   With `detail` and `expanded` `['r1']`, r1's detail row holds no `hot`; with `status 'ready'` and no rows,
   `rowClass` is not called.
@@ -4675,13 +4724,14 @@ the given columns in data rows. A hook, class or alignment given as
 - Layer: component.
 - Traces: PRD-T8.
 
-**THEME-28** `cellClass(row, column)` MUST be called for each data cell, with that cell's row and column, and its
+**THEME-28** `cellClass({ row, column })` MUST be called for each data cell, with one object holding that cell's row and column, and its
 result MUST appear on that cell's `td`, after the column's `class`.
-- Example: Code's `class` `'num'`, `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : ''`:
+- Example: Code's `class` `'num'`, `cellClass: ({ row, column }) => column.id === 'code' && row.code.startsWith('A') ? 'low' : ''`:
   r2's Code cell holds `num` before `low`, and `sdt-cell`; r1's Code cell holds `num` only besides `sdt-cell`; the
   Name cells hold neither; with `selection` given, the box cells hold no class from `cellClass`, and every call of
-  `cellClass` receives one of the 4 pairs (r1 or r2, Name or Code; compared by `r.id` and `c.id`), each pair at least
-  once. With `cellClass: (r, c) => c.id === 'code' && r.code.startsWith('A') ? 'low' : undefined` the cells hold
+  `cellClass` receives one object holding one of the 4 pairs (r1 or r2, Name or Code; compared by `row.id` and
+  `column.id`), each pair at least once. With
+  `cellClass: ({ row, column }) => column.id === 'code' && row.code.startsWith('A') ? 'low' : undefined` the cells hold
   the same classes, and no alert shows.
 - Reason: DataTables' `createdCell` marks cells by their value (PRD-T8).
 - Layer: component.
@@ -4694,10 +4744,10 @@ and the replacement of a row by a new object, and an unchanged row MUST keep its
 
   | Hook | Change | r1 | r2 |
   |---|---|---|---|
-  | `rowClass: (r) => hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its `tr` loses `hot` | its `tr` gains `hot` |
-  | `cellClass: (r, c) => c.id === 'code' && hot === r.id ? 'hot' : ''` | `hot` becomes `'r2'` | its Code cell loses `hot` | its Code cell gains `hot` |
-  | `rowClass: (r) => r.name === 'Beta' ? 'hot' : r.name === 'gamma' ? 'new' : ''` | `rows` given again with r1 the same object and r2 a new object `{ id: 'r2', name: 'gamma', code: 'A-1' }` | its `tr` keeps `hot` | its `tr` gains `new` |
-  | `cellClass: (r, c) => c.id === 'name' && r.name === 'gamma' ? 'new' : ''` | as the row above | its Name cell holds no `new` | its Name cell gains `new` |
+  | `rowClass: ({ row }) => hot === row.id ? 'hot' : ''` | `hot` becomes `'r2'` | its `tr` loses `hot` | its `tr` gains `hot` |
+  | `cellClass: ({ row, column }) => column.id === 'code' && hot === row.id ? 'hot' : ''` | `hot` becomes `'r2'` | its Code cell loses `hot` | its Code cell gains `hot` |
+  | `rowClass: ({ row }) => row.name === 'Beta' ? 'hot' : row.name === 'gamma' ? 'new' : ''` | `rows` given again with r1 the same object and r2 a new object `{ id: 'r2', name: 'gamma', code: 'A-1' }` | its `tr` keeps `hot` | its `tr` gains `new` |
+  | `cellClass: ({ row, column }) => column.id === 'name' && row.name === 'gamma' ? 'new' : ''` | as the row above | its Name cell holds no `new` | its Name cell gains `new` |
 
 - Reason: a changed row is a new row object, and a hook is called again when reactive state it reads changes
   (PRD-T8).
@@ -5069,6 +5119,7 @@ pointer.
 | RND-15 | PRD-B1 |
 | RND-16 | PRD-B1 |
 | RND-17 | PRD-B16, PRD-S4 |
+| RND-18 | PRD-K3 |
 | RND-06 | PRD-I1, PRD-I2 |
 | RND-07 | PRD-B3 |
 | RND-11 | PRD-B3 |
@@ -5472,7 +5523,7 @@ state in their own statements.
 | PRD-T7 | THEME-23, THEME-31 | in full |
 | PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
 | PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
-| PRD-K3 | THEME-09, THEME-48 | in part: the public classes on their elements; the documented ARIA state selectors and what counts as breaking are not stated yet |
+| PRD-K3 | THEME-09, THEME-48, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 

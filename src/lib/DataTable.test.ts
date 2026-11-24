@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/svelte";
+import type { Snippet } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import CellSnippetTable from "../../test/CellSnippetTable.svelte";
 import { inProduction, useConsoleErrors } from "../../test/console-spy.ts";
@@ -9,6 +10,7 @@ import type {
   DataTableMessages,
   DataTableProps,
   DataTableStatus,
+  PaginationProps,
 } from "./types.ts";
 
 interface Item {
@@ -19,12 +21,12 @@ interface Item {
 const idColumn: DataTableColumn<Item> = {
   id: "id",
   label: "Id",
-  value: (row) => row.id,
+  value: ({ row }) => row.id,
 };
 const nameColumn: DataTableColumn<Item> = {
   id: "name",
   label: "Name",
-  value: (row) => row.name,
+  value: ({ row }) => row.name,
 };
 
 const noteColumn: DataTableColumn<Item> = {
@@ -57,7 +59,7 @@ function cellTexts(): string[][] {
 const base: DataTableProps<Item> = {
   rows: [{ id: "r1", name: "Beta" }],
   columns: [nameColumn],
-  getRowId: (row) => row.id,
+  getRowId: ({ row }) => row.id,
   caption: "Orders",
   regionLabel: "Orders table",
 };
@@ -134,7 +136,7 @@ function liveCount(component: HTMLElement): Element | null {
 const codeColumn: DataTableColumn<Item> = {
   id: "code",
   label: "Code",
-  value: (row) => row.id,
+  value: ({ row }) => row.id,
 };
 
 // The five states of RND-14 and of EXP-01 and EXP-02
@@ -207,19 +209,27 @@ describe("A11Y-02", () => {
   });
 });
 
-// @spec("RND-08", "e3e4bdfc")
+// @spec("RND-08", "770b0327")
 describe("RND-08", () => {
-  it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
-    show({ columns: [idColumn, nameColumn] });
+  it("shows what value returns for { row } as the text of a cell of a column without a cell snippet", () => {
+    const value = vi.fn(({ row }: { row: Item }) => row.name);
+    show({ columns: [idColumn, { ...nameColumn, value }] });
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
     // Each column's own value: the id cell holds r1, not the first column's value repeated
     expect(cellTexts()).toEqual([["r1", "Beta"]]);
+    // Every call received one object holding the given row itself
+    expect(value.mock.calls.length).toBeGreaterThan(0);
+    for (const call of value.mock.calls) {
+      expect(call).toHaveLength(1);
+      expect(Object.keys(call[0])).toEqual(["row"]);
+      expect(call[0].row).toBe(base.rows[0]);
+    }
   });
 });
 
-// @spec("RND-02", "9a4c8ebf")
+// @spec("RND-02", "218989a0")
 describe("RND-02", () => {
-  it("renders the cell snippet, called with the row and the column id, in each of its cells", () => {
+  it("renders the cell snippet, called with one object { row, column }, in each of its cells", () => {
     render(CellSnippetTable, {
       rows: [
         { id: "r1", name: "Beta" },
@@ -298,7 +308,7 @@ describe("RND-16", () => {
   const cityColumn: DataTableColumn<Item> = {
     id: "city",
     label: "City",
-    value: (row) => `City ${row.id}`,
+    value: ({ row }) => `City ${row.id}`,
   };
   // The header cell, then the cell in each body row (every row after the header row), of the column with the given label
   function columnElements(label: string): HTMLElement[] {
@@ -410,7 +420,7 @@ describe("STATE-21", () => {
   });
 });
 
-// @spec("RND-03", "19d03ec8")
+// @spec("RND-03", "37a55b4d")
 describe("RND-03", () => {
   const places: [
     string,
@@ -477,7 +487,7 @@ const twoRows: Item[] = [
 ];
 
 function column(id: string, label: string): DataTableColumn<Item> {
-  return { id, label, value: (row) => row.name };
+  return { id, label, value: ({ row }) => row.name };
 }
 
 function unreadable(): string {
@@ -593,7 +603,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
   ],
   [
     'two rows share an id in its text form, 1 and "1"',
-    { rows: twoRows, getRowId: (row) => (row.id === "r1" ? 1 : "1") },
+    { rows: twoRows, getRowId: ({ row }) => (row.id === "r1" ? 1 : "1") },
     "rowIdDuplicate",
   ],
   ["getRowId throws", { getRowId: unreadable }, "rowIdUnreadable"],
@@ -632,7 +642,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
     "several faults: an empty row id, then a row id that throws",
     {
       rows: twoRows,
-      getRowId: (row) => (row.id === "r2" ? unreadable() : ""),
+      getRowId: ({ row }) => (row.id === "r2" ? unreadable() : ""),
     },
     "rowIdEmpty",
   ],
@@ -687,7 +697,7 @@ const rnd05Rows: [string, Partial<DataTableProps<Item>>, FaultCode][] = [
     "several faults: two rows sharing an id, then a row id that throws",
     {
       rows: [...twoRows, { id: "r3", name: "Gamma" }],
-      getRowId: (row) => (row.id === "r3" ? unreadable() : "same"),
+      getRowId: ({ row }) => (row.id === "r3" ? unreadable() : "same"),
     },
     "rowIdDuplicate",
   ],
@@ -713,7 +723,7 @@ describe("RND-05", () => {
   );
 
   it("takes finite numbers as row ids: the table and no alert", () => {
-    show({ rows: twoRows, getRowId: (row) => (row.id === "r1" ? 0 : 1) });
+    show({ rows: twoRows, getRowId: ({ row }) => (row.id === "r1" ? 0 : 1) });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(firstCells()).toEqual(["Alpha", "Beta"]);
   });
@@ -1554,5 +1564,95 @@ describe("DataTableColumn's type", () => {
       DataTableColumn<Item>
     > = false;
     expect(neither).toBe(false);
+  });
+});
+
+// Compiles only while T is never; an error prints T, here the keys the guard found
+type None<T extends never> = T;
+// A stand-in row: a parameter of exactly this type is the row itself
+interface RowMark {
+  readonly rowMark: true;
+}
+// The keys, at any depth, whose function or snippet breaks RND-18: two or more parameters, the row itself, or an
+// argument object that is not read-only
+type Broken<T> = T extends (...args: infer A) => unknown
+  ? A["length"] extends 0 | 1
+    ? A extends [infer P]
+      ? [P] extends [RowMark]
+        ? true
+        : P extends readonly unknown[]
+          ? never
+          : P extends object
+            ? Same<P, Readonly<P>> extends true
+              ? never
+              : true
+            : never
+      : never
+    : true
+  : T extends readonly (infer E)[]
+    ? Broken<E>
+    : T extends object
+      ? {
+          [K in keyof T]-?: [Broken<NonNullable<T[K]>>] extends [never]
+            ? never
+            : K;
+        }[keyof T]
+      : never;
+
+// @spec("RND-18", "c28e0dbf")
+describe("RND-18", () => {
+  const given: Item[] = [
+    { id: "r1", name: "Beta" },
+    { id: "r2", name: "Gamma" },
+  ];
+
+  it("passes getRowId one object holding the given row itself", () => {
+    const getRowId = vi.fn(({ row }: { row: Item }) => row.id);
+    render(DataTable<Item>, { ...base, rows: given, getRowId });
+    expect(getRowId.mock.calls.length).toBeGreaterThan(0);
+    for (const call of getRowId.mock.calls) {
+      expect(call).toHaveLength(1);
+      expect(Object.keys(call[0])).toEqual(["row"]);
+      expect(given).toContain(call[0].row);
+    }
+    for (const row of given)
+      expect(getRowId.mock.calls.some(([arg]) => arg.row === row)).toBe(true);
+  });
+
+  it("passes the cell snippet the given row and the given column themselves", () => {
+    render(CellSnippetTable, { rows: given, identity: true });
+    expect(screen.getAllByText("given row and column")).toHaveLength(2);
+  });
+
+  it("types every function and snippet of the props with at most one argument, read-only if an object", () => {
+    // Each line compiles only while its check holds: the svelte step checks it, and an error prints the keys
+    const found: [
+      None<Broken<DataTableProps<RowMark>>>[],
+      None<Broken<PaginationProps>>[],
+    ] = [[], []];
+    // Each planted break is found: a guard that finds nothing makes these lines type errors
+    const canaries: [
+      Same<Broken<{ on: (a: string, b: number) => void }>, "on">,
+      Same<Broken<{ value: (row: RowMark) => string }>, "value">,
+      Same<Broken<{ cell: Snippet<[RowMark, string]> }>, "cell">,
+      Same<Broken<{ f: (x: { a: string }) => void }>, "f">,
+      // Found at depth: in a list, in an optional property, and in a nested object
+      Same<
+        Broken<{ c: readonly { v: (a: string, b: number) => void }[] }>,
+        "c"
+      >,
+      Same<Broken<{ f?: (r: RowMark) => void }>, "f">,
+      Same<Broken<{ m: { n: { f: (a: string, b: number) => void } } }>, "m">,
+      // Not found: the shapes RND-18 allows
+      Same<Broken<{ a: Snippet<[]>; b: (n: number) => void }>, never>,
+      Same<Broken<{ f: (x: { readonly row: RowMark }) => void }>, never>,
+      Same<Broken<{ f: (xs: string[]) => void }>, never>,
+      Same<
+        Broken<{ s: Snippet<[{ readonly row: RowMark; readonly c: string }]> }>,
+        never
+      >,
+    ] = [true, true, true, true, true, true, true, true, true, true, true];
+    // The type step is what proves the guard; the call only keeps both values in use
+    expect([found, canaries]).toHaveLength(2);
   });
 });
