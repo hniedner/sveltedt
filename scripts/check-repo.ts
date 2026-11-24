@@ -620,14 +620,18 @@ function lockfileProblems(root: string, list: Set<string>): string[] {
     : [`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`, ...sources];
 }
 
+/** One problem for each development dependency whose version is not exact. */
+const devRangeProblems = (pkg: PackageJson): string[] =>
+  Object.entries(pkg.devDependencies ?? {})
+    .filter(([, v]) => !EXACT.test(v))
+    .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+
 /** Private, exact development dependencies; what ships is `esm-env` and a svelte peer (PRD-S5, SUP-04). */
 function packageProblems(pkg: PackageJson, esmEnv: string): string[] {
   // Until the packaging pull request removes it with its statement, a stray publish fails on the manifest.
   const open =
     pkg.private === true ? [] : ['package.json: not "private": true'];
-  const ranges = Object.entries(pkg.devDependencies ?? {})
-    .filter(([, v]) => !EXACT.test(v))
-    .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+  const ranges = devRangeProblems(pkg);
   // SUP-04: `esm-env`, with the range the installed Svelte declares, and nothing else
   const given = pkg.dependencies ?? {};
   const deps = [
@@ -724,9 +728,7 @@ function workspaceProblems(root: string): string[] {
         .filter(([, v]) => v !== "workspace:*")
         .map(([n, v]) => `${kind}: ${n} is "${v}", not "workspace:*"`),
     );
-    const ranges = Object.entries(pkg.devDependencies ?? {})
-      .filter(([, v]) => !EXACT.test(v))
-      .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+    const ranges = devRangeProblems(pkg);
     return [...links, ...ranges].map((p) => `${file}: ${p}`);
   });
 }
