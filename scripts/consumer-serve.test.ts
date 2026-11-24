@@ -331,8 +331,16 @@ test(
       env: { ...process.env, TMPDIR: mine },
       stdio: ["ignore", "pipe", "pipe"],
     });
-    after(() => child.kill("SIGKILL"));
     const code = new Promise<number | null>((r) => child.on("close", r));
+    // SIGTERM first: the program's own handler stops its servers; SIGKILL alone would leave them bound to their ports
+    after(async () => {
+      child.kill("SIGTERM");
+      const ended = await Promise.race([
+        code,
+        new Promise((r) => setTimeout(r, 5000, "late").unref()),
+      ]);
+      if (ended === "late") child.kill("SIGKILL");
+    });
     await readyLine(child, "The consumer:");
     // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
     const log = join(HERE, "..", "test-results", "consumer-serve.log");
