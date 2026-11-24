@@ -67,7 +67,7 @@ function count(text: string | null): number | undefined {
     : undefined;
 }
 
-// The keys of the request the route reads
+// The keys the route may read: both columns' `orderable` keys, though only the ordered column's is used
 const READ = [
   "draw",
   "start",
@@ -84,8 +84,9 @@ const refuseRequest = (response: ServerResponse): void => {
 
 // The route's answer: `draw` as a number, the ordered list from `start`, at most `length` rows, both counts the whole
 // list. A request that is malformed, or asks for an unknown column or direction or a size of 0 or over 1000, is
-// refused with 400 and an empty body before any of it is used. So is a request that sends a key the route reads more
-// than once: PHP's `$_GET` keeps the last value and `get` the first, so neither is picked for an ambiguous request.
+// refused with 400 and an empty body before any of it is used. So is a request that sends a key the route can read
+// more than once: PHP's `$_GET` keeps the last value and `get` the first, so neither is picked for an ambiguous
+// request.
 function answerOrders(query: URLSearchParams, response: ServerResponse): void {
   if (READ.some((key) => query.getAll(key).length > 1)) {
     refuseRequest(response);
