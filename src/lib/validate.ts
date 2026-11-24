@@ -172,6 +172,7 @@ interface FilterInput {
   search?: unknown;
   searchDelay?: unknown;
   maxLength?: unknown;
+  // The shown label of the option of FILT-53; it takes part in the duplicate-label check
   emptyOption: string;
 }
 
@@ -186,13 +187,13 @@ function optionValues(filter: Record<string, unknown>): string[] {
   return filter["emptyOption"] === true ? [...values, ""] : values;
 }
 
-// One filter as its type says (FILT-32 rows 1 to 5); the label of FILT-53's option counts for the duplicate check
+// One filter as its type says (the filterInvalid rows of FILT-32); the label of FILT-53's option counts for the duplicate check
 function filterShapeFault(filter: unknown, emptyLabel: string): boolean {
-  if (!isObject(filter)) return true;
-  const { kind, emptyOption } = filter;
+  // Not null here; a filter that is no object has no kind, and is refused with the kinds that are none of the two
+  const { kind, emptyOption } = filter as Record<string, unknown>;
   if (kind === "text") return emptyOption === true;
   if (kind !== "categorical") return true;
-  const options = filter["options"];
+  const options = (filter as Record<string, unknown>)["options"];
   if (!isList(options) || (options as unknown[]).length === 0) return true;
   const given = options as unknown[];
   if (
@@ -252,28 +253,18 @@ function filterFault(input: FilterInput): TableFault | null {
   return bad ? "filterStateInvalid" : null;
 }
 
+// A whole number of at least `min`; Number.isInteger refuses everything that is no number, NaN and Infinity included
+const wholeFrom = (value: unknown, min: number): boolean =>
+  Number.isInteger(value) && (value as number) >= min;
+
 // The search, its delay and its length limit; the application sets the last two, so null is a fault for them
 function searchFault(input: FilterInput): TableFault | null {
   const { search, searchDelay, maxLength } = input;
   if (search !== undefined && search !== null && typeof search !== "string")
     return "searchInvalid";
-  if (
-    searchDelay !== undefined &&
-    !(
-      typeof searchDelay === "number" &&
-      Number.isInteger(searchDelay) &&
-      searchDelay >= 0
-    )
-  )
+  if (searchDelay !== undefined && !wholeFrom(searchDelay, 0))
     return "searchDelayInvalid";
-  if (
-    maxLength !== undefined &&
-    !(
-      typeof maxLength === "number" &&
-      Number.isInteger(maxLength) &&
-      maxLength >= 1
-    )
-  )
+  if (maxLength !== undefined && !wholeFrom(maxLength, 1))
     return "maxLengthInvalid";
   return null;
 }

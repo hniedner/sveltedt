@@ -92,15 +92,15 @@ export interface DataTableProps<Row> {
   onsort?: (next: DataTableSortEntry[]) => void;
   // The filters the server applied, by column id; the table shows them and never filters the rows itself
   filters?: Readonly<Record<string, DataTableFilterState>> | null;
-  // Called with the column and its next filter; required while any column has a filter (FILT-32)
+  // Called with the column and its next filter; with onclearfilter and onclearfilters required while any column has a filter (FILT-32)
   onfilter?: (change: { id: string; state: DataTableFilterState }) => void;
   onclearfilter?: (change: { id: string }) => void;
   onclearfilters?: () => void;
   // The applied global search; null is not given, as `sort` (FILT-32)
   search?: string | null;
-  // Milliseconds of typing pause before a filter emits, default 400; a whole number, 0 or more (FILT-32)
+  // Milliseconds of typing pause before a filter emits; a whole number, 0 or more (FILT-32)
   searchDelay?: number;
-  // The longest text a filter field accepts, default 255; a whole number, 1 or more (FILT-32)
+  // The longest text a filter field accepts; a whole number, 1 or more (FILT-32)
   maxLength?: number;
   heading?: Snippet;
   actions?: Snippet;
