@@ -1045,6 +1045,9 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     "    steps:\n      - continue-on-error: true\n        run: node",
     "    steps:\n      - run: node scripts/check-repo.ts browser\n        continue-on-error: true\n      - run: node",
     "    steps:\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
+    // An upload after the step: only the one exact condition is allowed, not another one, and not at job level
+    "    steps:\n      - run: node scripts/check-repo.ts browser\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
+    "    if: ${{ !cancelled() }}\n    steps:\n      - run: node",
   ]) {
     const ci = browserJob(leavesBrowser).replace(
       "    steps:\n      - run: node",
@@ -1060,7 +1063,12 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     "- run: node",
     "- name: Browser\n        run: node",
   );
-  expect("gate-needs", repo(ciWith(named)), 0);
+  expect("gate-needs", repo(ciWith(named)), 0); // The results' upload runs under `if: ${{ !cancelled() }}` on a step of its own: that exact line cannot skip the step
+  const upload = browserJob(leavesBrowser).replace(
+    "      - run: node scripts/check-repo.ts browser\n",
+    `      - run: node scripts/check-repo.ts browser\n      - name: Upload the results\n        if: \${{ !cancelled() }}\n        uses: actions/upload-artifact@${"a".repeat(40)} # v7.0.2\n`,
+  );
+  expect("gate-needs", repo(ciWith(upload)), 0);
 });
 test("gate-needs: the browser job runs in Playwright's image of the version @playwright/test is pinned to", () => {
   // Another version in the tag, and a range in package.json, are findings
