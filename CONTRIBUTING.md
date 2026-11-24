@@ -57,9 +57,10 @@ The checks today:
   `scripts/shards.ts`, and `scripts/shards.test.ts` fails locally while one is in none or in two, or while an entry is
   not a tracked file; in CI the step fails too. A fourth shard also needs the matrix of the job `selftest` in
   `.github/workflows/ci.yml`, which gate-needs checks).
-- **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
-  each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
-  as dependencies, optional or peer dependencies, and exact development versions;
+- **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
+  declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
+  indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or
+  peer dependencies, and exact development versions;
   every package from the registry by hash; pnpm's release age equals Dependabot's shortest npm cooldown, and every
   exception names exact versions and its advisory.
 - **licences:** every installed package's licence is on the allow list in `dependency-review.yml`; one pnpm cannot
