@@ -28,9 +28,9 @@ import {
   tempDir,
 } from "./check-repo.fixture.ts";
 
-// The finding rows share one lint run: ESLint reports each file on its own line, a run costs about 2.5 s (measured)
-// and 75 more files add 0.45 s (measured); the run holds about 100 planted files. A case plants its own path before
-// the run starts and reads that file's line.
+// The finding rows share one lint run: check-repo prints each finding as one line that starts with its file's path, a
+// run costs about 2.5 s (measured) and 75 more files add 0.45 s (measured); the run holds about 100 planted files. A
+// case plants its own path before the run starts and looks for its text on that file's lines.
 const planted = new Map<string, string>();
 let sharedOut: string | undefined;
 const plant = (file: string, text: string): string => {
@@ -490,6 +490,7 @@ const BAN_MARKUP = [
   ),
   ban,
 ]);
+// A clean component beside the ban components; no row asserts on it.
 plant("src/Count.svelte", COMPONENT);
 test("lint: every name a ban lists is a finding of that ban", () => {
   for (const [file, ban] of [...BAN_SCRIPTS, ...BAN_MARKUP])
