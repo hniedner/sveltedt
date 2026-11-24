@@ -305,7 +305,7 @@ function browserContainer(
       pin === tag
         ? []
         : [
-            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (docker buildx imagetools inspect mcr.microsoft.com/playwright:v${pin}-noble)`,
+            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (the digest: curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json' https://mcr.microsoft.com/v2/playwright/manifests/v${pin}-noble, header docker-content-digest)`,
           ],
   };
 }

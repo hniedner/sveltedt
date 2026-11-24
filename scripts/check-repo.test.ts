@@ -1019,7 +1019,7 @@ test("gate-needs: the browser job runs in Playwright's image of the version @pla
   // The finding says how to fix it: a Playwright bump also moves the image
   assert.match(
     expect("gate-needs", repo(ciWith(browserJob(CI), "1.66.0")), 1),
-    /update the image of the job browser in \.github\/workflows\/ci\.yml \(docker buildx imagetools inspect mcr\.microsoft\.com\/playwright:v1\.66\.0-noble\)/,
+    /update the image of the job browser in \.github\/workflows\/ci\.yml \(the digest: curl -sI -H 'Accept: application\/vnd\.oci\.image\.index\.v1\+json' https:\/\/mcr\.microsoft\.com\/v2\/playwright\/manifests\/v1\.66\.0-noble, header docker-content-digest\)/,
   );
 });
 test("gate-needs: a browser job whose image cannot be read is could-not-check", () => {
