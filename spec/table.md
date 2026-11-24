@@ -475,6 +475,7 @@ neither `status 'loading'` nor `busy` true holds.
   | at 1100 ms `status 'failed'` | 1499 ms | 1500 ms |
   | at 2000 ms `status 'ready'` with two rows, `busy false` | 1999 ms | 2000 ms |
   | at 2000 ms `status 'stopped'` | 1999 ms | 2000 ms |
+  | at 1100 ms `status 'ready'` with two rows, `busy false`; at 1200 ms `status 'loading'`; at 2500 ms `status 'ready'` with two rows, `busy false` | 2499 ms | 2500 ms |
 
 - Reason: an indicator that blinks for a frame reads as a glitch; once the answer is there and the minimum has passed,
   nothing is in progress any more (PRD-B22).
@@ -1190,7 +1191,7 @@ anything to the document head.
 **FOOT-05** After unmount, the table MUST leave no timer pending.
 - Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
   unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
-  `status 'ready'` (inside the indicator's 500 ms); at 6000 ms (the still-loading text and "Cancel" shown).
+  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown).
 - Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
   first to time anything (PRD-B22).
 - Layer: component.
