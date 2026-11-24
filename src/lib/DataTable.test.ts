@@ -915,6 +915,7 @@ describe("A11Y-05", () => {
     ["ready", true, 0, ""],
     ["loading", false, 2, ""],
     ["failed", false, 0, ""],
+    ["stopped", false, 0, ""],
   ])(
     "with status %s, busy %s and %i rows, the live count says %j",
     (status, busy, count, text) => {
