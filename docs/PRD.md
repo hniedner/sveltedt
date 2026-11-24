@@ -44,7 +44,7 @@
   acceptance of a release preview before every publish (PRD-S7); PRD-A5 automated (CI-driven screen readers, a person
   listens once before 1.0); PRD-A8's Firefox contrast check in CI; Q6 amended (no local Windows machine); PRD-E1's
   branded Chrome and Edge channels.
-  Amended by the owner on 2026-11-23 ("yes on each!"): PRD-T8's class hooks take one object, `rowClass({ row })` and
+  Amended by the owner on 2026-11-23 at 21:03 PST ("yes on each!"): PRD-T8's class hooks take one object, `rowClass({ row })` and
   `cellClass({ row, column })`, `column` being the column definition with its `id` (ruling 3 of #190).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
