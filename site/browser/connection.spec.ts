@@ -118,3 +118,39 @@ test("CPAGE-04: pressing the Order header loads the first page in that order wit
     query?.get("order[0][dir]"),
   ]).toEqual(["3", "0", "10", "1", "asc"]);
 });
+
+// @spec("CPAGE-05", "5809732e")
+test("CPAGE-05: choosing a size loads the page of that size that holds the first row shown", async ({
+  page,
+}) => {
+  const requests = routeRequests(page);
+  await open(page, "/connection.html");
+  await expect(rowsOf(page)).toHaveText(FIRST_PAGE);
+  const size = page.getByRole("combobox", { name: "rows per page" });
+  await size.selectOption("5");
+  await expect(rowsOf(page)).toHaveCount(5);
+  expect(requests).toHaveLength(2);
+  expect([
+    requests[1]?.searchParams.get("start"),
+    requests[1]?.searchParams.get("length"),
+  ]).toEqual(["0", "5"]);
+  await page.getByRole("button", { name: "Page 4" }).click();
+  await expect(rowsOf(page).first()).toHaveText("Order 19");
+  expect(requests).toHaveLength(3);
+  expect([
+    requests[2]?.searchParams.get("start"),
+    requests[2]?.searchParams.get("length"),
+  ]).toEqual(["15", "5"]);
+  await size.selectOption("10");
+  await expect(rowsOf(page)).toHaveText(SECOND_PAGE);
+  await expect(
+    page.getByRole("navigation", { name: "Orders pages" }),
+  ).toContainText("Showing 11 to 20 of 20 rows");
+  expect(requests).toHaveLength(4);
+  const query = requests[3]?.searchParams;
+  expect([
+    query?.get("draw"),
+    query?.get("start"),
+    query?.get("length"),
+  ]).toEqual(["4", "10", "10"]);
+});

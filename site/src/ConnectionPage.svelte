@@ -60,7 +60,9 @@
       limit={connection.pager.limit}
       total={connection.pager.total}
       unfilteredTotal={connection.pager.unfilteredTotal}
+      sizes={[5, 10, 25]}
       onpage={connection.pager.onpage}
+      onsize={connection.pager.onsize}
       label="Orders pages"
     />
   {/if}
