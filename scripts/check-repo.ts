@@ -512,6 +512,26 @@ function actionlint(root: string, list: Set<string>): Result {
   );
 }
 
+// The `not ok` lines of a TAP stream, each followed by the error its test reported: node writes it under the line as
+// `error: <value>` or as an `error: |-` block of lines indented deeper than the key
+function failureLines(tap: string): string[] {
+  const out: string[] = [];
+  let block = -1;
+  for (const l of tap.split("\n")) {
+    const indent = l.length - l.trimStart().length;
+    if (block >= 0 && (l.trim() === "" || indent > block)) {
+      if (l.trim() !== "") out.push(`    ${l.slice(block + 2)}`);
+      continue;
+    }
+    block = -1;
+    const error = /^(\s+)error: (.*)$/.exec(l);
+    if (/^\s*not ok /.test(l)) out.push(`  ${l.trim()}`);
+    else if (error && /^\|[-+]?$/.test(error[2])) block = error[1].length;
+    else if (error) out.push(`    ${error[2]}`);
+  }
+  return out;
+}
+
 async function runTestFile(
   root: string,
   file: string,
@@ -543,15 +563,12 @@ async function runTestFile(
   if (!(tests > 0))
     return { code: CANNOT, line: `${file}: no test ran (${end})` };
   if (r.status !== 0 || fail > 0 || pass !== tests) {
-    const failed = r.stdout
-      .split("\n")
-      .filter((l) => /^\s*not ok /.test(l))
-      .map((l) => `  ${l.trim()}`);
     return {
       code: FINDING,
-      line: [`${file}: ${fail} of ${tests} failed (${end})`, ...failed].join(
-        "\n",
-      ),
+      line: [
+        `${file}: ${fail} of ${tests} failed (${end})`,
+        ...failureLines(r.stdout),
+      ].join("\n"),
     };
   }
   // The wall seconds of a passing file (rounded, node start-up included) are what the shard table in scripts/shards.ts
