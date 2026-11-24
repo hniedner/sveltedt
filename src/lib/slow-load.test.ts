@@ -95,6 +95,18 @@ describe("STATE-09", () => {
   });
 });
 
+describe("STATE-09, a rerender that changes neither status nor busy", () => {
+  it("leaves the 1000 ms running", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(600);
+    await table.change({ status: "loading", rows: twoRows, caption: "Late" });
+    await table.at(999);
+    expect(table.present()).toBe(false);
+    await table.at(1000);
+    expect(table.present()).toBe(true);
+  });
+});
+
 // @spec("STATE-10", "fe290072")
 describe("STATE-10", () => {
   // Mounted loading, so the indicator appears at 1000 ms; the answer comes at `answerAt`
@@ -124,6 +136,14 @@ describe("STATE-10", () => {
       expect(table.present()).toBe(false);
     },
   );
+
+  it("removes the indicator when busy ends with the status ready", async () => {
+    const table = mount({ rows: twoRows, busy: true });
+    await table.at(2000);
+    expect(table.present()).toBe(true);
+    await table.change({ rows: twoRows, busy: false });
+    expect(table.present()).toBe(false);
+  });
 
   it("keeps the indicator when loading resumes inside the minimum, until the next answer", async () => {
     const table = mount({ status: "loading" });
