@@ -33,6 +33,7 @@ export interface DataTableMessages {
   readonly failed: string;
   readonly empty: string;
   readonly stopped: string;
+  readonly stillLoading: string;
   readonly rowCount: (count: number) => string;
   readonly captionEmpty: string;
   readonly regionLabelEmpty: string;

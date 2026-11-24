@@ -47,6 +47,8 @@ function mount(first: Partial<DataTableProps<Item>>) {
     },
     present: (): boolean =>
       view.container.querySelector("[data-sdt-progress]") !== null,
+    still: (): boolean =>
+      (view.container.textContent ?? "").includes("Still loading"),
   };
 }
 
@@ -154,6 +156,56 @@ describe("STATE-11", () => {
   });
 });
 
+// @spec("STATE-12", "e4b5242e")
+describe("STATE-12", () => {
+  it("shows the text at 6000 ms of loading, not at 5999 ms", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(5999);
+    expect(table.still()).toBe(false);
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+  });
+
+  it("shows the text at 6000 ms of busy", async () => {
+    const table = mount({ rows: twoRows, busy: true });
+    await table.at(5999);
+    expect(table.still()).toBe(false);
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+  });
+
+  it("removes the text with the answer at 7000 ms", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(6999);
+    expect(table.still()).toBe(true);
+    await table.at(7000);
+    await table.change({ rows: twoRows });
+    expect(table.still()).toBe(false);
+  });
+
+  it("removes the text and the indicator with a failure at 6100 ms", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(6099);
+    expect(table.still()).toBe(true);
+    await table.at(6100);
+    await table.change({ status: "failed" });
+    expect(table.still()).toBe(false);
+    expect(table.present()).toBe(false);
+  });
+
+  it("runs the 5 s from the first appearance when loading resumes inside the minimum", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(1100);
+    await table.change({ rows: twoRows });
+    await table.at(1200);
+    await table.change({ status: "loading" });
+    await table.at(5999);
+    expect(table.still()).toBe(false);
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+  });
+});
+
 // @spec("FOOT-05", "9f08d2c3")
 describe("FOOT-05", () => {
   // Mounted loading; `answer` is the status at 1100 ms, if any; the table is unmounted at `unmountAt`
@@ -174,4 +226,12 @@ describe("FOOT-05", () => {
       expect(vi.getTimerCount()).toBe(0);
     },
   );
+
+  it("leaves no timer pending when unmounted at 5999 ms, before the still-loading text", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(5999);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    table.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

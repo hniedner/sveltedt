@@ -79,15 +79,19 @@
   );
   // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
   const pending = $derived(fault === null && (status === "loading" || busy));
-  // The progress indicator is in the component; it is inside its 500 ms minimum (PRD-B2)
+  // The progress indicator is in the component; it is inside its 500 ms minimum; the still-loading text is shown (PRD-B2)
   let shown = $state(false);
   // Stryker disable next-line BooleanLiteral: equivalent, held is read only after shown is set
   let held = $state(false);
+  let still = $state(false);
   // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
-  // the minimum has passed, the indicator goes (STATE-10)
+  // the minimum has passed, the indicator goes (STATE-10) and the still-loading text with it (STATE-12)
   $effect(() => {
     if (!pending) {
-      if (!held) shown = false;
+      if (!held) {
+        shown = false;
+        still = false;
+      }
       return;
     }
     if (shown) return;
@@ -97,11 +101,16 @@
     }, 1000);
     return () => clearTimeout(delay);
   });
-  // While the indicator is shown: its 500 ms minimum (STATE-10), ended when it goes or the table unmounts (FOOT-05)
+  // While the indicator is shown: its 500 ms minimum (STATE-10) and the still-loading text 5 s after it appeared
+  // (STATE-12), both ended when it goes or the table unmounts (FOOT-05)
   $effect(() => {
     if (!shown) return;
     const minimum = setTimeout(() => (held = false), 500);
-    return () => clearTimeout(minimum);
+    const long = setTimeout(() => (still = true), 5000);
+    return () => {
+      clearTimeout(minimum);
+      clearTimeout(long);
+    };
   });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
@@ -125,6 +134,7 @@
      their text is announced -->
   <div role="status">
     {fault === null && status === "loading" ? words.loading : ""}
+    {#if still}<div>{words.stillLoading}</div>{/if}
   </div>
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
