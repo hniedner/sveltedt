@@ -1462,6 +1462,22 @@ test("selftest: a failing test is a finding", () => {
     1,
   );
 });
+test("selftest: under each failed test, its error text is printed", () => {
+  const failing = PASSING_TEST.replace(
+    "() => {}",
+    '() => { throw new Error("planted"); });\ntest("block", () => { throw new Error("first line\\nsecond line"); }',
+  );
+  const out = expect(
+    "selftest",
+    repo((root) => put(root, "scripts/check-repo.test.ts", failing)),
+    1,
+  );
+  assert.match(out, /not ok 1 - [^\n]*\n\s+'?planted'?\n/);
+  assert.match(out, /not ok 2 - block\n\s+first line\n\s+second line\n/);
+  // The block ends with the error: the keys after it (code, stack, duration) are not printed
+  assert.match(out, /second line\n(?!\s+(?:code|stack|duration_ms))/);
+  assert.doesNotMatch(out, /ERR_TEST_FAILURE/);
+});
 test("selftest: a test file that holds no test cannot be checked", () => {
   expect(
     "selftest",
@@ -1667,7 +1683,7 @@ test("a ends last", () => {
   );
   assert.match(
     out,
-    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
+    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n {2}not ok [^\n]*\n(?: {4}.*\n)+ {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
   );
 });
 test("selftest: a test file killed by a signal cannot be checked, and its line names the signal", () => {

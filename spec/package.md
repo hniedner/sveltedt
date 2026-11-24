@@ -198,10 +198,14 @@ each naming a file the tarball holds.
   | the same line planted in `dist/index.js` | finding |
   | `import type { T } from "./types.ts";` planted in a `.d.ts` file | passes (declaration files are not run) |
 
-  When no `.svelte` or `.js` file is read, the check reports "could not check". Break that turns it red: a `.ts`
-  specifier left in a `.svelte` file of `src/lib`.
-- Reason: `svelte-package` rewrites `.ts` specifiers in `.ts` files but not inside `.svelte` files, so a consumer's
-  build fails with an unresolved import, and publint does not see it (MEASURED 2026-11-23, svelte-package 3.0.3).
+  When no `.svelte` or `.js` file is read, the check reports "could not check". Breaks that turn it red: a `.ts`
+  specifier left in a `.svelte` file of `src/lib`, or a value import ending in `.ts` in a `.ts` module of `src/lib`,
+  including the inline-type import `import { type X } from "./x.ts"`, which TypeScript keeps as
+  `import {} from "./x.ts"`.
+- Reason: `svelte-package` leaves relative specifiers as written unless `rewriteRelativeImportExtensions` is set,
+  which this package does not set, and TypeScript erases only `import type` and `export type` (with
+  `verbatimModuleSyntax`, which this package sets); a `.ts` specifier in a built file fails a consumer's build with an
+  unresolved import, and publint does not see it (MEASURED 2026-11-24, svelte-package 3.0.3, TypeScript 6.0.3).
 - Layer: pack.
 - Traces: PRD-K2.
 

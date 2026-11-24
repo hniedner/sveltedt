@@ -56,7 +56,10 @@ The checks today:
   `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard in
   `scripts/shards.ts`, and `scripts/shards.test.ts` fails locally while one is in none or in two, or while an entry is
   not a tracked file; in CI the step fails too. A fourth shard also needs the matrix of the job `selftest` in
-  `.github/workflows/ci.yml`, which gate-needs checks).
+  `.github/workflows/ci.yml`, which gate-needs checks). The consumer-serve tests wait for the program's ready line
+  with `readyLine`, which fails at once when the child ends first, naming its exit and what it printed; the program
+  test that runs the real preparation has a timeout of 120 s. A failing file's lines name each failed test with the
+  error it reported.
 - **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
   declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
   indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or
@@ -145,9 +148,11 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   code) clean, PKG-03 only the listed files, PKG-04 `LICENSE` and `NOTICE` equal the repository's, PKG-05 the
   `./styles.css` export, PKG-06 the `./connection` export (exactly `types` and `svelte`, each a file the tarball
   holds, not that the file is the module: publint and attw read the module), PKG-07 no relative `.ts` import in a
-  `.svelte` or `.js` file (every relative import inside a `.svelte.ts` module, and every import of one, uses the
-  `.js` ending, as in `./request.js`: `svelte-package` leaves them as written, and its docs say to import `.ts`
-  files "using a `.js` file ending, not a `.ts` file ending", svelte.dev/docs/kit/packaging). Findings come first,
+  `.svelte` or `.js` file (every relative value import in a module or component of `src/lib` ends in `.js` (a
+  component's in `.svelte`), as in `./request.js`; only `import type` and `export type` may name a `.ts` file,
+  because TypeScript erases them, while `import { type X }` stays as an import and takes `.js`; `svelte-package`
+  leaves specifiers as written, and its docs say to import `.ts` files "using a `.js` file ending, not a `.ts` file
+  ending", svelte.dev/docs/kit/packaging). Findings come first,
   then every canary row on a copy of the real contents; it cannot be checked if one gives another result, the build
   or pack fails, or no `.svelte` or `.js` file is read. Limits: no CI run at the Svelte peer floor (#159); attw skips
   node16 on the `.svelte` re-exports (CON-04 proves the types). NOT APPLICABLE with nothing tracked under `src/lib`.

@@ -1,7 +1,8 @@
 // Tests for consumer-serve.ts. The servers of a copy are faked by two small scripts, so every branch of `start` runs in
 // well under a second; the script's own exits are run through the program.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 import { createServer } from "node:net";
 import {
   chmodSync,
@@ -27,6 +28,29 @@ const free = (): Promise<number> =>
       const { port } = s.address() as { port: number };
       s.close(() => resolve(port));
     });
+  });
+// The first stdout line of `child` that starts with `prefix`. A child that ends before it fails the test at once,
+// with its exit and both streams: the program's reason is on stdout, and a wait with no end hung the gate.
+const readyLine = (
+  child: ChildProcessByStdio<null, Readable, Readable>,
+  prefix: string,
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d: Buffer) => {
+      out += String(d);
+      const line = out.split("\n").find((l) => l.startsWith(prefix));
+      if (line !== undefined) resolve(line);
+    });
+    child.stderr.on("data", (d: Buffer) => (err += String(d)));
+    child.on("close", (code, signal) =>
+      reject(
+        new Error(
+          `the program ended (exit ${code ?? signal}) before "${prefix}"\nstdout: ${out}\nstderr: ${err}`,
+        ),
+      ),
+    );
   });
 // True once nothing answers on `port` (polled for 3 s: a stopped server takes a moment to go)
 async function closed(port: number): Promise<boolean> {
@@ -296,51 +320,88 @@ test(
     );
   },
 );
-test("the program: SIGTERM after both servers answer ends them and removes the copy", async () => {
-  const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
-  after(() => rmSync(mine, { recursive: true, force: true }));
-  const began = Date.now();
-  const child = spawn(process.execPath, [join(HERE, "consumer-serve.ts")], {
-    env: { ...process.env, TMPDIR: mine },
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  const code = new Promise<number | null>((r) => child.on("close", r));
-  await new Promise<void>((ready) =>
-    child.stdout.on(
-      "data",
-      (d: Buffer) => String(d).startsWith("The consumer:") && ready(),
-    ),
-  );
-  // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
-  const log = join(HERE, "..", "test-results", "consumer-serve.log");
-  const text = await holds(log, [
-    "the development server: ",
-    "the production server: ",
-  ]);
-  child.kill("SIGTERM");
-  assert.equal(await code, 0);
-  // Written by this run: a log left by an earlier run would hold the same lines
-  assert.ok(statSync(log).mtimeMs >= began, "the log is not this run's");
-  assert.match(text, /^\S+ the development server: /m);
-  assert.match(text, /^\S+ the production server: /m);
-  assert.deepEqual(
-    readdirSync(mine).filter((n) => n.startsWith("consumer-serve-")),
-    [],
-  );
-  await assert.rejects(fetch("http://127.0.0.1:4174/"));
-});
-test("the program: an unknown argument is a usage error, a root without a consumer cannot be prepared (exit 3)", () => {
-  const run = (...args: string[]) =>
-    spawnSync(process.execPath, [join(HERE, "consumer-serve.ts"), ...args], {
-      encoding: "utf8",
+test(
+  "the program: SIGTERM after both servers answer ends them and removes the copy",
+  { timeout: 120_000 },
+  async () => {
+    const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
+    const began = Date.now();
+    const child = spawn(process.execPath, [join(HERE, "consumer-serve.ts")], {
+      env: { ...process.env, TMPDIR: mine },
+      stdio: ["ignore", "pipe", "pipe"],
     });
-  assert.equal(run("--nope").status, 2);
-  const empty = mkdtempSync(join(tmpdir(), "serve-root-"));
-  after(() => rmSync(empty, { recursive: true, force: true }));
-  const r = run("--root", empty);
-  assert.equal(r.status, 3);
-  assert.match(
-    r.stdout,
-    /^COULD NOT CHECK consumer-serve: svelte-package exited/m,
-  );
-});
+    const code = new Promise<number | null>((r) => child.on("close", r));
+    // node:test runs `after` hooks in registration order, and a throwing hook skips the later ones (rmSync can throw
+    // ENOTEMPTY while the servers still write), so this hook comes before the folder's. It waits for the program to end
+    // after SIGTERM, whose handler stops the servers; after 5 s it sends SIGKILL, which kills the program alone, leaves
+    // the servers bound to their ports, and returns without waiting.
+    after(async () => {
+      child.kill("SIGTERM");
+      const ended = await Promise.race([
+        code,
+        new Promise((r) => setTimeout(r, 5000, "late").unref()),
+      ]);
+      if (ended === "late") child.kill("SIGKILL");
+    });
+    after(() => rmSync(mine, { recursive: true, force: true }));
+    await readyLine(child, "The consumer:");
+    // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
+    const log = join(HERE, "..", "test-results", "consumer-serve.log");
+    const text = await holds(log, [
+      "the development server: ",
+      "the production server: ",
+    ]);
+    child.kill("SIGTERM");
+    assert.equal(await code, 0);
+    // Written by this run: a log left by an earlier run would hold the same lines
+    assert.ok(statSync(log).mtimeMs >= began, "the log is not this run's");
+    assert.match(text, /^\S+ the development server: /m);
+    assert.match(text, /^\S+ the production server: /m);
+    assert.deepEqual(
+      readdirSync(mine).filter((n) => n.startsWith("consumer-serve-")),
+      [],
+    );
+    await assert.rejects(fetch("http://127.0.0.1:4174/"));
+  },
+);
+test(
+  "the program: an unknown argument is exit 2; a root it cannot prepare ends before its ready line, at once, with exit 3 and its output",
+  { timeout: 10_000 },
+  async () => {
+    const usage = spawnSync(process.execPath, [
+      join(HERE, "consumer-serve.ts"),
+      "--nope",
+    ]);
+    assert.equal(usage.status, 2);
+    const empty = mkdtempSync(join(tmpdir(), "serve-root-"));
+    after(() => rmSync(empty, { recursive: true, force: true }));
+    const began = Date.now();
+    const child = spawn(
+      process.execPath,
+      [join(HERE, "consumer-serve.ts"), "--root", empty],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    after(() => child.kill("SIGKILL"));
+    await assert.rejects(
+      readyLine(child, "The consumer:"),
+      /exit 3\)[\s\S]*COULD NOT CHECK consumer-serve: svelte-package exited/,
+    );
+    assert.ok(
+      Date.now() - began < 5000,
+      "the program's end was not seen at once",
+    );
+  },
+);
+test(
+  "readyLine: a child that ends first fails with its exit and what it wrote to stderr",
+  { timeout: 10_000 },
+  async () => {
+    const child = spawn(
+      process.execPath,
+      ["-e", 'console.error("boom"); process.exit(4)'],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    after(() => child.kill("SIGKILL"));
+    await assert.rejects(readyLine(child, "x"), /exit 4\)[\s\S]*stderr: boom/);
+  },
+);
