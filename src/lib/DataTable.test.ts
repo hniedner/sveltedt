@@ -1127,8 +1127,11 @@ describe("STATE-22", () => {
 
 // @spec("RND-06", "d2591ea5")
 describe("RND-06", () => {
-  // The words of RND-06; the sort words are SORT-17's, the stopped message is STATE-26's
-  const foreign: Omit<DataTableMessages, `sort${string}` | "stopped"> = {
+  // The words of RND-06; the sort words are SORT-17's, the stopped and still-loading messages are STATE-26's
+  const foreign: Omit<
+    DataTableMessages,
+    `sort${string}` | "stopped" | "stillLoading"
+  > = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",
     empty: "Keine Daten.",
@@ -1245,6 +1248,19 @@ describe("RND-13", () => {
       expect(screen.getByRole("status").textContent.trim()).toBe("");
     },
   );
+
+  it("shows no progress indicator and no still-loading text beside the alert at 6000 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      const component = show({ columns: [], rows: [], status: "loading" });
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(component.querySelector("[data-sdt-progress]")).toBeNull();
+      expect(component.textContent).not.toContain("Still loading");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // @spec("RND-17", "048e2060")

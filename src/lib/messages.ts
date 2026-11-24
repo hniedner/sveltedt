@@ -10,6 +10,7 @@ export const defaultMessages: DataTableMessages = {
   failed: "The data could not be loaded.",
   empty: "No data.",
   stopped: "Loading stopped",
+  stillLoading: "Still loading",
   rowCount: (count) =>
     `${number.format(count)} ${count === 1 ? "row" : "rows"} displayed`,
   invalidInput: "This table cannot be shown.",

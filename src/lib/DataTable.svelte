@@ -83,6 +83,42 @@
       ? words.rowCount(rows.length)
       : "",
   );
+  // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
+  const pending = $derived(fault === null && (status === "loading" || busy));
+  // The slow-load state of PRD-B2: `shown` is the progress indicator being in the component, `held` its 500 ms
+  // minimum still running, `still` the still-loading text being shown
+  let shown = $state(false);
+  // Stryker disable next-line BooleanLiteral: equivalent, a wrongly true start only skips a reset of shown and still, which are false then
+  let held = $state(false);
+  let still = $state(false);
+  // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
+  // the minimum has passed, the indicator goes (STATE-10) and the still-loading text with it (STATE-12)
+  $effect(() => {
+    if (!pending) {
+      if (!held) {
+        shown = false;
+        still = false;
+      }
+      return;
+    }
+    if (shown) return;
+    const delay = setTimeout(() => {
+      shown = true;
+      held = true;
+    }, 1000);
+    return () => clearTimeout(delay);
+  });
+  // While the indicator is shown: its 500 ms minimum (STATE-10) and the still-loading text 5 s after it appeared
+  // (STATE-12), both ended when it goes or the table unmounts (FOOT-05)
+  $effect(() => {
+    if (!shown) return;
+    const minimum = setTimeout(() => (held = false), 500);
+    const long = setTimeout(() => (still = true), 5000);
+    return () => {
+      clearTimeout(minimum);
+      clearTimeout(long);
+    };
+  });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
     direction: SortDirection | null;
@@ -103,8 +139,9 @@
   {@render actions?.()}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
-  <div role="status">
+  <div role="status" aria-atomic="false">
     {fault === null && status === "loading" ? words.loading : ""}
+    {#if still}<div>{words.stillLoading}</div>{/if}
   </div>
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
@@ -113,6 +150,7 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
+    {#if shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table class="sdt-table" aria-busy={busy || status === "loading"}>
         <caption class="sdt-caption"
