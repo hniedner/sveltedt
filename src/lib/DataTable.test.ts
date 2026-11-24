@@ -410,7 +410,7 @@ describe("STATE-21", () => {
   });
 });
 
-// @spec("RND-03", "19d03ec8")
+// @spec("RND-03", "37a55b4d")
 describe("RND-03", () => {
   const places: [
     string,
