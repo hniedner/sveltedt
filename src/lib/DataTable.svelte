@@ -150,8 +150,8 @@
           </tr>
         </thead>
         <tbody>
-          <!-- STATE-20, STATE-28: stopped is tested first, so the loading, failed and ready tests also run
-             against its condition -->
+          <!-- STATE-20: stopped shows one spanning cell and no rows; loading and failed leave the body empty and
+             show their message outside the table (STATE-01, STATE-02, STATE-06, STATE-07) -->
           {#if status === "stopped"}
             <tr
               ><td class="sdt-cell" colspan={columns.length}>{words.stopped}</td
