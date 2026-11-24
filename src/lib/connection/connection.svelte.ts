@@ -7,25 +7,31 @@ import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
 // the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount, from the options as they are
-// then, and maps its answer. Read `table` and `pager` from the returned object, never destructured from it: each is
-// read from the helper's state when it is read.
+// then, and one more for each `pager.onpage`, and maps each answer. Read `table` and `pager` from the returned object,
+// never destructured from it: each is read from the helper's state when it is read.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
   // The last answer mapped; none before the first
   let answer = $state.raw<Answer<Row>>();
   let status = $state<DataTableStatus>("loading");
-  onMount(() => {
+  let offset = $state(options.query.offset ?? 0);
+  function load(): void {
     void options
       .send(
-        buildRequest(options.columns, options.query, 1),
+        buildRequest(options.columns, { ...options.query, offset }, 1),
         new AbortController().signal,
       )
       .then((body) => {
         answer = readAnswer<Row>(body);
         status = "ready";
       });
-  });
+  }
+  function onpage(next: number): void {
+    offset = next;
+    load();
+  }
+  onMount(load);
   return {
     table: {
       get rows() {
@@ -39,8 +45,11 @@ export function createConnection<Row = unknown>(
     get pager() {
       return (
         answer && {
+          offset,
+          limit: options.query.limit,
           total: answer.total,
           unfilteredTotal: answer.unfilteredTotal,
+          onpage,
         }
       );
     },

@@ -297,3 +297,29 @@ describe("CONN-17", () => {
     },
   );
 });
+
+// @spec("CONN-07", "2031b1f6")
+describe("CONN-07", () => {
+  it.each([
+    [0, 10],
+    [20, 25],
+  ])(
+    "sends start and length from the query's offset %i and limit %i",
+    (offset, limit) => {
+      const { send } = mount({ query: { ...Q0, offset, limit } });
+      const request = send.mock.calls[0]?.[0];
+      expect(request?.get("start")).toBe(String(offset));
+      expect(request?.get("length")).toBe(String(limit));
+    },
+  );
+  it("sends one request with start 30 and length 10 on pager.onpage(30) from offset 20, the pager at 30 before it is settled", async () => {
+    const probe = mount({ query: { ...Q0, offset: 20 } });
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(30);
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    const request = probe.send.mock.calls[1]?.[0];
+    expect(request?.get("start")).toBe("30");
+    expect(request?.get("length")).toBe("10");
+    expect(probe.connection.pager?.offset).toBe(30);
+  });
+});

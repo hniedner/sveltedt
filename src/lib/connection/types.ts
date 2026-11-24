@@ -44,6 +44,13 @@ export interface Connection<Row> {
     Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
   >;
   readonly pager:
-    | Readonly<Required<Pick<PaginationProps, "total" | "unfilteredTotal">>>
+    | Readonly<
+        Required<
+          Pick<
+            PaginationProps,
+            "offset" | "limit" | "total" | "unfilteredTotal" | "onpage"
+          >
+        >
+      >
     | undefined;
 }
