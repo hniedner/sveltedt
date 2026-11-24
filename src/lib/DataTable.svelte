@@ -59,8 +59,8 @@
     onsort?.(
       nextOrder(order, column.id, column.sortable ?? [], shiftOf(event)),
     );
-    // Stryker restore OptionalChaining,ArrayDeclaration
   }
+  // Stryker restore OptionalChaining,ArrayDeclaration
   // The direction mark of a sorted column (SORT-13)
   const arrow = (direction: SortDirection): string =>
     direction === "asc" ? "▲" : "▼";
