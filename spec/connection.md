@@ -70,6 +70,7 @@ every sort entry `i`, `order[i][column]`, `order[i][dir]` and `order[i][name]`.
   |---|---|
   | M, Q0 | `draw=1`, `start=0`, `length=10`, `search[value]=`, `search[regex]=false`; `columns[0][data]=name`, `columns[0][name]=n`, `columns[0][searchable]=true`, `columns[0][orderable]=true`, `columns[0][search][value]=`, `columns[0][search][regex]=false`; the same six for 1 (`code`, `c`) and 2 (`status`, `s`); `order[0][column]=0`, `order[0][dir]=asc`, `order[0][name]=n`: 26 pairs |
   | M plus a fourth entry `{ data: 'internal' }` (no `name`, no `id`), Q0 | the 26 pairs and the six for 3, with `columns[3][data]=internal` and `columns[3][name]=` |
+  | M, the query `{ limit: 10 }` only (sort, filters, search and offset left to their defaults) | `draw=1`, `start=0`, `length=10`, `search[value]=`, `search[regex]=false` and the six pairs for each of 0, 1 and 2, no `order` key: 23 pairs |
 
   No other key: no `_` cache-buster, no key from the table's column order or hiding, which the helper never reads.
 - Reason: these are the parameters the DataTables manual lists as sent (FETCHED 2026-11-20,
@@ -114,7 +115,7 @@ keys that keep the list indexes in brackets and join object keys with a dot.
   | `search[value]` | `search.value` |
   | `draw` | `draw` |
 
-  No bracketed key with an object key in brackets remains.
+  No bracketed key with an object key in brackets remains. With the sort `[]` there is no key starting with `order`.
 - Reason: Spring MVC cannot bind the bracketed form; spring-data-jpa-datatables reads this one ("changing
   `column[0][data]` into `column[0].data`", its README and `jquery.spring-friendly.js`, FETCHED 2026-11-20).
 - Layer: component.
@@ -127,7 +128,7 @@ keys that keep the list indexes in brackets and join object keys with a dot.
   { data: 'code', name: 'c', searchable: true, orderable: true, search: { value: '', regex: false } },
   { data: 'status', name: 's', searchable: true, orderable: true, search: { value: '', regex: false } }],
   order: [{ column: 0, dir: 'asc', name: 'n' }] }`. It is an object, not a string: the
-  application stringifies it and sets its own content type.
+  application stringifies it and sets its own content type. With the sort `[]`, `order` is `[]`.
 - Reason: a backend that binds a JSON body (spring-data-jpa-datatables' `@RequestBody DataTablesInput`, FETCHED
   2026-11-20) expects what the client's `JSON.stringify(d)` gives (PRD-B20). The client's `search.fixed` and
   `columns[i].search.fixed` lists (READ, DataTables 2.1.8 source) carry its own fixed searches, which the helper has
@@ -152,7 +153,7 @@ its direction as `asc` or `desc` and that entry's `name`; an empty sort MUST giv
   | M, `[name asc]` | `order[0][column]=0`, `order[0][dir]=asc`, `order[0][name]=n` |
   | M, `[code desc, name asc]` | `order[0][column]=1`, `order[0][dir]=desc`, `order[0][name]=c`, `order[1][column]=0`, `order[1][dir]=asc`, `order[1][name]=n` |
   | M reversed (Status 0, Code 1, Name 2), `[name asc]` | `order[0][column]=2`, `order[0][dir]=asc`, `order[0][name]=n` |
-  | M, `[]` | no key starting with `order`; with `form: 'dotted'` the same; with `form: 'json'`, `order: []` |
+  | M, `[]` | no key starting with `order` |
 
 - Reason: the backend reads the column by its index and, from a 2.x client, also by name; the lead goes first
   (PRD-B4, PRD-B20).
