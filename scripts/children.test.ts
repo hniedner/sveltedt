@@ -1,0 +1,210 @@
+// Tests for children.ts. Every test records the pids it starts and kills them in an `after` hook, so a red run leaves
+// nothing running.
+import assert from "node:assert/strict";
+import type { ChildProcess } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, test } from "node:test";
+import { pathToFileURL } from "node:url";
+import { HERE } from "./gate-step.ts";
+import { readyLine, spawnGroup, stop } from "./children.ts";
+
+const IDLE = "setInterval(() => {}, 1000);";
+// A child that starts a grandchild and idles; the grandchild's pid is on the child's stdout
+const WITH_GRANDCHILD = `const g = require("node:child_process").spawn(process.execPath, ["-e", "${IDLE}"], { stdio: "ignore" }); console.log("grandchild " + g.pid); ${IDLE}`;
+// The same, but the grandchild ignores SIGTERM, and its pid is printed once it says so
+const IGNORING_GRANDCHILD = `const g = require("node:child_process").spawn(process.execPath, ["-e", 'process.on("SIGTERM", () => {}); console.log("up"); ${IDLE}'], { stdio: ["ignore", "pipe", "ignore"] }); g.stdout.once("data", () => console.log("grandchild " + g.pid)); ${IDLE}`;
+const HELPER = pathToFileURL(join(HERE, "children.ts")).href;
+
+// Kills each pid recorded in the returned list when the test ends
+function reaper(): number[] {
+  const pids: number[] = [];
+  after(() => {
+    for (const p of pids) {
+      try {
+        process.kill(p, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
+  });
+  return pids;
+}
+function begin(pids: number[], ...args: string[]) {
+  const child = spawnGroup(process.execPath, args, {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (child.pid !== undefined) pids.push(child.pid);
+  return child;
+}
+function pidOf(child: ChildProcess): number {
+  assert.ok(child.pid !== undefined, "the child has no pid");
+  return child.pid;
+}
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+// True once `pid` is gone (polled for `ms`: a signalled process takes a moment)
+async function gone(pid: number, ms = 3000): Promise<boolean> {
+  for (let i = 0; i < ms / 50 && alive(pid); i++)
+    await new Promise((r) => setTimeout(r, 50));
+  return !alive(pid);
+}
+const grandchildOf = async (child: ReturnType<typeof begin>): Promise<number> =>
+  Number((await readyLine(child, "grandchild ")).slice("grandchild ".length));
+// A program that starts a child with a grandchild through the helper, prints both pids, and then runs `then`
+function program(then: string): string {
+  const dir = mkdtempSync(join(tmpdir(), "children-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "program.mjs");
+  writeFileSync(
+    file,
+    `import { spawnGroup, readyLine } from "${HELPER}";
+const child = spawnGroup(process.execPath, ["-e", ${JSON.stringify(WITH_GRANDCHILD)}], { stdio: ["ignore", "pipe", "pipe"] });
+const line = await readyLine(child, "grandchild ");
+console.log("pids " + child.pid + " " + line.slice("grandchild ".length));
+${then}
+`,
+  );
+  return file;
+}
+async function pidsOf(prog: ReturnType<typeof begin>): Promise<number[]> {
+  const [, ...found] = (await readyLine(prog, "pids ")).split(" ");
+  return found.map(Number);
+}
+const closed = (child: ChildProcess): Promise<[number | null, string | null]> =>
+  new Promise((r) => child.once("close", (c, s) => r([c, s])));
+
+test(
+  "stop ends the child's whole process group, its grandchild too",
+  { timeout: 15_000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(pids, "-e", WITH_GRANDCHILD);
+    const grandchild = await grandchildOf(child);
+    pids.push(grandchild);
+    await stop(child);
+    assert.ok(await gone(grandchild), "the grandchild is still running");
+  },
+);
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
+  test(
+    `a ${signal} to a program that started groups ends each of them, then the program by that signal`,
+    { timeout: 15_000 },
+    async () => {
+      const pids = reaper();
+      const prog = begin(pids, program(IDLE));
+      const kids = await pidsOf(prog);
+      pids.push(...kids);
+      const ended = closed(prog);
+      process.kill(pidOf(prog), signal);
+      assert.deepEqual(await ended, [null, signal]);
+      for (const p of kids) assert.ok(await gone(p), `${p} is still running`);
+    },
+  );
+}
+for (const [how, code, then] of [
+  ["process.exit", 3, "process.exit(3);"],
+  ["throws", 1, 'throw new Error("boom");'],
+] as const) {
+  test(
+    `a program that exits with a group running signals that group: ${how}`,
+    { timeout: 15_000 },
+    async () => {
+      const pids = reaper();
+      const prog = begin(pids, program(then));
+      const ended = closed(prog);
+      const kids = await pidsOf(prog);
+      pids.push(...kids);
+      assert.deepEqual(await ended, [code, null]);
+      for (const p of kids) assert.ok(await gone(p), `${p} is still running`);
+    },
+  );
+}
+test(
+  "stop sends SIGKILL after ms to a child that ignores SIGTERM",
+  { timeout: 15_000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(
+      pids,
+      "-e",
+      `process.on("SIGTERM", () => {}); console.log("ready"); ${IDLE}`,
+    );
+    await readyLine(child, "ready");
+    await stop(child, 300);
+    assert.ok(await gone(pidOf(child), 2000), "the child is still running");
+  },
+);
+test(
+  "stop sends SIGKILL to a grandchild that ignores SIGTERM after its leader exits",
+  { timeout: 15_000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(
+      pids,
+      "-e",
+      `process.on("SIGTERM", () => process.exit(0)); ${IGNORING_GRANDCHILD}`,
+    );
+    const grandchild = await grandchildOf(child);
+    pids.push(grandchild);
+    await stop(child, 300);
+    assert.ok(await gone(grandchild, 2000), "the grandchild is still running");
+  },
+);
+test(
+  "readyLine: a child that ends first fails with its exit and what it wrote to stderr",
+  { timeout: 10_000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(pids, "-e", 'console.error("boom"); process.exit(4)');
+    await assert.rejects(readyLine(child, "x"), /exit 4\)[\s\S]*stderr: boom/);
+  },
+);
+test(
+  "readyLine resolves with the whole line when the line arrives in pieces",
+  { timeout: 10_000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(
+      pids,
+      "-e",
+      `process.stdout.write("ready: ab"); setTimeout(() => process.stdout.write("cd\\n"), 200);`,
+    );
+    assert.equal(await readyLine(child, "ready: "), "ready: abcd");
+  },
+);
+test(
+  "stop on a child that has ended resolves at once, and a second stop does too",
+  { timeout: 5000 },
+  async () => {
+    const pids = reaper();
+    const child = begin(pids, "-e", "0");
+    await closed(child);
+    for (const n of [1, 2]) {
+      const began = Date.now();
+      await stop(child);
+      assert.ok(Date.now() - began < 500, `stop ${n} did not resolve at once`);
+    }
+  },
+);
+test(
+  "a child that cannot be spawned: no throw, stop resolves at once, readyLine rejects naming the exit",
+  { timeout: 5000 },
+  async () => {
+    const child = spawnGroup("/nonexistent", [], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const rejected = assert.rejects(readyLine(child, "x"), /ended \(exit -2\)/);
+    const began = Date.now();
+    await stop(child);
+    assert.ok(Date.now() - began < 500, "stop did not resolve at once");
+    await rejected;
+  },
+);

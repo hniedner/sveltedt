@@ -56,10 +56,13 @@ The checks today:
   `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard in
   `scripts/shards.ts`, and `scripts/shards.test.ts` fails locally while one is in none or in two, or while an entry is
   not a tracked file; in CI the step fails too. A fourth shard also needs the matrix of the job `selftest` in
-  `.github/workflows/ci.yml`, which gate-needs checks). The consumer-serve tests wait for the program's ready line
-  with `readyLine`, which fails at once when the child ends first, naming its exit and what it printed; the program
-  test that runs the real preparation has a timeout of 120 s. A failing file's lines name each failed test with the
-  error it reported.
+  `.github/workflows/ci.yml`, which gate-needs checks). A test starts a child process with `spawnGroup` from
+  `scripts/children.ts` and ends it with `stop` in an `after` hook: the child leads its own process group, and `stop`
+  ends the whole group (SIGTERM, then SIGKILL after 5 s). A SIGINT, SIGTERM or SIGHUP to the test's process is
+  forwarded to every group still running; its `process.exit` or an uncaught error signals them with SIGTERM.
+  `readyLine` waits for a complete line from a child and fails at once when the child ends first, naming its exit and
+  what it printed. The program test that runs the real preparation has a timeout of 120 s. A failing file's lines name
+  each failed test with the error it reported.
 - **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
   declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
   indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or

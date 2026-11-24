@@ -4,6 +4,7 @@
 export const SHARDS: readonly (readonly string[])[] = [
   [
     "scripts/check-repo-lint.test.ts",
+    "scripts/children.test.ts",
     "scripts/check-package.test.ts",
     "scripts/consumer-serve.test.ts",
     "scripts/diff-coverage.test.ts",

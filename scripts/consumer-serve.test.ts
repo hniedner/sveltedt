@@ -1,8 +1,7 @@
 // Tests for consumer-serve.ts. The servers of a copy are faked by two small scripts, so every branch of `start` runs in
 // well under a second; the script's own exits are run through the program.
 import assert from "node:assert/strict";
-import { spawn, spawnSync, type ChildProcessByStdio } from "node:child_process";
-import type { Readable } from "node:stream";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import {
   chmodSync,
@@ -19,6 +18,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, mock, test } from "node:test";
+import { readyLine } from "./children.ts";
 import { HERE } from "./gate-step.ts";
 import { start } from "./consumer-serve.ts";
 
@@ -28,29 +28,6 @@ const free = (): Promise<number> =>
       const { port } = s.address() as { port: number };
       s.close(() => resolve(port));
     });
-  });
-// The first stdout line of `child` that starts with `prefix`. A child that ends before it fails the test at once,
-// with its exit and both streams: the program's reason is on stdout, and a wait with no end hung the gate.
-const readyLine = (
-  child: ChildProcessByStdio<null, Readable, Readable>,
-  prefix: string,
-): Promise<string> =>
-  new Promise((resolve, reject) => {
-    let out = "";
-    let err = "";
-    child.stdout.on("data", (d: Buffer) => {
-      out += String(d);
-      const line = out.split("\n").find((l) => l.startsWith(prefix));
-      if (line !== undefined) resolve(line);
-    });
-    child.stderr.on("data", (d: Buffer) => (err += String(d)));
-    child.on("close", (code, signal) =>
-      reject(
-        new Error(
-          `the program ended (exit ${code ?? signal}) before "${prefix}"\nstdout: ${out}\nstderr: ${err}`,
-        ),
-      ),
-    );
   });
 // True once nothing answers on `port` (polled for 3 s: a stopped server takes a moment to go)
 async function closed(port: number): Promise<boolean> {
@@ -390,18 +367,5 @@ test(
       Date.now() - began < 5000,
       "the program's end was not seen at once",
     );
-  },
-);
-test(
-  "readyLine: a child that ends first fails with its exit and what it wrote to stderr",
-  { timeout: 10_000 },
-  async () => {
-    const child = spawn(
-      process.execPath,
-      ["-e", 'console.error("boom"); process.exit(4)'],
-      { stdio: ["ignore", "pipe", "pipe"] },
-    );
-    after(() => child.kill("SIGKILL"));
-    await assert.rejects(readyLine(child, "x"), /exit 4\)[\s\S]*stderr: boom/);
   },
 );
