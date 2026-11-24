@@ -2,16 +2,17 @@
 
 - **Name:** the test site in `site/`, a private package that shows SvelteDT on pages a real browser can open. It is
   served by a TypeScript server on Node that uses only `node:http` (PRD section 5.3).
-- **Status:** parts 1 to 5 of the site spec. Later parts add their statements to this file; the trace at the end says
+- **Status:** parts 1 to 6 of the site spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
   shows the table with a fixed list of rows. Part 2: the strict policy on the site (the header, SRV-02; the listener,
   the canary page, no inline bootstrap, no violation on any page of the build). Part 3: the site server's start
   (SRV-05 to SRV-07). Part 4: the views by URL parameter for the token set, the density and the variants (PRD-W7, in
-  part). Part 5: the full page, in part: the table that `spec/table.md` sections 16 and 18 run on. Other request
-  methods (beyond the header SRV-02 puts on every response), the JSON endpoint, the dataset and the other views of
-  PRD-W7 come with later parts.
+  part). Part 5: the full page, in part: the table that `spec/table.md` sections 16 and 18 run on. Part 6:
+  the first part of PRD-W2's endpoint (the route of section 7) and the connection page that the connection helper
+  loads through it (section 8). Other request methods (beyond the header SRV-02 puts on every response), the rest of
+  the JSON endpoint, the dataset and the other views of PRD-W7 come with later parts.
 
 ## Conventions
 
@@ -71,7 +72,7 @@
 ## 1. Serving (SRV)
 
 **SRV-01** The site server MUST answer each file its build folder held when it started at that file's path, `/` with
-`index.html`, and every other path with 404.
+`index.html`, and every other path with 404, the route of section 7 (`/api/orders`) excepted.
 - Examples (the test runs every row; the build folder holds `index.html` and `assets/app.js` when the server starts,
   its parent folder holds a `package.json`, and the test adds `late.html` to the build folder afterwards; "no file"
   means the body holds the bytes of none of these files):
@@ -268,8 +269,9 @@ output when it listens, and MUST write nothing there when it refuses.
 **LIST-03** The list page's Order column MUST be sortable both ways, the page sorting its own fixed list.
 - Example: the list page component mounted; press "Order" three times: the first cells read "Order 01" to
   "Order 20", then "Order 20" to "Order 01", then the fixed order of LIST-02.
-- Reason: the page shows the sort at work where a consumer uses it; the site's server answers files only (SRV-01),
-  so the page's handler sorts, as an application asks its server to.
+- Reason: the page shows the sort at work where a consumer uses it; the site's server answers files (SRV-01) and the
+  protocol route of section 7; the list page does not call that route, so the page's handler sorts, as an
+  application asks its server to.
 - Layer: component.
 - Traces: PRD-W5.
 
@@ -495,8 +497,9 @@ section 16's list on.
   | "Name" twice | by Name descending |
   | "Name", then "Code" with Shift | by Name ascending, then by Code ascending among equal Names |
 
-- Reason: the site's server answers files only (SRV-01), so the page sorts, as LIST-03; section 16's sort intents and
-  THEME-25's sorts by more than one column need a table that follows (PRD-W6).
+- Reason: the site's server answers files (SRV-01) and the protocol route of section 7; the full page does not call
+  that route, so the page sorts, as LIST-03; section 16's sort intents and THEME-25's sorts by more than one column
+  need a table that follows (PRD-W6).
 - Layer: component.
 - Traces: PRD-W6.
 
@@ -553,6 +556,177 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
 - Layer: real browser.
 - Traces: PRD-W6, PRD-S1, PRD-W4.
 
+## 7. The protocol route (API, milestone 3)
+
+- "The route" is the site server's answer at `/api/orders`. It reads its request from the query string, whatever the
+  method (as SRV-02's `POST` row).
+- "The fixed list" is LIST-02's 20 orders as rows `{ id, name }`.
+- The route's columns are, by index, 0 `id` and 1 `name`. It reads a column by its index into its own list, never by
+  the sent `columns[i][data]`, as `ssp.class.php` does (READ ad98978 l.130-138).
+- "B" is the request the helper builds for the map F = `[{ data: 'id', name: 'id' }, { data: 'name', name: 'name',
+  id: 'name' }]`, the query `{ limit: 10 }` and `draw=1`: 17 pairs. A row names only the pairs it changes, adds or
+  removes.
+- Read in this part: `draw`, `start`, `length`, `order[0][column]`, `order[0][dir]` and the ordered column's
+  `columns[c][orderable]` (a repeat of either column's `orderable` key is refused, API-04).
+- Stated limits, not tested:
+  - a search or column search is not read;
+  - order entries after `order[0]` are not read (the fixed list has no ties);
+  - ids order as names do, so whether column 0 or 1 is read cannot be told apart on this data;
+  - the ordering and paging are the route's own, not PRD-B21's query function (PRD 5.3).
+- Layer: HTTP (`siteServer` on a port the system assigns).
+
+**API-01** A request to the route MUST be answered with status 200, the content type `application/json` and a body
+whose `data` holds the rows of the fixed list from `start`, at most `length` of them, and whose `recordsTotal` and
+`recordsFiltered` are both 20.
+- Examples (the test runs every row):
+
+  | B with | `data`, by id |
+  |---|---|
+  | `start=0`, `length=10` | o07, o03, o15, o01, o20, o11, o05, o18, o09, o13 |
+  | `start=10`, `length=10` | o02, o17, o06, o14, o10, o19, o04, o12, o16, o08 |
+  | `start=15`, `length=10` | o19, o04, o12, o16, o08 |
+  | `start=20`, `length=10` | none (`[]`) |
+  | `start=0`, `length=1000` | the 20, in the fixed order |
+
+  Each row of `data` is exactly `{ id, name }`; the content type is exactly `application/json`. Break that turns it
+  red: `recordsFiltered` set to the length of `data`.
+- Reason: the helper maps `data` and the two counts (CONN-17). With no filter, `ssp.class.php` pages with
+  `LIMIT start, length` and gives equal counts (READ ad98978 l.101-110, l.262-316). RFC 8259 §11: "No "charset"
+  parameter is defined for this registration" (FETCHED).
+- Layer: HTTP.
+- Traces: PRD-W2.
+
+**API-02** The answer's `draw` MUST be the request's `draw`, as a number.
+- Examples (the test runs every row): `draw=1` gives `1`, `draw=7` gives `7`, `draw=007` gives `7`, each a JSON
+  number. Break that turns it red: `draw` echoed as the text sent.
+- Reason: the helper compares the answer's `draw` with the one it sent (CONN-18). The manual says "it is strongly
+  recommended for security reasons that you cast this parameter to an integer ... in order to prevent Cross Site
+  Scripting (XSS) attacks" (FETCHED datatables.net/manual/server-side). `ssp.class.php` answers
+  `intval($request['draw'])` (READ l.311-313).
+- Layer: HTTP.
+- Traces: PRD-W2.
+
+**API-03** An `order[0]` entry on column 0 or 1, sent as orderable, MUST order the rows ascending or descending as
+`order[0][dir]` says, before `start` and `length` take the page.
+- Examples (the test runs every row):
+
+  | B with | Answer |
+  |---|---|
+  | `order[0][column]=1`, `order[0][dir]=asc` | `data` o01 to o10 |
+  | `order[0][column]=1`, `order[0][dir]=desc` | `data` o20 down to o11 |
+  | `order[0][column]=1`, `order[0][dir]=asc`, `start=10` | `data` o11 to o20 |
+  | `order[0][column]=0`, `order[0][dir]=desc` | `data` o20 down to o11 |
+  | `order[0][column]=1`, `order[0][dir]=asc`, `columns[1][orderable]=false` | `data` in the fixed order of API-01's first row |
+  | `order[0][column]=1`, `order[0][dir]=asc`, no `columns[1][orderable]` sent | `data` in the fixed order of API-01's first row (only the exact text `true` makes a column orderable) |
+  | R0: B with `order[0][column]=1`, `order[0][dir]=asc`, `order[0][name]=name` (the request the helper builds for F, sort `[name asc]`, limit 10) | the body `{ draw: 1, recordsTotal: 20, recordsFiltered: 20, data: [the rows o01 to o10] }`, as READ from `ssp.class.php` ad98978 (nothing run) |
+
+- Reason:
+  - A server orders before it pages: `ssp.class.php` builds `ORDER BY` before `LIMIT` (READ l.272-283).
+  - It orders only by a column sent as orderable (l.140).
+  - R0 is the helper's own first request for a sorted page. Its answer is written by hand from the source of
+    `ssp.class.php` ad98978; nothing was run.
+- Layer: HTTP.
+- Traces: PRD-W2.
+
+**API-04** A request whose `draw`, `start` or `length` is missing or not the decimal text of a safe non-negative
+integer, whose `length` is 0 or above 1000, whose `order[0]` names a column other than 0 and 1 or a direction other
+than `asc` and `desc`, whose `order[0]` has only one of its two keys, or that sends a key the route can read (`draw`,
+`start`, `length`, `order[0][column]`, `order[0][dir]`, `columns[0][orderable]`, `columns[1][orderable]`) more than
+once, MUST be answered with status 400 and an empty body.
+- Examples (the test runs every row; each is B with one change):
+
+  | Change | Status |
+  |---|---|
+  | `draw` removed; `draw=`; `draw=1a`; `draw=-1` | 400 |
+  | `draw=0x1`; `start=1.0`; `length=1e1` (numbers JavaScript reads, not decimal integer text) | 400 |
+  | `start=`; `start=-1`; `start=1.5`; `start=%201` (raw: a space, then 1); `start=%2B1` (raw); `start=9007199254740992` | 400 |
+  | `start=9007199254740991` | 200, `data` `[]` |
+  | `length` removed; `length=0`; `length=-1`; `length=1001` | 400 |
+  | `length=1000`; `length=1` | 200 (`length=1`: the first row only) |
+  | `order[0][column]=2` with `order[0][dir]=asc`; `order[0][column]=x` with `asc` | 400 |
+  | `order[0][column]=1` with `order[0][dir]=ASC`; `order[0][column]=1` and no `order[0][dir]`; `order[0][dir]=asc` and no `order[0][column]` | 400 |
+  | each of the seven keys sent twice: `length=0` added to B (so `length=10` and `length=0`); `draw=2` added to B; `order[0][dir]=asc` added to B with `order[0][column]=1` and `order[0][dir]=desc`; and likewise `start`, `order[0][column]`, `columns[0][orderable]`, `columns[1][orderable]` | 400 |
+
+  In every 400 the body is empty, so no text of the request comes back. Break that turns it red: `length` above 1000
+  answered.
+- Reason:
+  - PRD-W2: the endpoint "refuses unknown columns, directions or sizes with an error"; the limit is at most 1000.
+  - RFC 9110 §15.5.1: 400 means "the server cannot or will not process the request due to something that is
+    perceived to be a client error (e.g., malformed request syntax ...)" (FETCHED).
+  - The manual's `length` -1 ("all records should be returned", which it says "negates any benefits of server-side
+    processing", FETCHED) is above the limit.
+  - `ssp.class.php` reads malformed text with `intval` and orders an unknown direction descending (READ l.106,
+    l.141-143); the route refuses, as PRD-W2 asks.
+  - A key the route can read, sent more than once, is refused, not read first or last (both columns' `orderable` keys
+    count, though only the ordered column's is used): `ssp.class.php` reads PHP `$_GET`, where the last
+    value wins, and this route reads the first with `URLSearchParams.get`; neither is chosen silently for an
+    ambiguous request, so it is a client error as the rows above.
+- Layer: HTTP.
+- Traces: PRD-W2.
+
+**API-05** Every answer of the route MUST carry exactly one `Content-Security-Policy` header, whose value is the strict
+policy.
+- Examples (the test runs every row): B gives 200 with the policy; B with `length=0` gives 400 with the policy. Break
+  that turns it red: the route answered before the header is set.
+- Reason: PRD-W4 asks for the policy on every response, and the PRD-W4 trace row promised the endpoint a statement of
+  its own.
+- Layer: HTTP.
+- Traces: PRD-W4.
+
+## 8. The connection page (CPAGE, milestone 3)
+
+- The connection page is the build's `connection.html`, served at `/connection.html`.
+- Its script calls `createConnection`, imported from `@hniedner/sveltedt/connection`, with:
+  - the map F;
+  - the query `{ limit: 10 }`;
+  - an `onerror`;
+  - a `send` that fetches `/api/orders?` plus the request with the signal, resolves with the parsed body for a 2xx
+    status and rejects otherwise.
+- It renders `DataTable` (caption "Orders", one column "Order" showing `name`, row id `id`) with the returned table
+  props and, once the pager props are given, `Pagination` ("Orders pages") after the table.
+- "A route request" is a request of the page to `/api/orders`, read through the engine's request events, which are
+  attached before the page is opened.
+- Layer: real browser, in Chromium, Firefox and WebKit.
+
+**CPAGE-01** The connection page MUST show the first page of the fixed list, loaded with one route request.
+- Example: open `/connection.html`.
+  - The table "Orders" shows 10 body rows whose first cells read "Order 07", "Order 03", "Order 15", "Order 01",
+    "Order 20", "Order 11", "Order 05", "Order 18", "Order 09", "Order 13".
+  - Exactly one route request was sent, its query holding `draw=1`, `start=0` and `length=10`.
+  - Break that turns it red: the page given the fixed list as rows, without the helper.
+- Reason: this is the first point where a person sees the helper work, imported through its export path and talking
+  to a real server over the protocol (PRD-B20).
+- Layer: real browser.
+- Traces: PRD-B20.
+
+**CPAGE-02** Pressing a page in the connection page's pager MUST load that page with one more route request.
+- Example: after CPAGE-01's rows, in the same page session, the pager "Orders pages" after the table reads "Showing 1
+  to 10 of 20 rows". Press "Page 2":
+  - exactly one more route request is sent (two in all), with `draw=2`, `start=10` and `length=10`;
+  - the first cells read "Order 02", "Order 17", "Order 06", "Order 14", "Order 10", "Order 19", "Order 04",
+    "Order 12", "Order 16", "Order 08";
+  - the pager reads "Showing 11 to 20 of 20 rows".
+  - Break that turns it red: `onpage` not passed to `Pagination`.
+- Reason: the helper gives the pager's props and sends the page pressed (PRD-B20, PRD-B9).
+- Layer: real browser.
+- Traces: PRD-B20, PRD-B9.
+
+**CPAGE-03** The connection page MUST raise no policy violation by the time its first page of rows is shown.
+- Example, in POL-04's order of reads:
+  1. the response carries the strict policy;
+  2. the listener's list exists;
+  3. the page has loaded;
+  4. CPAGE-01's 10 body rows are shown;
+  5. the listener's list holds 0 entries.
+  - Break that turns it red: a `style` attribute on the page's `main`. It is INFERRED to raise a report in each
+    engine; the break is run by hand.
+- Reason: the helper's requests go out through the page's own `fetch` under the strict policy. POL-04 reads the list
+  once a table region shows, and DataTable renders its region while loading (`src/lib/DataTable.svelte`, the
+  `sdt-region` div, not behind the status; MEASURED), so on this page POL-04 can read before the answer (PRD-S1,
+  PRD-S3).
+- Layer: real browser.
+- Traces: PRD-S1, PRD-W4.
+
 ## Trace
 
 ### Statement -> PRD
@@ -585,19 +759,29 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
 | FULL-04 | PRD-W6 |
 | FULL-05 | PRD-W6 |
 | FULL-06 | PRD-W6, PRD-S1, PRD-W4 |
+| API-01 | PRD-W2 |
+| API-02 | PRD-W2 |
+| API-03 | PRD-W2 |
+| API-04 | PRD-W2 |
+| API-05 | PRD-W4 |
+| CPAGE-01 | PRD-B20 |
+| CPAGE-02 | PRD-B20, PRD-B9 |
+| CPAGE-03 | PRD-S1, PRD-W4 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-W1 | IMP-01 | in full |
-| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04, FULL-06 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; the endpoint part proves the header on the endpoint's responses in a statement of its own |
+| PRD-W4 | SRV-02, POL-01, POL-02, POL-03, POL-04, VIEW-04, FULL-06, API-05, CPAGE-03 | in part: SRV-02 binds every response, the JSON endpoint's included, but its examples show page paths only; API-05 proves the header on the route's responses |
 | PRD-W5 | SRV-01, SRV-03, SRV-04, LIST-01, LIST-02, LIST-03, LIST-04 | in part: sort by more than one column, both filter kinds, clear and reset, sizes up to 1000 (PRD-P6) and the fixed 48 px app bar come with later parts |
-| PRD-S1 | POL-01, POL-02, POL-04, VIEW-04, FULL-06 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
+| PRD-S1 | POL-01, POL-02, POL-04, VIEW-04, FULL-06, CPAGE-03 | in part: the client-rendered half, on every HTML page of the site's build; the server-rendered half comes with the consumer project (PRD-W8) |
 | PRD-W6 | FULL-01, FULL-02, FULL-03, FULL-04, FULL-05, FULL-06 | in part: the table that `spec/table.md` sections 16 and 18 run on; the page's answers to intents other than the sort and its loading and failed states come with the part that brings the JSON endpoint and the dataset; the rest of PRD-W6 comes later |
 | PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04, FULL-03 | in part: the token set, the density and the variants (`hover` on shows its surface once a later theming branch states it); `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
 | PRD-T4 | VIEW-01 | in part: the site ships the set; its values and pairs are `spec/table.md`'s THEME-17, THEME-33 and THEME-34 |
+| PRD-W2 | API-01, API-02, API-03, API-04, API-05 | in part: the route answers the first part of the endpoint, with paging, one ordering column, a refusal of malformed requests and a fixed list; search, column search, further order entries and the query function behind it come with later parts |
+| PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-03 | in part: the connection page shows the helper loading and paging a fixed list through the route; sort, size and filters on that page come with the helper's later parts |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 
-PRD musts of the site left to later parts: PRD-W2, PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
+PRD musts of the site left to later parts: PRD-W2 (in part), PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
 PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.
