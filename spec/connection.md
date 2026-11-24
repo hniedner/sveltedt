@@ -10,11 +10,10 @@
   offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
   refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
   `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
-  cancel, the stopped state, `onretry` and
-  writing the query (PRD-B23, PRD-B24), which would take this part past its cap of 25 statements; the first page
-  loaded on the server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is
-  silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
-  which need fixtures not yet recorded.
+  cancel, the stopped state, `onretry` and writing the query (PRD-B23, PRD-B24), which this part leaves out; this
+  part's text holds 28 statements, and later parts add theirs; the first page loaded on the server, which needs the
+  site's server route; whether a superseded request is aborted (PRD-B20 is silent, DataTables' practice not yet
+  checked); and the contract tests against the recorded backends (PRD-W11), which need fixtures not yet recorded.
 
 ## Conventions
 
@@ -41,6 +40,7 @@
   `search`, `onsort`, `onfilter`, `onclearfilter`, `onclearfilters`, `onreset` and `onsearch`; `pager` holds
   `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`, or is `undefined` (CONN-25); `query` reads
   the current query. A column id is "served" when a map entry's `id` is that id; the first such entry serves it.
+  A sort entry without an `id` is served by no entry.
   The "decimal text" of a number is its digits only, without sign, space, point or exponent (`'57'`, `'057'`).
 - **Examples.** The map M is `[{ data: 'name', name: 'n', id: 'name' }, { data: 'code', name: 'c', id: 'code' },
   { data: 'status', name: 's', id: 'status' }]`, its `data` and `name` both names the server knows; the initial query
@@ -219,13 +219,29 @@ selected, `""` and `false`.
 - Layer: component.
 - Traces: PRD-B20, PRD-B25.
 
-**CONN-13** A sort, filter or search intent MUST set the query at once, with offset 0, and send one request for it.
+**CONN-13** A sort intent MUST set the query at once, with offset 0, and send one request for it.
+- Examples (the test runs every row; from offset 20, limit 10, the first answer settled unless a row says otherwise;
+  the props are read before the request is settled):
+
+  | Intent | The one request | `table`, `pager` |
+  |---|---|---|
+  | `table.onsort([code desc])` | `start=0`, `order[0][column]=1`, `order[0][dir]=desc` | `sort` `[code desc]`, `offset` 0 |
+  | `table.onsort([code desc])` before the first answer (from Q0, request 1 running) | `start=0`, `order[0][column]=1`, `order[0][dir]=desc` | `sort` `[code desc]`; `pager` still `undefined` |
+
+- Reason: a new order puts other rows on every page, so the user is shown the top of it. DataTables' draw after an
+  order goes back to the first page ("The paging will be reset back to the first page", FETCHED 2026-11-20,
+  datatables.net/reference/api/draw()). The sort marks follow the intent before the answer, so the user sees what
+  was asked.
+- Layer: component.
+- Traces: PRD-B20, PRD-B4.
+
+**CONN-28** A filter or search intent MUST set the query at once, with offset 0, and send one request for it (as
+CONN-13, for the filter and search intents).
 - Examples (the test runs every row; from offset 20, limit 10, the first answer settled unless a row says otherwise;
   one intent each; the props are read before the request is settled):
 
   | Intent | The one request | `table`, `pager` |
   |---|---|---|
-  | `table.onsort([code desc])` | `start=0`, `order[0][column]=1`, `order[0][dir]=desc` | `sort` `[code desc]`, `offset` 0 |
   | `table.onfilter({ id: 'name', state: { kind: 'text', text: 'beta' } })` | `start=0`, `columns[0][search][value]=beta` | `filters.name` as given |
   | `table.onclearfilter({ id: 'name' })`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
   | `table.onclearfilters()`, Name filtered, search `x` | `start=0`, every column search `""`, `search[value]=x` | `filters` `{}`, `search` `x` |
@@ -236,7 +252,7 @@ selected, `""` and `false`.
   ("The paging will be reset back to the first page", FETCHED 2026-11-20, datatables.net/reference/api/draw()). The
   marks and boxes follow the intent before the answer, so the user sees what was asked.
 - Layer: component.
-- Traces: PRD-B20, PRD-B4, PRD-B8, PRD-B25.
+- Traces: PRD-B20, PRD-B8, PRD-B25.
 
 **CONN-27** A page-size intent MUST set the query at once, with the offset of the page of the new size that holds
 the first row shown, and send one request for it.
@@ -279,22 +295,41 @@ the first row shown, and send one request for it.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-16** A sort or filter on a column id that no map entry serves, in an intent, in the initial query or in the
+**CONN-16** A sort on a column id that no map entry serves, in a sort intent, in the initial query or in the
 query of a `reload()`, MUST send nothing, keep the query, and call `onerror` once with an `Error` naming that column
-id.
+id when it has one.
 - Examples (the test runs every row; map M without entry 1's `id`; for an intent, the first answer settled):
 
-  | Intent or mount | `send` calls after it | `table.sort`, `table.filters` | `onerror` |
+  | Intent or mount | `send` calls after it | `table.sort` | `onerror` |
   |---|---|---|---|
-  | `table.onsort([code asc])` | none | `[name asc]`, `{}` | once, message holds `code` |
-  | `table.onfilter({ id: 'code', state: { kind: 'text', text: 'B' } })` | none | `[name asc]`, `{}` | once, message holds `code` |
-  | mount with sort `[code asc]` | none | `[code asc]`, `{}` | once, message holds `code` |
-  | `reload()` after that mount | none | `[code asc]`, `{}` | once more, message holds `code` |
+  | `table.onsort([code asc])` | none | `[name asc]` | once, message holds `code` |
+  | mount with sort `[code asc]` | none | `[code asc]` | once, message holds `code` |
+  | `reload()` after that mount | none | `[code asc]` | once more, message holds `code` |
+  | mount with sort `[{ direction: 'asc' }]` (no `id`; plain JavaScript) | none | as given | once (no id to name) |
+
+  After a refused mount, `table.status` is `'failed'`.
+
+- Reason: without an index the backend cannot be told which column; sending the request without it would show rows
+  that do not match the marks, and an entry without an `id` would otherwise match the first map entry without one,
+  and the sort would go to the wrong column with no error (PRD-B20).
+- Layer: component.
+- Traces: PRD-B20.
+
+**CONN-29** A filter on a column id that no map entry serves, in a filter intent, in the initial query or in the
+query of a `reload()`, MUST send nothing, keep the query, and call `onerror` once with an `Error` naming that column
+id (as CONN-16, for the filters).
+- Examples (the test runs every row; map M without entry 1's `id`; for an intent, the first answer settled):
+
+  | Intent or mount | `send` calls after it | `table.filters` | `onerror` |
+  |---|---|---|---|
+  | `table.onfilter({ id: 'code', state: { kind: 'text', text: 'B' } })` | none | `{}` | once, message holds `code` |
+  | mount with filters `{ code: { kind: 'text', text: 'B' } }` | none | as given | once, message holds `code` |
+  | `reload()` after that mount | none | as given | once more, message holds `code` |
 
   After the refused mount, `table.status` is `'failed'`.
 
 - Reason: without an index the backend cannot be told which column; sending the request without it would show rows
-  that do not match the marks (PRD-B20).
+  that do not match the boxes (PRD-B20).
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -422,10 +457,19 @@ else `null`.
 - Traces: PRD-B20, PRD-B15.
 
 **CONN-24** `reload()` MUST send the current query again, with the next `draw`, when every column id of its sort and
-filters is served (else CONN-16).
-- Example: A1 settled, `reload()`: `send` called a second time; the request holds `draw=2` and every other pair of
-  the first request; after a failure, the same.
-- Reason: the application retries a failed or stale page without changing what the user chose (PRD-B20).
+filters is served (else CONN-16, or CONN-29 for a filter).
+- Examples (the test runs every row; `reload()` called once, after the settles named):
+
+  | Before `reload()` | The request it sends |
+  |---|---|
+  | A1 | `draw=2`; every other pair as in request 1 |
+  | request 1 answered by an answer it cannot map (CONN-18) | `draw=2`; every other pair as in request 1 |
+  | A1, then `pager.onpage(10)` answered by an answer it cannot map | `draw=3`; every other pair as in request 2, `start=10` included |
+
+- Reason: the application retries a failed or stale page without changing what the user chose (PRD-B20). After a
+  failed page change the query keeps the page asked for (CONN-25), so `reload()` sends that page again. DataTables'
+  `ajax.reload()` returns to the first page unless its `resetPaging` is `false` (FETCHED 2026-11-24,
+  datatables.net/reference/api/ajax.reload()); `reload()` here is a retry, as PRD-B20 says.
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -465,7 +509,7 @@ filters is served (else CONN-16).
 | CONN-09 | PRD-B20, PRD-B6 |
 | CONN-10 | PRD-B20, PRD-B7 |
 | CONN-12 | PRD-B20, PRD-B25 |
-| CONN-13 | PRD-B20, PRD-B4, PRD-B8, PRD-B25 |
+| CONN-13 | PRD-B20, PRD-B4 |
 | CONN-14 | PRD-B20, PRD-B8 |
 | CONN-15 | PRD-B20 |
 | CONN-16 | PRD-B20 |
@@ -480,19 +524,21 @@ filters is served (else CONN-16).
 | CONN-25 | PRD-B20, PRD-B9 |
 | CONN-26 | PRD-B20, PRD-S4 |
 | CONN-27 | PRD-B20, PRD-B9 |
+| CONN-28 | PRD-B20, PRD-B8, PRD-B25 |
+| CONN-29 | PRD-B20 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-27 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, writing the query and the first page loaded on the server come with later parts |
+| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-29 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, reading and writing the query, and the first page loaded on the server come with later parts |
 | PRD-B4 | CONN-08, CONN-13 | in part: the rest is `spec/table.md`'s |
 | PRD-B6 | CONN-09 | in part: the rest is `spec/table.md`'s |
 | PRD-B7 | CONN-10 | in part: the rest is `spec/table.md`'s |
-| PRD-B8 | CONN-13, CONN-14 | in part: the rest is `spec/table.md`'s |
+| PRD-B8 | CONN-14, CONN-28 | in part: the rest is `spec/table.md`'s |
 | PRD-B9 | CONN-07, CONN-18, CONN-25, CONN-27 | in part: the rest is `spec/table.md`'s |
 | PRD-B15 | CONN-19, CONN-23 | in part: the rest is `spec/table.md`'s |
-| PRD-B25 | CONN-12, CONN-13 | in part: the rest is `spec/table.md`'s |
+| PRD-B25 | CONN-12, CONN-28 | in part: the rest is `spec/table.md`'s |
 | PRD-B26 | CONN-17 | in part: the rest is `spec/table.md`'s |
 | PRD-S4 | CONN-26 | in part: the rest is `spec/table.md`'s |
 

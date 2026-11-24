@@ -572,7 +572,8 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
   - a search or column search is not read;
   - order entries after `order[0]` are not read (the fixed list has no ties);
   - ids order as names do, so whether column 0 or 1 is read cannot be told apart on this data;
-  - the ordering and paging are the route's own, not PRD-B21's query function (PRD 5.3).
+  - the ordering and paging are the route's own, not PRD-B21's query function (PRD 5.3);
+  - it reads the bracketed form only; a dotted or JSON request is not read.
 - Layer: HTTP (`siteServer` on a port the system assigns).
 
 **API-01** A request to the route MUST be answered with status 200, the content type `application/json` and a body
@@ -682,8 +683,9 @@ policy.
   - an `onerror`;
   - a `send` that fetches `/api/orders?` plus the request with the signal, resolves with the parsed body for a 2xx
     status and rejects otherwise.
-- It renders `DataTable` (caption "Orders", one column "Order" showing `name`, row id `id`) with the returned table
-  props and, once the pager props are given, `Pagination` ("Orders pages") after the table.
+- It renders `DataTable` (caption "Orders", one column "Order" showing `name`, sortable both ways, row id `id`) with
+  the returned table props, `sort` and `onsort` included, and, once the pager props are given, `Pagination` ("Orders
+  pages", `sizes` 5, 10 and 25) after the table with the returned pager props, `onsize` included.
 - "A route request" is a request of the page to `/api/orders`, read through the engine's request events, which are
   attached before the page is opened.
 - Layer: real browser, in Chromium, Firefox and WebKit.
@@ -727,6 +729,34 @@ policy.
 - Layer: real browser.
 - Traces: PRD-S1, PRD-W4.
 
+**CPAGE-04** Pressing the connection page's "Order" header MUST load the first page in that order with one more route
+request.
+- Example: after CPAGE-01's rows, in the same session, press "Page 2" (two route requests), then press "Order". Then:
+  - exactly one more route request (three in all), with `draw=3`, `start=0`, `length=10`, `order[0][column]=1` and
+    `order[0][dir]=asc`;
+  - the first cells read "Order 01" to "Order 10";
+  - the pager reads "Showing 1 to 10 of 20 rows".
+  - Break that turns it red: `onsort` not passed to `DataTable`.
+- Reason: the helper sends the order pressed and returns to the first page, as CONN-13 says, and the route orders by
+  it (API-03).
+- Layer: real browser.
+- Traces: PRD-B20, PRD-B4.
+
+**CPAGE-05** Choosing a size in the connection page's pager MUST load the page of that size that holds the first row
+shown, with one more route request.
+- Example: after CPAGE-01's rows, in the same session:
+  - choose 5 in "rows per page": request 2 with `start=0` and `length=5`;
+  - press "Page 4": request 3 with `start=15` and `length=5`;
+  - choose 10: exactly one more route request (four in all), with `draw=4`, `start=10` and `length=10`. The first cells
+    read "Order 02", "Order 17", "Order 06", "Order 14", "Order 10", "Order 19", "Order 04", "Order 12", "Order 16",
+    "Order 08", and the pager reads "Showing 11 to 20 of 20 rows".
+  - A helper that kept the offset would send `start=15`; one that went back to the first page would send `start=0`.
+  - Break that turns it red: `onsize` not passed to `Pagination`.
+- Reason: the page size changes what a page holds, so the user keeps the row they were looking at, as CONN-27 says
+  (PRD-B20, PRD-B9).
+- Layer: real browser.
+- Traces: PRD-B20, PRD-B9.
+
 ## Trace
 
 ### Statement -> PRD
@@ -767,6 +797,8 @@ policy.
 | CPAGE-01 | PRD-B20 |
 | CPAGE-02 | PRD-B20, PRD-B9 |
 | CPAGE-03 | PRD-S1, PRD-W4 |
+| CPAGE-04 | PRD-B20, PRD-B4 |
+| CPAGE-05 | PRD-B20, PRD-B9 |
 
 ### PRD must -> statements
 
@@ -780,7 +812,7 @@ policy.
 | PRD-W7 | VIEW-01, VIEW-02, VIEW-03, VIEW-04, FULL-03 | in part: the token set, the density and the variants (`hover` on shows its surface once a later theming branch states it); `dir=rtl`, the spacing view, the planted slowdowns and two tables on one page come with the parts that need them |
 | PRD-T4 | VIEW-01 | in part: the site ships the set; its values and pairs are `spec/table.md`'s THEME-17, THEME-33 and THEME-34 |
 | PRD-W2 | API-01, API-02, API-03, API-04, API-05 | in part: the route answers the first part of the endpoint, with paging, one ordering column, a refusal of malformed requests and a fixed list; search, column search, further order entries and the query function behind it come with later parts |
-| PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-03 | in part: the connection page shows the helper loading and paging a fixed list through the route; sort, size and filters on that page come with the helper's later parts |
+| PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-04, CPAGE-05 | in part: the connection page shows the helper loading, paging, sorting and changing the page size of a fixed list through the route; filters on that page come with the helper's later parts |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
 
 PRD musts of the site left to later parts: PRD-W2 (in part), PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,

@@ -5,7 +5,10 @@ import Probe from "../../../test/ConnectionProbe.svelte";
 import type {
   Connection,
   ConnectionColumn,
+  ConnectionJsonOptions,
   ConnectionOptions,
+  ConnectionParamsOptions,
+  ConnectionQuery,
 } from "./index.ts";
 
 // The map M and the initial query Q0 of spec/connection.md (the server knows the columns by data and name)
@@ -41,17 +44,21 @@ const A1without = (field: string): Body => {
   return body;
 };
 
-// Mounts the probe with a `send` that records its calls, each settled only by `answer`, and an `onerror` that
-// records its calls; `connection` is what the helper returned
-function mount(options: Partial<ConnectionOptions> = {}) {
+// Renders the probe with the options `make` builds around a `send` that records its calls, each settled only by
+// `answer`, and an `onerror` that records its calls; `connection` is what the helper returned
+function run<Send>(
+  makeSend: (pending: () => Promise<unknown>) => Send,
+  make: (
+    send: Send,
+    onerror: ConnectionOptions["onerror"],
+  ) => ConnectionOptions,
+) {
   const settle: ((body: unknown) => void)[] = [];
-  const send = vi.fn<ConnectionOptions["send"]>(
-    () => new Promise((resolve) => settle.push(resolve)),
-  );
+  const send = makeSend(() => new Promise((resolve) => settle.push(resolve)));
   const onerror = vi.fn<ConnectionOptions["onerror"]>();
   let connected: Connection<Row> | undefined;
   render(Probe, {
-    options: { send, onerror, columns: M, query: Q0, ...options },
+    options: make(send, onerror),
     onconnect: (connection: Connection<Row>) => (connected = connection),
   });
   return {
@@ -68,6 +75,26 @@ function mount(options: Partial<ConnectionOptions> = {}) {
       return connected;
     },
   };
+}
+function mount(options: Partial<ConnectionParamsOptions> = {}) {
+  return run(
+    (pending) => vi.fn<ConnectionParamsOptions["send"]>(pending),
+    (send, onerror) => ({ send, onerror, columns: M, query: Q0, ...options }),
+  );
+}
+// As `mount`, for the JSON form: `send` receives the plain object
+function mountJson(options: Partial<ConnectionJsonOptions> = {}) {
+  return run(
+    (pending) => vi.fn<ConnectionJsonOptions["send"]>(pending),
+    (send, onerror) => ({
+      form: "json",
+      send,
+      onerror,
+      columns: M,
+      query: Q0,
+      ...options,
+    }),
+  );
 }
 
 // @spec("CONN-01", "a9d7c397")
@@ -199,36 +226,37 @@ describe("CONN-02", () => {
     ...columnPairs(1, "code", "c"),
     ...columnPairs(2, "status", "s"),
   ];
-  const rows: [string, Partial<ConnectionOptions>, [string, string][]][] = [
+  const rows: [string, Partial<ConnectionParamsOptions>, [string, string][]][] =
     [
-      "M, Q0 (26 pairs)",
-      {},
       [
-        ...basePairs,
-        ...mapPairs,
-        ["order[0][column]", "0"],
-        ["order[0][dir]", "asc"],
-        ["order[0][name]", "n"],
+        "M, Q0 (26 pairs)",
+        {},
+        [
+          ...basePairs,
+          ...mapPairs,
+          ["order[0][column]", "0"],
+          ["order[0][dir]", "asc"],
+          ["order[0][name]", "n"],
+        ],
       ],
-    ],
-    [
-      "M plus an entry with no name and no id, Q0",
-      { columns: [...M, { data: "internal" }] },
       [
-        ...basePairs,
-        ...mapPairs,
-        ...columnPairs(3, "internal", ""),
-        ["order[0][column]", "0"],
-        ["order[0][dir]", "asc"],
-        ["order[0][name]", "n"],
+        "M plus an entry with no name and no id, Q0",
+        { columns: [...M, { data: "internal" }] },
+        [
+          ...basePairs,
+          ...mapPairs,
+          ...columnPairs(3, "internal", ""),
+          ["order[0][column]", "0"],
+          ["order[0][dir]", "asc"],
+          ["order[0][name]", "n"],
+        ],
       ],
-    ],
-    [
-      "M, the query { limit: 10 } only (23 pairs)",
-      { query: { limit: 10 } },
-      [...basePairs, ...mapPairs],
-    ],
-  ];
+      [
+        "M, the query { limit: 10 } only (23 pairs)",
+        { query: { limit: 10 } },
+        [...basePairs, ...mapPairs],
+      ],
+    ];
   it.each(rows)("sends exactly the keys of %s", (_row, options, pairs) => {
     const { send } = mount(options);
     expect([...(send.mock.calls[0]?.[0]?.request ?? [])].sort(byKey)).toEqual(
@@ -237,26 +265,292 @@ describe("CONN-02", () => {
   });
 });
 
-// A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
-// name; nothing is sent
-describe("an unserved sort id (stated limit)", () => {
-  it("throws an Error naming the id and sends nothing", () => {
-    const send = vi.fn<ConnectionOptions["send"]>(() => new Promise(() => {}));
-    const onerror = vi.fn<ConnectionOptions["onerror"]>();
-    const query: ConnectionOptions["query"] = {
-      sort: [
-        { id: "name", direction: "asc" },
-        { id: "unknown", direction: "desc" },
-      ],
-      limit: 10,
-    };
-    expect(() =>
-      render(Probe, {
-        options: { send, onerror, columns: M, query },
-        onconnect: () => undefined,
-      }),
-    ).toThrow('no column map entry serves sort id "unknown"');
-    expect(send).not.toHaveBeenCalled();
+// @spec("CONN-05", "eeaee859")
+describe("CONN-05", () => {
+  const rows: [string, string][] = [
+    ["columns[0][data]", "columns[0].data"],
+    ["columns[0][search][value]", "columns[0].search.value"],
+    ["order[0][column]", "order[0].column"],
+    ["search[value]", "search.value"],
+    ["draw", "draw"],
+  ];
+  it.each(rows)("sends the value of %s under %s", (bracketed, dotted) => {
+    const sent = mount({ form: "dotted" }).send.mock.calls[0]?.[0]?.request;
+    const reference = mount().send.mock.calls[0]?.[0]?.request;
+    expect(reference?.get(bracketed)).not.toBeNull();
+    expect(sent?.get(dotted)).toBe(reference?.get(bracketed));
+  });
+  it("sends no bracketed key with an object key in brackets", () => {
+    const keys = [
+      ...(mount({ form: "dotted" }).send.mock.calls[0]?.[0]?.request.keys() ??
+        []),
+    ];
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.filter((key) => /\[[^\d\]]/.test(key))).toEqual([]);
+  });
+  it("sends no key starting with order for the sort []", () => {
+    const { send } = mount({ form: "dotted", query: { sort: [], limit: 10 } });
+    const request = send.mock.calls[0]?.[0]?.request;
+    expect(request?.get("draw")).toBe("1");
+    expect(orderOf(request)).toEqual({});
+  });
+});
+
+// @spec("CONN-06", "fb038033")
+describe("CONN-06", () => {
+  const fixed = { value: "", regex: false };
+  const entry = (data: string, name: string) => ({
+    data,
+    name,
+    searchable: true,
+    orderable: true,
+    search: fixed,
+  });
+  const rows: [string, Partial<ConnectionJsonOptions>, object][] = [
+    [
+      "M, Q0",
+      {},
+      {
+        draw: 1,
+        start: 0,
+        length: 10,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [{ column: 0, dir: "asc", name: "n" }],
+      },
+    ],
+    [
+      "the sort []",
+      { query: { sort: [], limit: 10 } },
+      {
+        draw: 1,
+        start: 0,
+        length: 10,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [],
+      },
+    ],
+    [
+      "offset 20 and limit 25",
+      { query: { sort: Q0.sort ?? [], offset: 20, limit: 25 } },
+      {
+        draw: 1,
+        start: 20,
+        length: 25,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [{ column: 0, dir: "asc", name: "n" }],
+      },
+    ],
+  ];
+  it.each(rows)("sends the plain object of %s", (_row, options, expected) => {
+    const { send } = mountJson(options);
+    expect(send.mock.calls[0]?.[0]?.request).toStrictEqual(expected);
+  });
+  it("gives each request objects of its own, so an application that edits one changes no other", async () => {
+    const { send, answer, connection } = mountJson();
+    const first = send.mock.calls[0]?.[0]?.request;
+    (first?.search as { value: string }).value = "edited";
+    (first?.columns[0]?.search as { value: string }).value = "edited";
+    await answer(0, A1());
+    connection.reload();
+    const second = send.mock.calls[1]?.[0]?.request;
+    expect(second?.search.value).toBe("");
+    expect(second?.columns[0]?.search.value).toBe("");
+  });
+});
+
+// @spec("CONN-03", "1bdcf223")
+describe("CONN-03", () => {
+  const rows: [string, Partial<ConnectionColumn>, string, string][] = [
+    ["as in M", {}, "true", "true"],
+    ["orderable false", { orderable: false }, "true", "false"],
+    [
+      "searchable false, orderable false",
+      { searchable: false, orderable: false },
+      "false",
+      "false",
+    ],
+  ];
+  it.each(rows)(
+    "sends the flags of entry 1 with %s",
+    (_row, flags, searchable, orderable) => {
+      const { send } = mount({
+        columns: M.map((column, i) =>
+          i === 1 ? { ...column, ...flags } : column,
+        ),
+      });
+      const request = send.mock.calls[0]?.[0]?.request;
+      expect(request?.get("columns[1][searchable]")).toBe(searchable);
+      expect(request?.get("columns[1][orderable]")).toBe(orderable);
+    },
+  );
+});
+
+// @spec("CONN-13", "b0765463")
+describe("CONN-13", () => {
+  const codeDesc = { id: "code", direction: "desc" } as const;
+  const sorted = {
+    start: "0",
+    column: "1",
+    dir: "desc",
+  };
+  const read = (request: URLSearchParams | undefined) => ({
+    start: request?.get("start"),
+    column: request?.get("order[0][column]"),
+    dir: request?.get("order[0][dir]"),
+  });
+  it("sends one request from the first row, the sort and the offset set before it is settled, on table.onsort from offset 20", async () => {
+    const probe = mount({ query: { ...Q0, offset: 20 } });
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeDesc]);
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(read(probe.send.mock.calls[1]?.[0]?.request)).toEqual(sorted);
+    expect(probe.connection.table.sort).toEqual([codeDesc]);
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("sends one request and keeps no pager on table.onsort before the first answer", () => {
+    const probe = mount();
+    probe.connection.table.onsort([codeDesc]);
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(read(probe.send.mock.calls[1]?.[0]?.request)).toEqual(sorted);
+    expect(probe.connection.table.sort).toEqual([codeDesc]);
+    expect(probe.connection.pager).toBeUndefined();
+  });
+});
+
+// @spec("CONN-27", "ffb7e3c2")
+describe("CONN-27", () => {
+  const rows: [number, number, number, number, number][] = [
+    // the offset and limit before, the size asked, the start sent, the offset the pager shows
+    [20, 10, 25, 0, 0],
+    [60, 10, 25, 50, 50],
+    [50, 25, 10, 50, 50],
+  ];
+  it.each(rows)(
+    "sends one request on pager.onsize from offset %i, limit %i, to size %i: start %i, the pager at offset %i before it is settled",
+    async (offset, limit, size, start, shown) => {
+      const probe = mount({ query: { ...Q0, offset, limit } });
+      await probe.answer(0, A1());
+      probe.connection.pager?.onsize(size);
+      expect(probe.send).toHaveBeenCalledTimes(2);
+      const request = probe.send.mock.calls[1]?.[0]?.request;
+      expect(request?.get("start")).toBe(String(start));
+      expect(request?.get("length")).toBe(String(size));
+      expect(probe.connection.pager).toMatchObject({
+        offset: shown,
+        limit: size,
+      });
+    },
+  );
+});
+
+// The pairs of a request without its draw
+const withoutDraw = (request: URLSearchParams | undefined) =>
+  [...(request ?? [])].filter(([key]) => key !== "draw");
+
+// @spec("CONN-24", "1938413e")
+describe("CONN-24", () => {
+  const unmapped = A1({ recordsFiltered: "5x" });
+  const rows: [
+    string,
+    (probe: ReturnType<typeof mount>) => Promise<void>,
+    string,
+    number,
+  ][] = [
+    // the settles before `reload()`, the draw it sends, the request whose other pairs it repeats
+    ["A1", (probe) => probe.answer(0, A1()), "2", 0],
+    [
+      "request 1 answered by an answer it cannot map",
+      (probe) => probe.answer(0, unmapped),
+      "2",
+      0,
+    ],
+    [
+      "A1, then pager.onpage(10) answered by an answer it cannot map",
+      async (probe) => {
+        await probe.answer(0, A1());
+        probe.connection.pager?.onpage(10);
+        await probe.answer(1, { ...unmapped, draw: 2 });
+      },
+      "3",
+      1,
+    ],
+  ];
+  it.each(rows)(
+    "sends the current query again with the next draw after %s",
+    async (_row, settle, draw, same) => {
+      const probe = mount();
+      await settle(probe);
+      const before = probe.send.mock.calls.length;
+      probe.connection.reload();
+      expect(probe.send).toHaveBeenCalledTimes(before + 1);
+      const request = probe.send.mock.calls[before]?.[0]?.request;
+      expect(request?.get("draw")).toBe(draw);
+      expect(withoutDraw(request)).toEqual(
+        withoutDraw(probe.send.mock.calls[same]?.[0]?.request),
+      );
+    },
+  );
+});
+
+// The map M without entry 1's `id`, so that no entry serves `code`
+const MNoCode: ConnectionColumn[] = M.map((column, i) =>
+  i === 1 ? { data: column.data, name: column.name } : column,
+);
+const codeAsc = { id: "code", direction: "asc" } as const;
+const nameAsc = { id: "name", direction: "asc" } as const;
+// The messages of the Errors `onerror` received
+const messages = (probe: ReturnType<typeof mount>) =>
+  probe.onerror.mock.calls.map(([error]) =>
+    error instanceof Error ? error.message : error,
+  );
+
+// @spec("CONN-16", "9f71fc39")
+describe("CONN-16", () => {
+  it("sends nothing and keeps the sort, naming code once, on table.onsort([code asc])", async () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, offset: 20 },
+    });
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeAsc]);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.table.sort).toEqual([nameAsc]);
+    expect(probe.connection.pager?.offset).toBe(20);
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing, keeps the sort, fails and names code once on a mount with sort [code asc]", () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual([codeAsc]);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing and names code once more on reload() after that mount", () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    probe.connection.reload();
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual([codeAsc]);
+    expect(messages(probe)).toEqual([
+      expect.stringContaining("code"),
+      expect.stringContaining("code"),
+    ]);
+  });
+  it("sends nothing and calls onerror once on a mount with a sort entry without an id", () => {
+    const sort = [{ direction: "asc" }] as unknown as ConnectionQuery["sort"];
+    const probe = mount({ columns: MNoCode, query: { ...Q0, sort } });
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual(sort);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -348,6 +642,31 @@ describe("CONN-15", () => {
     expect(
       probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
     ).toEqual(["1", "2", "3"]);
+  });
+  it("counts a sort, a reload and a size change, none answered, as draw 2, 3 and 4 after A1", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    probe.connection.reload();
+    probe.connection.pager?.onsize(25);
+    expect(
+      probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
+    ).toEqual(["1", "2", "3", "4"]);
+  });
+  it("counts only the requests sent: refusals take no draw", async () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    probe.connection.reload();
+    probe.connection.table.onsort([nameAsc]);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.send.mock.calls[0]?.[0]?.request.get("draw")).toBe("1");
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeAsc]);
+    probe.connection.reload();
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(probe.send.mock.calls[1]?.[0]?.request.get("draw")).toBe("2");
   });
 });
 
