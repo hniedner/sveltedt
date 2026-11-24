@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname, join, relative, sep } from "node:path";
-import { orders } from "./src/orders.ts";
+import { orders, type Order } from "./src/orders.ts";
 
 const TYPES: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -43,7 +43,23 @@ function readBuild(buildFolder: string): Map<string, BuiltFile> {
   return files;
 }
 
-// The route's answer: `draw` as a number, the fixed list from `start`, at most `length` rows, both counts the whole
+// The fixed list ordered by `order[0]` when it names column 0 or 1 as `asc` or `desc` and sends that column as
+// orderable, else as it is. The literals are matched first, so no request text is ever used as a key.
+function ordered(query: URLSearchParams): readonly Order[] {
+  const column = query.get("order[0][column]");
+  const direction = query.get("order[0][dir]");
+  if (
+    (column !== "0" && column !== "1") ||
+    (direction !== "asc" && direction !== "desc") ||
+    query.get(`columns[${column}][orderable]`) !== "true"
+  )
+    return orders;
+  const key: keyof Order = column === "0" ? "id" : "name";
+  const ascending = orders.toSorted((a, b) => a[key].localeCompare(b[key]));
+  return direction === "asc" ? ascending : ascending.toReversed();
+}
+
+// The route's answer: `draw` as a number, the ordered list from `start`, at most `length` rows, both counts the whole
 // list
 function answerOrders(query: URLSearchParams, response: ServerResponse): void {
   const start = Number(query.get("start"));
@@ -53,7 +69,7 @@ function answerOrders(query: URLSearchParams, response: ServerResponse): void {
       draw: Number(query.get("draw")),
       recordsTotal: orders.length,
       recordsFiltered: orders.length,
-      data: orders.slice(start, start + length),
+      data: ordered(query).slice(start, start + length),
     }),
   );
 }

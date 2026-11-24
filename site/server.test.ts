@@ -273,3 +273,52 @@ describe("API-02", () => {
     expect((JSON.parse(answer.body) as { draw?: unknown }).draw).toBe(number);
   });
 });
+
+const ASC = FIXED.toSorted();
+
+// @spec("API-03", "414d200f")
+describe("API-03", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX })).server;
+  });
+  const ordered = (column: string, dir: string) => ({
+    "order[0][column]": column,
+    "order[0][dir]": dir,
+  });
+
+  it.each([
+    ["column 1 asc", ordered("1", "asc"), ASC.slice(0, 10)],
+    ["column 1 desc", ordered("1", "desc"), ASC.toReversed().slice(0, 10)],
+    [
+      "column 1 asc from start 10",
+      { ...ordered("1", "asc"), start: "10" },
+      ASC.slice(10),
+    ],
+    ["column 0 desc", ordered("0", "desc"), ASC.toReversed().slice(0, 10)],
+    [
+      "column 1 asc, sent as not orderable",
+      { ...ordered("1", "asc"), "columns[1][orderable]": "false" },
+      FIXED.slice(0, 10),
+    ],
+  ])("orders by %s", async (_row, changes, ids) => {
+    const answer = await get(server, route(changes));
+    expect((JSON.parse(answer.body) as { data?: unknown }).data).toEqual(
+      rowsOf(ids),
+    );
+  });
+
+  // The answer ssp.class.php ad98978 gives to the helper's first request for a sorted page, as read from its source
+  it("answers the helper's own sorted request with the body ssp.class.php gives", async () => {
+    const answer = await get(
+      server,
+      route({ ...ordered("1", "asc"), "order[0][name]": "name" }),
+    );
+    expect(JSON.parse(answer.body)).toEqual({
+      draw: 1,
+      recordsTotal: 20,
+      recordsFiltered: 20,
+      data: rowsOf(ASC.slice(0, 10)),
+    });
+  });
+});
