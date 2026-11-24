@@ -68,11 +68,11 @@ There is nothing to install yet. What is on `main` today:
   search input gets the alert; the filter fields and dialog are not done yet;
 - the connection helper, first part, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first
   request through the application's `send({ request, signal })`, maps the answer to rows and totals, reports an answer
-  it cannot map once through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers
-  written by hand. The test site's connection page (`/connection.html`) loads its orders through it from the site's own
-  route `/api/orders` and pages them with `Pagination`, proved in Chromium, Firefox and WebKit. It does not yet handle a
-  `send` that rejects or throws, a superseded request (a stale answer of an earlier request), an answer that arrives
-  after unmount, or the `error` field of an answer.
+  it cannot map once through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its
+  tests use answers written by hand. The test site's connection page (`/connection.html`) loads its orders through it
+  from the site's own route `/api/orders` and pages them with `Pagination`, proved in Chromium, Firefox and WebKit. It
+  does not yet handle a `send` that rejects or throws, a superseded request (a stale answer of an earlier request), an
+  answer that arrives after unmount, or the `error` field of an answer.
 
 Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (sort,
 filter and search intents; `reload()`; the dotted and JSON forms; cancel and retry; a `send` that rejects or throws,
