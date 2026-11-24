@@ -6,6 +6,7 @@ import type {
   Connection,
   ConnectionColumn,
   ConnectionOptions,
+  ConnectionQuery,
 } from "./index.ts";
 
 // The map M and the initial query Q0 of spec/connection.md (the server knows the columns by data and name)
@@ -371,26 +372,57 @@ describe("CONN-24", () => {
   );
 });
 
-// A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
-// name; nothing is sent
-describe("an unserved sort id (stated limit)", () => {
-  it("throws an Error naming the id and sends nothing", () => {
-    const send = vi.fn<ConnectionOptions["send"]>(() => new Promise(() => {}));
-    const onerror = vi.fn<ConnectionOptions["onerror"]>();
-    const query: ConnectionOptions["query"] = {
-      sort: [
-        { id: "name", direction: "asc" },
-        { id: "unknown", direction: "desc" },
-      ],
-      limit: 10,
-    };
-    expect(() =>
-      render(Probe, {
-        options: { send, onerror, columns: M, query },
-        onconnect: () => undefined,
-      }),
-    ).toThrow('no column map entry serves sort id "unknown"');
-    expect(send).not.toHaveBeenCalled();
+// The map M without entry 1's `id`, so that no entry serves `code`
+const MNoCode: ConnectionColumn[] = M.map((column, i) =>
+  i === 1 ? { data: column.data, name: column.name } : column,
+);
+const codeAsc = { id: "code", direction: "asc" } as const;
+const nameAsc = { id: "name", direction: "asc" } as const;
+// The messages of the Errors `onerror` received
+const messages = (probe: ReturnType<typeof mount>) =>
+  probe.onerror.mock.calls.map(([error]) =>
+    error instanceof Error ? error.message : error,
+  );
+
+// @spec("CONN-16", "9f71fc39")
+describe("CONN-16", () => {
+  it("sends nothing and keeps the sort, naming code once, on table.onsort([code asc])", async () => {
+    const probe = mount({ columns: MNoCode });
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeAsc]);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.table.sort).toEqual([nameAsc]);
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing, keeps the sort, fails and names code once on a mount with sort [code asc]", () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual([codeAsc]);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing and names code once more on reload() after that mount", () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    probe.connection.reload();
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual([codeAsc]);
+    expect(messages(probe)).toEqual([
+      expect.stringContaining("code"),
+      expect.stringContaining("code"),
+    ]);
+  });
+  it("sends nothing and calls onerror once on a mount with a sort entry without an id", () => {
+    const sort = [{ direction: "asc" }] as unknown as ConnectionQuery["sort"];
+    const probe = mount({ columns: MNoCode, query: { ...Q0, sort } });
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.sort).toEqual(sort);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -492,6 +524,21 @@ describe("CONN-15", () => {
     expect(
       probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
     ).toEqual(["1", "2", "3", "4"]);
+  });
+  it("counts only the requests sent: refusals take no draw", async () => {
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, sort: [codeAsc] },
+    });
+    probe.connection.reload();
+    probe.connection.table.onsort([nameAsc]);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.send.mock.calls[0]?.[0]?.request.get("draw")).toBe("1");
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeAsc]);
+    probe.connection.reload();
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(probe.send.mock.calls[1]?.[0]?.request.get("draw")).toBe("2");
   });
 });
 

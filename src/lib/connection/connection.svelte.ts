@@ -2,7 +2,7 @@ import { onMount } from "svelte";
 import type { DataTableSortEntry, DataTableStatus } from "../types.ts";
 import { readAnswer } from "./answer.js";
 import type { Answer } from "./answer.ts";
-import { buildRequest } from "./request.js";
+import { buildRequest, servedIndex } from "./request.js";
 import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
@@ -26,7 +26,22 @@ export function createConnection<Row = unknown>(
   );
   // The draw of the last request sent, 0 before the first
   let draw = 0;
+  // True, after one call of `onerror`, when an entry of `entries` names a column that no map entry serves
+  function refused(entries: readonly DataTableSortEntry[]): boolean {
+    const entry = entries.find((e) => servedIndex(options.columns, e.id) < 0);
+    if (entry === undefined) return false;
+    options.onerror(
+      new Error(
+        `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
+      ),
+    );
+    return true;
+  }
   function load(): void {
+    if (refused(sort)) {
+      status = "failed";
+      return;
+    }
     const sent = ++draw;
     if (status === "ready") busy = true;
     else status = "loading";
@@ -56,6 +71,7 @@ export function createConnection<Row = unknown>(
     load();
   }
   function onsort(next: DataTableSortEntry[]): void {
+    if (refused(next)) return;
     sort = next;
     offset = 0;
     load();

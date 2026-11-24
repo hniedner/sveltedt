@@ -3,6 +3,12 @@ import type { ConnectionColumn, ConnectionQuery } from "./types.ts";
 // The name the server knows a column by: none given is the empty text
 const nameOf = (column: ConnectionColumn): string => column.name ?? "";
 
+// The index of the first map entry serving `id`, -1 when none does; an entry without an `id` is served by none
+export const servedIndex = (
+  columns: readonly ConnectionColumn[],
+  id: string | undefined,
+): number => (id === undefined ? -1 : columns.findIndex((c) => c.id === id));
+
 // The bracketed request for one query: the paging, search and column keys, then one order entry per sort entry
 // (spec/connection.md, section 1)
 export function buildRequest(
@@ -25,10 +31,7 @@ export function buildRequest(
     request.set(`columns[${i}][search][regex]`, "false");
   });
   (query.sort ?? []).forEach((entry, i) => {
-    const column = columns.findIndex((c) => c.id === entry.id);
-    // A sort id that no column entry serves is thrown with its name; nothing is sent
-    if (column < 0)
-      throw new Error(`no column map entry serves sort id "${entry.id}"`);
+    const column = servedIndex(columns, entry.id);
     request.set(`order[${i}][column]`, String(column));
     request.set(`order[${i}][dir]`, entry.direction);
     request.set(`order[${i}][name]`, nameOf(columns[column]));

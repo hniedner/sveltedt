@@ -37,7 +37,8 @@ export interface ConnectionOptions {
   // The form of the request: the bracketed one
   readonly form?: "bracketed";
   readonly query: ConnectionQuery;
-  // Called once with an Error when an answer cannot be mapped; it does not hear a rejection of `send`
+  // Called once with an Error when an answer cannot be mapped, and once for each refused sort (a sort entry that no map
+  // entry serves); it does not hear a rejection of `send`
   readonly onerror: (error: unknown) => void;
 }
 
