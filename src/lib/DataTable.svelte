@@ -169,7 +169,12 @@
     >
   {/each}
   {#if badgeList.length > 0}
-    <button type="button">{defaultMessages.clearFilters}</button>
+    <button
+      type="button"
+      onclick={() =>
+        // Stryker disable next-line OptionalChaining: unreachable fallback, the table has an onclearfilters (FILT-32)
+        onclearfilters?.()}>{defaultMessages.clearFilters}</button
+    >
   {/if}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->

@@ -159,6 +159,24 @@ describe("FILT-10", () => {
   );
 });
 
+// @spec("FILT-25", "55955f9d")
+describe("FILT-25", () => {
+  it("emits onclearfilters once with no argument on a press, and calls no other handler", async () => {
+    const { onclearfilters, onclearfilter, onfilter, onsort } = mount({
+      columns: [nameColumn, statusColumn],
+      filters: {
+        name: { kind: "text", text: "Beta" },
+        status: { kind: "categorical", selected: ["active"] },
+      },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: CLEAR_ALL }));
+    expect(onclearfilters.mock.calls).toEqual([[]]);
+    expect(onclearfilter).not.toHaveBeenCalled();
+    expect(onfilter).not.toHaveBeenCalled();
+    expect(onsort).not.toHaveBeenCalled();
+  });
+});
+
 // @spec("FILT-09", "48cff703")
 describe("FILT-09", () => {
   it("emits onclearfilter once with the column id on a badge press, and calls no other handler", async () => {
