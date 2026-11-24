@@ -499,11 +499,15 @@ const messages = (probe: ReturnType<typeof mount>) =>
 // @spec("CONN-16", "9f71fc39")
 describe("CONN-16", () => {
   it("sends nothing and keeps the sort, naming code once, on table.onsort([code asc])", async () => {
-    const probe = mount({ columns: MNoCode });
+    const probe = mount({
+      columns: MNoCode,
+      query: { ...Q0, offset: 20 },
+    });
     await probe.answer(0, A1());
     probe.connection.table.onsort([codeAsc]);
     expect(probe.send).toHaveBeenCalledTimes(1);
     expect(probe.connection.table.sort).toEqual([nameAsc]);
+    expect(probe.connection.pager?.offset).toBe(20);
     expect(messages(probe)).toEqual([expect.stringContaining("code")]);
   });
   it("sends nothing, keeps the sort, fails and names code once on a mount with sort [code asc]", () => {
@@ -534,6 +538,7 @@ describe("CONN-16", () => {
     const probe = mount({ columns: MNoCode, query: { ...Q0, sort } });
     expect(probe.send).not.toHaveBeenCalled();
     expect(probe.connection.table.sort).toEqual(sort);
+    expect(probe.connection.table.status).toBe("failed");
     expect(probe.onerror).toHaveBeenCalledTimes(1);
   });
 });
