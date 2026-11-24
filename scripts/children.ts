@@ -83,7 +83,7 @@ export function spawnGroup(
   return child;
 }
 
-/** SIGTERM to the group, polls until the group is gone, SIGKILL to the group after `ms`; resolves once it is gone. */
+/** SIGTERM to the group, polls until the group is gone, SIGKILL to the group after `ms`; resolves once it is gone, and throws if SIGKILL did not end it. */
 export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
   const { pid } = child;
   if (pid === undefined || groupGone(pid)) return;
@@ -94,6 +94,8 @@ export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
   signalGroup(child, "SIGKILL");
   for (let waited = 0; waited < 2000 && !groupGone(pid); waited += 50)
     await sleep(50);
+  if (!groupGone(pid))
+    throw new Error(`process group ${pid} still running after SIGKILL`);
 }
 
 /** The first COMPLETE stdout line starting with `prefix`; rejects at once, with exit and both streams, if `child` ends first. */

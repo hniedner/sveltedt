@@ -42,5 +42,7 @@ fetched or measured.
 - A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `signalGroup`
   guards a missing pid itself, so removing the check in `spawnGroup` changes no outcome. It is a second guard, not a
   behaviour a test could pin.
+- `stop` throws when a group is still there 2 s after SIGKILL (a process the kernel cannot end). No test pins that throw:
+  it needs an unkillable process, and none is built.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
   platform, or if the helper grows past about 150 lines.
