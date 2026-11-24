@@ -325,14 +325,15 @@ test(
   { timeout: 120_000 },
   async () => {
     const mine = mkdtempSync(join(tmpdir(), "serve-tmp-"));
-    after(() => rmSync(mine, { recursive: true, force: true }));
     const began = Date.now();
     const child = spawn(process.execPath, [join(HERE, "consumer-serve.ts")], {
       env: { ...process.env, TMPDIR: mine },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const code = new Promise<number | null>((r) => child.on("close", r));
-    // SIGTERM first: the program's own handler stops its servers; SIGKILL alone would leave them bound to their ports
+    // Hooks run in registration order: the program ends first, then its folder goes (rmSync on a folder the servers
+    // still write to can throw). SIGTERM first: only the program's own handler stops its servers; the SIGKILL fallback
+    // kills the program alone and leaves them bound to their ports.
     after(async () => {
       child.kill("SIGTERM");
       const ended = await Promise.race([
@@ -341,6 +342,7 @@ test(
       ]);
       if (ended === "late") child.kill("SIGKILL");
     });
+    after(() => rmSync(mine, { recursive: true, force: true }));
     await readyLine(child, "The consumer:");
     // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
     const log = join(HERE, "..", "test-results", "consumer-serve.log");
