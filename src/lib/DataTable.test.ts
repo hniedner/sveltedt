@@ -144,8 +144,8 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
   ["the alert of RND-05", { columns: [] }],
 ];
 
-// The stopped state the slow-load group adds to the five of RND-14, EXP-01 to EXP-03; kept apart so A11Y-14 and RND-12
-// keep their five
+// The stopped state the slow-load group adds to the five of RND-14, EXP-01 to EXP-03; kept apart because A11Y-14 and
+// RND-12 list the five states and not stopped: fold the two lists together if their statements are widened
 const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
   ["status 'stopped'", { status: "stopped" }],
 ];
@@ -358,25 +358,30 @@ describe("STATE-03", () => {
 
 // @spec("STATE-20", "9e3a1a6c")
 describe("STATE-20", () => {
-  it.each<[string, Item[], string[]]>([
-    ["no rows", [], []],
-    ["three rows", threeRows, ["Beta", "Gamma", "Delta"]],
+  it.each<[string, Item[], string[], DataTableColumn<Item>[]]>([
+    ["no rows", [], [], [idColumn, nameColumn, noteColumn]],
+    [
+      "three rows",
+      threeRows,
+      ["Beta", "Gamma", "Delta"],
+      [idColumn, nameColumn, noteColumn],
+    ],
+    // The span follows the column count, so it cannot be a fixed number
+    ["no rows and two columns", [], [], [idColumn, nameColumn]],
   ])(
     "with status stopped and %s, shows the stopped message in one cell spanning every column",
-    (_rows, rows, absent) => {
-      show({
-        rows,
-        columns: [idColumn, nameColumn, noteColumn],
-        status: "stopped",
-      });
+    (_rows, rows, absent, columns) => {
+      show({ rows, columns, status: "stopped" });
       const table = screen.getByRole("table");
-      expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
+      expect(within(table).getAllByRole("columnheader")).toHaveLength(
+        columns.length,
+      );
       expect(within(table).getAllByRole("cell")).toHaveLength(1);
       expect(
         within(table)
           .getByRole("cell", { name: "Loading stopped" })
           .getAttribute("colspan"),
-      ).toBe("3");
+      ).toBe(String(columns.length));
       for (const name of absent)
         expect(within(table).queryByRole("cell", { name })).toBeNull();
     },
@@ -1124,7 +1129,7 @@ describe("STATE-28", () => {
 
 // @spec("STATE-24", "fd6b9b8c")
 describe("STATE-24", () => {
-  // The button is #145's: it adds the assertion that "Try again" is absent here, shown red with the button rendered
+  // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
   it.each<DataTableStatus>(["stopped", "failed"])(
     "with status %s and invalid input, shows the one alert and no table",
     (status) => {
