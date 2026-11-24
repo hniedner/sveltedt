@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { inProduction, useConsoleErrors } from "../../test/console-spy.ts";
 import DataTable from "./DataTable.svelte";
 import type {
@@ -8,6 +8,9 @@ import type {
   DataTableSortEntry,
   SortDirection,
 } from "./types.ts";
+
+// The type of a column's sortable: at least one direction (SORT-15 rejects none at run time)
+type Directions = NonNullable<DataTableColumn<Item>["sortable"]>;
 
 interface Item {
   id: string;
@@ -25,7 +28,7 @@ const rows: Item[] = [
 function sortable(
   id: "code" | "name" | "date",
   label: string,
-  directions: readonly SortDirection[] = ["asc", "desc"],
+  directions: Directions = ["asc", "desc"],
 ): DataTableColumn<Item> {
   return { id, label, value: ({ row }) => row[id], sortable: directions };
 }
@@ -261,7 +264,7 @@ describe("SORT-03, click row", () => {
 });
 // @spec("SORT-04", "a2edd1fa")
 describe("SORT-04", () => {
-  it.each<[SortDirection[], string, boolean, string]>([
+  it.each<[Directions, string, boolean, string]>([
     [["desc"], "", false, "date desc"],
     [["desc"], "date desc", false, ""],
     [["desc"], "code asc", true, "code asc, date desc"],
@@ -463,7 +466,10 @@ const SORT_ALERTS = {
 // Props that raise each message of SORT-15's alert
 const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
   [
-    ["sortableInvalid", { columns: [sortable("name", "Name", [])] }],
+    [
+      "sortableInvalid",
+      { columns: [sortable("name", "Name", [] as unknown as Directions)] },
+    ],
     [
       "sortableInvalid",
       { columns: [sortable("name", "Name", ["asc", "asc"])] },
@@ -471,9 +477,7 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     [
       "sortableInvalid",
       {
-        columns: [
-          sortable("name", "Name", ["up"] as unknown as SortDirection[]),
-        ],
+        columns: [sortable("name", "Name", ["up"] as unknown as Directions)],
       },
     ],
     ["sortHandlerMissing", { onsort: undefined }],
@@ -493,6 +497,8 @@ const sortFaults: [keyof typeof SORT_ALERTS, Partial<DataTableProps<Item>>][] =
     ["sortColumnDuplicate", { sort: order("name asc, name desc") }],
   ];
 
+// A column's sortable with no direction is a type error, as well as SORT-15's alert at run time
+expectTypeOf<readonly []>().not.toExtend<Directions>();
 // @spec("SORT-15", "c4bf5485")
 describe("SORT-15", () => {
   it.each(sortFaults)(
@@ -510,7 +516,10 @@ describe("SORT-15", () => {
   it.each<[string, Partial<DataTableProps<Item>>, keyof typeof SORT_ALERTS]>([
     [
       "a sortable column with no direction and no onsort",
-      { columns: [sortable("name", "Name", [])], onsort: undefined },
+      {
+        columns: [sortable("name", "Name", [] as unknown as Directions)],
+        onsort: undefined,
+      },
       "sortableInvalid",
     ],
     [

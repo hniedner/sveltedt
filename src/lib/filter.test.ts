@@ -6,7 +6,6 @@ import type {
   DataTableColumn,
   DataTableFilter,
   DataTableProps,
-  SortDirection,
 } from "./types.ts";
 
 interface Item {
@@ -400,7 +399,7 @@ describe("FILT-32", () => {
 
   const sortable: DataTableColumn<Item> = {
     ...nameColumn,
-    sortable: ["asc", "desc"] satisfies SortDirection[],
+    sortable: ["asc", "desc"],
   };
   it.each<[string, Props, string]>([
     [

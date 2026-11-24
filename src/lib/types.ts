@@ -6,7 +6,7 @@ export type DataTableColumn<Row> = {
   readonly id: string;
   readonly label: string;
   // The directions a press steps through, in this order; absent: the column is not sortable
-  readonly sortable?: readonly SortDirection[];
+  readonly sortable?: readonly [SortDirection, ...SortDirection[]];
   // The filter the column offers; absent or null: none (FILT-32)
   readonly filter?: DataTableFilter | null;
 } & (
