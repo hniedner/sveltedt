@@ -329,3 +329,41 @@ describe("FILT-32", () => {
     expect(String(errors()[0])).toContain(`SvelteDT: ${code}:`);
   });
 });
+
+// @spec("FILT-39", "09d4b557")
+describe("FILT-39", () => {
+  it.each<[Props, keyof typeof TEXTS, string[]]>([
+    [
+      {
+        columns: [
+          withStatus({
+            options: [
+              { value: "val-q8", label: "Secret-6" },
+              { value: "val-q8", label: "Other" },
+            ],
+          }),
+        ],
+      },
+      "filterInvalid",
+      ["val-q8", "Secret-6"],
+    ],
+    [
+      { filters: { status: { kind: "categorical", selected: ["val-p3"] } } },
+      "filterStateInvalid",
+      ["val-p3"],
+    ],
+  ])(
+    "holds no filter value in the alert or the console line",
+    (props, code, words) => {
+      mount(props);
+      const alerts = screen
+        .getAllByRole("alert")
+        .map((alert) => alert.textContent);
+      expect(alerts).toEqual([FIXED]);
+      expect(errors()).toEqual([line(code)]);
+      for (const word of words)
+        for (const text of [...alerts, ...errors()])
+          expect(String(text)).not.toContain(word);
+    },
+  );
+});
