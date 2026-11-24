@@ -18,6 +18,12 @@ export const defaultMessages: DataTableMessages = {
   invalidInput: "This table cannot be shown.",
   sortableHint: "Column names that are buttons sort the table.",
   emptyOption: "(empty)",
+  filterButton: (label) => `Filter ${label}`,
+  badgeText: ({ label, text }) => `${label}: contains “${text}”`,
+  badgeOptions: ({ label, options }) => `${label}: ${options.join(", ")}`,
+  clearFilter: (words) => `Clear filter ${words}`,
+  clearFilters: "Clear column filters",
+  reset: "Reset table",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

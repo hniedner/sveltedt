@@ -2550,6 +2550,25 @@ of the example. "Filter Name text" is the text field of Name's dialog. `maxLengt
 - Layer: component.
 - Traces: PRD-B6, PRD-B7, PRD-B3.
 
+**FILT-56** A column header cell MUST be named by its column label alone, whatever buttons it holds.
+- Examples (the test runs every row on the filter test page, `site/filters.html`, which has a filter on Link and on
+  Region; the name is matched exactly, `getByRole('columnheader', { name, exact: true })`):
+
+  | Column | Header cell holds | Its name |
+  |---|---|---|
+  | Link, with a text filter | the filter button | "Link" |
+  | Region, sortable, with a text filter | the sort button and the filter button | "Region" |
+  | Name, sortable | the sort button | "Name" |
+
+- Reason: a header cell's accessible name is computed from its content, and screen readers repeat it for every body
+  cell; a button named "Filter Link" in the cell would make the column "Link Filter Link" (the reason of SORT-09).
+  The author's `aria-label` on the cell wins over its content (Accessible Name and Description Computation 1.2).
+  The simulated DOM does not fold a nested button's name into a header's name as a browser does (MEASURED: a
+  header with a filter button keeps the name "Name" there), so only a browser proves it. Stated limit: whether NVDA
+  and JAWS read the cell's `aria-label` for body cells is checked with the harness of PRD-A5, not here.
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-A2, PRD-A1.
+
 **FILT-01** A text filter MUST emit `onfilter` once typing pauses for `searchDelay` milliseconds, with the field's
 text, and not while typing goes on.
 - Examples (the test runs every row; `filters` holds no filter for Name):
@@ -2911,6 +2930,7 @@ come with the column statements (milestone 5), which state the badges and focus 
   | `name: { kind: 'text', text: 'Beta' }` | one button, text "Name: contains “Beta”", name "Clear filter Name: contains “Beta”" |
   | `name: { kind: 'text', text: '' }` | none |
   | `name: { kind: 'text', text: ' ' }` | none |
+  | `name: { kind: 'text', text: 'Beta' }` and an entry for a column that is not configured (the alert of RND-05) | none |
   | `status: { kind: 'categorical', selected: [] }` | none |
 
 - Reason: the user sees what narrows the rows, and the visible words stay in the accessible name (PRD-B8, WCAG
@@ -2946,8 +2966,10 @@ come with the column statements (milestone 5), which state the badges and focus 
   | `{}` | not shown |
   | `name: { kind: 'text', text: '' }` | not shown |
   | `name: { kind: 'text', text: 'Beta' }` | shown |
+  | `name: { kind: 'text', text: 'Beta' }` and an entry for a column that is not configured (the alert of RND-05) | not shown |
 
-- Reason: a control with nothing to clear misleads (PRD-B8).
+- Reason: a control with nothing to clear misleads (PRD-B8), and the table cannot vouch for filters it could not
+  validate.
 - Layer: component.
 - Traces: PRD-B8.
 
@@ -2964,12 +2986,18 @@ come with the column statements (milestone 5), which state the badges and focus 
   | Columns | `onreset` | "Reset table" |
   |---|---|---|
   | Code sortable, no filter | given | shown |
+  | Code sortable and Note neither sortable nor with a filter | given | shown |
   | Name with a filter, none sortable | given | shown |
   | Code sortable | not given | not shown |
   | neither sortable nor with a filter | given | not shown (RND-12) |
+  | Code sortable, and `filters` names a column that is not configured (the alert of RND-05) | given | shown |
+  | Code sortable, and `sort` names a column that is not configured (the alert of RND-05) | given | shown |
 
 - Reason: the reset is the application's intent and does nothing without its handler; a table built before this
-  group, with sort and no `onreset`, keeps its look (PRD-B8; RND-12 is the negative half).
+  group, with sort and no `onreset`, keeps its look (PRD-B8; RND-12 is the negative half). It stays while the alert
+  shows a fault of `sort` or `filters` (SORT-15, FILT-32), the application's way back from a server answer the table
+  cannot show (RND-10); the columns have passed RND-05's checks there, so the rule reads them (their own sort or
+  filter settings may be the fault).
 - Layer: component.
 - Traces: PRD-B8, PRD-B3.
 
@@ -2999,9 +3027,13 @@ before the region, in document order.
   |---|---|
   | Name's text "Beta" and Status's `['active']` | the badge of Name, the badge of Status, "Clear my criteria", "Clear column filters", "Reset table", the region |
   | `{}` | "Clear my criteria", "Reset table", the region |
+  | Status's entry first and Name's second in `filters` | the badge of Name, then the badge of Status |
+  | `filters` names a column that is not configured (the alert of RND-05) | "Clear my criteria", "Reset table", with no badge and no "Clear column filters" |
 
 - Reason: the application's own criteria sit beside the column filters they join, and the clearing controls follow
-  what they clear (PRD section 5.2; WCAG 1.3.2).
+  what they clear (PRD section 5.2; WCAG 1.3.2). The badges follow the column order, not the key order of
+  `filters`, which a JSON answer or an object spread can change; the `criteria` snippet shows in the alert state as
+  `heading` and `actions` do (RND-10).
 - Layer: component.
 - Traces: PRD-B8, PRD-A3.
 
@@ -5184,6 +5216,7 @@ pointer.
 | ID-03 | PRD-B18, PRD-K4 |
 | I18N-01 | PRD-I2, PRD-I1, PRD-B26 |
 | FILT-29 | PRD-B6, PRD-B7, PRD-B3 |
+| FILT-56 | PRD-A2, PRD-A1 |
 | FILT-01 | PRD-B6 |
 | FILT-27 | PRD-B6 |
 | FILT-28 | PRD-B6 |
@@ -5410,8 +5443,8 @@ state in their own statements.
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, STATE-28, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
-| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
-| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09, SORT-28 | in full |
+| PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08, FILT-56 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
+| PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09, SORT-28, FILT-56 | in full |
 | PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
