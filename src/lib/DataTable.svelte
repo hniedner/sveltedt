@@ -147,14 +147,14 @@
     status === "stopped" || status === "failed" ? onretry : undefined,
   );
   // For the focus hand-off: bind:this sets them, and nulls them when their element goes. State, because a variable that
-  // bind:this sets inside an {#if} must be
+  // bind:this sets inside an {#if} must be declared with $state(...) (the compiler warns otherwise)
   let table = $state<HTMLTableElement | null>(null);
   let cancelButton = $state<HTMLButtonElement | null>(null);
   let retryButton = $state<HTMLButtonElement | null>(null);
   // A focused button about to go hands focus to the table, which takes it without scrolling (A11Y-28). With invalid
   // input there is no table. It must run before the button leaves the DOM
   function keepFocus(button: HTMLElement | null): void {
-    if (table && button && document.activeElement === button) {
+    if (table && button?.matches(":focus")) {
       table.tabIndex = -1;
       table.focus({ preventScroll: true });
     }
