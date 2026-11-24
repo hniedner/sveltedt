@@ -83,9 +83,10 @@ export function validateTable<Row>(
   )
     return "columnContentMissing";
   if (!STATUSES.includes(status)) return "statusUnknown";
-  // With status loading or failed, rows that are not a list are no row fault (STATE-08); a sort fault still counts
+  // Only with status ready are rows that are not a list a fault; with loading, failed or stopped they are not
+  // (STATE-08, STATE-22), and a sort fault still counts
   if (!isList(rows)) {
-    if (status !== "loading" && status !== "failed") return "rowsNotList";
+    if (status === "ready") return "rowsNotList";
   } else {
     const fault = rowFault(rows, getRowId);
     if (fault) return fault;

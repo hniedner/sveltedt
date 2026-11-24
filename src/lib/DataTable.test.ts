@@ -1062,6 +1062,26 @@ describe("STATE-08", () => {
   );
 });
 
+// @spec("STATE-22", "67351516")
+describe("STATE-22", () => {
+  it.each<[string, unknown]>([
+    ["undefined", undefined],
+    ["null", null],
+  ])(
+    "with status stopped and rows %s, shows the stopped message and no alert",
+    (_rows, rows) => {
+      // A caller the type does not reach: a load ended before any answer passes no list
+      show({
+        status: "stopped",
+        rows: rows as Item[],
+        columns: [nameColumn, codeColumn],
+      });
+      expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    },
+  );
+});
+
 // @spec("RND-06", "5a7fccfd")
 describe("RND-06", () => {
   const foreign: TableWords = {
