@@ -20,12 +20,12 @@ const noSearch = () => ({ value: "", regex: false });
 // per sort entry (spec/connection.md, section 1)
 export function buildRequest(
   columns: readonly ConnectionColumn[],
-  query: ConnectionQuery,
+  query: Required<ConnectionQuery>,
   draw: number,
 ): ConnectionRequest {
   return {
     draw,
-    start: query.offset ?? 0,
+    start: query.offset,
     length: query.limit,
     search: noSearch(),
     columns: columns.map((column) => ({
@@ -35,7 +35,7 @@ export function buildRequest(
       orderable: column.orderable ?? true,
       search: noSearch(),
     })),
-    order: (query.sort ?? []).map((entry) => {
+    order: query.sort.map((entry) => {
       const column = servedIndex(columns, entry.id);
       return {
         column,
@@ -54,6 +54,7 @@ export function toParams(
 ): URLSearchParams {
   const params = new URLSearchParams();
   const walk = (value: unknown, key: string): void => {
+    // Stryker disable next-line ConditionalExpression: equivalent, no value of a request is null
     if (typeof value === "object" && value !== null) {
       const listed = Array.isArray(value);
       for (const [k, v] of Object.entries(value))
