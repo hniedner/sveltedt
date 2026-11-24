@@ -1,5 +1,6 @@
 <script lang="ts" generics="Row">
   import { faultLine } from "./faults.js";
+  import { badges } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import { nextOrder } from "./sort.js";
   import type {
@@ -92,6 +93,11 @@
   $effect(() => {
     if (fault !== null) console.error(faultLine(fault));
   });
+  // The applied filters as badges; none while the alert shows, as the table cannot vouch for filters it could not
+  // validate (FILT-08)
+  const badgeList = $derived(
+    fault === null ? badges(columns, filters, defaultMessages) : [],
+  );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
     fault === null && status === "ready" && !busy
@@ -152,6 +158,11 @@
 <div class="sdt">
   {@render heading?.()}
   {@render actions?.()}
+  {#each badgeList as badge (badge.id)}
+    <button type="button" aria-label={defaultMessages.clearFilter(badge.text)}
+      >{badge.text}</button
+    >
+  {/each}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
   <div role="status" aria-atomic="false">
