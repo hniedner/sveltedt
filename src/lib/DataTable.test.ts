@@ -1006,6 +1006,11 @@ describe("A11Y-22", () => {
       ],
       [true, false, false, true],
     ],
+    [
+      "failed, stopped, failed",
+      [{ status: "failed" }, { status: "stopped" }, { status: "failed" }],
+      [true, false, true],
+    ],
   ])(
     "holds the failed message exactly while failed: %s",
     async (_steps, steps, held) => {
