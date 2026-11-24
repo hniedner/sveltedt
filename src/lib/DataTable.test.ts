@@ -1262,6 +1262,7 @@ describe("RND-13", () => {
     ["failed", false, [FAILED]],
     ["ready", false, [EMPTY]],
     ["ready", true, []],
+    ["stopped", false, ["Loading stopped"]],
   ])(
     "with columns [], status %s and busy %s, shows only the alert",
     (status, busy, hidden) => {
