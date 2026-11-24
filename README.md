@@ -66,19 +66,23 @@ There is nothing to install yet. What is on `main` today:
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
   column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
   search input gets the alert; the filter fields and dialog are not done yet;
-- the connection helper, first part, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first
-  request through the application's `send({ request, signal })`, maps the answer to rows and totals, reports an answer
-  it cannot map once through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its
-  tests use answers written by hand. The test site's connection page (`/connection.html`) loads its orders through it
-  from the site's own route `/api/orders` and pages them with `Pagination`, proved in Chromium, Firefox and WebKit. It
-  does not yet handle a `send` that rejects or throws, a superseded request (a stale answer of an earlier request), an
-  answer that arrives after unmount, or the `error` field of an answer.
+- the connection helper, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first request
+  through the application's `send({ request, signal })`, maps the answer to rows and totals, reports an answer it
+  cannot map once through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its sort
+  intent (`table.onsort`) and page-size intent (`pager.onsize`) each set the query at once and send one request;
+  `reload()` sends the current query again, the page included; each column map entry can say `searchable` and
+  `orderable`; the request goes out in the bracketed form by default, dotted with `form: "dotted"`, or as the plain
+  object with `form: "json"`; and a sort on a column id no map entry serves sends nothing and is reported once through
+  `onerror`. Its tests use answers written by hand. The test site's connection page (`/connection.html`) loads its
+  orders through it from the site's own route `/api/orders`, pages them with `Pagination`, sorts them by the Order
+  column and changes the page size, proved in Chromium, Firefox and WebKit. It does not yet handle a `send` that
+  rejects or throws, a superseded request (a stale answer of an earlier request), an answer that arrives after
+  unmount, or the `error` field of an answer.
 
-Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (sort,
-filter and search intents; `reload()`; the dotted and JSON forms; cancel and retry; a `send` that rejects or throws,
-or an answer whose properties throw when read, after which the table stays loading, or shows the old rows with the new
-page, and `onerror` is not called; a sort id no column serves, which the helper throws at mount, until a refused sort
-is reported through `onerror`) and the published package. The order is in the
+Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (filter
+and search intents; cancel and retry; a `send` that rejects or throws, or an answer whose properties throw when read,
+after which the table stays loading, or shows the old rows with the new page, and `onerror` is not called) and the
+published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
