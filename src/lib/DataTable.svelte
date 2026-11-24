@@ -77,6 +77,18 @@
       ? words.rowCount(rows.length)
       : "",
   );
+  // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
+  const pending = $derived(fault === null && (status === "loading" || busy));
+  // The progress indicator is in the component (PRD-B2)
+  let shown = $state(false);
+  // 1 s of pending without a gap shows the indicator; a gap clears the delay (STATE-09)
+  $effect(() => {
+    if (!pending) return;
+    const delay = setTimeout(() => {
+      shown = true;
+    }, 1000);
+    return () => clearTimeout(delay);
+  });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
     direction: SortDirection | null;
@@ -107,6 +119,7 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
+    {#if shown}<div data-sdt-progress></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table class="sdt-table" aria-busy={busy || status === "loading"}>
         <caption class="sdt-caption"
