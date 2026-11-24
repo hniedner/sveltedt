@@ -1410,6 +1410,19 @@ test("selftest: as many test files run at once as the machine has cores", () => 
   );
   assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
 });
+test("selftest: the line of a passing file gives the seconds it took (CI-SHARD balance)", () => {
+  // A file that waits 2.2 s: the line says 2 s, so a fixed figure cannot pass
+  const slow = PASSING_TEST.replace(
+    "() => {}",
+    "() => new Promise((done) => setTimeout(done, 2200))",
+  );
+  const out = expect(
+    "selftest",
+    repo((root) => put(root, "scripts/slow.test.mjs", slow)),
+    0,
+  );
+  assert.match(out, /scripts\/slow\.test\.mjs: 1 passed in 2 s\n/);
+});
 test("selftest: no more test files run at once than the machine has cores", () => {
   // One file more than the cores, each needing all the others beside it: the first to end cannot have had them all
   const out = expect(
@@ -1451,7 +1464,7 @@ test("a ends last", () => {
   );
   assert.match(
     out,
-    /scripts\/a\.test\.mjs: 1 passed\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed/,
+    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
   );
 });
 test("selftest: a test file killed by a signal cannot be checked, and its line names the signal", () => {

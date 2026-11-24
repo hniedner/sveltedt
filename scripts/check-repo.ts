@@ -445,6 +445,7 @@ async function runTestFile(
   if (!existsSync(join(root, file)))
     return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
+  const started = Date.now();
   const r = await new Promise<{
     status: number | null;
     signal: NodeJS.Signals | null;
@@ -479,7 +480,9 @@ async function runTestFile(
       ),
     };
   }
-  return { code: PASS, line: `${file}: ${tests} passed` };
+  // The wall seconds of a passing file are what the CI shard table (scripts/shards.ts) is balanced on
+  const seconds = Math.round((Date.now() - started) / 1000);
+  return { code: PASS, line: `${file}: ${tests} passed in ${seconds} s` };
 }
 
 // Every tracked test file runs in its own process, each with its own count, as many at once as the machine has cores;
