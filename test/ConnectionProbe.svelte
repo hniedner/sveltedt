@@ -1,12 +1,43 @@
 <script lang="ts">
   // The probe of the connection helper's tests (see Conventions, Layer, in spec/connection.md): it calls
   // createConnection in its script, as an application's component does, so the helper's onMount runs during this
-  // component's initialisation.
+  // component's initialisation; it hands what the helper returns to `onconnect` and renders DataTable with its table
+  // props.
   import { untrack } from "svelte";
-  import { createConnection } from "../src/lib/connection/index.ts";
-  import type { ConnectionOptions } from "../src/lib/connection/index.ts";
+  import DataTable from "../src/lib/DataTable.svelte";
+  import { createConnection } from "../src/lib/connection/index.js";
+  import type {
+    Connection,
+    ConnectionOptions,
+  } from "../src/lib/connection/index.ts";
+  import type { DataTableColumn } from "../src/lib/types.ts";
 
-  const { options }: { options: ConnectionOptions } = $props();
+  interface Row {
+    id: string;
+    name: string;
+  }
+  const {
+    options,
+    onconnect,
+  }: {
+    options: ConnectionOptions;
+    onconnect: (connection: Connection<Row>) => void;
+  } = $props();
   // The helper reads its options once, at mount, on purpose: the probe never changes them
-  untrack(() => createConnection(options));
+  const connection = untrack(() => createConnection<Row>(options));
+  untrack(() => onconnect(connection));
+  const columns: DataTableColumn<Row>[] = [
+    { id: "name", label: "Name", value: (row) => row.name },
+  ];
+  const getRowId = (row: Row): string => row.id;
 </script>
+
+<DataTable
+  rows={connection.table.rows}
+  {columns}
+  {getRowId}
+  caption="Rows"
+  regionLabel="Rows table"
+  status={connection.table.status}
+  busy={connection.table.busy}
+/>

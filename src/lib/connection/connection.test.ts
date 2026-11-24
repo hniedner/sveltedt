@@ -2,7 +2,11 @@ import { render } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import Probe from "../../../test/ConnectionProbe.svelte";
-import type { ConnectionColumn, ConnectionOptions } from "./index.ts";
+import type {
+  Connection,
+  ConnectionColumn,
+  ConnectionOptions,
+} from "./index.ts";
 
 // The map M and the initial query Q0 of spec/connection.md (the server knows the columns by data and name)
 const M: ConnectionColumn[] = [
@@ -15,11 +19,55 @@ const Q0: ConnectionOptions["query"] = {
   limit: 10,
 };
 
-// Mounts the probe with a `send` that records its calls and never settles
+// The rows D of A1, each shown by its name
+const D = Array.from({ length: 10 }, (_, i) => ({
+  id: `r${i}`,
+  name: `Row ${i}`,
+}));
+type Row = (typeof D)[number];
+type Body = Record<string, unknown>;
+// The answer A1, with the given fields replaced or added
+const A1 = (fields: Body = {}): Body => ({
+  draw: 1,
+  recordsTotal: 1000,
+  recordsFiltered: 57,
+  data: D,
+  ...fields,
+});
+// A1 without the given field
+const A1without = (field: string): Body => {
+  const body = A1();
+  delete body[field];
+  return body;
+};
+
+// Mounts the probe with a `send` that records its calls, each settled only by `answer`, and an `onerror` that
+// records its calls; `connection` is what the helper returned
 function mount(options: Partial<ConnectionOptions> = {}) {
-  const send = vi.fn<ConnectionOptions["send"]>(() => new Promise(() => {}));
-  render(Probe, { options: { send, columns: M, query: Q0, ...options } });
-  return { send };
+  const settle: ((body: unknown) => void)[] = [];
+  const send = vi.fn<ConnectionOptions["send"]>(
+    () => new Promise((resolve) => settle.push(resolve)),
+  );
+  const onerror = vi.fn<ConnectionOptions["onerror"]>();
+  let connected: Connection<Row> | undefined;
+  render(Probe, {
+    options: { send, onerror, columns: M, query: Q0, ...options },
+    onconnect: (connection: Connection<Row>) => (connected = connection),
+  });
+  return {
+    send,
+    onerror,
+    // Settles the call of `send` with index `n` with `body`, then lets the probe update
+    answer: async (n: number, body: unknown) => {
+      settle[n]?.(body);
+      await tick();
+    },
+    get connection(): Connection<Row> {
+      if (connected === undefined)
+        throw new Error("the probe gave no connection");
+      return connected;
+    },
+  };
 }
 
 // @spec("CONN-01", "4dd0aeec")
@@ -186,11 +234,12 @@ describe("CONN-02", () => {
   });
 });
 
-// A stated limit, outside every statement: the helper has no `onerror` to tell, so a sort id that no column entry
-// serves is thrown out of the mount, naming the id, and nothing is sent; the spec requires `onerror` for it
+// A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
+// name; nothing is sent
 describe("an unserved sort id (stated limit)", () => {
   it("throws an Error naming the id and sends nothing", () => {
     const send = vi.fn<ConnectionOptions["send"]>(() => new Promise(() => {}));
+    const onerror = vi.fn<ConnectionOptions["onerror"]>();
     const query: ConnectionOptions["query"] = {
       sort: [
         { id: "name", direction: "asc" },
@@ -199,8 +248,52 @@ describe("an unserved sort id (stated limit)", () => {
       limit: 10,
     };
     expect(() =>
-      render(Probe, { options: { send, columns: M, query } }),
+      render(Probe, {
+        options: { send, onerror, columns: M, query },
+        onconnect: () => undefined,
+      }),
     ).toThrow('no column map entry serves sort id "unknown"');
     expect(send).not.toHaveBeenCalled();
   });
+});
+
+// @spec("CONN-17", "2ad69801")
+describe("CONN-17", () => {
+  const rows: [string, Body][] = [
+    ["A1", A1()],
+    ["A1 with draw '1'", A1({ draw: "1" })],
+    ["A1 with draw '01'", A1({ draw: "01" })],
+    ["A1 without draw", A1without("draw")],
+    [
+      "A1 with both counts as text",
+      A1({ recordsFiltered: "57", recordsTotal: "1000" }),
+    ],
+    ["A1 with recordsFiltered '057'", A1({ recordsFiltered: "057" })],
+    ["A1 with error ''", A1({ error: "" })],
+    ["A1 with error null", A1({ error: null })],
+    ["A1 with error false", A1({ error: false })],
+    ["A1 with error 0", A1({ error: 0 })],
+    ["A1 with error_code 'X'", A1({ error_code: "X" })],
+    [
+      "A1 with an extra field and each row holding DT_RowId",
+      A1({
+        debug: 1,
+        data: D.map((row) => ({ ...row, DT_RowId: `row_${row.id}` })),
+      }),
+    ],
+  ];
+  it.each(rows)(
+    "maps %s to its own data as the rows, both totals as numbers, ready and not busy",
+    async (_row, body) => {
+      const probe = mount();
+      await probe.answer(0, body);
+      const { table } = probe.connection;
+      expect(table.rows).toBe(body.data);
+      expect(probe.connection.pager?.total).toBe(57);
+      expect(probe.connection.pager?.unfilteredTotal).toBe(1000);
+      expect(table.status).toBe("ready");
+      expect(table.busy).toBe(false);
+      expect(probe.onerror).not.toHaveBeenCalled();
+    },
+  );
 });
