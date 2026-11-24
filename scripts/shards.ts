@@ -38,3 +38,15 @@ export function shardProblems(
     ];
   });
 }
+
+/** One line for each table entry that is not a tracked test file: a deleted or renamed test leaves no dead entry behind.
+ * Not part of shardProblems: the selftest step runs that one in fixture repositories that track only some of the table. */
+export function deadEntries(
+  files: readonly string[],
+  shards: readonly (readonly string[])[] = SHARDS,
+): string[] {
+  return shards
+    .flat()
+    .filter((f) => !files.includes(f))
+    .map((f) => `${f} is in scripts/shards.ts but not tracked`);
+}
