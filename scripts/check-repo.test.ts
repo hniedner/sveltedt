@@ -1017,6 +1017,77 @@ test("gate-needs: GATE_MUTATION needs a mutation job that runs the step, set in 
     /the job mutation has continue-on-error or if/,
   );
 });
+// The static job leaves the selftest step to the matrix job selftest (GATE_SELFTEST); the job runs one shard per matrix entry
+const leavesSelftest = leavesBrowser.replaceAll(
+  "GATE_BROWSER",
+  "GATE_SELFTEST",
+);
+const selftestJob = (
+  ci: string,
+  { run = "node scripts/check-repo.ts selftest", matrix = "[1, 2, 3]" } = {},
+  shard = "${{ matrix.shard }}",
+) =>
+  ci
+    .replace(
+      "  gate:",
+      `  selftest:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        shard: ${matrix}\n    env:\n      GATE_SHARD: ${shard}\n    steps:\n      - run: ${run}\n  gate:`,
+    )
+    .replace("needs: [static]", "needs: [static, selftest]");
+test("gate-needs: GATE_SELFTEST needs a selftest job that runs the step, set in no other place", () => {
+  for (const ci of [
+    leavesSelftest,
+    selftestJob(leavesSelftest, { run: "echo ok" }),
+    selftestJob(leavesSelftest, { run: "node scripts/check-repo.ts mutation" }),
+  ])
+    assert.match(
+      expect("gate-needs", repo(ciWith(ci)), 1),
+      /GATE_SELFTEST is set but no job named selftest runs the step/,
+    );
+  expect("gate-needs", repo(ciWith(selftestJob(leavesSelftest))), 0);
+  const top = selftestJob(CI).replace(
+    "jobs:\n",
+    "env:\n  GATE_SELFTEST: job\njobs:\n",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(top)), 1),
+    /GATE_SELFTEST is set for the whole workflow/,
+  );
+  const inJob = selftestJob(leavesSelftest).replace(
+    "    env:\n      GATE_SHARD",
+    "    env:\n      GATE_SELFTEST: job\n      GATE_SHARD",
+  );
+  assert.match(
+    expect("gate-needs", repo(ciWith(inJob)), 1),
+    /GATE_SELFTEST is set in the job selftest/,
+  );
+});
+test("gate-needs: the selftest job sets GATE_SHARD from its matrix, and the matrix holds exactly the shards of the table", () => {
+  const cases: [string, RegExp][] = [
+    [
+      selftestJob(leavesSelftest, undefined, "2"),
+      /the job selftest does not set GATE_SHARD from matrix\.shard/,
+    ],
+    [
+      selftestJob(leavesSelftest, { matrix: "[1, 2]" }),
+      /matrix of the job selftest is not shard: \[1, 2, 3\] \(the 3 shards of scripts\/shards\.ts\)/,
+    ],
+    [
+      selftestJob(leavesSelftest, { matrix: "[1, 2, 3, 4]" }),
+      /matrix of the job selftest is not shard: \[1, 2, 3\]/,
+    ],
+  ];
+  // An exclude or include can drop a shard from the matrix while the listed values still read [1, 2, 3]
+  for (const key of ["exclude", "include"])
+    cases.push([
+      selftestJob(leavesSelftest).replace(
+        "        shard: [1, 2, 3]\n",
+        `        shard: [1, 2, 3]\n        ${key}: [{ shard: 3 }]\n`,
+      ),
+      /the matrix of the job selftest has an exclude or include/,
+    ]);
+  for (const [ci, why] of cases)
+    assert.match(expect("gate-needs", repo(ciWith(ci)), 1), why);
+});
 test("gate-needs: a gate without `if: always()` is a finding", () => {
   expect(
     "gate-needs",
@@ -1159,6 +1230,8 @@ test("no gate variable", () => {
     "GATE_EVENT",
     "GATE_HEAD",
     "GATE_MUTATION",
+    "GATE_SELFTEST",
+    "GATE_SHARD",
     "GITHUB_ACTIONS",
   ])
     assert.equal(process.env[k], undefined, k);
@@ -1175,6 +1248,7 @@ test("no gate variable", () => {
         GATE_BASE: "HEAD",
         GATE_BROWSER: "job",
         GATE_HEAD: "HEAD",
+        GATE_SHARD: "2",
         CANARY_DIR: join(here, "canaries"),
       },
     },
@@ -1202,6 +1276,65 @@ test("selftest: a repository without any test file cannot be checked", () => {
   const none = (root: string): void =>
     GATE_TESTS.forEach((f) => rmSync(join(root, f)));
   expect("selftest", repo(none), 3);
+});
+test("selftest: GATE_SHARD runs only the files of that shard, and names the others' absence", () => {
+  const plant = (root: string): void => {
+    put(root, "scripts/check-repo-lint.test.ts", PASSING_TEST);
+  };
+  const one = expect("selftest", repo(plant), 0, {
+    extraEnv: { GATE_SHARD: "1" },
+  });
+  assert.match(one, /scripts\/check-repo-lint\.test\.ts: 1\b/);
+  assert.doesNotMatch(one, /scripts\/check-repo\.test\.ts/);
+  const two = expect("selftest", repo(plant), 0, {
+    extraEnv: { GATE_SHARD: "2" },
+  });
+  assert.match(two, /scripts\/check-repo\.test\.ts: 1\b/);
+  assert.doesNotMatch(two, /check-repo-lint/);
+});
+test("selftest: a GATE_SHARD outside the table cannot be checked", () => {
+  for (const GATE_SHARD of ["0", "4", "x", ""])
+    expect("selftest", repo(), 3, { extraEnv: { GATE_SHARD } });
+});
+test("selftest: a shard with no tracked file cannot be checked", () => {
+  const noShardThree = (root: string): void =>
+    [
+      "scripts/check-repo-site.test.ts",
+      "scripts/check-repo-tools.test.ts",
+      "scripts/trace.test.ts",
+    ].forEach((f) => rmSync(join(root, f)));
+  expect("selftest", repo(noShardThree), 3, { extraEnv: { GATE_SHARD: "3" } });
+});
+test("selftest: a tracked test file in no shard is a finding where a shard runs, and where the job has the step", () => {
+  const plant = (root: string): void =>
+    put(root, "scripts/other.test.mjs", PASSING_TEST);
+  const ci = {
+    GITHUB_ACTIONS: "true",
+    GATE_SELFTEST: "job",
+    GITHUB_JOB: "static",
+  };
+  for (const extraEnv of [{ GATE_SHARD: "2" }, ci])
+    assert.match(
+      expect("selftest", repo(plant), 1, { extraEnv }),
+      /scripts\/other\.test\.mjs is in no shard/,
+    );
+});
+test("selftest: left to the CI job selftest by GATE_SELFTEST in CI only", () => {
+  const ci = {
+    GITHUB_ACTIONS: "true",
+    GATE_SELFTEST: "job",
+    GITHUB_JOB: "static",
+  };
+  const left = run(["selftest", "--root", repo()], { extraEnv: ci });
+  assert.equal(left.code, 0, left.out);
+  assert.match(
+    left.out,
+    /^NOT APPLICABLE selftest: left to the CI job selftest/m,
+  );
+  expect("selftest", repo(), 0, { extraEnv: { GATE_SELFTEST: "job" } });
+  expect("selftest", repo(), 0, {
+    extraEnv: { ...ci, GITHUB_JOB: "selftest", GATE_SHARD: "2" },
+  });
 });
 test("selftest: every test file runs and is named with its count", () => {
   const out = expect(

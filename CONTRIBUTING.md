@@ -51,7 +51,9 @@ The checks today:
   is not checked, and the pass line says so).
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs in its own process and must pass, each with its
-  own count; as many files run at once as the machine has cores.
+  own count; as many files run at once as the machine has cores. `GATE_SHARD=n` runs only shard n of
+  `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard there,
+  and `scripts/shards.test.ts` fails locally while one is in none or in two; in CI the step fails too).
 - **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
   each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
   as dependencies, optional or peer dependencies, and exact development versions;

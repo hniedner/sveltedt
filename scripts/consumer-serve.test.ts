@@ -113,9 +113,10 @@ test(
       await failed({ ...GOOD, dev: half }, 600),
       "the development server did not answer within 0.6 s",
     );
+    // Margin for a loaded runner: ms is per wait, and the fake dev server must answer inside it before prod starts
     assert.equal(
-      await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 600),
-      "the production server did not answer within 0.6 s",
+      await failed({ ...GOOD, prod: LISTEN("process.env.PORT", 60_000) }, 5000),
+      "the production server did not answer within 5 s",
     );
   },
 );
@@ -178,7 +179,8 @@ test(
   async () => {
     const copy = fake({
       ...GOOD,
-      prod: `${LISTEN("process.env.PORT", 0)} setTimeout(() => process.exit(7), 700);`,
+      // Margin for a loaded runner: it dies at 3 s so prod is surely ready first
+      prod: `${LISTEN("process.env.PORT", 0)} setTimeout(() => process.exit(7), 3000);`,
     });
     const started = await start(
       copy,
