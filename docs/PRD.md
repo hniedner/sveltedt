@@ -46,6 +46,8 @@
   branded Chrome and Edge channels.
   Amended by the owner on 2026-11-23 at 21:03 PST ("yes on each!"): PRD-T8's class hooks take one object, `rowClass({ row })` and
   `cellClass({ row, column })`, `column` being the column definition with its `id` (ruling 3 of #190).
+  Amended by the owner on 2026-11-24 at 12:35 PST ("(a): send({ request, signal })."): PRD-B20's `send` takes one
+  object, `send({ request, signal })`, by the rule the props of `DataTable` and `Pagination` follow (#231).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -346,8 +348,8 @@ Escape that closed a SvelteDT dialog and receives every other Escape.
 
 A connection helper on its own export path connects the table and the pager to a server that speaks the DataTables
 server-side protocol in its 1.10-and-later parameter form (a backend that speaks only the 1.9 legacy form is out of
-scope): one factory, called in a component's script, given the application's `send(request, signal)` and a column map
-giving, per backend column index, the `data` and `name` the backend reads, optionally `searchable` and `orderable`
+scope): one factory, called in a component's script, given the application's `send({ request, signal })` and a column
+map giving, per backend column index, the `data` and `name` the backend reads, optionally `searchable` and `orderable`
 (default true) and the table column id it serves, independent of display order and hiding (a sort or filter on a column
 id that no entry serves sends nothing and reaches the application through `onerror`); it sends the request in the
 bracketed form (default), the dotted form or a JSON body (the nested object a 2.x client builds, without its `fixed`
