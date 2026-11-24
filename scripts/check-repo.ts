@@ -1184,7 +1184,7 @@ function toolRecord<T>(
   try {
     return JSON.parse(r.stdout) as T;
   } catch {
-    // No exit status: the spawn failed (its error code) or a signal ended the probe.
+    // No exit status: Node stopped the probe (ENOBUFS, over maxBuffer) or a signal ended it; the error code comes first.
     const end = r.status ?? errorCode(r.error) ?? r.signal;
     return {
       error: `the ${pkg} probe failed (exit ${end}): ${r.stderr.split("\n")[0]}`,

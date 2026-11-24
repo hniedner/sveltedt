@@ -45,7 +45,7 @@ test("lint: an ESLint that fails on the repository cannot be checked", () => {
     /eslint probe failed \(exit 1\)/,
   );
 });
-// A .mjs file adds about 7 KB to ESLint's record (measured): 300 make 2.3 MB, twice what Node's default 1 MiB held.
+// A .mjs file adds about 7 KB to ESLint's record (measured): with 300 more, the record is 2.3 MB, over twice Node's 1 MiB.
 test("lint: a probe record over Node's default 1 MiB buffer is read whole", () => {
   const many = (root: string) => {
     for (let i = 0; i < 300; i++)
@@ -66,7 +66,7 @@ const probeBroken = (body: string, cause: RegExp) => {
   });
   assert.match(out, cause);
 };
-// 65 MiB is more than the step buffers, as the vitest stand-in prints for the test step.
+// 65 MiB is over this probe's 64 MiB maxBuffer; the vitest stand-in in check-repo-site.test.ts prints as much.
 test("lint: a probe that cannot finish says why", () => {
   probeBroken(
     'process.stdout.write(" ".repeat(65 * 1024 * 1024));',
