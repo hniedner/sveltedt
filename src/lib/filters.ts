@@ -1,4 +1,4 @@
-import { SORT_FILTER_FAULTS } from "./faults.ts";
+import { SORT_FILTER_FAULTS } from "./faults.js";
 import type { TableFault } from "./faults.ts";
 import type {
   DataTableColumn,
