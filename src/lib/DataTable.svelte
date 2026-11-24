@@ -20,6 +20,8 @@
     messages,
     sort,
     onsort,
+    oncancel,
+    onretry,
     filters,
     onfilter,
     onclearfilter,
@@ -157,7 +159,11 @@
   <div role="status" aria-atomic="false">
     {fault === null && status === "loading" ? words.loading : ""}
     {#if still}<div>{words.stillLoading}</div>{/if}
+    {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
   </div>
+  {#if oncancel && still}<button type="button" onclick={() => oncancel()}
+      >{words.cancel}</button
+    >{/if}
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
     <div role="alert">{words.invalidInput}</div>
@@ -239,6 +245,10 @@
         </tbody>
       </table>
     </div>
+    {#if onretry && (status === "stopped" || status === "failed")}<button
+        type="button"
+        onclick={() => onretry()}>{words.retry}</button
+      >{/if}
     <!-- The sort buttons' descriptions, outside the table so they are no header text -->
     <div hidden>
       {#each columns as column, index (column.id)}

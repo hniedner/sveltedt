@@ -34,6 +34,13 @@ There is nothing to install yet. What is on `main` today:
   technology and kept at least 500 ms (its look and motion come later), and after 5 more seconds the status element
   also says "Still loading", added once for screen readers; until the stylesheet reserves the line, that text can
   move the table down by one line;
+- the two buttons of a slow load: with `oncancel` a "Cancel" button after the status element while "Still loading"
+  shows, and with `onretry` a "Try again" button after the stopped or failed table, never beside the invalid-input
+  alert; a press calls its callback once with no argument, ignores what it returns, and changes nothing on screen
+  by itself (a double press calls it twice); the status element also says "Loading stopped" once when `status` becomes
+  `stopped`. Until the stylesheet is done, "Cancel" can add a second line of shift at 6 seconds and "Loading stopped"
+  shows twice; and until the focus work lands, once new props remove the pressed button the focus falls to the page
+  body;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named
