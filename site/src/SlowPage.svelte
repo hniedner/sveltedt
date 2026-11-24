@@ -12,10 +12,6 @@
     id: string;
     name: string;
   }
-  const items: Item[] = Array.from({ length: 25 }, (_, index) => {
-    const number = String(index + 1).padStart(2, "0");
-    return { id: `r${number}`, name: `Item ${number}` };
-  });
   const table = $state<{
     rows: Item[];
     status: DataTableStatus;
@@ -27,7 +23,6 @@
   const calls = { cancel: 0, retry: 0 };
   Object.assign(window, {
     __calls: calls,
-    __rows: items,
     __table: {
       set: (next: Partial<typeof table>): void => {
         for (const key of Object.keys(next))

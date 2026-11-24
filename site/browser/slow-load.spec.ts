@@ -31,14 +31,19 @@ const table = (page: Page) => page.getByRole("table", { name: "Orders" });
 const named = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
 
-// The window's and the region's scroll positions
+// The window's and the region's scroll positions. The region scrolls only once it has an overflow rule (A11Y-12, #22):
+// until then its two values stay 0 and only the window's can differ
 const scrolls = (page: Page) =>
-  page.evaluate(() => ({
-    x: window.scrollX,
-    y: window.scrollY,
-    left: document.querySelector('[role="region"]')?.scrollLeft,
-    top: document.querySelector('[role="region"]')?.scrollTop,
-  }));
+  page.evaluate(() => {
+    const region = document.querySelector('[role="region"]');
+    if (!region) throw new Error("no region on the page");
+    return {
+      x: window.scrollX,
+      y: window.scrollY,
+      left: region.scrollLeft,
+      top: region.scrollTop,
+    };
+  });
 
 // Focuses without scrolling, as the statements say, and checks the button holds the focus
 async function focusIt(button: Locator): Promise<void> {
@@ -62,18 +67,26 @@ async function scrollPast(page: Page): Promise<void> {
 
 // The state a row names, drawn
 async function drawn(page: Page, state: string): Promise<void> {
-  if (state === "loading")
-    await expect(page.getByRole("status")).toContainText("Loading data…");
-  if (state === "ready")
-    await expect(
-      page.getByRole("cell", { name: "Item 25", exact: true }),
-    ).toBeVisible();
-  if (state === "stopped")
-    await expect(table(page).getByText("Loading stopped")).toBeVisible();
-  if (state === "failed")
-    await expect(page.getByRole("alert")).toHaveText(
-      "The data could not be loaded.",
-    );
+  switch (state) {
+    case "loading":
+      await expect(page.getByRole("status")).toContainText("Loading data…");
+      break;
+    case "ready":
+      await expect(
+        page.getByRole("cell", { name: "Item 25", exact: true }),
+      ).toBeVisible();
+      break;
+    case "stopped":
+      await expect(table(page).getByText("Loading stopped")).toBeVisible();
+      break;
+    case "failed":
+      await expect(page.getByRole("alert")).toHaveText(
+        "The data could not be loaded.",
+      );
+      break;
+    default:
+      throw new Error(`no such state: ${state}`);
+  }
 }
 
 // @spec("A11Y-28", "724c142b")

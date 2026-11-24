@@ -553,6 +553,11 @@ describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () 
     expect(within(table.container).getByRole("alert").textContent).toBe(
       "This table cannot be shown.",
     );
+    // No table, so no hand-off: Cancel went and focus fell to the page body
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+    expect(focused()).toBe(document.body);
   });
 });
 
@@ -665,8 +670,9 @@ describe("FOOT-05", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  // No timer is pending at 6000 ms; with "Cancel" focused, this row guards the focus code against a hand-off that
-  // defers itself (a timer or a frame) and outlives the table when the unmount removes the focused button
+  // No timer is pending at 6000 ms. With "Cancel" focused, this row keeps the unmount path honest: nothing the focus
+  // code leaves behind for a focused button (a teardown that defers work) may outlive the table. A hand-off that defers
+  // itself fails earlier, in A11Y-28's rows above, which need focus on the table when the change resolves
   it("leaves no timer pending when unmounted at 6000 ms with Cancel focused, the still-loading text and Cancel shown", async () => {
     const table = mount({ status: "loading", oncancel });
     await table.at(6000);
