@@ -1048,6 +1048,7 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     // An upload after the step: only the one exact condition is allowed, not another one, and not at job level
     "    steps:\n      - run: node scripts/check-repo.ts browser\n      - name: Upload\n        if: failure()\n        run: echo up\n      - run: node",
     "    if: ${{ !cancelled() }}\n    steps:\n      - run: node",
+    "    steps:\n      - run: node scripts/check-repo.ts browser\n      - name: Upload\n        if: ${{ !cancelled() }} && false\n        run: echo up\n      - run: node",
   ]) {
     const ci = browserJob(leavesBrowser).replace(
       "    steps:\n      - run: node",
@@ -1063,7 +1064,8 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     "- run: node",
     "- name: Browser\n        run: node",
   );
-  expect("gate-needs", repo(ciWith(named)), 0); // The results' upload runs under `if: ${{ !cancelled() }}` on a step of its own: that exact line cannot skip the step
+  expect("gate-needs", repo(ciWith(named)), 0);
+  // The results' upload runs under `if: ${{ !cancelled() }}` on a step of its own: that exact line cannot skip the step
   const upload = browserJob(leavesBrowser).replace(
     "      - run: node scripts/check-repo.ts browser\n",
     `      - run: node scripts/check-repo.ts browser\n      - name: Upload the results\n        if: \${{ !cancelled() }}\n        uses: actions/upload-artifact@${"a".repeat(40)} # v7.0.2\n`,
