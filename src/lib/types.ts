@@ -62,6 +62,8 @@ export interface DataTableMessages {
   readonly sortableHint: string;
   // The label of a categorical filter's option for "no value" (FILT-47)
   readonly emptyOption: string;
+  // The name of a column's filter button (FILT-29)
+  readonly filterButton: (label: string) => string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (state: {

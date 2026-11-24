@@ -203,6 +203,24 @@
                     >{/if}
                 {:else}
                   {column.label}
+                {/if}{#if column.filter}
+                  <!-- No handler yet: the filter dialog is a later statement. The name comes from the English
+                     default until FILT-33 reads it from the given words -->
+                  <button
+                    type="button"
+                    aria-label={defaultMessages.filterButton(column.label)}
+                    ><svg
+                      aria-hidden="true"
+                      focusable="false"
+                      viewBox="0 0 16 16"
+                      width="12"
+                      height="12"
+                      ><path
+                        d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"
+                        fill="currentColor"
+                      /></svg
+                    ></button
+                  >
                 {/if}
               </th>
             {/each}
