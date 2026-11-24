@@ -221,8 +221,8 @@ selected, `""` and `false`.
   | Intent | The one request | `table`, `pager` |
   |---|---|---|
   | `table.onsort([code desc])` | `start=0`, `order[0][column]=1`, `order[0][dir]=desc` | `sort` `[code desc]`, `offset` 0 |
-  | `table.onfilter('name', { kind: 'text', text: 'beta' })` | `start=0`, `columns[0][search][value]=beta` | `filters.name` as given |
-  | `table.onclearfilter('name')`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
+  | `table.onfilter({ id: 'name', state: { kind: 'text', text: 'beta' } })` | `start=0`, `columns[0][search][value]=beta` | `filters.name` as given |
+  | `table.onclearfilter({ id: 'name' })`, Name filtered by "beta" | `start=0`, `columns[0][search][value]=` | no `filters.name` |
   | `table.onclearfilters()`, Name filtered, search `x` | `start=0`, every column search `""`, `search[value]=x` | `filters` `{}`, `search` `x` |
   | `table.onsearch('beta')` | `start=0`, `search[value]=beta` | `search` `beta` |
   | `table.onsearch('beta')` before the first answer (from Q0, request 1 running) | `start=0`, `search[value]=beta` | `search` `beta`; `pager` still `undefined` |
@@ -283,7 +283,7 @@ id.
   | Intent or mount | `send` calls after it | `table.sort`, `table.filters` | `onerror` |
   |---|---|---|---|
   | `table.onsort([code asc])` | none | `[name asc]`, `{}` | once, message holds `code` |
-  | `table.onfilter('code', { kind: 'text', text: 'B' })` | none | `[name asc]`, `{}` | once, message holds `code` |
+  | `table.onfilter({ id: 'code', state: { kind: 'text', text: 'B' } })` | none | `[name asc]`, `{}` | once, message holds `code` |
   | mount with sort `[code asc]` | none | `[code asc]`, `{}` | once, message holds `code` |
   | `reload()` after that mount | none | `[code asc]`, `{}` | once more, message holds `code` |
 
