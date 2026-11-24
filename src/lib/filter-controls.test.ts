@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import CriteriaTable from "../../test/CriteriaTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -41,14 +42,14 @@ const codeColumn = column("code", "Code", {
 const noteColumn = column("note", "Note");
 
 // Every handler is passed, as the spec's examples do, and returned so a test reads its calls
-function mount(props: Partial<DataTableProps<Item>> = {}) {
+function fixture(props: Partial<DataTableProps<Item>> = {}) {
   const handlers = {
     onfilter: vi.fn(),
     onclearfilter: vi.fn(),
     onclearfilters: vi.fn(),
     onsort: vi.fn(),
   };
-  const view = render(DataTable<Item>, {
+  const all: DataTableProps<Item> = {
     rows,
     columns: [nameColumn, noteColumn],
     getRowId: (row: Item) => row.id,
@@ -56,8 +57,12 @@ function mount(props: Partial<DataTableProps<Item>> = {}) {
     regionLabel: "Orders table",
     ...handlers,
     ...props,
-  });
-  return { ...view, ...handlers };
+  };
+  return { all, handlers };
+}
+function mount(props: Partial<DataTableProps<Item>> = {}) {
+  const { all, handlers } = fixture(props);
+  return { ...render(DataTable<Item>, all), ...handlers };
 }
 
 const header = (name: string): HTMLElement =>
@@ -212,6 +217,72 @@ describe("FILT-30", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(resetButtons()).toEqual([]);
   });
+});
+
+// @spec("FILT-31", "51ec3cfb")
+describe("FILT-31", () => {
+  // The buttons and the region in document order, up to the region: badges by their words, the rest by their text
+  const order = (container: HTMLElement): string[] => {
+    const found: string[] = [];
+    for (const element of container.querySelectorAll(
+      'button, [role="region"]',
+    )) {
+      if (element.getAttribute("role") === "region") {
+        found.push("region");
+        break;
+      }
+      found.push(element.textContent.trim());
+    }
+    return found;
+  };
+  const resettable = { onreset: vi.fn() };
+
+  it.each<[string, Partial<DataTableProps<Item>>, string[]]>([
+    [
+      "Name's text and Status's selection",
+      {
+        columns: [nameColumn, statusColumn],
+        filters: {
+          name: { kind: "text", text: "Beta" },
+          status: { kind: "categorical", selected: ["active"] },
+        },
+      },
+      [BETA, "Status: Active", "Clear my criteria", CLEAR_ALL, RESET, "region"],
+    ],
+    [
+      "no filter",
+      { columns: [nameColumn], filters: {} },
+      ["Clear my criteria", RESET, "region"],
+    ],
+    [
+      "Status's entry first and Name's second",
+      {
+        columns: [nameColumn, statusColumn],
+        filters: {
+          status: { kind: "categorical", selected: ["active"] },
+          name: { kind: "text", text: "Beta" },
+        },
+      },
+      [BETA, "Status: Active", "Clear my criteria", CLEAR_ALL, RESET, "region"],
+    ],
+    [
+      "a fault of filters (the alert of RND-05)",
+      {
+        columns: [nameColumn],
+        filters: { zzz: { kind: "text", text: "x" } },
+      },
+      ["Clear my criteria", RESET],
+    ],
+  ])(
+    "with %s puts the controls in the order the row says",
+    (_row, props, expected) => {
+      const { container } = render(
+        CriteriaTable,
+        fixture({ ...props, ...resettable }).all,
+      );
+      expect(order(container)).toEqual(expected);
+    },
+  );
 });
 
 // @spec("FILT-26", "58072d25")

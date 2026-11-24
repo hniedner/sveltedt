@@ -114,6 +114,9 @@ export interface DataTableProps<Row> {
   onclearfilters?: () => void;
   // Called on a press of "Reset table"; the button shows only while it is given (FILT-30)
   onreset?: () => void;
+  // The application's own criteria controls: between the badges and "Clear column filters", also while the alert
+  // shows (FILT-31)
+  criteria?: Snippet;
   // The applied global search; null is not given, as `sort` (FILT-32)
   search?: string | null;
   // Milliseconds of typing pause before a filter emits; a whole number, 0 or more (FILT-32)

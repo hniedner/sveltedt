@@ -26,6 +26,7 @@
     onclearfilter,
     onclearfilters,
     onreset,
+    criteria,
     search,
     searchDelay,
     maxLength,
@@ -169,6 +170,7 @@
         onclearfilter?.({ id: badge.id })}>{badge.text}</button
     >
   {/each}
+  {@render criteria?.()}
   {#if badgeList.length > 0}
     <button
       type="button"
