@@ -68,6 +68,8 @@
     total={connection.pager.total}
     unfilteredTotal={connection.pager.unfilteredTotal}
     onpage={connection.pager.onpage}
+    sizes={[10, 25]}
+    onsize={connection.pager.onsize}
     label="Rows pages"
   />
 {/if}

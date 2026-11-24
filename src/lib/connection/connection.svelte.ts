@@ -7,10 +7,10 @@ import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
 // the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each
-// `pager.onpage` and `table.onsort`, reading `options` when it builds each request, and maps each answer. Read `pager` from the returned
-// object, never destructured from it: it is a getter, so a copy would hold the value it had when it was copied.
-// `table` is a plain object, so `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy` and
-// `table.sort` from it, not destructured.
+// `pager.onpage`, `pager.onsize` and `table.onsort`, reading `options` when it builds each request, and maps each
+// answer. Read `pager` from the returned object, never destructured from it: it is a getter, so a copy would hold the
+// value it had when it was copied. `table` is a plain object, so `const { table } = connection` is fine; read
+// `table.rows`, `table.status`, `table.busy` and `table.sort` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
@@ -20,6 +20,7 @@ export function createConnection<Row = unknown>(
   // True while a request runs with an answer on screen to keep
   let busy = $state(false);
   let offset = $state(options.query.offset ?? 0);
+  let limit = $state(options.query.limit);
   let sort = $state.raw<readonly DataTableSortEntry[]>(
     options.query.sort ?? [],
   );
@@ -33,7 +34,7 @@ export function createConnection<Row = unknown>(
       .send({
         request: buildRequest(
           options.columns,
-          { ...options.query, sort, offset },
+          { ...options.query, sort, offset, limit },
           sent,
         ),
         signal: new AbortController().signal,
@@ -59,6 +60,11 @@ export function createConnection<Row = unknown>(
     offset = 0;
     load();
   }
+  function onsize(size: number): void {
+    offset -= offset % size;
+    limit = size;
+    load();
+  }
   onMount(load);
   return {
     table: {
@@ -80,10 +86,11 @@ export function createConnection<Row = unknown>(
       return (
         answer && {
           offset,
-          limit: options.query.limit,
+          limit,
           total: answer.total,
           unfilteredTotal: answer.unfilteredTotal,
           onpage,
+          onsize,
         }
       );
     },

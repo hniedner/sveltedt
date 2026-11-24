@@ -296,6 +296,32 @@ describe("CONN-13", () => {
   });
 });
 
+// @spec("CONN-27", "ffb7e3c2")
+describe("CONN-27", () => {
+  const rows: [number, number, number, number, number][] = [
+    // the offset and limit before, the size asked, the start sent, the offset the pager shows
+    [20, 10, 25, 0, 0],
+    [60, 10, 25, 50, 50],
+    [50, 25, 10, 50, 50],
+  ];
+  it.each(rows)(
+    "sends one request on pager.onsize from offset %i, limit %i, to size %i: start %i, the pager at offset %i before it is settled",
+    async (offset, limit, size, start, shown) => {
+      const probe = mount({ query: { ...Q0, offset, limit } });
+      await probe.answer(0, A1());
+      probe.connection.pager?.onsize(size);
+      expect(probe.send).toHaveBeenCalledTimes(2);
+      const request = probe.send.mock.calls[1]?.[0]?.request;
+      expect(request?.get("start")).toBe(String(start));
+      expect(request?.get("length")).toBe(String(size));
+      expect(probe.connection.pager).toMatchObject({
+        offset: shown,
+        limit: size,
+      });
+    },
+  );
+});
+
 // A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
 // name; nothing is sent
 describe("an unserved sort id (stated limit)", () => {

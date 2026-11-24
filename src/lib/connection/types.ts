@@ -56,7 +56,12 @@ export interface Connection<Row> {
         Required<
           Pick<
             PaginationProps,
-            "offset" | "limit" | "total" | "unfilteredTotal" | "onpage"
+            | "offset"
+            | "limit"
+            | "total"
+            | "unfilteredTotal"
+            | "onpage"
+            | "onsize"
           >
         >
       >
