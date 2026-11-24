@@ -149,6 +149,7 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
 const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
   ["status 'stopped'", { status: "stopped" }],
 ];
+const sixStates = [...fiveStates, ...stoppedState];
 
 // @spec("A11Y-01", "7eb5c1e0")
 describe("A11Y-01", () => {
@@ -390,7 +391,10 @@ describe("STATE-21", () => {
   ])("with status stopped and %s, shows no empty message", (_rows, rows) => {
     const component = show({ rows, status: "stopped" });
     // The stopped message is there, so an empty page cannot pass
-    expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+    expect(
+      within(screen.getByRole("table")).getByText("Loading stopped")
+        .isConnected,
+    ).toBe(true);
     expect(component.textContent).not.toContain(EMPTY);
   });
 });
@@ -827,15 +831,12 @@ describe("RND-10", () => {
 
 // @spec("EXP-02", "15dd3831")
 describe("EXP-02", () => {
-  it.each([...fiveStates, ...stoppedState])(
-    "renders the actions snippet in %s",
-    (_state, props) => {
-      showWithSnippets({ ...props, withActions: true });
-      expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
-        true,
-      );
-    },
-  );
+  it.each(sixStates)("renders the actions snippet in %s", (_state, props) => {
+    showWithSnippets({ ...props, withActions: true });
+    expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
+      true,
+    );
+  });
 });
 
 // @spec("STATE-01", "e9669674")
@@ -991,7 +992,10 @@ describe("A11Y-21", () => {
     );
     if (first) await rerender(state({ columns, status: "stopped" }));
     // The message is on the page, so a page without it cannot pass
-    expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+    expect(
+      within(screen.getByRole("table")).getByText("Loading stopped")
+        .isConnected,
+    ).toBe(true);
     for (const alert of screen.queryAllByRole("alert"))
       expect(alert.textContent).not.toContain("Loading stopped");
   });
@@ -1145,7 +1149,10 @@ describe("STATE-22", () => {
         rows: rows as Item[],
         columns: [nameColumn, codeColumn],
       });
-      expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+      expect(
+        within(screen.getByRole("table")).getByText("Loading stopped")
+          .isConnected,
+      ).toBe(true);
       expect(screen.queryAllByRole("alert")).toHaveLength(0);
     },
   );
@@ -1289,7 +1296,7 @@ describe("RND-13", () => {
 
 // @spec("RND-14", "ca53efc4")
 describe("RND-14", () => {
-  it.each([...fiveStates, ...stoppedState])(
+  it.each(sixStates)(
     "renders the heading before the region, or before the alert, in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withHeading: true });
@@ -1305,7 +1312,7 @@ describe("RND-14", () => {
 
 // @spec("EXP-01", "d8229d47")
 describe("EXP-01", () => {
-  it.each([...fiveStates, ...stoppedState])(
+  it.each(sixStates)(
     "offers no export or download control of its own in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withQuietActions: true });
@@ -1329,7 +1336,7 @@ describe("EXP-03", () => {
         ...state({}),
         withActions: true,
       });
-      for (const [, props] of [...fiveStates, ...stoppedState]) {
+      for (const [, props] of sixStates) {
         await rerender({ ...state(props), withActions: true });
         expect(document.querySelector("a[download]")).toBeNull();
       }

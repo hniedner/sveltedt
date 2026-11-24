@@ -150,7 +150,8 @@
           </tr>
         </thead>
         <tbody>
-          <!-- STATE-20: the stopped branch comes first; after the ready branch its condition would need a test for every other status -->
+          <!-- STATE-20, STATE-28: stopped is tested first, so the loading, failed and ready tests also run
+             against its condition -->
           {#if status === "stopped"}
             <tr
               ><td class="sdt-cell" colspan={columns.length}>{words.stopped}</td
