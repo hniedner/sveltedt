@@ -150,6 +150,10 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
 // RND-12 list the five states and not stopped: fold the two lists together if their statements are widened
 const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
   ["status 'stopped'", { status: "stopped" }],
+  [
+    "status 'stopped', onretry passed",
+    { status: "stopped", onretry: () => {} },
+  ],
 ];
 const sixStates = [...fiveStates, ...stoppedState];
 
