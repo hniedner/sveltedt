@@ -214,9 +214,14 @@ function leftToJob(
   );
   if ([...jobs.values()].some(sets) && !runs)
     found.push(`${variable} is set but no job named ${name} runs the step`);
-  // Fails closed: an `if:` or a continue-on-error anywhere in the job. A later step that needs its own `if:` (an upload
-  // on failure) narrows this rule in its own branch, with its rows
-  if (job?.some((l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l)))
+  // Fails closed: an `if:` or a continue-on-error anywhere in the job, but the one step condition the results' upload
+  // needs: `!cancelled()` is true on every run that was not cancelled, so it can never skip a step
+  const upload = /^ {8}if: \$\{\{ !cancelled\(\) \}\}\s*$/;
+  if (
+    job?.some(
+      (l) => /^\s+(-\s+)?(continue-on-error|if)\s*:/.test(l) && !upload.test(l),
+    )
+  )
     found.push(
       `the job ${name} has continue-on-error or if: it may pass without the step`,
     );
@@ -1172,14 +1177,22 @@ function toolRecord<T>(
   const r = spawnSync(
     process.execPath,
     ["--input-type=module", "-e", probe, url, ...extra, root, ...files],
-    // In the checked root: the TypeScript project service looks for tsconfig.json from there.
-    { encoding: "utf8", cwd: root, env: childEnv() },
+    // In the checked root: the TypeScript project service looks for tsconfig.json from there. ESLint's record holds
+    // each linted file's config (7-12 KB a file, measured): Node's default 1 MiB buffer holds about 100 files.
+    {
+      encoding: "utf8",
+      cwd: root,
+      env: childEnv(),
+      maxBuffer: 64 * 1024 * 1024,
+    },
   );
   try {
     return JSON.parse(r.stdout) as T;
   } catch {
+    // No exit status: Node stopped the probe (ENOBUFS, over maxBuffer) or a signal ended it; the error code comes first.
+    const end = r.status ?? errorCode(r.error) ?? r.signal;
     return {
-      error: `the ${pkg} probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
+      error: `the ${pkg} probe failed (exit ${end}): ${r.stderr.split("\n")[0]}`,
     };
   }
 }
