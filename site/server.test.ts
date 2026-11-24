@@ -276,7 +276,7 @@ describe("API-02", () => {
 
 const ASC = FIXED.toSorted();
 
-// @spec("API-03", "414d200f")
+// @spec("API-03", "57953d80")
 describe("API-03", () => {
   let server: Server;
   beforeAll(async () => {
@@ -301,6 +301,11 @@ describe("API-03", () => {
       { ...ordered("1", "asc"), "columns[1][orderable]": "false" },
       FIXED.slice(0, 10),
     ],
+    [
+      "column 1 asc, with no orderable pair sent",
+      { ...ordered("1", "asc"), "columns[1][orderable]": null },
+      FIXED.slice(0, 10),
+    ],
   ])("orders by %s", async (_row, changes, ids) => {
     const answer = await get(server, route(changes));
     expect((JSON.parse(answer.body) as { data?: unknown }).data).toEqual(
@@ -323,7 +328,7 @@ describe("API-03", () => {
   });
 });
 
-// @spec("API-04", "feff1196")
+// @spec("API-04", "7f92d575")
 describe("API-04", () => {
   let server: Server;
   beforeAll(async () => {
@@ -336,8 +341,10 @@ describe("API-04", () => {
 
   it.each([
     ["draw removed", route({ draw: null })],
+    ["draw empty", route({ draw: "" })],
     ["draw=1a", route({ draw: "1a" })],
     ["draw=-1", route({ draw: "-1" })],
+    ["start empty", route({ start: "" })],
     ["start=-1", route({ start: "-1" })],
     ["start=1.5", route({ start: "1.5" })],
     ["start=%201, raw", `${route({ start: null })}&start=%201`],
@@ -361,6 +368,7 @@ describe("API-04", () => {
   it.each([
     ["start=9007199254740991", { start: "9007199254740991" }, []],
     ["length=1000", { length: "1000" }, FIXED],
+    ["length=1", { length: "1" }, FIXED.slice(0, 1)],
   ])("answers %s with 200 and its rows", async (_row, changes, ids) => {
     const answer = await get(server, route(changes));
     expect(answer.status).toBe(200);

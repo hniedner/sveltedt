@@ -617,6 +617,7 @@ whose `data` holds the rows of the fixed list from `start`, at most `length` of 
   | `order[0][column]=1`, `order[0][dir]=asc`, `start=10` | `data` o11 to o20 |
   | `order[0][column]=0`, `order[0][dir]=desc` | `data` o20 down to o11 |
   | `order[0][column]=1`, `order[0][dir]=asc`, `columns[1][orderable]=false` | `data` in the fixed order of API-01's first row |
+  | `order[0][column]=1`, `order[0][dir]=asc`, no `columns[1][orderable]` sent | `data` in the fixed order of API-01's first row (only the exact text `true` makes a column orderable) |
   | R0: B with `order[0][column]=1`, `order[0][dir]=asc`, `order[0][name]=name` (the request the helper builds for F, sort `[name asc]`, limit 10) | the body `{ draw: 1, recordsTotal: 20, recordsFiltered: 20, data: [the rows o01 to o10] }`, as READ from `ssp.class.php` ad98978 (nothing run) |
 
 - Reason:
@@ -635,11 +636,11 @@ empty body.
 
   | Change | Status |
   |---|---|
-  | `draw` removed; `draw=1a`; `draw=-1` | 400 |
-  | `start=-1`; `start=1.5`; `start=%201` (raw: a space, then 1); `start=%2B1` (raw); `start=9007199254740992` | 400 |
+  | `draw` removed; `draw=`; `draw=1a`; `draw=-1` | 400 |
+  | `start=`; `start=-1`; `start=1.5`; `start=%201` (raw: a space, then 1); `start=%2B1` (raw); `start=9007199254740992` | 400 |
   | `start=9007199254740991` | 200, `data` `[]` |
   | `length` removed; `length=0`; `length=-1`; `length=1001` | 400 |
-  | `length=1000` | 200 |
+  | `length=1000`; `length=1` | 200 (`length=1`: the first row only) |
   | `order[0][column]=2` with `order[0][dir]=asc`; `order[0][column]=x` with `asc` | 400 |
   | `order[0][column]=1` with `order[0][dir]=ASC`; `order[0][column]=1` and no `order[0][dir]`; `order[0][dir]=asc` and no `order[0][column]` | 400 |
 
