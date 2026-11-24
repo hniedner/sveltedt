@@ -376,6 +376,19 @@ describe("STATE-20", () => {
   );
 });
 
+// @spec("STATE-21", "57aa083a")
+describe("STATE-21", () => {
+  it.each<[string, Item[]]>([
+    ["no rows", []],
+    ["two rows", threeRows.slice(0, 2)],
+  ])("with status stopped and %s, shows no empty message", (_rows, rows) => {
+    const component = show({ rows, status: "stopped" });
+    // The stopped message is there, so an empty page cannot pass
+    expect(screen.getByText("Loading stopped").isConnected).toBe(true);
+    expect(component.textContent).not.toContain(EMPTY);
+  });
+});
+
 // @spec("RND-03", "19d03ec8")
 describe("RND-03", () => {
   const places: [
