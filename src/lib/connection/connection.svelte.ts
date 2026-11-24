@@ -15,17 +15,22 @@ export function createConnection<Row = unknown>(
   // The last answer mapped; none before the first
   let answer = $state.raw<Answer<Row>>();
   let status = $state<DataTableStatus>("loading");
+  // True while a request runs with an answer on screen to keep
+  let busy = $state(false);
   let offset = $state(options.query.offset ?? 0);
   // The draw of the last request sent, 0 before the first
   let draw = 0;
   function load(): void {
     const sent = ++draw;
+    if (status === "ready") busy = true;
+    else status = "loading";
     void options
       .send(
         buildRequest(options.columns, { ...options.query, offset }, sent),
         new AbortController().signal,
       )
       .then((body) => {
+        busy = false;
         const read = readAnswer<Row>(body, sent);
         if (read === undefined) {
           status = "failed";
@@ -49,7 +54,9 @@ export function createConnection<Row = unknown>(
       get status() {
         return status;
       },
-      busy: false,
+      get busy() {
+        return busy;
+      },
     },
     get pager() {
       return (

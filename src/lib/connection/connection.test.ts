@@ -452,3 +452,44 @@ describe("CONN-25", () => {
     expect(pagination()).not.toBeNull();
   });
 });
+
+// @spec("CONN-23", "1237693e")
+describe("CONN-23", () => {
+  it("runs the first request as loading, not busy", () => {
+    const { connection } = mount();
+    expect(connection.table).toMatchObject({ status: "loading", busy: false });
+  });
+  it("runs a request with A1 on screen as busy, ready, the rows kept", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+      rows: D,
+    });
+  });
+  it("runs a request with an answer of 0 rows on screen as busy and ready", async () => {
+    const probe = mount();
+    await probe.answer(
+      0,
+      A1({ recordsTotal: 0, recordsFiltered: 0, data: [] }),
+    );
+    probe.connection.pager?.onpage(0);
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+    });
+  });
+  it("runs a request after a failed one as loading, not busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    await probe.answer(1, A1({ draw: 2, recordsFiltered: "5x" }));
+    probe.connection.pager?.onpage(20);
+    expect(probe.connection.table).toMatchObject({
+      status: "loading",
+      busy: false,
+    });
+  });
+});
