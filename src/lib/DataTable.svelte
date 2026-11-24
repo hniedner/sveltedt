@@ -132,7 +132,7 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
-    {#if shown}<div data-sdt-progress></div>{/if}
+    {#if shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table class="sdt-table" aria-busy={busy || status === "loading"}>
         <caption class="sdt-caption"

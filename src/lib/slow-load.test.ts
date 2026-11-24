@@ -136,3 +136,20 @@ describe("STATE-10", () => {
     expect(table.present()).toBe(false);
   });
 });
+
+// @spec("STATE-11", "75ae94f3")
+describe("STATE-11", () => {
+  it("hides the indicator from assistive technology and puts nothing focusable in it", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(6000);
+    const indicator = table.container.querySelector("[data-sdt-progress]");
+    expect(indicator).not.toBeNull();
+    expect(indicator?.getAttribute("aria-hidden")).toBe("true");
+    expect(indicator?.hasAttribute("tabindex")).toBe(false);
+    expect(
+      indicator?.querySelectorAll(
+        "a[href], button, input, select, textarea, summary, iframe, [tabindex], [contenteditable], [role=button], [role=link]",
+      ).length,
+    ).toBe(0);
+  });
+});
