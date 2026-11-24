@@ -138,7 +138,7 @@ const basePairs: [string, string][] = [
   ["search[regex]", "false"],
 ];
 const byKey = ([a]: [string, string], [b]: [string, string]) =>
-  a < b ? -1 : 1;
+  a < b ? -1 : a > b ? 1 : 0;
 
 // @spec("CONN-02", "96921bb8")
 describe("CONN-02", () => {
