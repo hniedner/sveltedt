@@ -70,12 +70,15 @@ function mount(options: Partial<ConnectionOptions> = {}) {
   };
 }
 
-// @spec("CONN-01", "4dd0aeec")
+// @spec("CONN-01", "a9d7c397")
 describe("CONN-01", () => {
-  it("calls send once on mount with the request of the initial query and a signal that is not aborted", async () => {
+  it("calls send once on mount with one object holding the request of the initial query and a signal that is not aborted", async () => {
     const { send } = mount();
     expect(send).toHaveBeenCalledTimes(1);
-    const [request, signal] = send.mock.calls[0] ?? [];
+    const call = send.mock.calls[0] ?? [];
+    expect(call).toHaveLength(1);
+    const request = call[0]?.request;
+    const signal = call[0]?.signal;
     expect(request?.get("draw")).toBe("1");
     expect(request?.get("start")).toBe("0");
     expect(request?.get("length")).toBe("10");
@@ -146,7 +149,7 @@ describe("CONN-08", () => {
   ];
   it.each(rows)("sends the order of %s", (_row, columns, sort, order) => {
     const { send } = mount({ columns, query: { sort, limit: 10 } });
-    expect(orderOf(send.mock.calls[0]?.[0])).toEqual(order);
+    expect(orderOf(send.mock.calls[0]?.[0]?.request)).toEqual(order);
   });
 });
 
@@ -156,7 +159,7 @@ describe("CONN-04", () => {
     "sends a URLSearchParams with bracketed keys, booleans as true and false and numbers as decimal text (form %s)",
     (form) => {
       const { send } = mount({ form });
-      const request = send.mock.calls[0]?.[0];
+      const request = send.mock.calls[0]?.[0]?.request;
       expect(request).toBeInstanceOf(URLSearchParams);
       expect(request?.get("columns[0][search][value]")).toBe("");
       expect(request?.get("columns[0][searchable]")).toBe("true");
@@ -228,7 +231,7 @@ describe("CONN-02", () => {
   ];
   it.each(rows)("sends exactly the keys of %s", (_row, options, pairs) => {
     const { send } = mount(options);
-    expect([...(send.mock.calls[0]?.[0] ?? [])].sort(byKey)).toEqual(
+    expect([...(send.mock.calls[0]?.[0]?.request ?? [])].sort(byKey)).toEqual(
       [...pairs].sort(byKey),
     );
   });
@@ -315,7 +318,7 @@ describe("CONN-07", () => {
     "sends start and length from the query's offset %i and limit %i, the pager keeping that limit",
     async (offset, limit) => {
       const probe = mount({ query: { ...Q0, offset, limit } });
-      const request = probe.send.mock.calls[0]?.[0];
+      const request = probe.send.mock.calls[0]?.[0]?.request;
       expect(request?.get("start")).toBe(String(offset));
       expect(request?.get("length")).toBe(String(limit));
       await probe.answer(0, A1());
@@ -327,7 +330,7 @@ describe("CONN-07", () => {
     await probe.answer(0, A1());
     probe.connection.pager?.onpage(30);
     expect(probe.send).toHaveBeenCalledTimes(2);
-    const request = probe.send.mock.calls[1]?.[0];
+    const request = probe.send.mock.calls[1]?.[0]?.request;
     expect(request?.get("start")).toBe("30");
     expect(request?.get("length")).toBe("10");
     expect(probe.connection.pager?.offset).toBe(30);
@@ -343,7 +346,7 @@ describe("CONN-15", () => {
     await probe.answer(1, A1({ draw: 2 }));
     probe.connection.pager?.onpage(20);
     expect(
-      probe.send.mock.calls.map(([request]) => request.get("draw")),
+      probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
     ).toEqual(["1", "2", "3"]);
   });
 });
@@ -419,7 +422,7 @@ describe("CONN-18", () => {
     const probe = mount();
     await probe.answer(0, A1());
     probe.connection.pager?.onpage(10);
-    expect(probe.send.mock.calls[1]?.[0].get("draw")).toBe("2");
+    expect(probe.send.mock.calls[1]?.[0].request.get("draw")).toBe("2");
     await probe.answer(1, A1());
     expect(outcome(probe)).toEqual(failed(D));
   });

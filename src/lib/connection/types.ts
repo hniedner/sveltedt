@@ -22,14 +22,14 @@ export interface ConnectionQuery {
 }
 
 export interface ConnectionOptions {
-  // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper hands it the
-  // request and an abort signal. A rejection of `send` is not handled by the helper,
+  // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper calls it
+  // with one object holding the request and an abort signal. A rejection of `send` is not handled by the helper,
   // and `send` must not throw synchronously either: the helper has no catch around the call, so a synchronous throw
   // escapes.
-  readonly send: (
-    request: URLSearchParams,
-    signal: AbortSignal,
-  ) => Promise<unknown>;
+  readonly send: (context: {
+    readonly request: URLSearchParams;
+    readonly signal: AbortSignal;
+  }) => Promise<unknown>;
   readonly columns: readonly ConnectionColumn[];
   // The form of the request: the bracketed one
   readonly form?: "bracketed";
