@@ -32,6 +32,7 @@ export default defineConfig({
         join(import.meta.dirname, "index.html"),
         join(import.meta.dirname, "canary.html"),
         join(import.meta.dirname, "sort.html"),
+        join(import.meta.dirname, "filters.html"),
         join(import.meta.dirname, "host-none.html"),
         join(import.meta.dirname, "host-bootstrap.html"),
         join(import.meta.dirname, "host-none-app.html"),

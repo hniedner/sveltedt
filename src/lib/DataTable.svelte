@@ -216,6 +216,7 @@
               <th
                 class="sdt-th"
                 scope="col"
+                aria-label={column.label}
                 aria-sort={order[0]?.id !== column.id
                   ? undefined
                   : state.direction === "asc"
