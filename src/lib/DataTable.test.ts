@@ -827,12 +827,15 @@ describe("RND-10", () => {
 
 // @spec("EXP-02", "15dd3831")
 describe("EXP-02", () => {
-  it.each(fiveStates)("renders the actions snippet in %s", (_state, props) => {
-    showWithSnippets({ ...props, withActions: true });
-    expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
-      true,
-    );
-  });
+  it.each([...fiveStates, ...stoppedState])(
+    "renders the actions snippet in %s",
+    (_state, props) => {
+      showWithSnippets({ ...props, withActions: true });
+      expect(screen.getByRole("button", { name: "Export" }).isConnected).toBe(
+        true,
+      );
+    },
+  );
 });
 
 // @spec("STATE-01", "e9669674")
