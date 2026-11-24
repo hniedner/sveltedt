@@ -1,9 +1,9 @@
 <script lang="ts" generics="Row">
   import { untrack } from "svelte";
   import { faultLine } from "./faults.js";
-  import { badges, resetShown } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import HeaderCell from "./parts/HeaderCell.svelte";
+  import Toolbar from "./parts/Toolbar.svelte";
   import { nextOrder, sortState } from "./sort.js";
   import type { DataTableColumn, DataTableProps } from "./types.js";
   import { validateTable } from "./validate.js";
@@ -93,11 +93,6 @@
   $effect(() => {
     if (fault !== null) console.error(faultLine(fault));
   });
-  // The applied filters as badges; none while the alert shows, as the table cannot vouch for filters it could not
-  // validate (FILT-08)
-  const badgeList = $derived(
-    fault === null ? badges(columns, filters, words) : [],
-  );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
     fault === null && status === "ready" && !busy
@@ -146,33 +141,16 @@
 <div class="sdt">
   {@render heading?.()}
   {@render actions?.()}
-  {#each badgeList as badge (badge.id)}
-    <!-- A badge exists only for a column with a filter, so the table has an onclearfilter (FILT-32) -->
-    <button
-      type="button"
-      aria-label={words.clearFilter(badge.text)}
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, see above
-        onclearfilter?.({ id: badge.id })}>{badge.text}</button
-    >
-  {/each}
-  {@render criteria?.()}
-  {#if badgeList.length > 0}
-    <button
-      type="button"
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, the table has an onclearfilters (FILT-32)
-        onclearfilters?.()}>{words.clearFilters}</button
-    >
-  {/if}
-  {#if resetShown(fault, columns, onreset)}
-    <button
-      type="button"
-      onclick={() =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, the button shows only with an onreset (FILT-30)
-        onreset?.()}>{words.reset}</button
-    >
-  {/if}
+  <Toolbar
+    {fault}
+    {columns}
+    {filters}
+    {words}
+    {criteria}
+    {onclearfilter}
+    {onclearfilters}
+    {onreset}
+  />
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
   <div role="status" aria-atomic="false">
