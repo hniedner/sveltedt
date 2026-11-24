@@ -54,5 +54,8 @@ fetched or measured.
 - `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review measured
   EPERM for a group that holds only a zombie leader on macOS; ESRCH follows once the leader is reaped. A group that is
   alive but not ours cannot occur: the helper only signals groups it started.
+- `send` refuses a target of 0, 1, -1 or one that is not an integer, and the test reaper does the same for the pid it reads
+  from a file: `kill(-0)` signals the caller's own process group (measured: `process.kill(-Number(""), 0)` returns true).
+  No test pins either guard: it would have to send SIGKILL to group 0, which would end the gate.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
   platform, or if `scripts/children.ts` grows past about 150 lines (130 now, which leaves a margin of 20).

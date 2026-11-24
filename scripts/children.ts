@@ -18,6 +18,8 @@ let installed = false;
 // A signal to a process that is gone, or one that is not ours, is not an error here: false says it was not sent. EPERM
 // counts as gone: on macOS a group that holds only a zombie leader answers EPERM (measured by the adversary)
 function send(target: number, signal: NodeJS.Signals | 0): boolean {
+  // kill(0) and kill(-0) reach this process's own group, kill(1) and kill(-1) every process we may signal
+  if (!Number.isInteger(target) || Math.abs(target) <= 1) return false;
   try {
     return process.kill(target, signal);
   } catch {

@@ -76,8 +76,11 @@ function program(then: string, before = ""): string {
   after(() => {
     const pidFile = join(dir, "child.pid");
     if (!existsSync(pidFile)) return;
+    // A pid file that is empty or half written reads as 0, and kill(-0) would signal this process's own group
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    if (!Number.isInteger(pid) || pid <= 1) return;
     try {
-      process.kill(-Number(readFileSync(pidFile, "utf8")), "SIGKILL");
+      process.kill(-pid, "SIGKILL");
     } catch {
       // already gone
     }
