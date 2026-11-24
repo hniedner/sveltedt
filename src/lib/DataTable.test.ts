@@ -1306,7 +1306,7 @@ describe("RND-14", () => {
 
 // @spec("EXP-01", "d8229d47")
 describe("EXP-01", () => {
-  it.each(fiveStates)(
+  it.each([...fiveStates, ...stoppedState])(
     "offers no export or download control of its own in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withQuietActions: true });
