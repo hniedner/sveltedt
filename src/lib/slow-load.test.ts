@@ -635,7 +635,7 @@ describe("A11Y-30, the focus move of a focused Try again in the simulated DOM", 
   });
 });
 
-// @spec("FOOT-05", "9f0dae50")
+// @spec("FOOT-05", "f912a945")
 describe("FOOT-05", () => {
   const oncancel = (): void => {};
   // Mounted loading; `answered`: ready with two rows arrives at 1100 ms; the table is unmounted at `unmountAt`
@@ -665,14 +665,21 @@ describe("FOOT-05", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  // No timer is pending at 6000 ms; this row keeps it so when code that moves focus is added
-  it("leaves no timer pending when unmounted at 6000 ms, with the still-loading text and Cancel shown", async () => {
+  // No timer is pending at 6000 ms; with "Cancel" focused, this row guards the focus code against a hand-off that
+  // defers itself (a timer or a frame) and outlives the table when the unmount removes the focused button
+  it("leaves no timer pending when unmounted at 6000 ms with Cancel focused, the still-loading text and Cancel shown", async () => {
     const table = mount({ status: "loading", oncancel });
     await table.at(6000);
     expect(table.still()).toBe(true);
-    expect(
-      within(table.container).queryByRole("button", { name: "Cancel" }),
-    ).not.toBeNull();
+    const cancel = within(table.container).getByRole("button", {
+      name: "Cancel",
+    });
+    // None of the table's own timers is pending at 6000 ms; jsdom's focus() then leaves two fake timers of its own
+    // (measured with jsdom 31 under Vitest's fake timers), which no table code starts, so they are cleared
+    expect(vi.getTimerCount()).toBe(0);
+    cancel.focus();
+    expect(document.activeElement).toBe(cancel);
+    vi.clearAllTimers();
     table.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
