@@ -416,18 +416,22 @@ without `!`.
 - Traces: PRD-T11, PRD-T3.
 
 **CON-14** The consumer's production client build MUST NOT hold the text of SvelteDT's development warning (STK-10
-of `spec/table.md`).
+of `spec/table.md`) nor the English fault texts of the table's console line (RND-17 of `spec/table.md`), and MUST
+hold the fault codes.
 - Examples (consumer files: the test searches every file of the client build output for "SvelteDT: the sticky header
-  cannot stick"; the second row shows the search finds the text when it is there):
+  cannot stick", for the console text of one RND-05 row, "Table caption must not be empty.", and for the code
+  `captionEmpty`; the second row shows the search finds the texts when they are there):
 
-  | Build of the consumer copy | Files holding the text |
-  |---|---|
-  | its production build | none |
-  | the same build with the `development` export condition added to the bundler's resolve conditions | at least one, found |
+  | Build of the consumer copy | Files holding the texts | Files holding the code |
+  |---|---|---|
+  | its production build | none | at least one, found |
+  | the same build with the `development` export condition added to the bundler's resolve conditions | at least one, found | at least one, found |
 
-  Break that turns it red: the warning written behind a check that is true in production.
-- Reason: `esm-env`'s `DEV` is false under the production condition, so the bundler drops the warning; a warning in
-  production would reach every user's console.
+  Break that turns it red: the warning, or a fault text, written behind a check that is true in production; the code
+  dropped from the production line. The pager's nine fault texts join the search with the statement of issue #204.
+- Reason: `esm-env`'s `DEV` is false under the production condition, so the bundler drops what sits behind it: the
+  warning would otherwise reach every user's console and the fault texts would sit in every bundle; the codes stay,
+  so a developer who meets a blank table in production has a word to search for.
 - Layer: consumer files.
 - Traces: PRD-D3, PRD-B14.
 

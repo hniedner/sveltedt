@@ -42,6 +42,9 @@
       "prettier-plugin-svelte"
     ]
   },
+  "dependencies": {
+    "esm-env": "^1.2.1"
+  },
   "peerDependencies": {
     "svelte": "^5.20.0"
   },

@@ -697,27 +697,49 @@ function lockfileProblems(root: string, list: Set<string>): string[] {
     : [`pnpm-lock.yaml holds ${docs.length} YAML documents, not 1`, ...sources];
 }
 
-/** Private, exact development dependencies; nothing ships but a svelte peer (PRD-S5). */
-function packageProblems(pkg: PackageJson): string[] {
+/** One problem for each development dependency whose version is not exact. */
+const devRangeProblems = (pkg: PackageJson): string[] =>
+  Object.entries(pkg.devDependencies ?? {})
+    .filter(([, v]) => !EXACT.test(v))
+    .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+
+/** Private, exact development dependencies; what ships is `esm-env` and a svelte peer (PRD-S5, SUP-04). */
+function packageProblems(pkg: PackageJson, esmEnv: string): string[] {
   // Until the packaging pull request removes it with its statement, a stray publish fails on the manifest.
   const open =
     pkg.private === true ? [] : ['package.json: not "private": true'];
-  const ranges = Object.entries(pkg.devDependencies ?? {})
-    .filter(([, v]) => !EXACT.test(v))
-    .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+  const ranges = devRangeProblems(pkg);
+  // SUP-04: `esm-env`, with the range the installed Svelte declares, and nothing else
+  const given = pkg.dependencies ?? {};
+  const deps = [
+    ...(given["esm-env"] === undefined
+      ? [`dependencies: esm-env is missing; Svelte declares "${esmEnv}"`]
+      : given["esm-env"] === esmEnv
+        ? []
+        : [
+            `dependencies: esm-env is "${given["esm-env"]}", Svelte declares "${esmEnv}"`,
+          ]),
+    ...Object.keys(given)
+      .filter((n) => n !== "esm-env")
+      .map((n) => `dependencies: ${n} would ship; only esm-env may`),
+  ];
   const runtime = [
-    ...Object.keys(pkg.dependencies ?? {}).map((n) => `dependencies: ${n}`),
     ...Object.keys(pkg.optionalDependencies ?? {}).map(
       (n) => `optionalDependencies: ${n}`,
     ),
     ...(["bundleDependencies", "bundledDependencies"] as const).flatMap((k) =>
       pkg[k] === true ? [`${k}: all`] : (pkg[k] || []).map((n) => `${k}: ${n}`),
     ),
-  ].map((d) => `${d} would ship; only the svelte peer may`);
-  const peers = Object.keys(pkg.peerDependencies ?? {})
-    .filter((n) => n !== "svelte")
-    .map((n) => `peerDependencies: ${n} would ship; only svelte may`);
-  return [...open, ...ranges, ...runtime, ...peers];
+  ].map((d) => `${d} would ship; only esm-env and the svelte peer may`);
+  const peers = [
+    ...("svelte" in (pkg.peerDependencies ?? {})
+      ? []
+      : ["peerDependencies: svelte is missing"]),
+    ...Object.keys(pkg.peerDependencies ?? {})
+      .filter((n) => n !== "svelte")
+      .map((n) => `peerDependencies: ${n} would ship; only svelte may`),
+  ];
+  return [...open, ...ranges, ...deps, ...runtime, ...peers];
 }
 
 /** pnpm's release age equals Dependabot's shortest npm cooldown; every exception names its advisory. */
@@ -783,22 +805,28 @@ function workspaceProblems(root: string): string[] {
         .filter(([, v]) => v !== "workspace:*")
         .map(([n, v]) => `${kind}: ${n} is "${v}", not "workspace:*"`),
     );
-    const ranges = Object.entries(pkg.devDependencies ?? {})
-      .filter(([, v]) => !EXACT.test(v))
-      .map(([n, v]) => `devDependencies: ${n} is "${v}", not an exact version`);
+    const ranges = devRangeProblems(pkg);
     return [...links, ...ranges].map((p) => `${file}: ${p}`);
   });
 }
 
-// Nothing ships but a svelte peer (PRD-S5); licences are the licences step's. Development dependencies are
+// What ships is `esm-env` and a svelte peer (PRD-S5, SUP-04); licences are the licences step's. Development dependencies are
 // exact, in every workspace package too; the lockfile is one YAML document (G11); pnpm's release age equals Dependabot's shortest npm cooldown, and every
 // exception to it names its advisory.
 function lockfile(root: string, list: Set<string>): Result {
   const pkg = readJson(root, "package.json");
   if (!pkg) return result(CANNOT, "package.json is missing or not JSON");
+  // The range Svelte's own manifest declares for esm-env, from the copy the frozen install puts in place (SUP-04)
+  const esmEnv = readJson(root, "node_modules/svelte/package.json")
+    ?.dependencies?.["esm-env"];
+  if (esmEnv === undefined)
+    return result(
+      CANNOT,
+      "node_modules/svelte/package.json is missing or declares no esm-env: install first",
+    );
   const details = [
     ...lockfileProblems(root, list),
-    ...packageProblems(pkg),
+    ...packageProblems(pkg, esmEnv),
     ...workspaceProblems(root),
     ...ageProblems(root),
   ];
@@ -807,7 +835,7 @@ function lockfile(root: string, list: Set<string>): Result {
   const devs = Object.keys(pkg.devDependencies ?? {}).length;
   return result(
     PASS,
-    `one lockfile document, ${devs} exact dev dependencies, nothing ships, release age equals the shortest cooldown`,
+    `one lockfile document, ${devs} exact dev dependencies, esm-env and the svelte peer ship, release age equals the shortest cooldown`,
   );
 }
 

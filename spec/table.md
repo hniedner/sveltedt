@@ -188,11 +188,12 @@ its cells.
 - Layer: static check.
 - Traces: PRD-S2.
 
-**RND-05** For invalid input the table MUST render one alert with a fixed message instead of the table.
-- Examples (the test runs every row: one element with `role="alert"` holding the default text, and no `table`
-  element):
+**RND-05** For invalid input the table MUST render one alert holding the fixed text `invalidInput` ("This table
+cannot be shown.") instead of the table.
+- Examples (the test runs every row: one element with `role="alert"` holding that text, and no `table` element; the
+  code and the console text of each row are the line of RND-17):
 
-  | Invalid input | Message key | Alert text (default) |
+  | Invalid input | Code | Console text (development) |
   |---|---|---|
   | `caption` is empty | `captionEmpty` | "Table caption must not be empty." |
   | `caption` is not a string (left out by a plain JavaScript caller) | `captionEmpty` | "Table caption must not be empty." |
@@ -230,25 +231,29 @@ its cells.
   Stated limits, not detected: a plain function given as `cell` is taken as a snippet (a snippet is a function, and
   the two cannot be told apart); a `value` function that throws is not caught, unlike `getRowId`.
 
-  With several faults at once, the alert shows the message of the first row of this table that applies (for example
-  an empty caption and two rows sharing an id: "Table caption must not be empty."). Later groups state the faults of
-  their own props in their own statements (SORT-15 for sort).
-- Reason: a wrong table is worse than none; the user would read, and later select or export, the wrong rows.
+  With several faults at once, the console line names the first row of this table that applies (for example an empty
+  caption and two rows sharing an id: `captionEmpty`); the alert is the same for every fault. Later groups state the
+  faults of their own props in their own statements (SORT-15 for sort).
+- Reason: a wrong table is worse than none; the user would read, and later select or export, the wrong rows. One
+  text for every fault keeps developer wording off the user's screen and out of every translator's list; the
+  developer gets the cause on the console (RND-17).
 - Layer: component.
 - Traces: PRD-B16, PRD-B3.
 
-**RND-09** The alert MUST hold no value taken from the rows, the column definitions or a thrown error.
-- Examples (the test runs every row, and in each it first finds the alert holding the RND-05 message for that
+**RND-09** The alert and the console line of RND-17 MUST hold no value taken from the rows, the column definitions or
+a thrown error.
+- Examples (the test runs every row, and in each it first finds the alert and the console line RND-17 gives that
   input):
 
-  | Invalid input | Text that must not appear in the alert |
+  | Invalid input | Text that must not appear in the alert or the console line |
   |---|---|
   | two rows with id `r2`, the second named "Hidden-77" | "r2", "Hidden-77" |
   | a `getRowId` that throws an error saying "token-9" | "token-9" |
   | two columns with id `col-x9` | "col-x9" |
   | a column with id `col-y7` and an empty label | "col-y7" |
 
-- Reason: alerts are often logged or screenshotted, and row values may be confidential.
+- Reason: alerts and console lines are often logged, screenshotted or sent to an error tracker, and row values may be
+  confidential (PRD-S4).
 - Layer: component.
 - Traces: PRD-S4, PRD-B16.
 
@@ -261,12 +266,13 @@ its cells.
 
 **RND-13** While the input is invalid, the alert MUST be the only state the table shows, whatever `status` is.
 - Examples (the test runs every row, each with `columns []`; in every row exactly one element has `role="alert"` and
-  it holds "Table has no columns."):
+  it holds "This table cannot be shown."):
 
   | `status` | `busy` | Not shown |
   |---|---|---|
   | `loading` | false | "Loading data…" |
   | `failed` | false | "The data could not be loaded." |
+  | `stopped` | false | "Loading stopped" |
   | `ready` | false | "No data." and any count text |
   | `ready` | true | any count text |
 
@@ -274,6 +280,32 @@ its cells.
   screen reader.
 - Layer: component.
 - Traces: PRD-B16, PRD-B15.
+
+**RND-17** For invalid input the table MUST write one `console.error` line naming the fault, once for each change of
+the fault, in the browser only.
+- Examples (the test runs every row with a spy on `console.error`; "development" is a build in which `esm-env`'s
+  `DEV` is true, "production" one in which it is false; the codes and texts are those of RND-05's and SORT-15's
+  tables):
+
+  | Case | `console.error` calls |
+  |---|---|
+  | each row of RND-05's and SORT-15's tables, in development | one: `SvelteDT: <code>: <console text>` |
+  | the same rows, in production | one: `SvelteDT: <code>` |
+  | valid input | none |
+  | the same fault, props rerendered | still one |
+  | a fault, then another fault | two, one per code |
+  | a fault, then valid input, then the same fault | two |
+  | two mounted tables with a fault each | one each |
+  | several faults at once | one, naming the first row that applies (RND-05's table, then SORT-15's) |
+  | the table rendered on the server | none |
+
+  Each mounted table logs once for each change of its fault, so a remount logs again. The line is for the developer,
+  not a word the table shows: English only, no entry of `messages`. In production the texts are absent and the code
+  remains, as in Svelte's own warnings and AG Grid's errors. The line holds no value from the input (RND-09).
+- Reason: the user needs no developer text and a translator no list of them, but the developer needs the cause, and
+  the code is what they search for; texts that only development shows keep every production bundle free of them.
+- Layer: component; the server row is a component test in a Node environment.
+- Traces: PRD-B16, PRD-S4.
 
 **RND-14** The `heading` snippet MUST render before the region, or before the alert where there is no region, in
 every state.
@@ -326,7 +358,7 @@ cells MUST be rendered by the same element as before.
   | `failed` | "The data could not be loaded." | STATE-02 |
   | `empty` | "No data." | STATE-03 |
   | `rowCount` (a function of the count) | "2 rows displayed" for 2 rows; "1 row displayed" for 1 row | A11Y-05 |
-  | each alert message of RND-05 | its default in RND-05 | RND-05 |
+  | `invalidInput` | "This table cannot be shown." | RND-05 |
   | any entry given as `undefined` (a translation lookup that misses) or `null`, or not of its type (the number 5 for a word; a text for `rowCount`), or an empty or blank text | that entry's English default | the statement that shows the entry |
 
   For example `messages={{ loading: 'Laden…' }}` shows "Laden…" while `status` is `loading`, and
@@ -420,7 +452,7 @@ otherwise.
 
 **STATE-08** With `status 'loading'` or `status 'failed'`, the table MUST show that state's message, and not the
 alert, when `rows` is not an array.
-- Examples (the test runs every row; columns Name and Code, `rows` as given; no element holds a message of RND-05):
+- Examples (the test runs every row; columns Name and Code, `rows` as given; no element holds the alert text of RND-05):
 
   | `status` | `rows` | Shown |
   |---|---|---|
@@ -618,7 +650,7 @@ column, and none of the rows it is given.
 
 **STATE-22** With `status 'stopped'`, the table MUST show the stopped message, and not the alert, when `rows` is not an
 array (as STATE-08, for the stopped state).
-- Examples (the test runs every row; columns Name and Code; no element holds a message of RND-05): `rows` `undefined`;
+- Examples (the test runs every row; columns Name and Code; no element has `role="alert"`): `rows` `undefined`;
   `rows` `null`: "Loading stopped" is shown.
 - Reason: a load cancelled before any answer often leaves the caller with no rows to pass; the state already says what
   the user sees.
@@ -646,8 +678,8 @@ array (as STATE-08, for the stopped state).
 - Traces: PRD-B24, PRD-B3.
 
 **STATE-24** While the input is invalid, "Try again" MUST NOT be shown.
-- Examples (the test runs every row, each with `columns []` and `onretry` passed; the alert holds "Table has no
-  columns."): `status 'stopped'`; `status 'failed'`: no button "Try again" exists.
+- Examples (the test runs every row, each with `columns []` and `onretry` passed; the alert holds "This table
+  cannot be shown."): `status 'stopped'`; `status 'failed'`: no button "Try again" exists.
 - Reason: a retry beside the alert would offer to reload a table that cannot be shown (PRD-B24, PRD-B16).
 - Layer: component.
 - Traces: PRD-B24, PRD-B16.
@@ -1747,12 +1779,12 @@ how to add a column.
 - Layer: component.
 - Traces: PRD-B1.
 
-**SORT-15** For invalid sort input the table MUST render the alert of RND-05 with the fixed message the examples below
-list.
-- Examples (as RND-05, for the sort props; the test runs every row: one element with `role="alert"` holding the
-  default text, and no `table` element):
+**SORT-15** For invalid sort input the table MUST render the alert of RND-05 and write the console line of RND-17 for
+the code the examples below list.
+- Examples (as RND-05, for the sort props; the test runs every row: one element with `role="alert"` holding
+  `invalidInput`'s text, no `table` element, and the console line of the row):
 
-  | Invalid input | Message key | Alert text (default) |
+  | Invalid input | Code | Console text (development) |
   |---|---|---|
   | a column's `sortable` lists no direction, or a direction other than `asc` and `desc` | `sortableInvalid` | "A column's sort directions are invalid." |
   | a column's `sortable` names a direction twice (`['asc', 'asc']`) | `sortableInvalid` | "A column's sort directions are invalid." |
@@ -1767,8 +1799,8 @@ list.
   | `sort` names a column twice | `sortColumnDuplicate` | "The sort names a column twice." |
 
   With several faults at once, a fault of RND-05's table wins over one of the table above, and within the table above
-  the first row that applies wins (for example an empty caption and an unknown sort column: "Table caption must not be
-  empty.").
+  the first row that applies is the one the console line names (for example an empty caption and an unknown sort
+  column: `captionEmpty`).
 
   `sort` left out, given as `undefined` or `null`, or given as an empty list means no order and is no fault; a press
   then emits as from `[]`.
@@ -1778,31 +1810,31 @@ list.
 - Layer: component.
 - Traces: PRD-B16, PRD-B3, PRD-B4.
 
-**SORT-16** The alert MUST hold no value taken from the `sort` prop or from the definitions of the columns it names.
-- Examples (as RND-09, for the sort props; the test runs every row, and in each it first finds the alert holding the
-  SORT-15 message for that input):
+**SORT-16** The alert and the console line MUST hold no value taken from the `sort` prop or from the definitions of
+the columns it names.
+- Examples (as RND-09, for the sort props; the test runs every row, and in each it first finds the alert and the
+  console line SORT-15 gives that input):
 
-  | Invalid input | Text that must not appear in the alert |
+  | Invalid input | Text that must not appear in the alert or the console line |
   |---|---|
   | `sort` `[col-z3 asc]`, no column `col-z3` | "col-z3" |
   | `sort` names the column `col-w4`, labelled "Secret-5", twice | "col-w4", "Secret-5" |
 
-- Reason: alerts are often logged or screenshotted, and column ids and labels can name confidential things.
+- Reason: alerts and console lines are often logged or screenshotted, and column ids and labels can name confidential
+  things.
 - Layer: component.
 - Traces: PRD-S4, PRD-B16.
 
 **SORT-17** Every fixed word of sort MUST come from a prop with an English default.
-- Examples (as RND-06, for the sort words; the test runs every row in the set-up of its "Shown by" statement, the
-  alert rows with that statement's invalid input; it passes a full `messages` object of non-English words, then
-  checks that each replacement appears where the row says and that no English default is left on the page, in an
-  accessible name or in a description):
+- Examples (as RND-06, for the sort words; the test runs every row in the set-up of its "Shown by" statement; it
+  passes a full `messages` object of non-English words, then checks that each replacement appears where the row
+  says and that no English default is left on the page, in an accessible name or in a description):
 
   | Message | English default | Shown by |
   |---|---|---|
   | `sortableHint` | "Column headers with buttons are sortable." | SORT-28 |
   | `sortRank` (a function of the rank) | "2" for rank 2 | SORT-05, I18N-01 |
   | `sortDescription` (a function of `{ direction, rank }`, SORT-06) | the four descriptions of SORT-06 | SORT-06, I18N-01 |
-  | each alert message of SORT-15 | its default in SORT-15 | SORT-15 |
 
 - Reason: consumers translate and reword without forking the component.
 - Layer: component.
@@ -1859,7 +1891,6 @@ SORT-20.
   | Prop that carries the text | Set-up |
   |---|---|
   | `sortableHint`, and the returned text of `sortRank` and `sortDescription` | SORT-17 |
-  | each alert message of SORT-15 | SORT-15 |
 
   In every row the literal text appears on the page, in an accessible name or in an accessible description, and the
   component holds no `img` and no `none` element.
@@ -4980,6 +5011,7 @@ pointer.
 | RND-14 | PRD-A3, PRD-B16 |
 | RND-15 | PRD-B1 |
 | RND-16 | PRD-B1 |
+| RND-17 | PRD-B16, PRD-S4 |
 | RND-06 | PRD-I1, PRD-I2 |
 | RND-07 | PRD-B3 |
 | RND-11 | PRD-B3 |
@@ -5344,7 +5376,7 @@ state in their own statements.
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21, STATE-28 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, RND-17, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
@@ -5363,7 +5395,7 @@ state in their own statements.
 | PRD-S1 | FOOT-04, THEME-07 | in part: the client-rendered zero-violation half is `spec/site.md`'s (POL-01, POL-02, POL-04); the server-rendered half is `spec/package.md`'s (CON-03 to CON-05), its zero-violation check not yet stated (CON-07 reserved); no `eval`, `new Function` or string timers in the build comes with the built-package scans (PRD-K2) |
 | PRD-S2 | RND-03, RND-04, SORT-23, PAGE-20, STATE-27 | in part: later groups state their own props in their own statements |
 | PRD-S3 | EXP-03 | in part: no network request, cookie or web storage arrive with the strict-policy group |
-| PRD-S4 | RND-09, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
+| PRD-S4 | RND-09, RND-17, SORT-16, PAGE-16, FILT-39 | in full for the props so far |
 | PRD-P2 | PAGE-03 | in part: the large-pages group adds the time budgets |
 | PRD-K4 | ID-03 | in part: the release and site specs prove it on the packed package and in three engines |
 | PRD-T4 | THEME-33, THEME-17, THEME-34, THEME-47 | in full |
