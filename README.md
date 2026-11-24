@@ -49,7 +49,7 @@ There is nothing to install yet. What is on `main` today:
 - the pager's information line ("Showing 1 to 10 of 57 rows", with "(filtered from 1,000 total rows)" when an
   unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
   announced, and every fixed word of the pager as a `messages` prop with an English default;
-- the connection helper, first part, importable from `@hniedner/sveltedt/connection`: `createConnection` sends the first
+- the connection helper, first part, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first
   request through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once
   through `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers
   written by hand. The test site's connection page (`/connection.html`) loads its orders through it from the site's own
