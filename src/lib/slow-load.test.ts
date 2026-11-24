@@ -473,7 +473,7 @@ describe("A11Y-26", () => {
 });
 
 // No marker: A11Y-28 is a real-browser statement (site/browser/slow-load.spec.ts); these rows pin the focus move in the
-// simulated DOM, where red-check and the mutation step can see it
+// simulated DOM, where the unit gate and mutation testing can see it
 describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () => {
   const oncancel = (): void => {};
   const focused = (): Element | null => document.activeElement;
@@ -545,7 +545,7 @@ describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () 
     }
   });
 
-  it("throws nothing when a focused Cancel goes because the input turned invalid", async () => {
+  it("leaves focus on the body when a focused Cancel goes because the input turned invalid", async () => {
     const table = mount({ status: "loading", oncancel });
     await table.at(6000);
     cancelOf(table.container).focus();
@@ -603,7 +603,7 @@ describe("A11Y-30, the focus move of a focused Try again in the simulated DOM", 
   it("keeps focus on a focused Cancel when Try again goes", async () => {
     const table = mount(both);
     await table.at(6000);
-    expect(button(table.container, "Try again")).not.toBeNull();
+    expect(button(table.container, "Try again").isConnected).toBe(true);
     const cancel = button(table.container, "Cancel");
     cancel.focus();
     await table.change({ ...both, status: "loading" });
@@ -616,7 +616,7 @@ describe("A11Y-30, the focus move of a focused Try again in the simulated DOM", 
   it("keeps focus on a focused Try again when Cancel goes", async () => {
     const table = mount(both);
     await table.at(6000);
-    expect(button(table.container, "Cancel")).not.toBeNull();
+    expect(button(table.container, "Cancel").isConnected).toBe(true);
     const retry = button(table.container, "Try again");
     retry.focus();
     await table.change({ ...both, busy: false });
