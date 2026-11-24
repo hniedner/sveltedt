@@ -245,8 +245,9 @@ function shardJob(job: string[] | undefined): string[] {
 }
 
 /**
- * The job browser runs in Playwright's own image, pinned by digest, of the version @playwright/test is pinned to
- * (playwright.dev/docs/docker: the versions must match). What cannot be read is could-not-check, not a pass.
+ * The job browser runs in Playwright's own image, pinned by digest, whose tag version equals the @playwright/test pin
+ * (playwright.dev/docs/docker: the versions must match). The OS part of the tag and the digest itself are not checked
+ * (the digest cannot be checked offline). What cannot be read is could-not-check, not a pass.
  */
 function browserContainer(
   root: string,
@@ -257,7 +258,11 @@ function browserContainer(
     .map((l) => /^ {6}image:\s*(\S+)\s*$/.exec(l)?.[1])
     .find(Boolean);
   if (!image)
-    return { found: [], cannot: "the job browser has no container image line" };
+    return {
+      found: [],
+      cannot:
+        "the job browser has no container image line (expected an unquoted `image: <reference>` under `container:`, no trailing comment)",
+    };
   if (!/@sha256:[0-9a-f]{64}$/.test(image))
     return {
       found: [],
@@ -274,25 +279,26 @@ function browserContainer(
         "the image of the job browser is not mcr.microsoft.com/playwright:vX.Y.Z-<os>@sha256:<digest>",
     };
   let pin: unknown;
+  let why = "no @playwright/test in devDependencies";
   try {
     const manifest = JSON.parse(
       readFileSync(join(root, "package.json"), "utf8"),
     ) as { devDependencies?: Record<string, unknown> } | null;
     pin = manifest?.devDependencies?.["@playwright/test"];
-  } catch {
-    pin = undefined;
+  } catch (e) {
+    why = e instanceof Error ? e.message : String(e);
   }
   if (typeof pin !== "string")
     return {
       found: [],
-      cannot: "package.json has no readable @playwright/test pin",
+      cannot: `package.json has no readable @playwright/test pin (${why})`,
     };
   return {
     found:
       pin === tag
         ? []
         : [
-            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}`,
+            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (docker buildx imagetools inspect mcr.microsoft.com/playwright:v${pin.replace(/^\D+/, "")}-noble)`,
           ],
   };
 }

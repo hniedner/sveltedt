@@ -1011,10 +1011,18 @@ test("gate-needs: the browser job runs in Playwright's image of the version @pla
       ).includes(why),
       why,
     );
+  // The finding says how to fix it: a Playwright bump also moves the image
+  assert.match(
+    expect("gate-needs", repo(ciWith(browserJob(CI), "1.66.0")), 1),
+    /update the image of the job browser in \.github\/workflows\/ci\.yml \(docker buildx imagetools inspect mcr\.microsoft\.com\/playwright:v1\.66\.0-noble\)/,
+  );
 });
 test("gate-needs: a browser job whose image cannot be read is could-not-check", () => {
   const cases: [string, RegExp][] = [
-    ["", /the job browser has no container image line/],
+    [
+      "",
+      /the job browser has no container image line \(expected an unquoted `image: <reference>` under `container:`, no trailing comment\)/,
+    ],
     [
       IMAGE.replace(`@${DIGEST}`, ""),
       /the image of the job browser has no @sha256 digest/,
@@ -1032,8 +1040,10 @@ test("gate-needs: a browser job whose image cannot be read is could-not-check", 
 });
 test("gate-needs: a browser job without a readable @playwright/test pin is could-not-check", () => {
   const ci = browserJob(CI);
-  const why = /package\.json has no readable @playwright\/test pin/;
-  assert.match(expect("gate-needs", repo(ciWith(ci, null)), 3), why);
+  assert.match(
+    expect("gate-needs", repo(ciWith(ci, null)), 3),
+    /package\.json has no readable @playwright\/test pin \(no @playwright\/test in devDependencies\)/,
+  );
   assert.match(
     expect(
       "gate-needs",
@@ -1043,7 +1053,7 @@ test("gate-needs: a browser job without a readable @playwright/test pin is could
       }),
       3,
     ),
-    why,
+    /package\.json has no readable @playwright\/test pin \(ENOENT/,
   );
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
