@@ -1143,6 +1143,23 @@ describe("STATE-24", () => {
   );
 });
 
+// @spec("STATE-25", "5f0b20b4")
+describe("STATE-25", () => {
+  it.each<DataTableStatus>(["stopped", "failed"])(
+    "with status %s, puts Try again outside the region and after it",
+    (status) => {
+      show({ status, onretry: () => {} });
+      const region = screen.getByRole("region");
+      const button = screen.getByRole("button", { name: "Try again" });
+      expect(region.contains(button)).toBe(false);
+      expect(
+        region.compareDocumentPosition(button) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+});
+
 // @spec("STATE-22", "f2c984f4")
 describe("STATE-22", () => {
   it.each<[string, unknown]>([
