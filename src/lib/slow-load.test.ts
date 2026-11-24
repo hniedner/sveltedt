@@ -318,6 +318,56 @@ describe("STATE-18", () => {
   });
 });
 
+// @spec("STATE-19", "129b94cd")
+describe("STATE-19", () => {
+  const press = async (container: HTMLElement, name: string): Promise<void> => {
+    await fireEvent.click(within(container).getByRole("button", { name }));
+  };
+
+  it("leaves a loading table as it was after a press on Cancel", async () => {
+    const table = mount({
+      status: "loading",
+      oncancel: vi.fn(),
+      onretry: vi.fn(),
+    });
+    await table.at(6000);
+    await press(table.container, "Cancel");
+    const status = within(table.container).getByRole("status");
+    expect(status.textContent).toContain("Loading data…");
+    expect(status.textContent).toContain("Still loading");
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).not.toBeNull();
+  });
+
+  it("leaves a stopped table as it was after a press on Try again", async () => {
+    const table = mount({ status: "stopped", onretry: vi.fn() });
+    await press(table.container, "Try again");
+    expect(
+      within(within(table.container).getByRole("table")).getByText(
+        "Loading stopped",
+      ).isConnected,
+    ).toBe(true);
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).not.toBeNull();
+    expect(
+      within(table.container).getByRole("status").textContent,
+    ).not.toContain("Loading data…");
+  });
+
+  it("leaves a failed table as it was after a press on Try again", async () => {
+    const table = mount({ status: "failed", onretry: vi.fn() });
+    await press(table.container, "Try again");
+    expect(within(table.container).getByRole("alert").textContent.trim()).toBe(
+      "The data could not be loaded.",
+    );
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).not.toBeNull();
+  });
+});
+
 // @spec("A11Y-20", "42a3ade6")
 describe("A11Y-20", () => {
   it("says the text once when busy joins loading and the load goes on", async () => {
