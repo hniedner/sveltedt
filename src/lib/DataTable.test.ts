@@ -1087,14 +1087,16 @@ describe("STATE-28", () => {
   );
 });
 
-// @spec("STATE-24", "fd6b9b8c")
+// @spec("STATE-24", "768017fd")
 describe("STATE-24", () => {
   // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
   it.each<DataTableStatus>(["stopped", "failed"])(
     "with status %s and invalid input, shows the one alert and no table",
     (status) => {
       show({ status, columns: [] });
-      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual([FIXED]);
       expect(screen.queryByRole("table")).toBeNull();
     },
   );
