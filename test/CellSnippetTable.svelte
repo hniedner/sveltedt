@@ -9,6 +9,7 @@
     name: string;
   }
 
+  // `identity`: also show whether the snippet got the given row and column themselves (RND-18)
   // `nameValue`: the Name column's value, a function unless a test passes what a plain JavaScript caller might (RND-05)
   const {
     rows,
@@ -36,7 +37,7 @@
   <a href="#{row.id}">Open {row.name} in {column.id}</a>
   {#if identity}
     <!-- RND-18: whether the snippet got the given row and the given Name column themselves (a snippet cannot see
-         its arity: the number of arguments is the type guard's). `columns` stays one derived array, so the
+         its arguments: their number is checked by the types, not here). `columns` stays one derived array, so the
          identity holds only while no input of it changes -->
 
     <span

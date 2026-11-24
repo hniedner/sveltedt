@@ -88,7 +88,7 @@ to the consumer as one callback (stated with the statements that add user action
   only adds (it never removes, renames or reorders one), or a single value. A row is passed inside the object
   (`value({ row })`, `getRowId({ row })`), never alone. A callback that reports one new state value receives that
   value alone (`onsort(next)`, `onpage(offset)`); one with nothing to report receives nothing (`onclearfilters()`);
-  a snippet with nothing to show takes nothing (`heading`, `actions`); none receives two or more arguments
+  a snippet with nothing to show takes nothing (`heading`, `actions`, `criteria`); none receives two or more arguments
   (`onfilter({ id, state })`, never `onfilter(id, state)`). The words' functions follow the same rule
   (`rowCount(count)`, `info({ first, last, total })`). Reason: a positional list can only grow at its end and never
   drop a place without breaking every caller, and PRD-K3 makes each signature public; one object lets a later
@@ -345,7 +345,7 @@ single value).
   `DataTableProps` and `PaginationProps`); whether a one-value callback reports a new state value, or should pass an
   object, is judged in review, not by the check. The check reads each function's parameter list as declared, so it
   misses: a row taken as a single OPTIONAL parameter (`(row?: Row) => string`), overloads whose last signature has one
-  parameter, and an argument that is a read-only tuple; and it flags as a mutable object an argument of a type that
+  parameter, and an argument that is an array or a tuple, read-only or not (`onsort`'s `next` is one); and it flags as a mutable object an argument of a type that
   is not a plain record: a Svelte `Component<...>`, `Date`, `Map`, `ReadonlyMap`, `AbortSignal`, `Event`, or an
   intersection of read-only objects. None of these is in the props today; one added later is judged in review and,
   for a flagged type, the guard is narrowed in that statement's own commit.

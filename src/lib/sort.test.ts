@@ -9,7 +9,7 @@ import type {
   SortDirection,
 } from "./types.ts";
 
-// The type of a column's sortable: at least one direction (SORT-15 rejects none at run time)
+// The type of a column's sortable: at least one direction (SORT-15 still rejects an empty list at run time, for callers the types do not reach)
 type Directions = NonNullable<DataTableColumn<Item>["sortable"]>;
 
 interface Item {

@@ -1599,7 +1599,7 @@ type Broken<T> = T extends (...args: infer A) => unknown
         }[keyof T]
       : never;
 
-// @spec("RND-18", "0ea1e0a4")
+// @spec("RND-18", "c28e0dbf")
 describe("RND-18", () => {
   const given: Item[] = [
     { id: "r1", name: "Beta" },
@@ -1646,11 +1646,12 @@ describe("RND-18", () => {
       // Not found: the shapes RND-18 allows
       Same<Broken<{ a: Snippet<[]>; b: (n: number) => void }>, never>,
       Same<Broken<{ f: (x: { readonly row: RowMark }) => void }>, never>,
+      Same<Broken<{ f: (xs: string[]) => void }>, never>,
       Same<
         Broken<{ s: Snippet<[{ readonly row: RowMark; readonly c: string }]> }>,
         never
       >,
-    ] = [true, true, true, true, true, true, true, true, true, true];
+    ] = [true, true, true, true, true, true, true, true, true, true, true];
     // The type step is what proves the guard; the call only keeps both values in use
     expect([found, canaries]).toHaveLength(2);
   });
