@@ -144,6 +144,12 @@ const fiveStates: [string, Partial<DataTableProps<Item>>][] = [
   ["the alert of RND-05", { columns: [] }],
 ];
 
+// The stopped state the slow-load group adds to the five of RND-14, EXP-01 to EXP-03; kept apart so A11Y-14 and RND-12
+// keep their five
+const stoppedState: [string, Partial<DataTableProps<Item>>][] = [
+  ["status 'stopped'", { status: "stopped" }],
+];
+
 // @spec("A11Y-01", "7eb5c1e0")
 describe("A11Y-01", () => {
   it("names a table that shows a sort button by the caption text, a space and the hint of SORT-28", () => {
@@ -1281,7 +1287,7 @@ describe("RND-13", () => {
 
 // @spec("RND-14", "ca53efc4")
 describe("RND-14", () => {
-  it.each(fiveStates)(
+  it.each([...fiveStates, ...stoppedState])(
     "renders the heading before the region, or before the alert, in %s",
     (_state, props) => {
       showWithSnippets({ ...props, withHeading: true });
