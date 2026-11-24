@@ -42,6 +42,14 @@ updates:
       stryker:
         applies-to: version-updates
         patterns: ["@stryker-mutator/*"]
+      # Before the two groups below, which would take it first: a Playwright bump moves the image of the CI job browser
+      # by hand (docs/engineering/gates.md), so its pull request carries nothing else and holds no other update back.
+      playwright:
+        applies-to: version-updates
+        patterns: ["@playwright/test"]
+      playwright-security:
+        applies-to: security-updates
+        patterns: ["@playwright/test"]
       npm-minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
