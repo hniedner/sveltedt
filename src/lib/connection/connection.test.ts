@@ -348,6 +348,17 @@ describe("CONN-06", () => {
     const { send } = mountJson(options);
     expect(send.mock.calls[0]?.[0]?.request).toStrictEqual(expected);
   });
+  it("gives each request objects of its own, so an application that edits one changes no other", async () => {
+    const { send, answer, connection } = mountJson();
+    const first = send.mock.calls[0]?.[0]?.request;
+    (first?.search as { value: string }).value = "edited";
+    (first?.columns[0]?.search as { value: string }).value = "edited";
+    await answer(0, A1());
+    connection.reload();
+    const second = send.mock.calls[1]?.[0]?.request;
+    expect(second?.search.value).toBe("");
+    expect(second?.columns[0]?.search.value).toBe("");
+  });
 });
 
 // @spec("CONN-03", "1bdcf223")

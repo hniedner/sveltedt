@@ -13,7 +13,8 @@ export const servedIndex = (
   id: string | undefined,
 ): number => (id === undefined ? -1 : columns.findIndex((c) => c.id === id));
 
-const noSearch = { value: "", regex: false } as const;
+// A new empty search for each use: in the JSON form the application holds the request, and an edit must reach no other
+const noSearch = () => ({ value: "", regex: false });
 
 // The request for one query as the plain object: the paging and search keys, the column entries, then one order entry
 // per sort entry (spec/connection.md, section 1)
@@ -26,13 +27,13 @@ export function buildRequest(
     draw,
     start: query.offset ?? 0,
     length: query.limit,
-    search: noSearch,
+    search: noSearch(),
     columns: columns.map((column) => ({
       data: column.data,
       name: nameOf(column),
       searchable: column.searchable ?? true,
       orderable: column.orderable ?? true,
-      search: noSearch,
+      search: noSearch(),
     })),
     order: (query.sort ?? []).map((entry) => {
       const column = servedIndex(columns, entry.id);
