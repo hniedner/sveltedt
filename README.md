@@ -42,7 +42,8 @@ There is nothing to install yet. What is on `main` today:
   shows twice. When new props remove a focused "Cancel" or "Try again", focus moves to the table without scrolling, and
   the table can take focus only until focus leaves it (proved in Chromium, Firefox and WebKit on the test site's
   slow-load page). If the window loses focus right after the move, for example when the user switches window, the table
-  gives up that focus while it is still the active element and focus lands on the page body;
+  gives up that focus while it is still the active element and focus lands on the page body. With invalid input there is
+  no table, so a focused button that goes then leaves focus on the page body;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named
