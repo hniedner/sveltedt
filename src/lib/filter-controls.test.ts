@@ -187,13 +187,18 @@ const RESET = "Reset table";
 const resetButtons = (): HTMLElement[] =>
   screen.queryAllByRole("button", { name: RESET });
 
-// @spec("FILT-30", "ec77d6cb")
+// @spec("FILT-30", "a6569b8a")
 describe("FILT-30", () => {
   const sortableCode = column("code", "Code", { sortable: ["asc", "desc"] });
   it.each<[string, Partial<DataTableProps<Item>>, number]>([
     [
       "Code sortable, no filter, onreset given",
       { columns: [sortableCode], onreset: vi.fn() },
+      1,
+    ],
+    [
+      "Code sortable and Note neither sortable nor with a filter, onreset given",
+      { columns: [sortableCode, noteColumn], onreset: vi.fn() },
       1,
     ],
     [
