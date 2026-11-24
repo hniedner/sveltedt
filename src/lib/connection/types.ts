@@ -13,20 +13,22 @@ export interface ConnectionColumn {
   readonly name?: string;
   // The table column id the entry serves
   readonly id?: string;
-  // Whether the server may search or order by the column; `true` when not given, as in DataTables
+  // Sent to the server as given, `true` when not given, as in DataTables; the helper does not enforce them (a sort on
+  // an entry with `orderable: false` is still sent), and `searchable` matters once the filter intents exist
   readonly searchable?: boolean;
   readonly orderable?: boolean;
 }
 
-// The query (spec/connection.md, Conventions, The query)
+// The query (spec/connection.md, Conventions, The query). The helper reads `sort`, `offset` and `limit` once, at
+// creation, and then holds the live query: read it back from `table.sort` and `pager`
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
   readonly offset?: number;
   readonly limit: number;
 }
 
-// The request as the plain object a DataTables 2.x client builds, without its `fixed` lists (spec/connection.md,
-// section 1, CONN-06)
+// The request as the plain object of the JSON form (`form: "json"`) a DataTables 2.x client builds, without its `fixed`
+// lists (spec/connection.md, section 1, CONN-06); the other forms receive a `URLSearchParams`
 export interface ConnectionRequest {
   readonly draw: number;
   readonly start: number;
@@ -50,7 +52,8 @@ interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
   // Called once with an Error when an answer cannot be mapped, and once for each refused sort (a sort entry that no map
-  // entry serves); it does not hear a rejection of `send`
+  // entry serves); `table.status` becomes `'failed'` only for a refusal at mount or in `reload()`, a refused `onsort`
+  // leaves it as it was; it does not hear a rejection of `send`
   readonly onerror: (error: unknown) => void;
 }
 
