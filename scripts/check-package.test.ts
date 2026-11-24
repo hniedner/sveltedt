@@ -42,6 +42,10 @@ const MANIFEST = {
       style: "./dist/styles.css",
       default: "./dist/styles.css",
     },
+    "./connection": {
+      types: "./dist/connection/index.d.ts",
+      svelte: "./dist/connection/index.js",
+    },
   },
 };
 const GOOD: Contents = new Map(
@@ -55,6 +59,8 @@ const GOOD: Contents = new Map(
     "dist/A.svelte": "<div></div>\n",
     "dist/A.svelte.d.ts": "export {};\n",
     "dist/styles.css": ".sdt {}\n",
+    "dist/connection/index.js": "export {};\n",
+    "dist/connection/index.d.ts": "export {};\n",
   }).map(([k, v]) => [k, Buffer.from(v)]),
 );
 const found = (c: Contents, id: string): string[] =>
@@ -99,7 +105,11 @@ test("PKG-07: the finding names the file and the specifier, in any import or re-
   ]);
 });
 test("PKG-07: only .svelte and .js files are run, declarations are not", () => {
-  assert.deepEqual(runnable(GOOD).sort(), ["dist/A.svelte", "dist/index.js"]);
+  assert.deepEqual(runnable(GOOD).sort(), [
+    "dist/A.svelte",
+    "dist/connection/index.js",
+    "dist/index.js",
+  ]);
   assert.deepEqual(runnable(new Map([["dist/a.d.ts", Buffer.from("x")]])), []);
 });
 test("PKG-05: a condition besides style and default, and two different files, are findings", () => {
@@ -125,6 +135,37 @@ test("PKG-05: a condition besides style and default, and two different files, ar
       "PKG-05",
     ),
     ["style and default name different files"],
+  );
+});
+test("PKG-06: a condition besides types and svelte, an absent set and a file the tarball lacks are findings", () => {
+  const manifest = (connection: unknown): Contents =>
+    new Map(GOOD).set(
+      "package.json",
+      Buffer.from(JSON.stringify({ exports: { "./connection": connection } })),
+    );
+  assert.deepEqual(
+    found(
+      manifest({
+        types: "./dist/connection/index.d.ts",
+        svelte: "./dist/connection/index.js",
+        default: "./dist/connection/index.js",
+      }),
+      "PKG-06",
+    ),
+    ["the condition default is neither types nor svelte"],
+  );
+  assert.deepEqual(found(manifest(undefined), "PKG-06"), [
+    'exports["./connection"] is not a set of conditions',
+  ]);
+  assert.deepEqual(
+    found(
+      manifest({
+        types: "./dist/connection/missing.d.ts",
+        svelte: "./dist/connection/index.js",
+      }),
+      "PKG-06",
+    ),
+    ["dist/connection/missing.d.ts is not in the tarball"],
   );
 });
 test("PKG-04: the finding names the file and how it differs", () => {

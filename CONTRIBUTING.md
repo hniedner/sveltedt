@@ -143,13 +143,14 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   `pnpm pack` and reads the tarball, never the repository's `package.json`: PKG-01 root export under `./dist/`, PKG-02
   publint and attw (profile `esm-only`, without `./styles.css`, `internal-resolution-error` ignored, reasons in the
   code) clean, PKG-03 only the listed files, PKG-04 `LICENSE` and `NOTICE` equal the repository's, PKG-05 the
-  `./styles.css` export, PKG-07 no relative `.ts` import in a `.svelte` or `.js` file (every relative import inside a
+  `./styles.css` export, PKG-06 the `./connection` export (exactly `types` and `svelte`, each a file the tarball
+  holds), PKG-07 no relative `.ts` import in a `.svelte` or `.js` file (every relative import inside a
   `.svelte.ts` module, and every import of one, uses the `.js` ending, as in `./request.js`: `svelte-package` leaves
   them as written, and its docs say to import `.ts` files "using a `.js` file ending, not a `.ts` file ending",
   svelte.dev/docs/kit/packaging). Findings come first, then every canary row on a copy of the real contents; it cannot
   be checked if one gives another result, the build or pack fails,
   or no `.svelte` or `.js` file is read. Limits: no CI run at the Svelte peer floor (#159); attw skips node16 on the
-  `.svelte` re-exports (CON-04 proves the types); PKG-06 waits for the connection export. NOT APPLICABLE with nothing
+  `.svelte` re-exports (CON-04 proves the types). NOT APPLICABLE with nothing
   tracked under `src/lib`.
 - **consumer:** `scripts/check-consumer.ts` packs the package like the `package` step, copies the files git tracks under
   `consumer/` (a SvelteKit 3 app with its own lockfile and settings) into a temporary folder, installs from the
