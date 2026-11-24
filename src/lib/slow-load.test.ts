@@ -1,4 +1,4 @@
-import { render, within } from "@testing-library/svelte";
+import { fireEvent, render, within } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableProps } from "./types.ts";
@@ -293,6 +293,28 @@ describe("STATE-17", () => {
     await table.at(7000);
     await table.change({ rows: twoRows, busy: false, oncancel });
     expect(cancel(table.container)).toBeNull();
+  });
+});
+
+// @spec("STATE-18", "fd6fa1b5")
+describe("STATE-18", () => {
+  it.each<["Cancel" | "Try again", Partial<DataTableProps<Item>>, number]>([
+    ["Cancel", { status: "loading" }, 6000],
+    ["Try again", { status: "stopped" }, 0],
+    ["Try again", { status: "failed" }, 0],
+  ])("emits once on a click of %s with %o", async (name, props, ms) => {
+    const calls = { oncancel: vi.fn(), onretry: vi.fn(), onsort: vi.fn() };
+    const table = mount({ ...props, ...calls });
+    await table.at(ms);
+    await fireEvent.click(
+      within(table.container).getByRole("button", { name }),
+    );
+    const own = name === "Cancel" ? calls.oncancel : calls.onretry;
+    const other = name === "Cancel" ? calls.onretry : calls.oncancel;
+    expect(own).toHaveBeenCalledTimes(1);
+    expect(own).toHaveBeenCalledWith();
+    expect(other).not.toHaveBeenCalled();
+    expect(calls.onsort).not.toHaveBeenCalled();
   });
 });
 
