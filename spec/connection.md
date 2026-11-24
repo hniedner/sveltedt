@@ -24,7 +24,7 @@
   calls `createConnection` in its script and renders `DataTable` with the returned `table` props and, once `pager`
   is given, `Pagination` with the returned `pager` props. Its `send` is a fake that records each call and returns a
   promise the test settles. Time is never involved.
-- **The options.** `send(request, signal)`, the application's transport: it returns a promise of the answer body,
+- **The options.** `send({ request, signal })`, the application's transport: it returns a promise of the answer body,
   parsed, and rejects for every answer that is not a success (an HTTP status outside 2xx included); `columns`, the
   column map, a list whose entry `i` describes the backend's column `i`: `{ data, name, id, searchable, orderable }`,
   `data` a string, `name` a string (default `""`), `id` the table column id the entry serves (optional),
@@ -32,7 +32,8 @@
   never a free label: a server may resolve a column by `name` when it is not empty and by `data` otherwise, and may
   read `order[i][name]` or ignore it in favour of the index. `form`, `'bracketed'` (default), `'dotted'` or `'json'`;
   `query`, the initial query (required); `onerror(error)`. A later part adds the option of a first page loaded on
-  the server (PRD-B20); every statement of this part is without it.
+  the server (PRD-B20); every statement of this part is without it. Where a statement says what `send` receives, it
+  means the `request` of the one object `send` is called with.
 - **The query** is `{ sort, filters, search, offset, limit }` with the shapes of `spec/table.md`: `sort` a list of
   `{ id, direction }`, lead first (default `[]`); `filters` the applied filter of each column id (default `{}`);
   `search` the global search text (default `""`); `offset` (default 0) and `limit` (required) the pager's.
@@ -51,12 +52,14 @@
 ## 1. The request (CONN)
 
 **CONN-01** On mount, with no first page given and every column id of the initial query's sort and filters served,
-the helper MUST call `send` exactly once, with the request of the initial query and an `AbortSignal` that is not
-aborted.
-- Example: Q0, `send` not settled: one call; its request holds `draw=1`, `start=0`, `length=10`, `order[0][column]=0`
-  and `order[0][dir]=asc`; its signal is an `AbortSignal`, `aborted` false. No further call while nothing changes.
+the helper MUST call `send` exactly once, with one object whose `request` is the request of the initial query and
+whose `signal` is an `AbortSignal` that is not aborted.
+- Example: Q0, `send` not settled: one call, with one argument; its `request` holds `draw=1`, `start=0`, `length=10`,
+  `order[0][column]=0` and `order[0][dir]=asc`; its `signal` is an `AbortSignal`, `aborted` false. No further call
+  while nothing changes.
 - Reason: the table needs its first page, and the application's transport needs the signal to abort the request
-  (PRD-B20).
+  (PRD-B20); `send` takes one object by the rule the props of `DataTable` and `Pagination` follow (`spec/table.md`,
+  Conventions, "One object argument"), so a later release can add a field without breaking a `send`.
 - Layer: component.
 - Traces: PRD-B20.
 

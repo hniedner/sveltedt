@@ -27,10 +27,14 @@ export function createConnection<Row = unknown>(
     if (status === "ready") busy = true;
     else status = "loading";
     void options
-      .send(
-        buildRequest(options.columns, { ...options.query, offset }, sent),
-        new AbortController().signal,
-      )
+      .send({
+        request: buildRequest(
+          options.columns,
+          { ...options.query, offset },
+          sent,
+        ),
+        signal: new AbortController().signal,
+      })
       .then((body) => {
         busy = false;
         const read = readAnswer<Row>(body, sent);
