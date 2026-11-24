@@ -244,6 +244,59 @@ function shardJob(job: string[] | undefined): string[] {
   return found;
 }
 
+/**
+ * The job browser runs in Playwright's own image, pinned by digest, of the version @playwright/test is pinned to
+ * (playwright.dev/docs/docker: the versions must match). What cannot be read is could-not-check, not a pass.
+ */
+function browserContainer(
+  root: string,
+  job: string[] | undefined,
+): { found: string[]; cannot?: string } {
+  if (!job) return { found: [] };
+  const image = job
+    .map((l) => /^ {6}image:\s*(\S+)\s*$/.exec(l)?.[1])
+    .find(Boolean);
+  if (!image)
+    return { found: [], cannot: "the job browser has no container image line" };
+  if (!/@sha256:[0-9a-f]{64}$/.test(image))
+    return {
+      found: [],
+      cannot: "the image of the job browser has no @sha256 digest",
+    };
+  const tag =
+    /^mcr\.microsoft\.com\/playwright:v(\d+\.\d+\.\d+)-[a-z]+@sha256:/.exec(
+      image,
+    )?.[1];
+  if (!tag)
+    return {
+      found: [],
+      cannot:
+        "the image of the job browser is not mcr.microsoft.com/playwright:vX.Y.Z-<os>@sha256:<digest>",
+    };
+  let pin: unknown;
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as { devDependencies?: Record<string, unknown> } | null;
+    pin = manifest?.devDependencies?.["@playwright/test"];
+  } catch {
+    pin = undefined;
+  }
+  if (typeof pin !== "string")
+    return {
+      found: [],
+      cannot: "package.json has no readable @playwright/test pin",
+    };
+  return {
+    found:
+      pin === tag
+        ? []
+        : [
+            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}`,
+          ],
+  };
+}
+
 function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
@@ -287,12 +340,15 @@ function gateNeeds(root: string, list: Set<string>): Result {
   for (const name of ["browser", "mutation", "selftest"] as const)
     details.push(...leftToJob(name, lines.slice(0, start), jobs));
   details.push(...shardJob(jobs.get("selftest")));
+  const container = browserContainer(root, jobs.get("browser"));
+  details.push(...container.found);
   if (details.length)
     return result(
       FINDING,
       `${details.length} problem(s) in the gate job`,
       details,
     );
+  if (container.cannot) return result(CANNOT, container.cannot);
   return result(
     PASS,
     `gate always runs and needs all ${jobs.size - 1} other job(s)`,

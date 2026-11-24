@@ -19,6 +19,7 @@ import {
   LICENSE,
   LOCK,
   NODE_MAJOR,
+  PACKAGE,
   PASSING_TEST,
   SHA,
   SUPPRESSIONS,
@@ -900,17 +901,35 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
 });
 // The static job leaves the browser step to its own CI job through GATE_BROWSER: allowed only outside the job browser,
 // and only when a job browser that runs the step exists and gate needs it
-const ciWith = (ci: string) => (root: string) =>
-  put(root, ".github/workflows/ci.yml", ci);
+// The browser job runs in Playwright's image of the version @playwright/test is pinned to, by digest
+const PW = "1.65.1";
+const DIGEST = `sha256:${"a".repeat(64)}`;
+const IMAGE = `mcr.microsoft.com/playwright:v${PW}-noble@${DIGEST}`;
+const ciWith =
+  (ci: string, pin: string | null = PW) =>
+  (root: string) => {
+    put(root, ".github/workflows/ci.yml", ci);
+    const dev = { ...PACKAGE.devDependencies };
+    if (pin) dev["@playwright/test"] = pin;
+    put(
+      root,
+      "package.json",
+      `${JSON.stringify({ ...PACKAGE, devDependencies: dev }, null, 2)}\n`,
+    );
+  };
 const leavesBrowser = CI.replace(
   "    runs-on: ubuntu-latest\n    steps:\n      - uses",
   "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
 );
-const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
+const browserJob = (
+  ci: string,
+  run = "node scripts/check-repo.ts browser",
+  image = IMAGE,
+) =>
   ci
     .replace(
       "  gate:",
-      `  browser:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n  gate:`,
+      `  browser:\n    runs-on: ubuntu-latest\n${image ? `    container:\n      image: ${image}\n` : ""}    steps:\n      - run: ${run}\n  gate:`,
     )
     .replace("needs: [static]", "needs: [static, browser]");
 test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
@@ -968,6 +987,57 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     "- name: Browser\n        run: node",
   );
   expect("gate-needs", repo(ciWith(named)), 0);
+});
+test("gate-needs: the browser job runs in Playwright's image of the version @playwright/test is pinned to", () => {
+  // Another version in the tag, and a range in package.json, are findings
+  for (const [image, pin] of [
+    [IMAGE.replace(`v${PW}`, "v1.64.1"), PW],
+    [IMAGE, `^${PW}`],
+  ])
+    assert.match(
+      expect(
+        "gate-needs",
+        repo(ciWith(browserJob(CI, undefined, image), pin)),
+        1,
+      ),
+      new RegExp(
+        `the image of the job browser is Playwright ${image.includes("v1.64.1") ? "1\\.64\\.1" : PW.replaceAll(".", "\\.")} but package\\.json pins @playwright/test ${pin.replace("^", "\\^").replaceAll(".", "\\.")}`,
+      ),
+    );
+});
+test("gate-needs: a browser job whose image cannot be read is could-not-check", () => {
+  const cases: [string, RegExp][] = [
+    ["", /the job browser has no container image line/],
+    [
+      IMAGE.replace(`@${DIGEST}`, ""),
+      /the image of the job browser has no @sha256 digest/,
+    ],
+    [
+      `ghcr.io/other/playwright:v${PW}-noble@${DIGEST}`,
+      /is not mcr\.microsoft\.com\/playwright:vX\.Y\.Z-<os>@sha256:<digest>/,
+    ],
+  ];
+  for (const [image, why] of cases)
+    assert.match(
+      expect("gate-needs", repo(ciWith(browserJob(CI, undefined, image))), 3),
+      why,
+    );
+});
+test("gate-needs: a browser job without a readable @playwright/test pin is could-not-check", () => {
+  const ci = browserJob(CI);
+  const why = /package\.json has no readable @playwright\/test pin/;
+  assert.match(expect("gate-needs", repo(ciWith(ci, null)), 3), why);
+  assert.match(
+    expect(
+      "gate-needs",
+      repo((root) => {
+        ciWith(ci)(root);
+        remove("package.json")(root);
+      }),
+      3,
+    ),
+    why,
+  );
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
   expect("gate-needs", repo(ciWith(browserJob(CI))), 0);

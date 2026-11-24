@@ -283,8 +283,10 @@ $0 budget, no self-hosted runners.
     failure, so one engine's failure does not hide another's *(measured: the browser rows of scripts/check-repo-site.test.ts)*.
     The `static` job leaves the step to this job through `GATE_BROWSER`; gate-needs allows the variable in any job but
     `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
-    (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
-    `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
+    (a later step that needs its own `if:` narrows the rule in its own branch). The job runs in Playwright's own image
+    (`mcr.microsoft.com/playwright`, pinned by tag and digest, `--user 1001` as in its CI example) with the engines inside
+    *(fetched, playwright-ci, playwright-docker)*; gate-needs checks that the tag's version equals the exact
+    `@playwright/test` pin, and an image line it cannot read is could-not-check.
   - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
     (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
     `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
