@@ -638,6 +638,7 @@ once, MUST be answered with status 400 and an empty body.
   | Change | Status |
   |---|---|
   | `draw` removed; `draw=`; `draw=1a`; `draw=-1` | 400 |
+  | `draw=0x1`; `start=1.0`; `length=1e1` (numbers JavaScript reads, not decimal integer text) | 400 |
   | `start=`; `start=-1`; `start=1.5`; `start=%201` (raw: a space, then 1); `start=%2B1` (raw); `start=9007199254740992` | 400 |
   | `start=9007199254740991` | 200, `data` `[]` |
   | `length` removed; `length=0`; `length=-1`; `length=1001` | 400 |

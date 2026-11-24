@@ -328,7 +328,7 @@ describe("API-03", () => {
   });
 });
 
-// @spec("API-04", "93ade922")
+// @spec("API-04", "c0ffa84c")
 describe("API-04", () => {
   let server: Server;
   beforeAll(async () => {
@@ -345,6 +345,9 @@ describe("API-04", () => {
     ["draw empty", route({ draw: "" })],
     ["draw=1a", route({ draw: "1a" })],
     ["draw=-1", route({ draw: "-1" })],
+    ["draw=0x1", route({ draw: "0x1" })],
+    ["start=1.0", route({ start: "1.0" })],
+    ["length=1e1", route({ length: "1e1" })],
     ["start empty", route({ start: "" })],
     ["start=-1", route({ start: "-1" })],
     ["start=1.5", route({ start: "1.5" })],
