@@ -1124,7 +1124,7 @@ describe("STATE-23", () => {
         expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
       if (status === "ready") expect(firstCells()).toEqual(["Beta", "Gamma"]);
       expect(
-        screen.queryAllByRole("button", { name: "Try again" }),
+        screen.queryAllByRole("button", { name: "Try again", hidden: true }),
       ).toHaveLength(shown ? 1 : 0);
     },
   );
@@ -1141,7 +1141,7 @@ describe("STATE-24", () => {
       ).toEqual([FIXED]);
       expect(screen.queryByRole("table")).toBeNull();
       expect(
-        screen.queryAllByRole("button", { name: "Try again" }),
+        screen.queryAllByRole("button", { name: "Try again", hidden: true }),
       ).toHaveLength(0);
     },
   );
