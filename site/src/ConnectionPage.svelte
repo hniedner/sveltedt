@@ -8,7 +8,12 @@
   import type { Order } from "./orders.ts";
 
   const columns: DataTableColumn<Order>[] = [
-    { id: "name", label: "Order", value: ({ row }) => row.name },
+    {
+      id: "name",
+      label: "Order",
+      value: ({ row }) => row.name,
+      sortable: ["asc", "desc"],
+    },
   ];
   // The page's transport (spec/site.md, section 8): the request goes to the site's route in the bracketed form and the
   // parsed body comes back. It rejects on a non-2xx answer, a network failure or a body that is not JSON, and the helper
@@ -42,6 +47,8 @@
     rows={connection.table.rows}
     {columns}
     {getRowId}
+    sort={connection.table.sort}
+    onsort={connection.table.onsort}
     caption="Orders"
     regionLabel="Orders table"
     status={connection.table.status}

@@ -88,3 +88,33 @@ test("CPAGE-03: the connection page raises no violation once its first page of r
   const list = await listOf(page);
   expect(list, `violations: ${JSON.stringify(list)}`).toEqual([]);
 });
+
+// @spec("CPAGE-04", "67c26a72")
+test("CPAGE-04: pressing the Order header loads the first page in that order with one more route request", async ({
+  page,
+}) => {
+  const requests = routeRequests(page);
+  await open(page, "/connection.html");
+  await expect(rowsOf(page)).toHaveText(FIRST_PAGE);
+  await page.getByRole("button", { name: "Page 2" }).click();
+  await expect(rowsOf(page)).toHaveText(SECOND_PAGE);
+  expect(requests).toHaveLength(2);
+  await page.getByRole("button", { name: "Order", exact: true }).click();
+  const pager = page.getByRole("navigation", { name: "Orders pages" });
+  await expect(pager).toContainText("Showing 1 to 10 of 20 rows");
+  await expect(rowsOf(page)).toHaveText(
+    Array.from(
+      { length: 10 },
+      (_, index) => `Order ${String(index + 1).padStart(2, "0")}`,
+    ),
+  );
+  expect(requests).toHaveLength(3);
+  const query = requests[2]?.searchParams;
+  expect([
+    query?.get("draw"),
+    query?.get("start"),
+    query?.get("length"),
+    query?.get("order[0][column]"),
+    query?.get("order[0][dir]"),
+  ]).toEqual(["3", "0", "10", "1", "asc"]);
+});
