@@ -113,8 +113,8 @@ const codeColumn: DataTableColumn<Item> = {
 };
 
 // Props that raise each message of RND-05's alert, keyed by the message
-// The words of RND-05 and RND-06; the sort words are SORT-17's
-type TableWords = Omit<DataTableMessages, `sort${string}`>;
+// The words of RND-05 and RND-06; the sort words are SORT-17's, the stopped message is STATE-26's
+type TableWords = Omit<DataTableMessages, `sort${string}` | "stopped">;
 
 const faults: [keyof TableWords, Partial<DataTableProps<Item>>][] = [
   ["captionEmpty", { caption: "" }],
