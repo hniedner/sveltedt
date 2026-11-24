@@ -74,7 +74,7 @@ export type PagerFault =
   | "sizeHandlerMissing"
   | "unfilteredTotalInvalid";
 
-const isCount = (value: unknown): boolean =>
+export const isCount = (value: unknown): boolean =>
   Number.isSafeInteger(value) && (value as number) >= 0;
 const isSize = (value: unknown): boolean => isCount(value) && value !== 0;
 
