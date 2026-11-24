@@ -322,3 +322,70 @@ describe("API-03", () => {
     });
   });
 });
+
+// @spec("API-04", "feff1196")
+describe("API-04", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX })).server;
+  });
+  const order = (column: string | null, dir: string | null) => ({
+    "order[0][column]": column,
+    "order[0][dir]": dir,
+  });
+
+  it.each([
+    ["draw removed", route({ draw: null })],
+    ["draw=1a", route({ draw: "1a" })],
+    ["draw=-1", route({ draw: "-1" })],
+    ["start=-1", route({ start: "-1" })],
+    ["start=1.5", route({ start: "1.5" })],
+    ["start=%201, raw", `${route({ start: null })}&start=%201`],
+    ["start=%2B1, raw", `${route({ start: null })}&start=%2B1`],
+    ["start=9007199254740992", route({ start: "9007199254740992" })],
+    ["length removed", route({ length: null })],
+    ["length=0", route({ length: "0" })],
+    ["length=-1", route({ length: "-1" })],
+    ["length=1001", route({ length: "1001" })],
+    ["column 2 asc", route(order("2", "asc"))],
+    ["column x asc", route(order("x", "asc"))],
+    ["column 1 ASC", route(order("1", "ASC"))],
+    ["column 1 and no direction", route(order("1", null))],
+    ["asc and no column", route(order(null, "asc"))],
+  ])("refuses %s with 400 and an empty body", async (_row, path) => {
+    const answer = await get(server, path);
+    expect(answer.status).toBe(400);
+    expect(answer.body).toBe("");
+  });
+
+  it.each([
+    ["start=9007199254740991", { start: "9007199254740991" }, []],
+    ["length=1000", { length: "1000" }, FIXED],
+  ])("answers %s with 200 and its rows", async (_row, changes, ids) => {
+    const answer = await get(server, route(changes));
+    expect(answer.status).toBe(200);
+    expect((JSON.parse(answer.body) as { data?: unknown }).data).toEqual(
+      rowsOf(ids),
+    );
+  });
+});
+
+// @spec("API-05", "808081f5")
+describe("API-05", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX })).server;
+  });
+
+  it.each([
+    ["B", route(), 200],
+    ["B with length=0", route({ length: "0" }), 400],
+  ])(
+    "answers %s with exactly one strict policy",
+    async (_row, path, status) => {
+      const answer = await get(server, path);
+      expect(answer.status).toBe(status);
+      expect(answer.policies).toEqual([STRICT]);
+    },
+  );
+});

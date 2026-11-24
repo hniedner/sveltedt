@@ -59,14 +59,40 @@ function ordered(query: URLSearchParams): readonly Order[] {
   return direction === "asc" ? ascending : ascending.toReversed();
 }
 
+// A count the route accepts: the decimal text of a safe non-negative integer, else undefined
+function count(text: string | null): number | undefined {
+  const number = Number(text);
+  return text !== null && /^\d+$/.test(text) && Number.isSafeInteger(number)
+    ? number
+    : undefined;
+}
+
 // The route's answer: `draw` as a number, the ordered list from `start`, at most `length` rows, both counts the whole
-// list
+// list. A request that is malformed, or asks for an unknown column or direction or a size of 0 or over 1000, is
+// refused with 400 and an empty body before any of it is used.
 function answerOrders(query: URLSearchParams, response: ServerResponse): void {
-  const start = Number(query.get("start"));
-  const length = Number(query.get("length"));
+  const draw = count(query.get("draw"));
+  const start = count(query.get("start"));
+  const length = count(query.get("length"));
+  const column = query.get("order[0][column]");
+  const direction = query.get("order[0][dir]");
+  const named = column !== null || direction !== null;
+  if (
+    draw === undefined ||
+    start === undefined ||
+    length === undefined ||
+    length < 1 ||
+    length > 1000 ||
+    (named &&
+      ((column !== "0" && column !== "1") ||
+        (direction !== "asc" && direction !== "desc")))
+  ) {
+    response.writeHead(400).end();
+    return;
+  }
   response.writeHead(200, { "Content-Type": "application/json" }).end(
     JSON.stringify({
-      draw: Number(query.get("draw")),
+      draw,
       recordsTotal: orders.length,
       recordsFiltered: orders.length,
       data: ordered(query).slice(start, start + length),
