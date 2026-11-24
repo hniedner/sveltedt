@@ -167,6 +167,24 @@ test("PKG-06: a condition besides types and svelte, an absent set and a file the
     ),
     ["dist/connection/missing.d.ts is not in the tarball"],
   );
+  assert.deepEqual(
+    found(manifest({ svelte: "./dist/connection/index.js" }), "PKG-06"),
+    ["no types condition"],
+  );
+  assert.deepEqual(
+    found(manifest({ types: "./dist/connection/index.d.ts" }), "PKG-06"),
+    ["no svelte condition"],
+  );
+  assert.deepEqual(
+    found(
+      manifest({
+        types: "./dist/connection/missing.js",
+        svelte: "./dist/connection/missing.js",
+      }),
+      "PKG-06",
+    ),
+    ["dist/connection/missing.js is not in the tarball"],
+  );
 });
 test("PKG-04: the finding names the file and how it differs", () => {
   const c = new Map(GOOD).set("NOTICE", Buffer.from("x"));

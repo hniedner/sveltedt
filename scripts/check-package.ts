@@ -126,8 +126,8 @@ function imports(c: Contents): Finding[] {
 }
 
 /**
- * `exports[subpath]` has exactly the conditions `want`, each naming a file the tarball holds (PKG-05, PKG-06): its
- * problems, in that order.
+ * `exports[subpath]` has exactly the conditions `want`, each naming a file the tarball holds. Returns
+ * its problems: a missing condition, an extra one, then a file the tarball lacks.
  */
 function conditions(
   c: Contents,

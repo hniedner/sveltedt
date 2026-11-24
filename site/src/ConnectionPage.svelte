@@ -11,7 +11,8 @@
     { id: "name", label: "Order", value: (order) => order.name },
   ];
   // The page's transport (spec/site.md, section 8): the request goes to the site's route in the bracketed form and the
-  // parsed body comes back; any status but 2xx is a rejection
+  // parsed body comes back. It throws on a non-2xx answer, and the helper does not handle a rejection of `send`
+  // (src/lib/connection/types.ts), so the rejection goes unhandled in this page
   async function send(
     request: URLSearchParams,
     signal: AbortSignal,
