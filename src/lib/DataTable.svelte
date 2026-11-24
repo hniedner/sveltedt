@@ -79,7 +79,8 @@
   );
   // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
   const pending = $derived(fault === null && (status === "loading" || busy));
-  // The progress indicator is in the component; it is inside its 500 ms minimum; the still-loading text is shown (PRD-B2)
+  // The slow-load state of PRD-B2: `shown` is the progress indicator being in the component, `held` its 500 ms
+  // minimum still running, `still` the still-loading text being shown
   let shown = $state(false);
   // Stryker disable next-line BooleanLiteral: equivalent, a wrongly true start only skips a reset of shown and still, which are false then
   let held = $state(false);
