@@ -113,8 +113,8 @@ export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
     throw new Error(`process group ${pid} still running after SIGKILL`);
 }
 
-/** The first COMPLETE stdout line starting with `prefix`; rejects, with exit and both streams, when `child` closes first.
- * `close` waits for the child's stdio to end, so a grandchild that holds the pipes defers the rejection. */
+/** The first COMPLETE stdout line starting with `prefix`; rejects, with exit and both streams, when `child` closes
+ * first. `close` waits for the child's stdio to end, so a grandchild that holds the pipes defers the rejection. */
 export function readyLine(child: Piped, prefix: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let out = "";
