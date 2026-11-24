@@ -17,7 +17,8 @@ const packageStylesheet = (): Plugin => ({
   },
 });
 
-// Builds the pages of site/ (index, canary, sort, connection and the four host pages) and what they load into site/dist, the folder site/server.ts serves.
+// Builds the pages of site/ (index, canary, sort, filters, connection and the four host pages) and what they load
+// into site/dist, the folder site/server.ts serves.
 // The Svelte options come from the repository's one svelte.config.js.
 export default defineConfig({
   root: import.meta.dirname,
