@@ -144,6 +144,7 @@
   <div role="status" aria-atomic="false">
     {fault === null && status === "loading" ? words.loading : ""}
     {#if still}<div>{words.stillLoading}</div>{/if}
+    {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
   </div>
   {#if oncancel && still}<button type="button" onclick={() => oncancel()}
       >{words.cancel}</button

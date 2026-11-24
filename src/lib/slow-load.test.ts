@@ -428,6 +428,37 @@ describe("A11Y-20", () => {
   });
 });
 
+// @spec("A11Y-26", "50ad1535")
+describe("A11Y-26", () => {
+  const loading: Partial<DataTableProps<Item>> = { status: "loading" };
+  const stopped: Partial<DataTableProps<Item>> = { status: "stopped" };
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean, number]>([
+    ["loading, stopped", [stopped], true, 1],
+    [
+      "loading, stopped, stopped again with onretry and new rows",
+      [stopped, { ...stopped, onretry: () => {}, rows: twoRows }],
+      true,
+      1,
+    ],
+    ["loading, stopped, loading", [stopped, loading], false, 1],
+    [
+      "loading, stopped, loading, stopped",
+      [stopped, loading, stopped],
+      true,
+      2,
+    ],
+  ])(
+    "reads the status region after %s",
+    async (_steps, later, inRegion, added) => {
+      const table = mount(loading);
+      const seen = watchAdditions(table, "Loading stopped");
+      for (const step of later) await table.change(step);
+      expect(seen.inRegion()).toBe(inRegion);
+      expect(seen.added()).toBe(added);
+    },
+  );
+});
+
 // @spec("FOOT-05", "9f0dae50")
 describe("FOOT-05", () => {
   const oncancel = (): void => {};
