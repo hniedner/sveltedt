@@ -24,8 +24,8 @@ fetched or measured.
   - signal-exit 4.1.0 (ISC, no dependencies; registry, fetched): an exit and signal hook that fires only when no other
     listener exists. Not taken: inside `consumer-serve`, which has its own handler, it would not forward the signal, the
     case we need.
-  - Playwright's `launchProcess` (measured by reading its source): detached, group SIGTERM then SIGKILL, an `exit`
-    handler. Not taken: internal, not a public API. Its practice is followed.
+  - Playwright's `launchProcess` (read from its source): detached, group SIGTERM then SIGKILL, an `exit` handler. Not
+    taken: internal, not a public API. Its practice is followed.
   - Node built-ins: `spawn` with `detached`, `process.kill(-pid, signal)`, and `process.on`. `scripts/children.ts` is
     141 lines (measured with `wc -l`; 118 without comments and blank lines).
 - **Limits:**
@@ -47,13 +47,15 @@ fetched or measured.
     the close handler's SIGTERM to the group.
 - A child with no pid (a spawn that failed) is not registered, but no test can show that check missing: `groupGone` and
   `send` handle a missing pid themselves, so removing the check in `spawnGroup` or in `signalGroup` changes no outcome.
-  They are second guards: `-undefined` is NaN, which `send`'s integer guard refuses. `stop` has no check of its own.
+  They are second guards: `-undefined` is NaN, which `send`'s integer guard refuses. `stop` has no check of its own. The
+  check in `signalGroup` also narrows `child.pid` to `number` (removing it is a type error), while it changes no runtime
+  outcome.
 - `stop` throws when a group is still there 2 s after SIGKILL (a process the kernel cannot end). No test pins that
   throw: it needs an unkillable process, and none is built.
-- `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review
-  measured EPERM for a group that holds only a zombie leader on macOS; ESRCH follows once the leader is reaped. A group
-  that is alive but not ours cannot occur while the group still exists: the helper only signals groups it started. Once
-  a group has no member its id may be reused, so a group that was seen gone is never signalled again (`stop` returns at
+- `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. Measured on macOS (Node
+  26.13.1, 2026-11-24): a group that holds only a zombie leader answers EPERM, and ESRCH once it is reaped. A group that
+  is alive but not ours cannot occur while the group still exists: the helper only signals groups it started. Once a
+  group has no member its id may be reused, so a group that was seen gone is never signalled again (`stop` returns at
   once).
 - `send` refuses a target of 0, 1, -1 or one that is not an integer: `kill(-0)` signals the caller's own process group
   (measured: `process.kill(-Number(""), 0)` returns true). That guard is pinned by a test that replaces `process.kill`
@@ -68,5 +70,5 @@ fetched or measured.
 - EPERM is a permanent "gone" for a child: a group that still had live members and answered EPERM would be abandoned.
   That is unverified and none was seen; the only EPERM case measured is a zombie-only leader on macOS.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
-  platform, or if `scripts/children.ts` grows past about 150 lines (141 now: a margin of 9; the trigger is
-  already close, so raising it, or reopening on the next addition, is for the reviewer to decide).
+  platform, or if `scripts/children.ts` grows past about 150 lines (141 now: a margin of 9; the trigger is already
+  close, so raising it, or reopening on the next addition, is for the reviewer to decide).

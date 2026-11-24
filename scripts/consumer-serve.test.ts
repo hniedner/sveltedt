@@ -59,8 +59,8 @@ function fake(opts: { dev: string; prod: string }): string {
   writeFileSync(join(copy, "build", "index.js"), opts.prod);
   return copy;
 }
-// A server that listens on `port` but answers 503, so `wait` keeps polling, and writes `stamp` once it listens. It writes
-// nothing to stdout or stderr: a write into the dead program's pipe ends it and hides the leak
+// A server that listens on `port` but answers 503, so `wait` keeps polling, and writes `stamp` once it listens. It
+// writes nothing to stdout or stderr: a write into the dead program's pipe ends it and hides the leak
 const HELD = (port: string, stamp: string): string =>
   `setTimeout(() => process.exit(0), 20000); import("node:http").then((h) => h.createServer((q, r) => { r.statusCode = 503; r.end("x"); }).listen(Number(${port}), "127.0.0.1", () => require("node:fs").writeFileSync("${stamp}", "up")));`;
 const GOOD = {

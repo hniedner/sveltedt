@@ -291,7 +291,8 @@ test(
   "stop never signals group 0, 1 or a pid that is not an integer: no call reaches kill",
   { timeout: 5000 },
   async () => {
-    // kill is replaced before anything runs: a bad target must never reach the real one, which would signal our own group
+    // kill is replaced before anything runs: a bad target must never reach the real one, which would signal our own
+    // group
     const kill = mock.method(process, "kill", () => true);
     after(() => kill.mock.restore());
     for (const pid of [0, 1, 1.5, Number.NaN]) {
