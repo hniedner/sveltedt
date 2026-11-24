@@ -26,8 +26,8 @@ Library-first evaluation (method section 8) for the one runtime dependency of th
   - No switch: log the full line always, which puts all fault texts into every production bundle.
 - **`esm-env` against the criteria** (measured with the commands named, or fetched):
   - **Licence:** MIT (registry, fetched with `curl https://registry.npmjs.org/esm-env`).
-  - **Maintenance:** latest release 1.2.2 on 2025-01-08; 9 releases in all; no release in the 12 months before
-    2026-11-23 (registry); one maintainer on the registry; Svelte itself depends on it (its `package.json` declares
+  - **Maintenance:** latest release 1.2.2 on 2025-01-08, about 22 months before 2026-11-23; 9 releases in all, none
+    in the 12 months before that date (registry); one maintainer on the registry; Svelte itself depends on it (its `package.json` declares
     `esm-env: ^1.2.1`, measured in the installed 5.57.3), so a defect would reach Svelte's own users first. A
     package that small and unchanged for a year is stable, not abandoned; the reopening trigger below covers a
     change.
@@ -36,21 +36,21 @@ Library-first evaluation (method section 8) for the one runtime dependency of th
     **zero** transitive dependencies (registry: no `dependencies`). Svelte already depends on it, so the range
     `^1.2.1` that Svelte declares adds no package to a consumer's tree (measured: the lockfile resolves one
     `esm-env@1.2.2` for Svelte and for us).
-  - **Security:** no advisory (fetched: `POST https://api.osv.dev/v1/query` for npm `esm-env` returned `{}`). The
-    OpenSSF Scorecard of the repository could not be read (the request to api.securityscorecards.dev returned no
-    parsable answer): could not check, recorded as such.
+  - **Security:** no advisory (fetched: `POST https://api.osv.dev/v1/query` for npm `esm-env` returned `{}`). No
+    OpenSSF Scorecard is published for the repository (measured: `curl -s -o /dev/null -w "%{http_code}"
+https://api.securityscorecards.dev/projects/github.com/benmccann/esm-env` prints 404 on 2026-11-23).
   - **Install script:** none (registry: no `scripts` entry; PRD-S5).
   - **Fit:** met for SUP-04, RND-17 and CON-14. How `DEV` is decided (fetched: the package's own README, "Uses
-    export conditions to return environment information"; its `exports` map, read from the installed package:
-    `"development": "./true.js", "production": "./false.js", "default": "./dev-fallback.js"`): under a
-    `development` condition true, under `production` false, otherwise the value of `NODE_ENV`, false in a browser
-    that has neither. Vitest sets `NODE_ENV=test`, so component tests see it true.
+    export conditions to return environment information"; the root entry re-exports `DEV` from the `./development` export of
+    the installed package, whose map is `"development": "./true.js", "production": "./false.js", "default":
+"./dev-fallback.js"`): under a `development` condition true, under `production` false, otherwise true unless
+    `NODE_ENV` is unset or starts with "prod" (`dev-fallback.js`), so false in a browser that has neither. Vitest sets `NODE_ENV=test`, so component tests see it true.
   - **Own cost:** a hand-built switch is the same files plus the consumer's configuration, and a second source of
     truth beside the one Svelte already uses.
   - **Exit cost:** one import in one module (`DEV` read where the console line is written); replacing it touches
     that module and SUP-04's check.
-- **How the practice divides** (fetched): Svelte's own warnings write the full text under `DEV` and a link with the
-  code otherwise (installed `svelte/src/internal/client/warnings.js`); AG Grid's console line is "warning #id" or
+- **How the practice divides** (fetched): Svelte's own warnings write the full text under `DEV` and a link that
+  holds the code otherwise (installed `svelte/src/internal/client/warnings.js`); AG Grid's console line is "warning #id" or
   "error #id" with a link, the full message only with its validation module registered (github.com/ag-grid/ag-grid,
   `packages/ag-grid-community/src/validation/logging.ts`); MUI X's `warnOnce` is a no-op in production
   (github.com/mui/mui-x, `packages/x-internals/src/warning/index.ts`). RND-17 follows the first two.

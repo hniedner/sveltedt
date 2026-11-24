@@ -24,7 +24,8 @@ export type TableFault =
   | "sortColumnDuplicate";
 
 // The line of RND-17. The texts are for the developer: English only, no entry of `messages`, and none holds a value
-// from the input (RND-09). They sit behind DEV, so a production bundle drops them and keeps the code.
+// from the input (RND-09). They sit behind DEV, so a production bundle drops them and keeps the code (CON-14 is to
+// prove it on the consumer's build; it is not yet tested).
 export function faultLine(code: TableFault): string {
   if (!DEV) return `SvelteDT: ${code}`;
   const texts: Record<TableFault, string> = {

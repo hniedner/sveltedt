@@ -1,4 +1,4 @@
-import type { TableFault as Fault } from "./faults.ts";
+import type { TableFault } from "./faults.ts";
 import type { DataTableProps } from "./types.ts";
 
 function firstDuplicate(values: readonly string[]): string | undefined {
@@ -41,7 +41,7 @@ export function validateTable<Row>(
     | "sort"
     | "onsort"
   >,
-): Fault | null {
+): TableFault | null {
   const { rows, columns, getRowId, caption, regionLabel, status } = input;
   if (isEmpty(caption)) return "captionEmpty";
   if (isEmpty(regionLabel)) return "regionLabelEmpty";
@@ -86,7 +86,7 @@ export function validateTable<Row>(
 function rowFault<Row>(
   rows: readonly Row[],
   getRowId: (row: Row) => unknown,
-): Fault | null {
+): TableFault | null {
   const rowIds: string[] = [];
   let unreadable = false;
   for (const row of rows) {
@@ -111,7 +111,7 @@ function sortFault<Row>(
   columns: DataTableProps<Row>["columns"],
   sort: DataTableProps<Row>["sort"],
   onsort: DataTableProps<Row>["onsort"],
-): Fault | null {
+): TableFault | null {
   const invalid = (sortable: unknown): boolean =>
     !isList(sortable) ||
     (sortable as unknown[]).length === 0 ||

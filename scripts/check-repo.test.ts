@@ -158,7 +158,7 @@ test("toolchain: a package.json without a pnpm packageManager pin is a finding",
   expect("toolchain", repo(pkg((p) => delete p.packageManager)), 1);
 });
 
-test("lockfile: passes on one lockfile document, exact versions, nothing shipped and one release age", () => {
+test("lockfile: passes on one lockfile document, exact versions, esm-env and the svelte peer shipped and one release age", () => {
   expect("lockfile", repo(), 0);
 });
 test("lockfile: svelte as the only peer passes", () => {

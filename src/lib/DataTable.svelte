@@ -72,7 +72,7 @@
       onsort,
     }),
   );
-  // The cause of a fault goes to the developer (RND-17). `fault` is a derived text, so the effect runs again only when
+  // The cause of a fault goes to the developer (RND-17). `fault` is a derived code, so the effect runs again only when
   // it changes: once for each change, and never on the server
   $effect(() => {
     if (fault !== null) console.error(faultLine(fault));
