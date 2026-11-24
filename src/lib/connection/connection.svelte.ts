@@ -1,5 +1,5 @@
 import { onMount } from "svelte";
-import { buildRequest } from "./request.ts";
+import { buildRequest } from "./request.js";
 import type { ConnectionOptions } from "./types.ts";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on

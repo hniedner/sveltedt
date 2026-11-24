@@ -1,4 +1,4 @@
-export { createConnection } from "./connection.svelte.ts";
+export { createConnection } from "./connection.svelte.js";
 export type {
   ConnectionColumn,
   ConnectionOptions,
