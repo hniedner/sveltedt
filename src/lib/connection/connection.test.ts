@@ -5,7 +5,9 @@ import Probe from "../../../test/ConnectionProbe.svelte";
 import type {
   Connection,
   ConnectionColumn,
+  ConnectionJsonOptions,
   ConnectionOptions,
+  ConnectionParamsOptions,
   ConnectionQuery,
 } from "./index.ts";
 
@@ -42,17 +44,21 @@ const A1without = (field: string): Body => {
   return body;
 };
 
-// Mounts the probe with a `send` that records its calls, each settled only by `answer`, and an `onerror` that
-// records its calls; `connection` is what the helper returned
-function mount(options: Partial<ConnectionOptions> = {}) {
+// Renders the probe with the options `make` builds around a `send` that records its calls, each settled only by
+// `answer`, and an `onerror` that records its calls; `connection` is what the helper returned
+function run<Send>(
+  makeSend: (pending: () => Promise<unknown>) => Send,
+  make: (
+    send: Send,
+    onerror: ConnectionOptions["onerror"],
+  ) => ConnectionOptions,
+) {
   const settle: ((body: unknown) => void)[] = [];
-  const send = vi.fn<ConnectionOptions["send"]>(
-    () => new Promise((resolve) => settle.push(resolve)),
-  );
+  const send = makeSend(() => new Promise((resolve) => settle.push(resolve)));
   const onerror = vi.fn<ConnectionOptions["onerror"]>();
   let connected: Connection<Row> | undefined;
   render(Probe, {
-    options: { send, onerror, columns: M, query: Q0, ...options },
+    options: make(send, onerror),
     onconnect: (connection: Connection<Row>) => (connected = connection),
   });
   return {
@@ -69,6 +75,26 @@ function mount(options: Partial<ConnectionOptions> = {}) {
       return connected;
     },
   };
+}
+function mount(options: Partial<ConnectionParamsOptions> = {}) {
+  return run(
+    (pending) => vi.fn<ConnectionParamsOptions["send"]>(pending),
+    (send, onerror) => ({ send, onerror, columns: M, query: Q0, ...options }),
+  );
+}
+// As `mount`, for the JSON form: `send` receives the plain object
+function mountJson(options: Partial<ConnectionJsonOptions> = {}) {
+  return run(
+    (pending) => vi.fn<ConnectionJsonOptions["send"]>(pending),
+    (send, onerror) => ({
+      form: "json",
+      send,
+      onerror,
+      columns: M,
+      query: Q0,
+      ...options,
+    }),
+  );
 }
 
 // @spec("CONN-01", "a9d7c397")
@@ -200,41 +226,96 @@ describe("CONN-02", () => {
     ...columnPairs(1, "code", "c"),
     ...columnPairs(2, "status", "s"),
   ];
-  const rows: [string, Partial<ConnectionOptions>, [string, string][]][] = [
+  const rows: [string, Partial<ConnectionParamsOptions>, [string, string][]][] =
     [
-      "M, Q0 (26 pairs)",
-      {},
       [
-        ...basePairs,
-        ...mapPairs,
-        ["order[0][column]", "0"],
-        ["order[0][dir]", "asc"],
-        ["order[0][name]", "n"],
+        "M, Q0 (26 pairs)",
+        {},
+        [
+          ...basePairs,
+          ...mapPairs,
+          ["order[0][column]", "0"],
+          ["order[0][dir]", "asc"],
+          ["order[0][name]", "n"],
+        ],
       ],
-    ],
-    [
-      "M plus an entry with no name and no id, Q0",
-      { columns: [...M, { data: "internal" }] },
       [
-        ...basePairs,
-        ...mapPairs,
-        ...columnPairs(3, "internal", ""),
-        ["order[0][column]", "0"],
-        ["order[0][dir]", "asc"],
-        ["order[0][name]", "n"],
+        "M plus an entry with no name and no id, Q0",
+        { columns: [...M, { data: "internal" }] },
+        [
+          ...basePairs,
+          ...mapPairs,
+          ...columnPairs(3, "internal", ""),
+          ["order[0][column]", "0"],
+          ["order[0][dir]", "asc"],
+          ["order[0][name]", "n"],
+        ],
       ],
-    ],
-    [
-      "M, the query { limit: 10 } only (23 pairs)",
-      { query: { limit: 10 } },
-      [...basePairs, ...mapPairs],
-    ],
-  ];
+      [
+        "M, the query { limit: 10 } only (23 pairs)",
+        { query: { limit: 10 } },
+        [...basePairs, ...mapPairs],
+      ],
+    ];
   it.each(rows)("sends exactly the keys of %s", (_row, options, pairs) => {
     const { send } = mount(options);
     expect([...(send.mock.calls[0]?.[0]?.request ?? [])].sort(byKey)).toEqual(
       [...pairs].sort(byKey),
     );
+  });
+});
+
+// @spec("CONN-06", "fb038033")
+describe("CONN-06", () => {
+  const fixed = { value: "", regex: false };
+  const entry = (data: string, name: string) => ({
+    data,
+    name,
+    searchable: true,
+    orderable: true,
+    search: fixed,
+  });
+  const rows: [string, Partial<ConnectionJsonOptions>, object][] = [
+    [
+      "M, Q0",
+      {},
+      {
+        draw: 1,
+        start: 0,
+        length: 10,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [{ column: 0, dir: "asc", name: "n" }],
+      },
+    ],
+    [
+      "the sort []",
+      { query: { sort: [], limit: 10 } },
+      {
+        draw: 1,
+        start: 0,
+        length: 10,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [],
+      },
+    ],
+    [
+      "offset 20 and limit 25",
+      { query: { sort: Q0.sort ?? [], offset: 20, limit: 25 } },
+      {
+        draw: 1,
+        start: 20,
+        length: 25,
+        search: fixed,
+        columns: [entry("name", "n"), entry("code", "c"), entry("status", "s")],
+        order: [{ column: 0, dir: "asc", name: "n" }],
+      },
+    ],
+  ];
+  it.each(rows)("sends the plain object of %s", (_row, options, expected) => {
+    const { send } = mountJson(options);
+    expect(send.mock.calls[0]?.[0]?.request).toStrictEqual(expected);
   });
 });
 

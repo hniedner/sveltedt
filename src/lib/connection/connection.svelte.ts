@@ -2,7 +2,7 @@ import { onMount } from "svelte";
 import type { DataTableSortEntry, DataTableStatus } from "../types.ts";
 import { readAnswer } from "./answer.js";
 import type { Answer } from "./answer.ts";
-import { buildRequest, servedIndex } from "./request.js";
+import { buildRequest, servedIndex, toParams } from "./request.js";
 import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
@@ -45,26 +45,27 @@ export function createConnection<Row = unknown>(
     const sent = ++draw;
     if (status === "ready") busy = true;
     else status = "loading";
-    void options
-      .send({
-        request: buildRequest(
-          options.columns,
-          { ...options.query, sort, offset, limit },
-          sent,
-        ),
-        signal: new AbortController().signal,
-      })
-      .then((body) => {
-        busy = false;
-        const read = readAnswer<Row>(body, sent);
-        if (read === undefined) {
-          status = "failed";
-          options.onerror(new Error("The answer does not match the request."));
-          return;
-        }
-        answer = read;
-        status = "ready";
-      });
+    const request = buildRequest(
+      options.columns,
+      { ...options.query, sort, offset, limit },
+      sent,
+    );
+    const signal = new AbortController().signal;
+    void (
+      options.form === "json"
+        ? options.send({ request, signal })
+        : options.send({ request: toParams(request), signal })
+    ).then((body) => {
+      busy = false;
+      const read = readAnswer<Row>(body, sent);
+      if (read === undefined) {
+        status = "failed";
+        options.onerror(new Error("The answer does not match the request."));
+        return;
+      }
+      answer = read;
+      status = "ready";
+    });
   }
   function onpage(next: number): void {
     offset = next;
