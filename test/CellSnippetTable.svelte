@@ -35,7 +35,10 @@
 {#snippet link({ row, column }: { row: Item; column: DataTableColumn<Item> })}
   <a href="#{row.id}">Open {row.name} in {column.id}</a>
   {#if identity}
-    <!-- RND-18: whether the snippet got the given row and the given Name column themselves -->
+    <!-- RND-18: whether the snippet got the given row and the given Name column themselves (a snippet cannot see
+         its arity: the number of arguments is the type guard's). `columns` stays one derived array, so the
+         identity holds only while no input of it changes -->
+
     <span
       >{rows.includes(row) && column === columns[1]
         ? "given row and column"

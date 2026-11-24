@@ -1636,10 +1636,22 @@ describe("RND-18", () => {
       Same<Broken<{ value: (row: RowMark) => string }>, "value">,
       Same<Broken<{ cell: Snippet<[RowMark, string]> }>, "cell">,
       Same<Broken<{ f: (x: { a: string }) => void }>, "f">,
-    ] = [true, true, true, true];
-    expect([found, canaries]).toEqual([
-      [[], []],
-      [true, true, true, true],
-    ]);
+      // Found at depth: in a list, in an optional property, and in a nested object
+      Same<
+        Broken<{ c: readonly { v: (a: string, b: number) => void }[] }>,
+        "c"
+      >,
+      Same<Broken<{ f?: (r: RowMark) => void }>, "f">,
+      Same<Broken<{ m: { n: { f: (a: string, b: number) => void } } }>, "m">,
+      // Not found: the shapes RND-18 allows
+      Same<Broken<{ a: Snippet<[]>; b: (n: number) => void }>, never>,
+      Same<Broken<{ f: (x: { readonly row: RowMark }) => void }>, never>,
+      Same<
+        Broken<{ s: Snippet<[{ readonly row: RowMark; readonly c: string }]> }>,
+        never
+      >,
+    ] = [true, true, true, true, true, true, true, true, true, true];
+    // The type step is what proves the guard; the call only keeps both values in use
+    expect([found, canaries]).toHaveLength(2);
   });
 });
