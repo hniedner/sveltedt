@@ -9,7 +9,9 @@ export class TableView {
   held = $state(false);
   still = $state(false);
 
-  // `pending` is read in the effects, so a change of it reruns them; `ending` is the table's focus hand-off
+  // Built only while a component initialises (its effects need that context), at the place the table's script gives
+  // it. `pending` is read in the first effect, so a change of it reruns that one; `ending` is the table's focus
+  // hand-off
   constructor(pending: () => boolean, ending: () => void) {
     // 1 s of pending without a gap shows the indicator (STATE-09); a gap clears the delay. Once nothing is pending and
     // the minimum has passed, the indicator goes (STATE-10) and the still-loading text with it (STATE-12)

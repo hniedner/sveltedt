@@ -101,7 +101,8 @@
   );
   // Loading or busy, with valid input: what the slow-load feedback waits on (STATE-09)
   const pending = $derived(fault === null && (status === "loading" || busy));
-  // The slow-load state of PRD-B2; its first effect keeps focus off a Cancel that is about to go (A11Y-28)
+  // The slow-load state of PRD-B2; its first effect keeps focus off a Cancel that is about to go (A11Y-28; why it is
+  // there: see TableView)
   const view = new TableView(
     () => pending,
     () => keepFocus(cancelButton),

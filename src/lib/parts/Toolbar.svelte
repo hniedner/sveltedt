@@ -38,7 +38,7 @@
     type="button"
     aria-label={words.clearFilter(badge.text)}
     onclick={() =>
-      // Stryker disable next-line OptionalChaining: unreachable fallback, see above
+      // Stryker disable next-line OptionalChaining: unreachable fallback, a badge exists only with an onclearfilter (FILT-32)
       onclearfilter?.({ id: badge.id })}>{badge.text}</button
   >
 {/each}
