@@ -12,6 +12,7 @@ import type { Readable } from "node:stream";
 
 type Piped = ChildProcessByStdio<null, Readable, Readable>;
 const running = new Set<ChildProcess>();
+const notStarted = new WeakMap<ChildProcess, Error>();
 let installed = false;
 
 // A signal to a process that is gone, or one that is not ours, is not an error here: false says it was not sent
@@ -72,7 +73,7 @@ export function spawnGroup(
   install();
   const child = spawn(cmd, args, { ...options, detached: true });
   // A child that cannot be started has no pid and ends with `close`; its `error` must not end this process
-  child.on("error", () => undefined);
+  child.on("error", (e) => notStarted.set(child, e));
   if (child.pid !== undefined) {
     running.add(child);
     child.on("close", () => {
@@ -115,7 +116,9 @@ export function readyLine(child: Piped, prefix: string): Promise<string> {
     child.on("close", (code, signal) =>
       reject(
         new Error(
-          `the program ended (exit ${code ?? signal}) before "${prefix}"\nstdout: ${out}\nstderr: ${err}`,
+          notStarted.has(child)
+            ? `could not start ${child.spawnfile}: ${notStarted.get(child)?.message}`
+            : `the program ended (exit ${code ?? signal}) before "${prefix}"\nstdout: ${out}\nstderr: ${err}`,
         ),
       ),
     );

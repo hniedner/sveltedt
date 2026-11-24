@@ -275,13 +275,16 @@ test(
   },
 );
 test(
-  "a child that cannot be spawned: no throw, stop resolves at once, readyLine rejects naming the exit",
+  "a child that cannot be spawned: no throw, stop resolves at once, readyLine rejects naming the command and the error",
   { timeout: 5000 },
   async () => {
     const child = spawnGroup("/nonexistent", [], {
       stdio: ["ignore", "pipe", "pipe"],
     });
-    const rejected = assert.rejects(readyLine(child, "x"), /ended \(exit -2\)/);
+    const rejected = assert.rejects(
+      readyLine(child, "x"),
+      /could not start \/nonexistent: spawn \/nonexistent ENOENT/,
+    );
     const began = Date.now();
     await stop(child);
     assert.ok(Date.now() - began < 500, "stop did not resolve at once");
