@@ -2550,8 +2550,8 @@ of the example. "Filter Name text" is the text field of Name's dialog. `maxLengt
 - Traces: PRD-B6, PRD-B7, PRD-B3.
 
 **FILT-56** A column header cell MUST be named by its column label alone, whatever buttons it holds.
-- Examples (the test runs every row on the example page of the sort tests, `site/sort.html`, which has a filter on
-  Link and on Region; the name is matched exactly, `getByRole('columnheader', { name, exact: true })`):
+- Examples (the test runs every row on the filter test page, `site/filters.html`, which has a filter on Link and on
+  Region; the name is matched exactly, `getByRole('columnheader', { name, exact: true })`):
 
   | Column | Header cell holds | Its name |
   |---|---|---|
