@@ -328,7 +328,7 @@ describe("API-03", () => {
   });
 });
 
-// @spec("API-04", "7f92d575")
+// @spec("API-04", "18570932")
 describe("API-04", () => {
   let server: Server;
   beforeAll(async () => {
@@ -338,6 +338,7 @@ describe("API-04", () => {
     "order[0][column]": column,
     "order[0][dir]": dir,
   });
+  const desc = order("1", "desc");
 
   it.each([
     ["draw removed", route({ draw: null })],
@@ -359,6 +360,13 @@ describe("API-04", () => {
     ["column 1 ASC", route(order("1", "ASC"))],
     ["column 1 and no direction", route(order("1", null))],
     ["asc and no column", route(order(null, "asc"))],
+    ["draw twice", `${route()}&draw=2`],
+    ["start twice", `${route()}&start=5`],
+    ["length twice", `${route()}&length=0`],
+    ["order[0][column] twice", `${route(desc)}&order[0][column]=0`],
+    ["order[0][dir] twice", `${route(desc)}&order[0][dir]=asc`],
+    ["columns[0][orderable] twice", `${route(desc)}&columns[0][orderable]=x`],
+    ["columns[1][orderable] twice", `${route(desc)}&columns[1][orderable]=x`],
   ])("refuses %s with 400 and an empty body", async (_row, path) => {
     const answer = await get(server, path);
     expect(answer.status).toBe(400);

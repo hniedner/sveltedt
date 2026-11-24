@@ -630,8 +630,9 @@ whose `data` holds the rows of the fixed list from `start`, at most `length` of 
 
 **API-04** A request whose `draw`, `start` or `length` is missing or not the decimal text of a safe non-negative
 integer, whose `length` is 0 or above 1000, whose `order[0]` names a column other than 0 and 1 or a direction other
-than `asc` and `desc`, or whose `order[0]` has only one of its two keys, MUST be answered with status 400 and an
-empty body.
+than `asc` and `desc`, whose `order[0]` has only one of its two keys, or that sends a key the route reads (`draw`,
+`start`, `length`, `order[0][column]`, `order[0][dir]`, `columns[0][orderable]`, `columns[1][orderable]`) more than
+once, MUST be answered with status 400 and an empty body.
 - Examples (the test runs every row; each is B with one change):
 
   | Change | Status |
@@ -643,6 +644,7 @@ empty body.
   | `length=1000`; `length=1` | 200 (`length=1`: the first row only) |
   | `order[0][column]=2` with `order[0][dir]=asc`; `order[0][column]=x` with `asc` | 400 |
   | `order[0][column]=1` with `order[0][dir]=ASC`; `order[0][column]=1` and no `order[0][dir]`; `order[0][dir]=asc` and no `order[0][column]` | 400 |
+  | a key sent twice: `length=0` added to B (so `length=10` and `length=0`); `draw=2` added to B; `order[0][dir]=asc` added to B with `order[0][column]=1` and `order[0][dir]=desc` | 400 |
 
   In every 400 the body is empty, so no text of the request comes back. Break that turns it red: `length` above 1000
   answered.
@@ -654,6 +656,9 @@ empty body.
     processing", FETCHED) is above the limit.
   - `ssp.class.php` reads malformed text with `intval` and orders an unknown direction descending (READ l.106,
     l.141-143); the route refuses, as PRD-W2 asks.
+  - A key sent more than once is refused, not read first or last: `ssp.class.php` reads PHP `$_GET`, where the last
+    value wins, and this route reads the first with `URLSearchParams.get`; neither is chosen silently for an
+    ambiguous request, so it is a client error as the rows above.
 - Layer: HTTP.
 - Traces: PRD-W2.
 

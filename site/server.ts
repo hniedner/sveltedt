@@ -67,10 +67,30 @@ function count(text: string | null): number | undefined {
     : undefined;
 }
 
+// The keys of the request the route reads
+const READ = [
+  "draw",
+  "start",
+  "length",
+  "order[0][column]",
+  "order[0][dir]",
+  "columns[0][orderable]",
+  "columns[1][orderable]",
+];
+
+const refuseRequest = (response: ServerResponse): void => {
+  response.writeHead(400).end();
+};
+
 // The route's answer: `draw` as a number, the ordered list from `start`, at most `length` rows, both counts the whole
 // list. A request that is malformed, or asks for an unknown column or direction or a size of 0 or over 1000, is
-// refused with 400 and an empty body before any of it is used.
+// refused with 400 and an empty body before any of it is used. So is a request that sends a key the route reads more
+// than once: PHP's `$_GET` keeps the last value and `get` the first, so neither is picked for an ambiguous request.
 function answerOrders(query: URLSearchParams, response: ServerResponse): void {
+  if (READ.some((key) => query.getAll(key).length > 1)) {
+    refuseRequest(response);
+    return;
+  }
   const draw = count(query.get("draw"));
   const start = count(query.get("start"));
   const length = count(query.get("length"));
@@ -87,7 +107,7 @@ function answerOrders(query: URLSearchParams, response: ServerResponse): void {
       ((column !== "0" && column !== "1") ||
         (direction !== "asc" && direction !== "desc")))
   ) {
-    response.writeHead(400).end();
+    refuseRequest(response);
     return;
   }
   response.writeHead(200, { "Content-Type": "application/json" }).end(
