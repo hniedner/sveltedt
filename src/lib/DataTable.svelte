@@ -1,4 +1,5 @@
 <script lang="ts" generics="Row">
+  import { untrack } from "svelte";
   import { faultLine } from "./faults.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import { nextOrder } from "./sort.js";
@@ -113,6 +114,9 @@
   $effect(() => {
     if (!pending) {
       if (!held) {
+        // A block that depends on state a post-effect writes is removed in the same flush, before any pre-effect runs
+        // (measured with Svelte 5.57.3): so focus is kept here, before `still` is written
+        untrack(() => keepFocus(cancelButton));
         shown = false;
         still = false;
       }
@@ -135,6 +139,24 @@
       clearTimeout(minimum);
       clearTimeout(long);
     };
+  });
+  // The callback of "Cancel" while it is shown (STATE-17), nothing otherwise; the markup and the focus hand-off read it
+  const cancel = $derived(still ? oncancel : undefined);
+  // For the focus hand-off: bind:this sets them, and nulls them when their element goes. State, because a variable that
+  // bind:this sets inside an {#if} must be
+  let table = $state<HTMLTableElement | null>(null);
+  let cancelButton = $state<HTMLButtonElement | null>(null);
+  // A focused button about to go hands focus to the table, which takes it without scrolling (A11Y-28). With invalid
+  // input there is no table. It must run before the button leaves the DOM
+  function keepFocus(button: HTMLElement | null): void {
+    if (table && button && document.activeElement === button) {
+      table.tabIndex = -1;
+      table.focus({ preventScroll: true });
+    }
+  }
+  // The consumer stops passing `oncancel`: a props flush, where a pre-effect runs before the DOM update
+  $effect.pre(() => {
+    if (!cancel) untrack(() => keepFocus(cancelButton));
   });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
@@ -161,8 +183,10 @@
     {#if still}<div>{words.stillLoading}</div>{/if}
     {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
   </div>
-  {#if oncancel && still}<button type="button" onclick={() => oncancel()}
-      >{words.cancel}</button
+  {#if cancel}<button
+      bind:this={cancelButton}
+      type="button"
+      onclick={() => cancel()}>{words.cancel}</button
     >{/if}
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
@@ -173,7 +197,12 @@
     {/if}
     {#if shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
-      <table class="sdt-table" aria-busy={busy || status === "loading"}>
+      <table
+        bind:this={table}
+        class="sdt-table"
+        aria-busy={busy || status === "loading"}
+        onblur={(event) => event.currentTarget.removeAttribute("tabindex")}
+      >
         <caption class="sdt-caption"
           >{caption}{#if columns.some((column) => column.sortable)}{SPACE}<span
               >{words.sortableHint}</span

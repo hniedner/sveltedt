@@ -472,6 +472,90 @@ describe("A11Y-26", () => {
   );
 });
 
+// No marker: A11Y-28 is a real-browser statement (site/browser/slow-load.spec.ts); these rows pin the focus move in the
+// simulated DOM, where red-check and the mutation step can see it
+describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () => {
+  const oncancel = (): void => {};
+  const focused = (): Element | null => document.activeElement;
+  const cancelOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("button", { name: "Cancel" });
+  const tableOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("table");
+
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ["ready with two rows", { rows: twoRows }],
+    ["stopped", { status: "stopped" }],
+    ["failed", { status: "failed" }],
+  ])(
+    "moves focus to the table without scrolling when the consumer passes %s",
+    async (_row, props) => {
+      const table = mount({ status: "loading", oncancel });
+      await table.at(6000);
+      const cancel = cancelOf(table.container);
+      cancel.focus();
+      expect(focused()).toBe(cancel);
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+      try {
+        await table.change({ ...props, oncancel });
+        expect(focused()).toBe(tableOf(table.container));
+        expect(tableOf(table.container).getAttribute("tabindex")).toBe("-1");
+        expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+      } finally {
+        focus.mockRestore();
+      }
+    },
+  );
+
+  it("moves focus to the table when the consumer stops passing oncancel", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const cancel = cancelOf(table.container);
+    cancel.focus();
+    expect(focused()).toBe(cancel);
+    await table.change({ status: "loading", oncancel: undefined });
+    expect(focused()).toBe(tableOf(table.container));
+  });
+
+  it("takes the tabindex off the table when focus leaves it", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    cancelOf(table.container).focus();
+    await table.change({ status: "stopped", oncancel });
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      expect(focused()).toBe(tableOf(table.container));
+      outside.focus();
+      expect(tableOf(table.container).hasAttribute("tabindex")).toBe(false);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("leaves focus alone when a Cancel without focus goes", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      outside.focus();
+      await table.change({ rows: twoRows, oncancel });
+      expect(focused()).toBe(outside);
+      expect(tableOf(table.container).hasAttribute("tabindex")).toBe(false);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("throws nothing when a focused Cancel goes because the input turned invalid", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    cancelOf(table.container).focus();
+    await table.change({ columns: [], oncancel });
+    expect(within(table.container).getByRole("alert").textContent).toBe(
+      "This table cannot be shown.",
+    );
+  });
+});
+
 // @spec("FOOT-05", "9f0dae50")
 describe("FOOT-05", () => {
   const oncancel = (): void => {};

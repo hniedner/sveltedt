@@ -969,7 +969,7 @@ once each time `status` becomes `stopped`.
 
 **A11Y-28** While the input stays valid, when "Cancel" goes while it has focus, focus MUST move to the `table` element
 without scrolling.
-- Examples (the test runs every row; `status 'loading'`, `oncancel` passed; at 6000 ms the test focuses "Cancel" with
+- Examples (the test runs every row; `status 'loading'`, `oncancel` passed, the page sets `overflow-anchor: none`; at 6000 ms the test focuses "Cancel" with
   `focus({ preventScroll: true })`, scrolls the window so the table's top lies above the viewport, reads the window's
   and the region's scroll positions, then passes the props of the row; after it the `table` element is the focused
   element and both scroll positions are the ones read):
@@ -996,7 +996,7 @@ without scrolling.
 
 **A11Y-30** While the input stays valid, when "Try again" goes while it has focus, focus MUST move to the `table`
 element without scrolling.
-- Examples (the test runs every row; `onretry` passed; the test focuses "Try again" with `focus({ preventScroll:
+- Examples (the test runs every row; `onretry` passed, the page sets `overflow-anchor: none`; the test focuses "Try again" with `focus({ preventScroll:
   true })`, scrolls the window so the table's top lies above the viewport, presses Enter, reads the window's and the
   region's scroll positions, then passes the props of the row; after it the `table` element is the focused element and
   both scroll positions are the ones read):
