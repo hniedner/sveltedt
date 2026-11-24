@@ -2990,12 +2990,13 @@ come with the column statements (milestone 5), which state the badges and focus 
   | Code sortable | not given | not shown |
   | neither sortable nor with a filter | given | not shown (RND-12) |
   | Code sortable, and `filters` names a column that is not configured (the alert of RND-05) | given | shown |
+  | Code sortable, and `sort` names a column that is not configured (the alert of RND-05) | given | shown |
 
 - Reason: the reset is the application's intent and does nothing without its handler; a table built before this
   group, with sort and no `onreset`, keeps its look (PRD-B8; RND-12 is the negative half). It stays while the alert
-  shows a fault of `filters`, the application's way back from a server answer the table cannot show (RND-10); the
-  columns have passed RND-05's checks there, so the rule reads them (their own sort or filter settings may be the
-  fault).
+  shows a fault of `sort` or `filters` (SORT-15, FILT-32), the application's way back from a server answer the table
+  cannot show (RND-10); the columns have passed RND-05's checks there, so the rule reads them (their own sort or
+  filter settings may be the fault).
 - Layer: component.
 - Traces: PRD-B8, PRD-B3.
 
