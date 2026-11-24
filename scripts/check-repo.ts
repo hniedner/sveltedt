@@ -543,8 +543,8 @@ async function runTestFile(
 
 // Every tracked test file runs in its own process, each with its own count, as many at once as the machine has cores;
 // a file with no test is could-not-check. The lines keep the order of the names, whichever file ends first.
-// GATE_SHARD=n runs only shard n of scripts/shards.ts (the CI job selftest); where not every file runs here, in a shard or
-// left to that job by GATE_SELFTEST, each tracked test file must be in exactly one shard, so none runs nowhere.
+// GATE_SHARD=n runs only shard n of scripts/shards.ts (the CI job selftest). The exactly-one-shard check, so that no
+// file runs nowhere, runs when GATE_SHARD is set, or when CI hands the step to the selftest job (GATE_SELFTEST).
 async function selftest(root: string, list: Set<string>): Promise<Result> {
   let files = [...list].filter((f) => TEST_FILES.test(f)).sort();
   const shard = process.env.GATE_SHARD;

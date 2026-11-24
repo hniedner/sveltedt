@@ -290,10 +290,12 @@ $0 budget, no self-hosted runners.
   - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
     (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
     `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
-    its matrix and that the matrix holds exactly the table's shards, and the step itself, in CI or under `GATE_SHARD`, that every tracked test file is
-    in exactly one shard; locally `scripts/shards.test.ts` catches it (the fixture repos of `check-repo.test.ts` hold
-    test files outside the table, so the step cannot check unconditionally), so a new file cannot run nowhere. Measured 2026-11-23: in one job the step took 591 s of the
-    `static` job's 11 min 11 s.
+    its matrix and that the matrix holds exactly the table's shards. The exactly-one-shard check, so that a new file
+    cannot run nowhere, runs when `GATE_SHARD` is set, or when CI hands the step to the selftest job; locally
+    `scripts/shards.test.ts` catches it, and also a table entry that is not a tracked file (the fixture repositories of
+    `check-repo.test.ts` hold test files outside the table, so the step cannot check that unconditionally). The result
+    line names the shard when `GATE_SHARD` is set. Measured 2026-11-23: in one job the step took 591 s of the `static`
+    job's 11 min 11 s.
   - `red-check` (G7) in the `static` job, on each commit of the pull request.
   - `mutation` (G8) on the pull request's changed lines, Linux only, in its own job `mutation`. The `static` job leaves
     the step to it through `GATE_MUTATION`, under the same rule as `GATE_BROWSER` (gate-needs checks both).
