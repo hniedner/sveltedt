@@ -1330,7 +1330,7 @@ describe("EXP-03", () => {
         ...state({}),
         withActions: true,
       });
-      for (const [, props] of fiveStates) {
+      for (const [, props] of [...fiveStates, ...stoppedState]) {
         await rerender({ ...state(props), withActions: true });
         expect(document.querySelector("a[download]")).toBeNull();
       }
