@@ -30,6 +30,10 @@ There is nothing to install yet. What is on `main` today:
   English way ("1,000") whatever the runtime's locale;
 - the stopped state: `status="stopped"` shows "Loading stopped" in one cell where the rows would be, with the header
   kept and no empty message, as plain text and not as an alert;
+- slow loads: after 1 second of loading or busy the table adds a progress indicator element, hidden from assistive
+  technology and kept at least 500 ms (its look and motion come later), and after 5 more seconds the status element
+  also says "Still loading", added once for screen readers; until the stylesheet reserves the line, that text can
+  move the table down by one line;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
   table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named
