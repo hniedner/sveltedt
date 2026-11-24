@@ -723,7 +723,7 @@ describe("SORT-23", () => {
       expect(screen.getAllByRole("button", { description: text })).toHaveLength(
         2,
       );
-      // The caption's hint is its own text node
+      // The caption's hint is its own span
       expect(container.querySelector("caption span")?.textContent).toBe(text);
       expect(container.querySelector("img, none")).toBeNull();
     },

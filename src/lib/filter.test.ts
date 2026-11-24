@@ -77,7 +77,7 @@ const faults: [string, Props, keyof typeof TEXTS][] = [
   // `filter` has a kind other than text and categorical
   [
     "kind 'range'",
-    { columns: [column("name", "Name", { kind: "range" })] },
+    { columns: [column("name", "Name", { kind: "range", options })] },
     "filterInvalid",
   ],
   ["no kind", { columns: [column("name", "Name", {})] }, "filterInvalid"],
@@ -97,17 +97,35 @@ const faults: [string, Props, keyof typeof TEXTS][] = [
   // an option's value or label is empty
   [
     "an empty value",
-    { columns: [withStatus({ options: [{ value: "", label: "None" }] })] },
+    {
+      columns: [
+        withStatus({
+          options: [
+            { value: "a", label: "A" },
+            { value: "", label: "None" },
+          ],
+        }),
+      ],
+    },
     "filterInvalid",
   ],
   [
     "an empty label",
-    { columns: [withStatus({ options: [{ value: "a", label: " " }] })] },
+    {
+      columns: [
+        withStatus({
+          options: [
+            { value: "a", label: "A" },
+            { value: "b", label: " " },
+          ],
+        }),
+      ],
+    },
     "filterInvalid",
   ],
   [
     "an option null",
-    { columns: [withStatus({ options: [null] })] },
+    { columns: [withStatus({ options: [{ value: "a", label: "A" }, null] })] },
     "filterInvalid",
   ],
   // emptyOption of the wrong type
@@ -171,6 +189,7 @@ const faults: [string, Props, keyof typeof TEXTS][] = [
   ["no onfilter", { onfilter: undefined }, "filterHandlerMissing"],
   ["no onclearfilter", { onclearfilter: undefined }, "filterHandlerMissing"],
   ["no onclearfilters", { onclearfilters: undefined }, "filterHandlerMissing"],
+  ["onfilter null", { onfilter: cast(null) }, "filterHandlerMissing"],
   // applied filters
   ["filters a list", { filters: cast([]) }, "filterStateInvalid"],
   ["filters a text", { filters: cast("name") }, "filterStateInvalid"],
@@ -223,6 +242,63 @@ const faults: [string, Props, keyof typeof TEXTS][] = [
     },
     "filterStateInvalid",
   ],
+  [
+    "selected a given option and an unknown one",
+    {
+      filters: {
+        status: { kind: "categorical", selected: ["active", "zzz"] },
+      },
+    },
+    "filterStateInvalid",
+  ],
+  [
+    "a second entry that is not valid",
+    {
+      filters: {
+        name: { kind: "text", text: "a" },
+        status: { kind: "categorical", selected: ["zzz"] },
+      },
+    },
+    "filterStateInvalid",
+  ],
+  [
+    "the shown label of emptyOption, trimmed",
+    {
+      columns: [
+        withStatus({
+          emptyOption: true,
+          options: [{ value: "n", label: "(none)" }],
+        }),
+      ],
+      messages: { emptyOption: "(none) " },
+    },
+    "filterInvalid",
+  ],
+  // more than one column or entry
+  [
+    "a second filter column that is not valid",
+    { columns: [nameColumn, column("status", "Status", { kind: "range" })] },
+    "filterInvalid",
+  ],
+  [
+    "an option value that is no text",
+    { columns: [withStatus({ options: [{ value: 5, label: "A" }] })] },
+    "filterInvalid",
+  ],
+  [
+    "an option label that is no text",
+    { columns: [withStatus({ options: [{ value: "a", label: 5 }] })] },
+    "filterInvalid",
+  ],
+  [
+    "an applied filter on a column whose filter is null",
+    {
+      columns: [column("name", "Name", null)],
+      filters: { name: { kind: "text", text: "a" } },
+      onfilter: undefined,
+    },
+    "filterStateInvalid",
+  ],
   // search, searchDelay, maxLength
   ["search a number", { search: cast(5) }, "searchInvalid"],
   ...[-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, null].map(
@@ -268,6 +344,30 @@ describe("FILT-32", () => {
     [
       "emptyOption left null on a categorical filter",
       { columns: [withStatus({ emptyOption: null })] },
+    ],
+    ["search a text", { search: "beta" }],
+    [
+      "option labels that differ only in case",
+      {
+        columns: [
+          withStatus({
+            options: [
+              { value: "a", label: "A" },
+              { value: "b", label: "a" },
+            ],
+          }),
+        ],
+      },
+    ],
+    [
+      "a label equal to emptyOption's word without emptyOption",
+      {
+        columns: [
+          withStatus({
+            options: [...options, { value: "n", label: "(empty)" }],
+          }),
+        ],
+      },
     ],
     ["searchDelay 0", { searchDelay: 0 }],
     ["maxLength 1", { maxLength: 1 }],
@@ -322,6 +422,43 @@ describe("FILT-32", () => {
       "no handler and a bad search",
       { onfilter: undefined, search: cast(5) },
       "filterHandlerMissing",
+    ],
+    [
+      "a bad sort and a bad filter",
+      {
+        columns: [{ ...sortable, filter: cast({ kind: "range" }) }],
+        sort: [{ id: "zzz", direction: "asc" }],
+        onsort: vi.fn(),
+      },
+      "sortColumnUnknown",
+    ],
+    [
+      "a bad filter and no handler",
+      {
+        columns: [column("name", "Name", { kind: "range" })],
+        onfilter: undefined,
+      },
+      "filterInvalid",
+    ],
+    [
+      "no handler and a bad applied filter",
+      { onfilter: undefined, filters: cast([]) },
+      "filterHandlerMissing",
+    ],
+    [
+      "a bad applied filter and a bad search",
+      { filters: cast([]), search: cast(5) },
+      "filterStateInvalid",
+    ],
+    [
+      "a bad search and a bad delay",
+      { search: cast(5), searchDelay: -1 },
+      "searchInvalid",
+    ],
+    [
+      "a bad delay and a bad length",
+      { searchDelay: -1, maxLength: 0 },
+      "searchDelayInvalid",
     ],
   ])("with %s logs the first fault only", (_input, props, code) => {
     mount(props);
