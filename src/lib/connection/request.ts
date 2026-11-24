@@ -3,7 +3,7 @@ import type { ConnectionColumn, ConnectionQuery } from "./types.ts";
 // The name the server knows a column by: none given is the empty text
 const nameOf = (column: ConnectionColumn): string => column.name ?? "";
 
-// The bracketed request of one query (CONN-01); each later statement adds its keys
+// The bracketed request of one query (CONN-02, CONN-04, CONN-08)
 export function buildRequest(
   columns: readonly ConnectionColumn[],
   query: ConnectionQuery,

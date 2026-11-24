@@ -117,7 +117,7 @@ describe("CONN-04", () => {
   );
 });
 
-// The six pairs of column entry `i`, as the spec lists them, and the five that hold no column or order
+// The six pairs of column entry `i`, as the spec lists them
 const columnPairs = (
   i: number,
   data: string,
@@ -130,6 +130,7 @@ const columnPairs = (
   [`columns[${i}][search][value]`, ""],
   [`columns[${i}][search][regex]`, "false"],
 ];
+// The five request-level pairs, which hold no column and no order
 const basePairs: [string, string][] = [
   ["draw", "1"],
   ["start", "0"],
