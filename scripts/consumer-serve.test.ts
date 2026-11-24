@@ -331,9 +331,10 @@ test(
       stdio: ["ignore", "pipe", "pipe"],
     });
     const code = new Promise<number | null>((r) => child.on("close", r));
-    // Hooks run in registration order: the program ends first, then its folder goes (rmSync on a folder the servers
-    // still write to can throw). SIGTERM first: only the program's own handler stops its servers; the SIGKILL fallback
-    // kills the program alone and leaves them bound to their ports.
+    // node:test runs `after` hooks in registration order, and a throwing hook skips the later ones (rmSync can throw
+    // ENOTEMPTY while the servers still write), so this hook comes before the folder's. It waits for the program to end
+    // after SIGTERM, whose handler stops the servers; after 5 s it sends SIGKILL, which kills the program alone, leaves
+    // the servers bound to their ports, and returns without waiting.
     after(async () => {
       child.kill("SIGTERM");
       const ended = await Promise.race([
