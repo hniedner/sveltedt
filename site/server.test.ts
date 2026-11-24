@@ -193,3 +193,66 @@ describe("SRV-02", () => {
     },
   );
 });
+
+// B of spec/site.md section 7: the request the helper builds for the columns id and name, the query { limit: 10 } and
+// draw 1, as pairs in the helper's own encoding. A change replaces a pair, adds one, or removes it (null).
+const B: [string, string][] = [
+  ["draw", "1"],
+  ["start", "0"],
+  ["length", "10"],
+  ["search[value]", ""],
+  ["search[regex]", "false"],
+  ...["id", "name"].flatMap((name, i): [string, string][] => [
+    [`columns[${i}][data]`, name],
+    [`columns[${i}][name]`, name],
+    [`columns[${i}][searchable]`, "true"],
+    [`columns[${i}][orderable]`, "true"],
+    [`columns[${i}][search][value]`, ""],
+    [`columns[${i}][search][regex]`, "false"],
+  ]),
+];
+const route = (changes: Record<string, string | null> = {}): string => {
+  const pairs = new Map(B);
+  for (const [key, value] of Object.entries(changes))
+    if (value === null) pairs.delete(key);
+    else pairs.set(key, value);
+  return `/api/orders?${new URLSearchParams([...pairs]).toString()}`;
+};
+const FIXED = "07 03 15 01 20 11 05 18 09 13 02 17 06 14 10 19 04 12 16 08"
+  .split(" ")
+  .map((number) => `o${number}`);
+const rowsOf = (ids: string[]) =>
+  ids.map((id) => ({ id, name: `Order ${id.slice(1)}` }));
+
+// @spec("API-01", "70b6d18c")
+describe("API-01", () => {
+  let server: Server;
+  beforeAll(async () => {
+    server = (await serve({ "index.html": INDEX })).server;
+  });
+
+  it.each([
+    [0, 10, FIXED.slice(0, 10)],
+    [10, 10, FIXED.slice(10)],
+    [15, 10, FIXED.slice(15)],
+    [20, 10, []],
+    [0, 1000, FIXED],
+  ])(
+    "answers start %i, length %i with 200, JSON and its rows",
+    async (start, length, ids) => {
+      const answer = await get(
+        server,
+        route({ start: String(start), length: String(length) }),
+      );
+      expect(answer.status).toBe(200);
+      expect(answer.type).toBe("application/json");
+      expect(JSON.parse(answer.body)).toEqual(
+        expect.objectContaining({
+          recordsTotal: 20,
+          recordsFiltered: 20,
+          data: rowsOf(ids),
+        }),
+      );
+    },
+  );
+});

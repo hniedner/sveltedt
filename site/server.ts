@@ -1,9 +1,11 @@
 // The test site's server, on Node's own http module. At start it reads every file of the build folder into a map
 // from URL path to contents; a request is answered only by a lookup in that map, so no request text ever becomes a
-// file path. Start it after the site's build with: node site/server.ts (it serves the folder dist beside this file)
+// file path. The one exception is the route /api/orders, which answers from the site's fixed list and reads no file.
+// Start it after the site's build with: node site/server.ts (it serves the folder dist beside this file)
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname, join, relative, sep } from "node:path";
+import { orders } from "./src/orders.ts";
 
 const TYPES: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -41,11 +43,29 @@ function readBuild(buildFolder: string): Map<string, BuiltFile> {
   return files;
 }
 
+// The route's answer: the fixed list from `start`, at most `length` rows, both counts the whole list
+function answerOrders(query: URLSearchParams, response: ServerResponse): void {
+  const start = Number(query.get("start"));
+  const length = Number(query.get("length"));
+  response.writeHead(200, { "Content-Type": "application/json" }).end(
+    JSON.stringify({
+      recordsTotal: orders.length,
+      recordsFiltered: orders.length,
+      data: orders.slice(start, start + length),
+    }),
+  );
+}
+
 function serve(files: ReadonlyMap<string, BuiltFile>): Server {
   return createServer((request, response) => {
-    const [path = ""] = (request.url ?? "").split("?", 1);
+    const url = request.url ?? "";
+    const [path = ""] = url.split("?", 1);
     const file = files.get(path);
     response.setHeader("Content-Security-Policy", POLICY);
+    if (path === "/api/orders") {
+      answerOrders(new URLSearchParams(url.slice(path.length + 1)), response);
+      return;
+    }
     if (!file) {
       response.writeHead(404).end();
       return;
