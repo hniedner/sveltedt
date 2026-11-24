@@ -567,7 +567,7 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
   id: 'name' }]`, the query `{ limit: 10 }` and `draw=1`: 17 pairs. A row names only the pairs it changes, adds or
   removes.
 - Read in this part: `draw`, `start`, `length`, `order[0][column]`, `order[0][dir]` and the ordered column's
-  `columns[c][orderable]`.
+  `columns[c][orderable]` (a repeat of either column's `orderable` key is refused, API-04).
 - Stated limits, not tested:
   - a search or column search is not read;
   - order entries after `order[0]` are not read (the fixed list has no ties);
