@@ -1,4 +1,8 @@
-import type { DataTableSortEntry } from "../types.ts";
+import type {
+  DataTableProps,
+  DataTableSortEntry,
+  PaginationProps,
+} from "../types.ts";
 
 // One entry of the column map (spec/connection.md, Conventions, The options): entry `i` describes the backend's column
 // `i`, so the order of the list is the backend's order.
@@ -18,8 +22,10 @@ export interface ConnectionQuery {
 }
 
 export interface ConnectionOptions {
-  // The application's transport: it returns the parsed answer body, not a `Response`; the helper hands it the request
-  // and an abort signal
+  // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper hands it the
+  // request and an abort signal. A rejection of `send` is not handled by the helper,
+  // and `send` must not throw synchronously either: the helper has no catch around the call, so a synchronous throw
+  // escapes.
   readonly send: (
     request: URLSearchParams,
     signal: AbortSignal,
@@ -28,4 +34,24 @@ export interface ConnectionOptions {
   // The form of the request: the bracketed one
   readonly form?: "bracketed";
   readonly query: ConnectionQuery;
+  // Called once with an Error when an answer cannot be mapped; it does not hear a rejection of `send`
+  readonly onerror: (error: unknown) => void;
+}
+
+// What createConnection returns: the props of `DataTable` and, once an answer is mapped, of `Pagination`. `Row` is the
+// application's claim about the rows of its answers, which the helper passes on unread.
+export interface Connection<Row> {
+  readonly table: Readonly<
+    Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
+  >;
+  readonly pager:
+    | Readonly<
+        Required<
+          Pick<
+            PaginationProps,
+            "offset" | "limit" | "total" | "unfilteredTotal" | "onpage"
+          >
+        >
+      >
+    | undefined;
 }
