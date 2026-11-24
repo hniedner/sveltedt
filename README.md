@@ -48,11 +48,16 @@ There is nothing to install yet. What is on `main` today:
   emitting through `onsize`, and the alert for invalid input. The test site's list page pages its rows with it;
 - the pager's information line ("Showing 1 to 10 of 57 rows", with "(filtered from 1,000 total rows)" when an
   unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
-  announced, and every fixed word of the pager as a `messages` prop with an English default.
+  announced, and every fixed word of the pager as a `messages` prop with an English default;
+- the connection helper, first part, not yet importable from the package: `createConnection` sends the first request
+  through the application's `send`, maps the answer to rows and totals, reports an answer it cannot map once through
+  `onerror`, and changes page through `pager.onpage` with the rows kept while busy. Its tests use answers written by
+  hand; an answer recorded from a real backend comes later.
 
 Not yet: search,
 filters, column features,
-selection, the connection helper and the published package. The order is in the
+selection, the rest of the connection helper (the export path; sort, filter and search intents; `reload()`; the dotted
+and JSON forms; cancel and retry) and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
