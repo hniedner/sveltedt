@@ -290,7 +290,7 @@ $0 budget, no self-hosted runners.
     registry). Dependabot does not update an image under `container:` (its supported-ecosystems page does not list it;
     not tested). `@playwright/test` is a group of its own in `dependabot.yml`, so its pull request carries nothing else
     and stays red until the image line of the job `browser` is edited by hand on it: the new tag `vX.Y.Z-noble` and the
-    new digest (the finding names the command; measured 2026-11-23 for v1.65.1 against the digest in `ci.yml`).
+    new digest (the finding names the command).
   - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
     (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
     `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
