@@ -150,7 +150,13 @@
           </tr>
         </thead>
         <tbody>
-          {#if status === "ready"}
+          <!-- STATE-20: the stopped branch comes first; after the ready branch its condition would need a test for every other status -->
+          {#if status === "stopped"}
+            <tr
+              ><td class="sdt-cell" colspan={columns.length}>{words.stopped}</td
+              ></tr
+            >
+          {:else if status === "ready"}
             {#each rows as row (getRowId(row))}
               <tr class="sdt-row">
                 {#each columns as column (column.id)}

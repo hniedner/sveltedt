@@ -349,6 +349,33 @@ describe("STATE-03", () => {
   );
 });
 
+// @spec("STATE-20", "9e3a1a6c")
+describe("STATE-20", () => {
+  it.each<[string, Item[], string[]]>([
+    ["no rows", [], []],
+    ["three rows", threeRows, ["Beta", "Gamma", "Delta"]],
+  ])(
+    "with status stopped and %s, shows the stopped message in one cell spanning every column",
+    (_rows, rows, absent) => {
+      show({
+        rows,
+        columns: [idColumn, nameColumn, noteColumn],
+        status: "stopped",
+      });
+      const table = screen.getByRole("table");
+      expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
+      expect(within(table).getAllByRole("cell")).toHaveLength(1);
+      expect(
+        within(table)
+          .getByRole("cell", { name: "Loading stopped" })
+          .getAttribute("colspan"),
+      ).toBe("3");
+      for (const name of absent)
+        expect(within(table).queryByRole("cell", { name })).toBeNull();
+    },
+  );
+});
+
 // @spec("RND-03", "19d03ec8")
 describe("RND-03", () => {
   const places: [

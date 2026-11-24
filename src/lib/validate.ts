@@ -26,7 +26,7 @@ const isEmpty = (text: unknown): boolean =>
   typeof text !== "string" || text.trim() === "";
 
 // undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
-const STATUSES: readonly unknown[] = ["loading", "ready", "failed"];
+const STATUSES: readonly unknown[] = ["loading", "ready", "failed", "stopped"];
 
 // An entry of the order as its type says: an object with a string id and a direction, asc or desc (SORT-15)
 const isSortEntry = (entry: unknown): boolean =>
