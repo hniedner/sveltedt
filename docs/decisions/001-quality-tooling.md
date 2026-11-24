@@ -94,7 +94,8 @@ pages named, or measured with the command named.
 ## Licences
 
 - **What ships** (the npm tarball, `dependencies`, `peerDependencies`): Apache Software Foundation Category A only.
-  The gate asserts there is no runtime dependency and no peer but `svelte` (PRD-S5).
+  The gate asserts there is no runtime dependency and no peer but `svelte` (PRD-S5); since 002 and SUP-04 the one
+  runtime dependency is `esm-env`.
 - **Development dependencies:**
   - Category A or CC0-1.0;
   - or a Category B licence listed here by name with its package.
@@ -128,7 +129,8 @@ Three more joined the list by the owner's decision, 2026-11-17, all development 
   from the first build of the component on.
 
 A licence on this list lets any later development tool under it pass. What keeps such a tool out of the published
-package is the gate's rule that nothing ships but a `svelte` peer.
+package is the gate's rule that nothing ships but `esm-env` and a `svelte` peer (SUP-04; it was a `svelte` peer
+alone until 002).
 
 ## Test toolchain
 

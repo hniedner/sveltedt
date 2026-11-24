@@ -1,4 +1,5 @@
 <script lang="ts" generics="Row">
+  import { faultLine } from "./faults.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import { nextOrder } from "./sort.js";
   import type {
@@ -71,6 +72,11 @@
       onsort,
     }),
   );
+  // The cause of a fault goes to the developer (RND-17). `fault` is a derived code, so the effect runs again only when
+  // it changes: once for each change, and never on the server
+  $effect(() => {
+    if (fault !== null) console.error(faultLine(fault));
+  });
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
     fault === null && status === "ready" && !busy
@@ -139,7 +145,7 @@
   </div>
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
-    <div role="alert">{words[fault]}</div>
+    <div role="alert">{words.invalidInput}</div>
   {:else}
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>

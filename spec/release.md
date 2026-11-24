@@ -134,7 +134,7 @@ manifest declares for it, and `svelte` MUST be its only peer dependency.
   `spec/table.md`, the route Svelte's packaging guide names for a library. Svelte itself depends on it, so the range
   Svelte declares adds no package to any consumer's tree (MEASURED 2026-11-19: Svelte 5.57.3 declares `^1.2.1`, and
   `esm-env` 1.2.2 has no dependencies). Its licence, size and supply-chain exposure are recorded as PRD-S5 asks in the
-  decision record that comes with STK-10's build.
+  decision record `docs/decisions/002-esm-env.md`, which came with its first use, RND-17 of `spec/table.md`.
 - Layer: static check.
 - Traces: PRD-S5.
 
