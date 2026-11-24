@@ -27,7 +27,7 @@ fetched or measured.
   - Playwright's `launchProcess` (read from its source): detached, group SIGTERM then SIGKILL, an `exit` handler. Not
     taken: internal, not a public API. Its practice is followed.
   - Node built-ins: `spawn` with `detached`, `process.kill(-pid, signal)`, and `process.on`. `scripts/children.ts` is
-    141 lines (measured with `wc -l`; 118 without comments and blank lines).
+    142 lines (`wc -l`; 118 without blank lines, `//` comments and `/** */` blocks).
 - **Limits:**
   - Synchronous calls (`spawnSync`, `execFileSync`) are not covered, and a `timeout` bounds them. Measured: a
     `spawnSync` whose child had already exited still blocked 4.18 s, until a grandchild holding the inherited stdout
@@ -70,5 +70,5 @@ fetched or measured.
 - EPERM is a permanent "gone" for a child: a group that still had live members and answered EPERM would be abandoned.
   That is unverified and none was seen; the only EPERM case measured is a zombie-only leader on macOS.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
-  platform, or if `scripts/children.ts` grows past about 150 lines (141 now: a margin of 9; the trigger is already
+  platform, or if `scripts/children.ts` grows past about 150 lines (142 now: a margin of 8; the trigger is already
   close, so raising it, or reopening on the next addition, is for the reviewer to decide).
