@@ -1120,14 +1120,13 @@ describe("STATE-28", () => {
 
 // @spec("STATE-24", "fd6b9b8c")
 describe("STATE-24", () => {
-  // The table has no onretry prop yet (the button is #145's): the test holds the state the button's absence rides on
+  // The button is #145's: it adds the assertion that "Try again" is absent here, shown red with the button rendered
   it.each<DataTableStatus>(["stopped", "failed"])(
-    "with status %s and invalid input, shows the one alert, no table and no Try again",
+    "with status %s and invalid input, shows the one alert and no table",
     (status) => {
       show({ status, columns: [] });
       expect(screen.getAllByRole("alert")).toHaveLength(1);
       expect(screen.queryByRole("table")).toBeNull();
-      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     },
   );
 });
