@@ -3,12 +3,9 @@
   import { faultLine } from "./faults.js";
   import { badges, resetShown } from "./filters.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
+  import HeaderCell from "./parts/HeaderCell.svelte";
   import { nextOrder, sortState } from "./sort.js";
-  import type {
-    DataTableColumn,
-    DataTableProps,
-    SortDirection,
-  } from "./types.js";
+  import type { DataTableColumn, DataTableProps } from "./types.js";
   import { validateTable } from "./validate.js";
   import { TableView } from "./view.svelte.js";
 
@@ -62,9 +59,6 @@
     );
   }
   // Stryker restore OptionalChaining,ArrayDeclaration
-  // The direction mark of a sorted column (SORT-13)
-  const arrow = (direction: SortDirection): string =>
-    direction === "asc" ? "▲" : "▼";
   // The text of a cell without a snippet; RND-05 refuses a column with neither, so its value is there
   // Stryker disable OptionalChaining: unreachable, see above
   const textOf = (column: DataTableColumn<Row>, row: Row) =>
@@ -214,53 +208,15 @@
         <thead>
           <tr class="sdt-head-row">
             {#each columns as column, index (column.id)}
-              {@const state = sortState(order, column.id)}
-              <!-- aria-sort on the lead column's header only (A11Y-03) -->
-              <th
-                class="sdt-th"
-                scope="col"
-                aria-label={column.label}
-                aria-sort={order[0]?.id !== column.id
-                  ? undefined
-                  : state.direction === "asc"
-                    ? "ascending"
-                    : "descending"}
-              >
-                {#if column.sortable}
-                  <!-- The table emits the next order and shows only the one it is given (SORT-12) -->
-                  <button
-                    type="button"
-                    aria-describedby={`${uid}-sort-${index}`}
-                    onkeydown={sortKey}
-                    onblur={() => (keyShift = null)}
-                    onclick={(event) => press(column, event)}
-                    >{column.label}</button
-                  >{#if state.direction}<span aria-hidden="true"
-                      >{arrow(state.direction)}</span
-                    >{/if}{#if state.rank !== null}<span aria-hidden="true"
-                      >{words.sortRank(state.rank)}</span
-                    >{/if}
-                {:else}
-                  {column.label}
-                {/if}{#if column.filter}
-                  <!-- No handler yet: the filter dialog is a later statement -->
-                  <button
-                    type="button"
-                    aria-label={words.filterButton(column.label)}
-                    ><svg
-                      aria-hidden="true"
-                      focusable="false"
-                      viewBox="0 0 16 16"
-                      width="12"
-                      height="12"
-                      ><path
-                        d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"
-                        fill="currentColor"
-                      /></svg
-                    ></button
-                  >
-                {/if}
-              </th>
+              <HeaderCell
+                {column}
+                {order}
+                describedBy={`${uid}-sort-${index}`}
+                {words}
+                onkeydown={sortKey}
+                onblur={() => (keyShift = null)}
+                onpress={(event: MouseEvent) => press(column, event)}
+              />
             {/each}
           </tr>
         </thead>
