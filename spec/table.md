@@ -272,6 +272,7 @@ a thrown error.
   |---|---|---|
   | `loading` | false | "Loading data…" |
   | `failed` | false | "The data could not be loaded." |
+  | `stopped` | false | "Loading stopped" |
   | `ready` | false | "No data." and any count text |
   | `ready` | true | any count text |
 
@@ -451,7 +452,7 @@ otherwise.
 
 **STATE-08** With `status 'loading'` or `status 'failed'`, the table MUST show that state's message, and not the
 alert, when `rows` is not an array.
-- Examples (the test runs every row; columns Name and Code, `rows` as given; no element holds a message of RND-05):
+- Examples (the test runs every row; columns Name and Code, `rows` as given; no element holds the alert text of RND-05):
 
   | `status` | `rows` | Shown |
   |---|---|---|
@@ -649,7 +650,7 @@ column, and none of the rows it is given.
 
 **STATE-22** With `status 'stopped'`, the table MUST show the stopped message, and not the alert, when `rows` is not an
 array (as STATE-08, for the stopped state).
-- Examples (the test runs every row; columns Name and Code; no element holds a message of RND-05): `rows` `undefined`;
+- Examples (the test runs every row; columns Name and Code; no element has `role="alert"`): `rows` `undefined`;
   `rows` `null`: "Loading stopped" is shown.
 - Reason: a load cancelled before any answer often leaves the caller with no rows to pass; the state already says what
   the user sees.

@@ -1026,7 +1026,7 @@ describe("A11Y-22", () => {
   );
 });
 
-// @spec("STATE-08", "afee0d46")
+// @spec("STATE-08", "a828368a")
 describe("STATE-08", () => {
   it.each<[DataTableStatus, unknown, string]>([
     ["loading", undefined, LOADING],
@@ -1102,7 +1102,7 @@ describe("STATE-24", () => {
   );
 });
 
-// @spec("STATE-22", "67351516")
+// @spec("STATE-22", "f2c984f4")
 describe("STATE-22", () => {
   it.each<[string, unknown]>([
     ["undefined", undefined],
@@ -1223,7 +1223,7 @@ describe("RND-06", () => {
   );
 });
 
-// @spec("RND-13", "a2270154")
+// @spec("RND-13", "42e9a9a7")
 describe("RND-13", () => {
   it.each<[DataTableStatus, boolean, string[]]>([
     ["loading", false, [LOADING]],
