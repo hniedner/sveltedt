@@ -21,7 +21,9 @@ independent project, not affiliated with or endorsed by DataTables.
 
 There is nothing to install yet. What is on `main` today:
 
-- the read-only table: rows in the order given, text or snippet cells, a caption and a labelled region;
+- the read-only table: rows in the order given, text or snippet cells, a caption and a labelled region; every
+  function and snippet it calls for a row or a cell takes one object (`value({ row })`, `getRowId({ row })`, a
+  `cell` snippet's `{ row, column }`);
 - the alert for invalid input (an empty caption, missing or duplicate column ids and labels, columns, or rows while
   ready, that are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
 - row ids that are strings or finite numbers, as server JSON gives them;

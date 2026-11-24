@@ -48,30 +48,30 @@
     {
       id: "code",
       label: "Code",
-      value: (r) => r.code,
+      value: ({ row }) => row.code,
       sortable: ["asc", "desc"],
     },
     {
       id: "name",
       label: "Name",
-      value: (r) => r.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
     {
       id: "region",
       label: "Region",
-      value: (r) => r.region,
+      value: ({ row }) => row.region,
       sortable: ["asc", "desc"],
     },
     { id: "open", label: "Link", cell: open },
   ];
-  const getRowId = (item: Item): string => item.id;
+  const getRowId = ({ row }: { row: Item }): string => row.id;
   const onsort = (next: DataTableSortEntry[]): void => {
     sorts.push($state.snapshot(next));
   };
 </script>
 
-{#snippet open(item: Item)}<a href={`#${item.id}`}>Open {item.code}</a
+{#snippet open({ row }: { row: Item })}<a href={`#${row.id}`}>Open {row.code}</a
   >{/snippet}
 
 <main>

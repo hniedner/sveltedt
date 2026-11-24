@@ -1,22 +1,26 @@
 import type { Snippet } from "svelte";
 
-// A column shows its `cell` snippet when it has one, else the text `value(row)` returns; it has at least one of
+// A column shows its `cell` snippet when it has one, else the text `value({ row })` returns; it has at least one of
 // the two (RND-05 refuses a column with neither, for callers the type does not reach).
 export type DataTableColumn<Row> = {
   readonly id: string;
   readonly label: string;
-  // The directions a press steps through, in this order; absent: the column is not sortable
-  readonly sortable?: readonly SortDirection[];
+  // The directions a press steps through, in this order, at least one; absent: the column is not sortable
+  readonly sortable?: readonly [SortDirection, ...SortDirection[]];
   // The filter the column offers; absent or null: none (FILT-32)
   readonly filter?: DataTableFilter | null;
 } & (
   | {
-      readonly value: (row: Row) => string;
-      readonly cell?: Snippet<[Row, string]>;
+      readonly value: (context: { readonly row: Row }) => string;
+      readonly cell?: Snippet<
+        [{ readonly row: Row; readonly column: DataTableColumn<Row> }]
+      >;
     }
   | {
-      readonly value?: (row: Row) => string;
-      readonly cell: Snippet<[Row, string]>;
+      readonly value?: (context: { readonly row: Row }) => string;
+      readonly cell: Snippet<
+        [{ readonly row: Row; readonly column: DataTableColumn<Row> }]
+      >;
     }
 );
 
@@ -67,12 +71,13 @@ export interface DataTableMessages {
   // The name of a column's filter button (FILT-29)
   readonly filterButton: (label: string) => string;
   // The visible words of a text filter's badge (FILT-08)
-  readonly badgeText: (filter: { label: string; text: string }) => string;
+  readonly badgeText: (
+    filter: Readonly<{ label: string; text: string }>,
+  ) => string;
   // The visible words of a categorical filter's badge; `options` are the selected options' labels (FILT-22)
-  readonly badgeOptions: (filter: {
-    label: string;
-    options: readonly string[];
-  }) => string;
+  readonly badgeOptions: (
+    filter: Readonly<{ label: string; options: readonly string[] }>,
+  ) => string;
   // The name of a badge's button: "Clear filter" and the badge's words (FILT-08)
   readonly clearFilter: (words: string) => string;
   // The button that clears every applied filter (FILT-10)
@@ -81,10 +86,9 @@ export interface DataTableMessages {
   readonly reset: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
-  readonly sortDescription: (state: {
-    direction: SortDirection | null;
-    rank: number | null;
-  }) => string;
+  readonly sortDescription: (
+    state: Readonly<{ direction: SortDirection | null; rank: number | null }>,
+  ) => string;
 }
 
 // Where the rows stand: on their way (`loading`), shown (`ready`), not arrived (`failed`) or the load ended by the
@@ -95,7 +99,7 @@ export interface DataTableProps<Row> {
   rows: readonly Row[];
   columns: readonly DataTableColumn<Row>[];
   // A string or a finite number; 1 and "1" are the same id (RND-05)
-  getRowId: (row: Row) => string | number;
+  getRowId: (context: { readonly row: Row }) => string | number;
   caption: string;
   regionLabel: string;
   // Default "ready"
@@ -117,8 +121,10 @@ export interface DataTableProps<Row> {
   // The filters the server applied, by column id; the table shows them and never filters the rows itself
   filters?: Readonly<Record<string, DataTableFilterState>> | null;
   // Called with the column and its next filter; with onclearfilter and onclearfilters required while any column has a filter (FILT-32)
-  onfilter?: (change: { id: string; state: DataTableFilterState }) => void;
-  onclearfilter?: (change: { id: string }) => void;
+  onfilter?: (
+    change: Readonly<{ id: string; state: DataTableFilterState }>,
+  ) => void;
+  onclearfilter?: (change: Readonly<{ id: string }>) => void;
   onclearfilters?: () => void;
   // Called on a press of "Reset table"; the button shows while it is given, a column is sortable or filtered, and no
   // fault but one of SORT-15 or FILT-32 shows (FILT-30)
@@ -148,11 +154,9 @@ export interface PaginationMessages {
   readonly sizeLabel: string;
   readonly sizeOption: (size: number) => string;
   // `first` and `last` are 0 when the page holds no row (PAGE-37)
-  readonly info: (range: {
-    first: number;
-    last: number;
-    total: number;
-  }) => string;
+  readonly info: (
+    range: Readonly<{ first: number; last: number; total: number }>,
+  ) => string;
   readonly infoFiltered: (unfilteredTotal: number) => string;
   readonly totalInvalid: string;
   readonly offsetInvalid: string;

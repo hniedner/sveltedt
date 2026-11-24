@@ -5,14 +5,14 @@
   import type { Order } from "../lib/orders.ts";
 
   const columns: DataTableColumn<Order>[] = [
-    { id: "name", label: "Order", value: (order) => order.name },
+    { id: "name", label: "Order", value: ({ row }) => row.name },
   ];
 </script>
 
 <DataTable
   rows={orders}
   {columns}
-  getRowId={(order) => order.id}
+  getRowId={({ row }) => row.id}
   caption="Orders"
   regionLabel="Orders"
 />

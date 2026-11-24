@@ -14,7 +14,7 @@ const columns: DataTableColumn<FootprintRow>[] = ["Code", "Name", "Date"].map(
   (label) => ({
     id: label.toLowerCase(),
     label,
-    value: (row) => row.name,
+    value: ({ row }) => row.name,
     sortable: ["asc", "desc"],
   }),
 );

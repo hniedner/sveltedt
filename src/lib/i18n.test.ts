@@ -18,7 +18,7 @@ type Words = Partial<DataTableMessages & PaginationMessages>;
 const sortable = (id: "code" | "name" | "date"): DataTableColumn<Item> => ({
   id,
   label: id[0].toUpperCase() + id.slice(1),
-  value: (row) => row[id],
+  value: ({ row }) => row[id],
   sortable: ["asc", "desc"],
 });
 const items = (count: number): Item[] =>
@@ -30,7 +30,7 @@ const items = (count: number): Item[] =>
   }));
 
 // Typed here, not inline: the type-aware lint reads an inline callback's row as any
-const getRowId = (row: Item): string => row.id;
+const getRowId = ({ row }: { row: Item }): string => row.id;
 
 function table(props: Partial<DataTableProps<Item>>, messages?: Words): void {
   render(DataTable<Item>, {

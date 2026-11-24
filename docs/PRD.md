@@ -44,6 +44,8 @@
   acceptance of a release preview before every publish (PRD-S7); PRD-A5 automated (CI-driven screen readers, a person
   listens once before 1.0); PRD-A8's Firefox contrast check in CI; Q6 amended (no local Windows machine); PRD-E1's
   branded Chrome and Edge channels.
+  Amended by the owner on 2026-11-23 at 21:03 PST ("yes on each!"): PRD-T8's class hooks take one object, `rowClass({ row })` and
+  `cellClass({ row, column })`, `column` being the column definition with its `id` (ruling 3 of #190).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -940,9 +942,10 @@ cells.
 
 #### PRD-T8
 
-`rowClass(row)` returns a string for that body row's `tr`; `cellClass(row, column)` for that body cell's `td`; each is
-called for each rendered row or cell and again when reactive state it reads changes; a changed row is a new row object;
-an empty string adds nothing; strings pass unchanged.
+`rowClass({ row })` returns a string for that body row's `tr`; `cellClass({ row, column })` for that body cell's `td`,
+`column` being the column definition with its `id`, the same object a `cell` snippet gets; each is called for each
+rendered row or cell and again when reactive state it reads changes; a changed row is a new row object; an empty
+string adds nothing; strings pass unchanged.
 
 - **Reason:** DataTables' `createdRow`, `createdCell` (FETCHED 2026-11-18); classes only (DEP-36). Every surveyed grid
   has class hooks and DataTables users rely on them; the owner's instruction is to match DataTables in everything that

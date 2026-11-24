@@ -6,7 +6,6 @@ import type {
   DataTableColumn,
   DataTableFilter,
   DataTableProps,
-  SortDirection,
 } from "./types.ts";
 
 interface Item {
@@ -26,7 +25,7 @@ function column(
   return {
     id,
     label,
-    value: (row) => row[id],
+    value: ({ row }) => row[id],
     ...(filter === undefined ? {} : { filter: filter as DataTableFilter }),
   };
 }
@@ -46,7 +45,7 @@ function mount(props: Partial<DataTableProps<Item>> = {}) {
   return render(DataTable<Item>, {
     rows,
     columns: [nameColumn, statusColumn],
-    getRowId: (row: Item) => row.id,
+    getRowId: ({ row }: { row: Item }) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",
     onfilter: vi.fn(),
@@ -400,7 +399,7 @@ describe("FILT-32", () => {
 
   const sortable: DataTableColumn<Item> = {
     ...nameColumn,
-    sortable: ["asc", "desc"] satisfies SortDirection[],
+    sortable: ["asc", "desc"],
   };
   it.each<[string, Props, string]>([
     [

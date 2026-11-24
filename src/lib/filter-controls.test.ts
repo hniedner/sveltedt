@@ -27,7 +27,7 @@ function column(
   label: string,
   extra: Partial<DataTableColumn<Item>> = {},
 ): DataTableColumn<Item> {
-  return { id, label, value: (row) => row[id], ...extra };
+  return { id, label, value: ({ row }) => row[id], ...extra };
 }
 const nameColumn = column("name", "Name", { filter: { kind: "text" } });
 const statusColumn = column("status", "Status", {
@@ -56,7 +56,7 @@ function fixture(props: Partial<DataTableProps<Item>> = {}) {
   const all: DataTableProps<Item> = {
     rows,
     columns: [nameColumn, noteColumn],
-    getRowId: (row: Item) => row.id,
+    getRowId: ({ row }: { row: Item }) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",
     ...handlers,

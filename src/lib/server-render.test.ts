@@ -17,7 +17,7 @@ describe("RND-17", () => {
       props: {
         rows: [],
         columns: [],
-        getRowId: (row: Item): string => row.id,
+        getRowId: ({ row }: { row: Item }): string => row.id,
         caption: "Orders",
         regionLabel: "Orders table",
       },
