@@ -26,7 +26,7 @@ export function buildRequest(
   });
   (query.sort ?? []).forEach((entry, i) => {
     const column = columns.findIndex((c) => c.id === entry.id);
-    // A stated limit: the helper has no `onerror` to tell, so the id is thrown, and nothing is sent
+    // A sort id that no column entry serves is thrown with its name; nothing is sent
     if (column < 0)
       throw new Error(`no column map entry serves sort id "${entry.id}"`);
     request.set(`order[${i}][column]`, String(column));

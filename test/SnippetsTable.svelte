@@ -18,6 +18,7 @@
     status,
     busy,
     messages,
+    onretry,
     withHeading = false,
     withActions = false,
     withQuietActions = false,
@@ -51,6 +52,7 @@
   {status}
   {busy}
   {messages}
+  {onretry}
   heading={withHeading ? heading : undefined}
   actions={withActions ? actions : withQuietActions ? quietActions : undefined}
 />
