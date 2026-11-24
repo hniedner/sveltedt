@@ -101,3 +101,18 @@ describe("CONN-08", () => {
     expect(orderOf(send.mock.calls[0]?.[0])).toEqual(order);
   });
 });
+
+// @spec("CONN-04", "03516454")
+describe("CONN-04", () => {
+  it.each([undefined, "bracketed" as const])(
+    "sends a URLSearchParams with bracketed keys, booleans as true and false and numbers as decimal text (form %s)",
+    (form) => {
+      const { send } = mount({ form });
+      const request = send.mock.calls[0]?.[0];
+      expect(request).toBeInstanceOf(URLSearchParams);
+      expect(request?.get("columns[0][search][value]")).toBe("");
+      expect(request?.get("columns[0][searchable]")).toBe("true");
+      expect(request?.get("start")).toBe("0");
+    },
+  );
+});

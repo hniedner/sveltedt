@@ -22,5 +22,7 @@ export interface ConnectionOptions {
     signal: AbortSignal,
   ) => Promise<unknown>;
   readonly columns: readonly ConnectionColumn[];
+  // The form of the request; the others come with their statements
+  readonly form?: "bracketed";
   readonly query: ConnectionQuery;
 }

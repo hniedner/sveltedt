@@ -13,6 +13,10 @@ export function buildRequest(
   request.set("draw", String(draw));
   request.set("start", String(query.offset ?? 0));
   request.set("length", String(query.limit));
+  columns.forEach((_column, i) => {
+    request.set(`columns[${i}][searchable]`, "true");
+    request.set(`columns[${i}][search][value]`, "");
+  });
   (query.sort ?? []).forEach((entry, i) => {
     const column = columns.findIndex((c) => c.id === entry.id);
     request.set(`order[${i}][column]`, String(column));
