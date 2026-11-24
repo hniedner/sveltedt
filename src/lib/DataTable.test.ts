@@ -1087,6 +1087,45 @@ describe("STATE-28", () => {
   );
 });
 
+// @spec("STATE-23", "3f97102f")
+describe("STATE-23", () => {
+  it.each<[DataTableStatus, boolean, boolean, boolean]>([
+    ["stopped", false, true, true],
+    ["failed", false, true, true],
+    ["stopped", true, true, true],
+    ["failed", true, true, true],
+    ["stopped", false, false, false],
+    ["failed", false, false, false],
+    ["loading", false, true, false],
+    ["ready", false, true, false],
+    ["ready", true, true, false],
+  ])(
+    "with status %s, busy %s and onretry passed %s, shows Try again: %s",
+    (status, busy, passed, shown) => {
+      show({
+        status,
+        busy,
+        rows: status === "ready" ? threeRows.slice(0, 2) : [],
+        ...(passed ? { onretry: () => {} } : {}),
+      });
+      // The state is drawn first, so an absent button is not an absent page
+      if (status === "stopped")
+        expect(
+          within(screen.getByRole("table")).getByText("Loading stopped")
+            .isConnected,
+        ).toBe(true);
+      if (status === "failed")
+        expect(screen.getByRole("alert").textContent.trim()).toBe(FAILED);
+      if (status === "loading")
+        expect(screen.getByRole("status").textContent.trim()).toBe(LOADING);
+      if (status === "ready") expect(firstCells()).toEqual(["Beta", "Gamma"]);
+      expect(
+        screen.queryAllByRole("button", { name: "Try again" }),
+      ).toHaveLength(shown ? 1 : 0);
+    },
+  );
+});
+
 // @spec("STATE-24", "768017fd")
 describe("STATE-24", () => {
   // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
@@ -1130,7 +1169,7 @@ describe("RND-06", () => {
   // The words of RND-06; the sort words are SORT-17's, the stopped and still-loading messages are STATE-26's
   const foreign: Omit<
     DataTableMessages,
-    `sort${string}` | "stopped" | "stillLoading" | "cancel"
+    `sort${string}` | "stopped" | "stillLoading" | "cancel" | "retry"
   > = {
     loading: "Laden…",
     failed: "Laden fehlgeschlagen.",

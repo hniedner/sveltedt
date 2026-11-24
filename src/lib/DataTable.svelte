@@ -21,6 +21,7 @@
     sort,
     onsort,
     oncancel,
+    onretry,
     heading,
     actions,
   }: DataTableProps<Row> = $props();
@@ -237,4 +238,7 @@
       {/each}
     </div>
   {/if}
+  {#if onretry && (status === "stopped" || status === "failed")}<button
+      type="button">{words.retry}</button
+    >{/if}
 </div>

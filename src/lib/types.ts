@@ -35,6 +35,7 @@ export interface DataTableMessages {
   readonly stopped: string;
   readonly stillLoading: string;
   readonly cancel: string;
+  readonly retry: string;
   readonly rowCount: (count: number) => string;
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
@@ -71,6 +72,8 @@ export interface DataTableProps<Row> {
   // Called with no argument on a press of "Cancel", which shows beside the still-loading text; the table stops
   // nothing itself (PRD-B23)
   oncancel?: () => void;
+  // Called with no argument on a press of "Try again", which shows while stopped or failed (PRD-B24)
+  onretry?: () => void;
   heading?: Snippet;
   actions?: Snippet;
 }
