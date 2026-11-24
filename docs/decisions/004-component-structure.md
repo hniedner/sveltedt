@@ -19,7 +19,7 @@ decision (see Region order).
   (`package.json:8-17`). `Pagination` is placed by the application and holds the information line
   (`src/lib/Pagination.svelte:14-24`, `src/lib/Pagination.svelte:53`).
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
-  spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-66`). PRD-T15 bans a
+  spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
   `<style>` block, by ESLint (labelled PRD-T3, `eslint.config.mjs:60-63`) and the stylesheet step (THEME-04,
   `scripts/check-stylesheet.ts:483-502`). The class-name rule is enforced by neither (INFERRED from those reads):
@@ -37,27 +37,30 @@ decision (see Region order).
   FILT-31's (`src/lib/parts/Toolbar.svelte:33-61`).
 - **Built, at b20d582:** `HeaderCell` (`src/lib/parts/HeaderCell.svelte:38-76`) and `Toolbar`. Expected, each written by
   the branch that builds it (INFERRED): the filter dialog, the chooser, a body row. Root markup, not parts: the live
-  count, the failed notice, Try again, the hidden sort descriptions and the alert, each one element with no state of its
-  own. The loading line (status region, Cancel, progress indicator) owns `shown` and `still`, so rules (1) and (2) would
-  make it a part; whether it becomes one is for #146: a part would move the Cancel button's `bind:this` and the `ending`
-  hand-off across a part boundary (INFERRED).
+  count, the failed notice, Try again, the hidden sort descriptions and the alert, one element each (Try again's `retry`
+  and `bind:this` reference are the root's, `src/lib/DataTable.svelte:112-115`). The loading line (status region,
+  Cancel, progress indicator) meets rule (2), but the rule applies from the next feature on and #146 decides the line: a
+  part would move the Cancel button's `bind:this` and the `ending` hand-off across a part boundary (INFERRED).
 - **Logic:** pure functions in `.ts` beside the parts (`src/lib/sort.ts:18-51`, `src/lib/filters.ts`), reactive logic in
   `.svelte.ts` (`src/lib/view.svelte.ts`). A new module comes when a function has a statement to test on its own.
 - Today's pattern, not a rule: both parts are `generics="Row"` like the root (`src/lib/DataTable.svelte:1`,
   `src/lib/parts/Toolbar.svelte:1`). A part renders inside `div.sdt`, with no portal (THEME-09,
   `spec/table.md:1399-1402`; the "no portal" reading is INFERRED). The filter dialog is a popover in the top layer; its
   markup follows its own filter button (`spec/table.md:2773-2779`).
-- **The rule:** a feature gets its own part when it (1) is a region of the document order below (a slot in that order,
-  not the spec's `role="region"` element) that has state or controls of its own, (2) owns a field of `TableView` and
-  more than one element, or (3) repeats per column or per row with its own controls. Otherwise it is markup in the
-  nearest part.
+- **The rule** (from the next feature on; the two parts built fit it): a feature gets its own part when it (1) is a slot
+  of the document order below (a slot in that order, not the spec's `role="region"` element) that holds more than one
+  element with controls of their own, (2) owns a field of `TableView` and more than one element, or (3) repeats per
+  column or per row with its own controls. Otherwise it is markup in the nearest part. Walk at b20d582 (INFERRED): the
+  `heading` and `actions` snippets, adopter markup, root; the toolbar, (1), the part; status region, Cancel and progress
+  indicator, the loading line above; live count, alert, failed notice, Try again and sort descriptions, one element
+  each, root; the table region, (3) for its header cells (`HeaderCell`), the wrapper and `table` stay root.
 - **Callbacks:** called once per intent (PRD-B2), in the part where the press happens
   (`src/lib/parts/Toolbar.svelte:40-59`) or through a handler the root passes down when the intent needs root state: the
   sort press and its Shift state (`src/lib/DataTable.svelte:41-60`, `src/lib/DataTable.svelte:190-198`,
   `src/lib/parts/HeaderCell.svelte:16-19`).
 - **Tests:** at the component boundary, `DataTable` mounted. At b20d582 no test mounts a part or imports
   `view.svelte.ts` (MEASURED: `git grep -n -e "parts/" -e "view.svelte" b20d582 -- "*.ts" "*.svelte"` lists only
-  `src/lib/DataTable.svelte:5-10`).
+  `src/lib/DataTable.svelte:5`, `src/lib/DataTable.svelte:6` and `src/lib/DataTable.svelte:10`).
 - **Reopens when:** a part passes about 150 lines (`HeaderCell` 76, `Toolbar` 61 at b20d582), or a feature fits none of
   (1) to (3).
 
@@ -75,7 +78,9 @@ decision (see Region order).
     b20d582 three, the slow-load items of PRD-B22: `shown`, `held` (its minimum display time is running; read only by
     the first effect) and `still` (`src/lib/view.svelte.ts:6-10`, `src/lib/view.svelte.ts:20`). Each timer is a local of
     the effect that starts it, cleared by its teardown (`src/lib/view.svelte.ts:31-35`, `src/lib/view.svelte.ts:41-46`;
-    FOOT-05, `spec/table.md:1272`). No test compares the fields with PRD-B2's list; a review does.
+    FOOT-05, `spec/table.md:1272`). At b20d582 no test compares the fields with PRD-B2's list; a review does (MEASURED:
+    `git grep -n "PRD-B2" b20d582 -- src site test scripts` finds no test of the fields: `scripts/trace.test.ts:61` is a
+    trace-hash test, the other hits are comments).
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
     `grep -rnE "view\.\w+ =" src/lib` finds nothing). The fields are public and writable in TypeScript; a part that
