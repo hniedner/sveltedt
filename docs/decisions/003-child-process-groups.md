@@ -53,7 +53,8 @@ fetched or measured.
   it needs an unkillable process, and none is built.
 - `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review measured
   EPERM for a group that holds only a zombie leader on macOS; ESRCH follows once the leader is reaped. A group that is
-  alive but not ours cannot occur: the helper only signals groups it started.
+  alive but not ours cannot occur while the group still exists: the helper only signals groups it started. Once a group
+  has no member its id may be reused, so a group that was seen gone is never signalled again (`stop` returns at once).
 - `send` refuses a target of 0, 1, -1 or one that is not an integer, and the test reaper does the same for the pid it reads
   from a file: `kill(-0)` signals the caller's own process group (measured: `process.kill(-Number(""), 0)` returns true).
   No test pins either guard: it would have to send SIGKILL to group 0, which would end the gate.

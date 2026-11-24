@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, test } from "node:test";
+import { after, mock, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { HERE } from "./gate-step.ts";
 import { readyLine, spawnGroup, stop } from "./children.ts";
@@ -29,12 +29,10 @@ function reaper(): number[] {
   const pids: number[] = [];
   after(() => {
     for (const p of pids) {
-      for (const target of [-p, p]) {
-        try {
-          process.kill(target, "SIGKILL"); // the group (every child leads one), then the pid alone
-        } catch {
-          // already gone
-        }
+      try {
+        process.kill(-p, "SIGKILL"); // every recorded child leads a group that holds its grandchildren
+      } catch {
+        // already gone
       }
     }
   });
@@ -113,7 +111,6 @@ test(
     const pids = reaper();
     const child = begin(pids, "-e", WITH_GRANDCHILD);
     const grandchild = await grandchildOf(child);
-    pids.push(grandchild);
     await stop(child);
     assert.ok(await gone(grandchild), "the grandchild is still running");
   },
@@ -126,7 +123,6 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
       const pids = reaper();
       const prog = begin(pids, program(IDLE));
       const kids = await pidsOf(prog);
-      pids.push(...kids);
       const ended = closed(prog);
       process.kill(pidOf(prog), signal);
       assert.deepEqual(await ended, [null, signal]);
@@ -146,7 +142,6 @@ for (const [how, code, then] of [
       const prog = begin(pids, program(then));
       const ended = closed(prog);
       const kids = await pidsOf(prog);
-      pids.push(...kids);
       assert.deepEqual(await ended, [code, null]);
       for (const p of kids) assert.ok(await gone(p), `${p} is still running`);
     },
@@ -162,7 +157,6 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
       const own = `let n = 0; process.on("${signal}", () => { if (++n > 1) process.exit(9); setTimeout(() => process.exit(0), 300); });`;
       const prog = begin(pids, program(IDLE, own));
       const kids = await pidsOf(prog);
-      pids.push(...kids);
       const ended = closed(prog);
       process.kill(pidOf(prog), signal);
       assert.deepEqual(await ended, [0, null]);
@@ -178,7 +172,6 @@ test(
     const child = begin(pids, "-e", `${SPAWN_GRANDCHILD} process.exit(0);`);
     const ended = closed(child);
     const grandchild = await grandchildOf(child);
-    pids.push(grandchild);
     await ended;
     assert.ok(await gone(grandchild), "the grandchild is still running");
   },
@@ -229,7 +222,6 @@ test(
       `process.on("SIGTERM", () => process.exit(0)); ${IGNORING_GRANDCHILD}`,
     );
     const grandchild = await grandchildOf(child);
-    pids.push(grandchild);
     await stop(child, 300);
     assert.ok(await gone(grandchild, 2000), "the grandchild is still running");
   },
@@ -270,11 +262,19 @@ test(
     const pids = reaper();
     const child = begin(pids, "-e", "0");
     await closed(child);
+    const kill = mock.method(process, "kill");
+    after(() => kill.mock.restore());
     for (const n of [1, 2]) {
       const began = Date.now();
       await stop(child);
       assert.ok(Date.now() - began < 500, `stop ${n} did not resolve at once`);
+      if (n === 1) kill.mock.resetCalls();
     }
+    assert.equal(
+      kill.mock.callCount(),
+      0,
+      "the second stop signalled a group that was seen gone",
+    );
   },
 );
 test(

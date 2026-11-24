@@ -13,6 +13,8 @@ import type { Readable } from "node:stream";
 type Piped = ChildProcessByStdio<null, Readable, Readable>;
 const running = new Set<ChildProcess>();
 const notStarted = new WeakMap<ChildProcess, Error>();
+// Children whose group was seen gone: a group id that is free may be reused, so such a group is never signalled again
+const gone = new WeakSet<ChildProcess>();
 let installed = false;
 
 // A signal to a process that is gone, or one that is not ours, is not an error here: false says it was not sent. EPERM
@@ -26,13 +28,18 @@ function send(target: number, signal: NodeJS.Signals | 0): boolean {
     return false;
   }
 }
-const groupGone = (pid: number): boolean => !send(-pid, 0);
+function groupGone(child: ChildProcess): boolean {
+  if (child.pid === undefined || gone.has(child)) return true;
+  if (send(-child.pid, 0)) return false;
+  gone.add(child);
+  return true;
+}
 const sleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
 /** Sends `signal` to `child`'s group; does nothing for a child with no pid or a group that is gone. */
 export function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (child.pid !== undefined) send(-child.pid, signal);
+  if (child.pid !== undefined && !groupGone(child)) send(-child.pid, signal);
 }
 
 function install(): void {
@@ -92,15 +99,15 @@ export function spawnGroup(
  * resolves once the group is gone, and throws if it is still there. */
 export async function stop(child: ChildProcess, ms = 5000): Promise<void> {
   const { pid } = child;
-  if (pid === undefined || groupGone(pid)) return;
+  if (groupGone(child)) return;
   signalGroup(child, "SIGTERM");
-  for (let waited = 0; waited < ms && !groupGone(pid); waited += 50)
+  for (let waited = 0; waited < ms && !groupGone(child); waited += 50)
     await sleep(50);
-  if (groupGone(pid)) return;
+  if (groupGone(child)) return;
   signalGroup(child, "SIGKILL");
-  for (let waited = 0; waited < 2000 && !groupGone(pid); waited += 50)
+  for (let waited = 0; waited < 2000 && !groupGone(child); waited += 50)
     await sleep(50);
-  if (!groupGone(pid))
+  if (!groupGone(child))
     throw new Error(`process group ${pid} still running after SIGKILL`);
 }
 
