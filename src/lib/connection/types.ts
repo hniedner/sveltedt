@@ -1,7 +1,7 @@
 import type { DataTableSortEntry } from "../types.ts";
 
 // One entry of the column map (spec/connection.md, Conventions, The options): entry `i` describes the backend's column
-// `i`, so the order of the list is the backend's order. The flags `searchable` and `orderable` come with CONN-03.
+// `i`, so the order of the list is the backend's order.
 export interface ConnectionColumn {
   readonly data: string;
   // The name the server knows the column by, never a free label
@@ -10,7 +10,7 @@ export interface ConnectionColumn {
   readonly id?: string;
 }
 
-// The query (spec/connection.md, Conventions, The query), limited to the fields the statements so far read
+// The query (spec/connection.md, Conventions, The query)
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
   readonly offset?: number;
@@ -25,7 +25,7 @@ export interface ConnectionOptions {
     signal: AbortSignal,
   ) => Promise<unknown>;
   readonly columns: readonly ConnectionColumn[];
-  // The form of the request (CONN-04)
+  // The form of the request: the bracketed one
   readonly form?: "bracketed";
   readonly query: ConnectionQuery;
 }
