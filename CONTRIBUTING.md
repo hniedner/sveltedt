@@ -241,7 +241,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   consumer test keeps its Playwright trace in `test-results/`, beside `consumer-serve.log`, a timed log of both servers
   with the copy's path replaced (the same files are in the artifact `browser-results` of a CI run): copy
   `test-results/` aside before rerunning, since the next browser run, and the selftest of consumer-serve, replace the
-  log, and never attach a local trace to an issue (it holds local paths). In CI the
+  log, and never attach a local trace or log to an issue (they can hold local paths): quote text from them after both scans. In CI the
   static job leaves it to the job `browser`
   through the variable `GATE_BROWSER`, which gate-needs allows only outside that job and only beside a job `browser`
   that runs the step.
