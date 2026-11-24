@@ -4,7 +4,7 @@ import type { ConnectionColumn, ConnectionQuery } from "./types.ts";
 const nameOf = (column: ConnectionColumn): string => column.name ?? "";
 
 // The bracketed request for one query: the paging, search and column keys, then one order entry per sort entry
-// that a column map entry serves (spec/connection.md, section 1)
+// (spec/connection.md, section 1)
 export function buildRequest(
   columns: readonly ConnectionColumn[],
   query: ConnectionQuery,
@@ -24,16 +24,14 @@ export function buildRequest(
     request.set(`columns[${i}][search][value]`, "");
     request.set(`columns[${i}][search][regex]`, "false");
   });
-  (query.sort ?? [])
-    .map((entry) => ({
-      entry,
-      column: columns.findIndex((c) => c.id === entry.id),
-    }))
-    .filter(({ column }) => column >= 0)
-    .forEach(({ entry, column }, i) => {
-      request.set(`order[${i}][column]`, String(column));
-      request.set(`order[${i}][dir]`, entry.direction);
-      request.set(`order[${i}][name]`, nameOf(columns[column]));
-    });
+  (query.sort ?? []).forEach((entry, i) => {
+    const column = columns.findIndex((c) => c.id === entry.id);
+    // A stated limit: the helper has no `onerror` to tell, so the id is thrown, and nothing is sent
+    if (column < 0)
+      throw new Error(`no column map entry serves sort id "${entry.id}"`);
+    request.set(`order[${i}][column]`, String(column));
+    request.set(`order[${i}][dir]`, entry.direction);
+    request.set(`order[${i}][name]`, nameOf(columns[column]));
+  });
   return request;
 }
