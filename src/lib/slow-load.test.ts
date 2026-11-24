@@ -1,4 +1,4 @@
-import { render } from "@testing-library/svelte";
+import { fireEvent, render, within } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableProps } from "./types.ts";
@@ -160,10 +160,15 @@ describe("STATE-10", () => {
 // @spec("STATE-11", "75ae94f3")
 describe("STATE-11", () => {
   it("hides the indicator from assistive technology and puts nothing focusable in it", async () => {
-    const table = mount({ status: "loading" });
+    const table = mount({ status: "loading", oncancel: () => {} });
     await table.at(6000);
     const indicator = table.container.querySelector("[data-sdt-progress]");
     expect(indicator).not.toBeNull();
+    // Cancel is shown, so the check below is not about a missing button; it is not in the hidden indicator
+    const cancel = within(table.container).getByRole("button", {
+      name: "Cancel",
+    });
+    expect(indicator?.contains(cancel)).toBe(false);
     expect(indicator?.getAttribute("aria-hidden")).toBe("true");
     expect(indicator?.hasAttribute("tabindex")).toBe(false);
     expect(
@@ -259,6 +264,128 @@ function watchAdditions(table: ReturnType<typeof mount>, words: string) {
   };
 }
 
+// @spec("STATE-17", "aa4c0297")
+describe("STATE-17", () => {
+  const oncancel = (): void => {};
+  const cancel = (container: HTMLElement): HTMLElement | null =>
+    within(container).queryByRole("button", { name: "Cancel" });
+
+  it("shows Cancel at 6000 ms of loading with oncancel, not at 5999 ms", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(5999);
+    expect(cancel(table.container)).toBeNull();
+    await table.at(6000);
+    expect(cancel(table.container)).not.toBeNull();
+  });
+
+  it("puts Cancel outside the status element and after it", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const button = cancel(table.container);
+    const status = within(table.container).getByRole("status");
+    expect(button).not.toBeNull();
+    expect(status.contains(button)).toBe(false);
+    expect(
+      status.compareDocumentPosition(button as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no Cancel without oncancel while the still-loading text is shown", async () => {
+    const table = mount({ status: "loading" });
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+    expect(cancel(table.container)).toBeNull();
+  });
+
+  it("shows Cancel at 6000 ms of busy with rows", async () => {
+    const table = mount({ rows: twoRows, busy: true, oncancel });
+    await table.at(6000);
+    expect(cancel(table.container)).not.toBeNull();
+  });
+
+  it("removes Cancel with the answer at 7000 ms", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6999);
+    expect(cancel(table.container)).not.toBeNull();
+    await table.at(7000);
+    await table.change({ rows: twoRows, busy: false, oncancel });
+    expect(cancel(table.container)).toBeNull();
+  });
+});
+
+// @spec("STATE-18", "fd6fa1b5")
+describe("STATE-18", () => {
+  it.each<["Cancel" | "Try again", Partial<DataTableProps<Item>>, number]>([
+    ["Cancel", { status: "loading" }, 6000],
+    ["Try again", { status: "stopped" }, 0],
+    ["Try again", { status: "failed" }, 0],
+  ])("emits once on a click of %s with %o", async (name, props, ms) => {
+    const calls = { oncancel: vi.fn(), onretry: vi.fn(), onsort: vi.fn() };
+    const table = mount({ ...props, ...calls });
+    await table.at(ms);
+    await fireEvent.click(
+      within(table.container).getByRole("button", { name }),
+    );
+    const own = name === "Cancel" ? calls.oncancel : calls.onretry;
+    const other = name === "Cancel" ? calls.onretry : calls.oncancel;
+    expect(own).toHaveBeenCalledTimes(1);
+    expect(own).toHaveBeenCalledWith();
+    expect(other).not.toHaveBeenCalled();
+    expect(calls.onsort).not.toHaveBeenCalled();
+  });
+});
+
+// @spec("STATE-19", "129b94cd")
+describe("STATE-19", () => {
+  const press = async (container: HTMLElement, name: string): Promise<void> => {
+    await fireEvent.click(within(container).getByRole("button", { name }));
+  };
+
+  it("leaves a loading table as it was after a press on Cancel", async () => {
+    const table = mount({
+      status: "loading",
+      oncancel: vi.fn(),
+      onretry: vi.fn(),
+    });
+    await table.at(6000);
+    await press(table.container, "Cancel");
+    const status = within(table.container).getByRole("status");
+    expect(status.textContent).toContain("Loading data…");
+    expect(status.textContent).toContain("Still loading");
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).not.toBeNull();
+  });
+
+  it("leaves a stopped table as it was after a press on Try again", async () => {
+    const table = mount({ status: "stopped", onretry: vi.fn() });
+    await press(table.container, "Try again");
+    expect(
+      within(within(table.container).getByRole("table")).getByText(
+        "Loading stopped",
+      ).isConnected,
+    ).toBe(true);
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).not.toBeNull();
+    expect(
+      within(table.container).getByRole("status").textContent,
+    ).not.toContain("Loading data…");
+  });
+
+  it("leaves a failed table as it was after a press on Try again", async () => {
+    const table = mount({ status: "failed", onretry: vi.fn() });
+    await press(table.container, "Try again");
+    expect(within(table.container).getByRole("alert").textContent.trim()).toBe(
+      "The data could not be loaded.",
+    );
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).not.toBeNull();
+  });
+});
+
 // @spec("A11Y-20", "42a3ade6")
 describe("A11Y-20", () => {
   it("says the text once when busy joins loading and the load goes on", async () => {
@@ -314,8 +441,40 @@ describe("A11Y-20", () => {
   });
 });
 
-// @spec("FOOT-05", "9f08d2c3")
+// @spec("A11Y-26", "50ad1535")
+describe("A11Y-26", () => {
+  const loading: Partial<DataTableProps<Item>> = { status: "loading" };
+  const stopped: Partial<DataTableProps<Item>> = { status: "stopped" };
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean, number]>([
+    ["loading, stopped", [stopped], true, 1],
+    [
+      "loading, stopped, stopped again with onretry and new rows",
+      [stopped, { ...stopped, onretry: () => {}, rows: twoRows }],
+      true,
+      1,
+    ],
+    ["loading, stopped, loading", [stopped, loading], false, 1],
+    [
+      "loading, stopped, loading, stopped",
+      [stopped, loading, stopped],
+      true,
+      2,
+    ],
+  ])(
+    "reads the status region after %s",
+    async (_steps, later, inRegion, added) => {
+      const table = mount(loading);
+      const seen = watchAdditions(table, "Loading stopped");
+      for (const step of later) await table.change(step);
+      expect(seen.inRegion()).toBe(inRegion);
+      expect(seen.added()).toBe(added);
+    },
+  );
+});
+
+// @spec("FOOT-05", "9f0dae50")
 describe("FOOT-05", () => {
+  const oncancel = (): void => {};
   // Mounted loading; `answered`: ready with two rows arrives at 1100 ms; the table is unmounted at `unmountAt`
   it.each([
     ["before the indicator", 500, false],
@@ -323,10 +482,10 @@ describe("FOOT-05", () => {
   ] as const)(
     "leaves no timer pending when unmounted %s at %i ms",
     async (_where, unmountAt, answered) => {
-      const table = mount({ status: "loading" });
+      const table = mount({ status: "loading", oncancel });
       if (answered) {
         await table.at(1100);
-        await table.change({ rows: twoRows });
+        await table.change({ rows: twoRows, oncancel });
       }
       await table.at(unmountAt);
       expect(vi.getTimerCount()).toBeGreaterThan(0);
@@ -336,9 +495,21 @@ describe("FOOT-05", () => {
   );
 
   it("leaves no timer pending when unmounted at 5999 ms, before the still-loading text", async () => {
-    const table = mount({ status: "loading" });
+    const table = mount({ status: "loading", oncancel });
     await table.at(5999);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
+    table.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // No timer is pending at 6000 ms; this row keeps it so when code that moves focus is added
+  it("leaves no timer pending when unmounted at 6000 ms, with the still-loading text and Cancel shown", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    expect(table.still()).toBe(true);
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).not.toBeNull();
     table.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
