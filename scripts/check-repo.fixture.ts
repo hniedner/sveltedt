@@ -117,6 +117,12 @@ export interface Pkg {
 export const PINS = (
   JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8")) as Pkg
 ).devDependencies;
+/** The range the installed Svelte declares for `esm-env` (SUP-04): read, so a Svelte bump moves it with the lockfile. */
+export const SVELTE_ESM_ENV = (
+  JSON.parse(
+    readFileSync(join(here, "..", "node_modules/svelte/package.json"), "utf8"),
+  ) as { dependencies: Record<string, string> }
+).dependencies["esm-env"];
 export const PACKAGE: Pkg = {
   name: "@hniedner/sveltedt",
   private: true,
@@ -124,6 +130,8 @@ export const PACKAGE: Pkg = {
   license: "MIT",
   packageManager: "pnpm@12.19.0",
   prettier: { plugins: ["prettier-plugin-svelte"] },
+  dependencies: { "esm-env": SVELTE_ESM_ENV },
+  peerDependencies: { svelte: "^5.20.0" },
   devDependencies: {
     eslint: PINS.eslint,
     jscpd: PINS.jscpd,

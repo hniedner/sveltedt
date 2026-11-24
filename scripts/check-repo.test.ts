@@ -21,6 +21,7 @@ import {
   NODE_MAJOR,
   PASSING_TEST,
   SHA,
+  SVELTE_ESM_ENV,
   SUPPRESSIONS,
   canaryDir,
   commit,
@@ -189,11 +190,78 @@ test("lockfile: a version range in devDependencies is a finding", () => {
     /prettier/,
   );
 });
-test("lockfile: a runtime dependency is a finding", () => {
+test("lockfile: a runtime dependency other than esm-env is a finding (SUP-04)", () => {
+  assert.match(
+    expect(
+      "lockfile",
+      repo(
+        pkg(
+          (p) =>
+            (p.dependencies = { "esm-env": SVELTE_ESM_ENV, clsx: "^2.0.0" }),
+        ),
+      ),
+      1,
+    ),
+    /clsx/,
+  );
+});
+test("lockfile: no dependencies is a finding (SUP-04)", () => {
+  assert.match(
+    expect("lockfile", repo(pkg((p) => delete p.dependencies)), 1),
+    /esm-env/,
+  );
+});
+test("lockfile: an esm-env range other than Svelte's is a finding (SUP-04)", () => {
+  assert.match(
+    expect(
+      "lockfile",
+      repo(pkg((p) => (p.dependencies = { "esm-env": "^1.3.0" }))),
+      1,
+    ),
+    /esm-env.*\^1\.3\.0/,
+  );
+});
+test("lockfile: an optional dependency beside esm-env is a finding (SUP-04)", () => {
   expect(
     "lockfile",
-    repo(pkg((p) => (p.dependencies = { "left-pad": "1.3.0" }))),
+    repo(
+      pkg((p) => Object.assign(p, { optionalDependencies: { x: "1.0.0" } })),
+    ),
     1,
+  );
+});
+test("lockfile: no svelte peer is a finding (SUP-04)", () => {
+  assert.match(
+    expect("lockfile", repo(pkg((p) => delete p.peerDependencies)), 1),
+    /svelte/,
+  );
+});
+// The fixture's node_modules is a link to the real one: replace it, so Svelte's manifest can be planted
+const withSvelteManifest = (manifest: string | null) => (root: string) => {
+  rmSync(join(root, "node_modules"));
+  if (manifest !== null)
+    put(root, "node_modules/svelte/package.json", manifest);
+};
+test("lockfile: Svelte's manifest declaring no esm-env is could not check (SUP-04)", () => {
+  expect(
+    "lockfile",
+    repo(withSvelteManifest('{ "name": "svelte", "dependencies": {} }')),
+    3,
+  );
+});
+test("lockfile: no Svelte manifest is could not check (SUP-04)", () => {
+  expect("lockfile", repo(withSvelteManifest(null)), 3);
+});
+test("lockfile: esm-env with the range a planted Svelte manifest declares passes (SUP-04)", () => {
+  expect(
+    "lockfile",
+    repo((root) => {
+      withSvelteManifest(
+        '{ "name": "svelte", "dependencies": { "esm-env": "^1.9.0" } }',
+      )(root);
+      pkg((p) => (p.dependencies = { "esm-env": "^1.9.0" }))(root);
+    }),
+    0,
   );
 });
 test("lockfile: a peer other than svelte is a finding", () => {

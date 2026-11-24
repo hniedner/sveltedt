@@ -54,7 +54,7 @@ The checks today:
   own count; as many files run at once as the machine has cores. `GATE_SHARD=n` runs only shard n of
   `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard there,
   and `scripts/shards.test.ts` fails locally while one is in none or in two; in CI the step fails too).
-- **lockfile:** one lockfile document; exact development versions; nothing that would ship except a `svelte` peer;
+- **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte declares) and a `svelte` peer, nothing else (SUP-04);
   each workspace package in `pnpm-workspace.yaml` (one indented `- <folder>` per line) has only `workspace:*` links
   as dependencies, optional or peer dependencies, and exact development versions;
   every package from the registry by hash; pnpm's release age equals Dependabot's shortest npm cooldown, and every
