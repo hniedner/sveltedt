@@ -33,7 +33,7 @@
   });
 
   const columns: DataTableColumn<Item>[] = [
-    { id: "name", label: "Name", value: (r) => r.name },
+    { id: "name", label: "Name", value: ({ row }) => row.name },
     { id: "open", label: "Link", cell: open },
   ];
   const getRowId = (item: Item): string => item.id;

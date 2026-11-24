@@ -13,7 +13,7 @@ const twoRows: Item[] = [{ id: "r1" }, { id: "r2" }];
 function state(props: Partial<DataTableProps<Item>>): DataTableProps<Item> {
   return {
     rows: [],
-    columns: [{ id: "id", label: "Id", value: (row) => row.id }],
+    columns: [{ id: "id", label: "Id", value: ({ row }) => row.id }],
     getRowId: (row) => row.id,
     caption: "Orders",
     regionLabel: "Orders table",

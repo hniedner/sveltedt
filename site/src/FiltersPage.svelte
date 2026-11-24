@@ -18,13 +18,13 @@
     {
       id: "name",
       label: "Name",
-      value: (r) => r.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
     {
       id: "region",
       label: "Region",
-      value: (r) => r.region,
+      value: ({ row }) => row.region,
       sortable: ["asc", "desc"],
       filter: { kind: "text" },
     },

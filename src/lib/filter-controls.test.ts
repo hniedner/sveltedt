@@ -27,7 +27,7 @@ function column(
   label: string,
   extra: Partial<DataTableColumn<Item>> = {},
 ): DataTableColumn<Item> {
-  return { id, label, value: (row) => row[id], ...extra };
+  return { id, label, value: ({ row }) => row[id], ...extra };
 }
 const nameColumn = column("name", "Name", { filter: { kind: "text" } });
 const statusColumn = column("status", "Status", {

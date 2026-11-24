@@ -18,7 +18,7 @@ type Words = Partial<DataTableMessages & PaginationMessages>;
 const sortable = (id: "code" | "name" | "date"): DataTableColumn<Item> => ({
   id,
   label: id[0].toUpperCase() + id.slice(1),
-  value: (row) => row[id],
+  value: ({ row }) => row[id],
   sortable: ["asc", "desc"],
 });
 const items = (count: number): Item[] =>

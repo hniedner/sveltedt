@@ -5,7 +5,7 @@
   import type { Order } from "../lib/orders.ts";
 
   const columns: DataTableColumn<Order>[] = [
-    { id: "name", label: "Order", value: (order) => order.name },
+    { id: "name", label: "Order", value: ({ row }) => row.name },
   ];
 </script>
 

@@ -12,15 +12,15 @@
   // `nameValue`: the Name column's value, a function unless a test passes what a plain JavaScript caller might (RND-05)
   const {
     rows,
-    nameValue = (row: Item) => row.name,
+    nameValue = ({ row }: { row: Item }) => row.name,
   }: { rows: readonly Item[]; nameValue?: unknown } = $props();
   // The snippet column second and with a value too: the snippet wins, and gets its own column's id
   const columns: DataTableColumn<Item>[] = $derived([
-    { id: "id", label: "Id", value: (row: Item) => row.id },
+    { id: "id", label: "Id", value: ({ row }: { row: Item }) => row.id },
     {
       id: "name",
       label: "Name",
-      value: nameValue as (row: Item) => string,
+      value: nameValue as (context: { readonly row: Item }) => string,
       cell: link,
     },
   ]);

@@ -48,19 +48,19 @@
     {
       id: "code",
       label: "Code",
-      value: (r) => r.code,
+      value: ({ row }) => row.code,
       sortable: ["asc", "desc"],
     },
     {
       id: "name",
       label: "Name",
-      value: (r) => r.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
     {
       id: "region",
       label: "Region",
-      value: (r) => r.region,
+      value: ({ row }) => row.region,
       sortable: ["asc", "desc"],
     },
     { id: "open", label: "Link", cell: open },

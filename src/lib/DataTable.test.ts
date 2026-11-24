@@ -19,12 +19,12 @@ interface Item {
 const idColumn: DataTableColumn<Item> = {
   id: "id",
   label: "Id",
-  value: (row) => row.id,
+  value: ({ row }) => row.id,
 };
 const nameColumn: DataTableColumn<Item> = {
   id: "name",
   label: "Name",
-  value: (row) => row.name,
+  value: ({ row }) => row.name,
 };
 
 const noteColumn: DataTableColumn<Item> = {
@@ -134,7 +134,7 @@ function liveCount(component: HTMLElement): Element | null {
 const codeColumn: DataTableColumn<Item> = {
   id: "code",
   label: "Code",
-  value: (row) => row.id,
+  value: ({ row }) => row.id,
 };
 
 // The five states of RND-14 and of EXP-01 and EXP-02
@@ -207,13 +207,21 @@ describe("A11Y-02", () => {
   });
 });
 
-// @spec("RND-08", "e3e4bdfc")
+// @spec("RND-08", "770b0327")
 describe("RND-08", () => {
-  it("shows value(row) as the text of a cell of a column without a cell snippet", () => {
-    show({ columns: [idColumn, nameColumn] });
+  it("shows what value returns for { row } as the text of a cell of a column without a cell snippet", () => {
+    const value = vi.fn(({ row }: { row: Item }) => row.name);
+    show({ columns: [idColumn, { ...nameColumn, value }] });
     expect(screen.getByRole("cell", { name: "Beta" }).textContent).toBe("Beta");
     // Each column's own value: the id cell holds r1, not the first column's value repeated
     expect(cellTexts()).toEqual([["r1", "Beta"]]);
+    // Every call received one object holding the given row itself
+    expect(value.mock.calls.length).toBeGreaterThan(0);
+    for (const call of value.mock.calls) {
+      expect(call).toHaveLength(1);
+      expect(Object.keys(call[0])).toEqual(["row"]);
+      expect(call[0].row).toBe(base.rows[0]);
+    }
   });
 });
 
@@ -298,7 +306,7 @@ describe("RND-16", () => {
   const cityColumn: DataTableColumn<Item> = {
     id: "city",
     label: "City",
-    value: (row) => `City ${row.id}`,
+    value: ({ row }) => `City ${row.id}`,
   };
   // The header cell, then the cell in each body row (every row after the header row), of the column with the given label
   function columnElements(label: string): HTMLElement[] {
@@ -477,7 +485,7 @@ const twoRows: Item[] = [
 ];
 
 function column(id: string, label: string): DataTableColumn<Item> {
-  return { id, label, value: (row) => row.name };
+  return { id, label, value: ({ row }) => row.name };
 }
 
 function unreadable(): string {

@@ -26,7 +26,7 @@ function column(
   return {
     id,
     label,
-    value: (row) => row[id],
+    value: ({ row }) => row[id],
     ...(filter === undefined ? {} : { filter: filter as DataTableFilter }),
   };
 }

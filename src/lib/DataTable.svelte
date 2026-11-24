@@ -67,7 +67,7 @@
   // The text of a cell without a snippet; RND-05 refuses a column with neither, so its value is there
   // Stryker disable OptionalChaining: unreachable, see above
   const textOf = (column: DataTableColumn<Row>, row: Row) =>
-    column.value?.(row);
+    column.value?.({ row });
   // Stryker restore OptionalChaining
   // The given words over the English defaults (RND-06)
   const words = $derived(mergeMessages(defaultMessages, messages));

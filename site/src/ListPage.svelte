@@ -11,7 +11,7 @@
     {
       id: "name",
       label: "Order",
-      value: (order) => order.name,
+      value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
   ];

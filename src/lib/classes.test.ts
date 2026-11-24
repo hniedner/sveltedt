@@ -13,7 +13,7 @@ interface Item {
 const column = (id: string): DataTableColumn<Item> => ({
   id,
   label: id,
-  value: (row) => row.name,
+  value: ({ row }) => row.name,
 });
 const rows = (count: number): Item[] =>
   Array.from({ length: count }, (_, index) => ({

@@ -27,7 +27,7 @@ function sortable(
   label: string,
   directions: readonly SortDirection[] = ["asc", "desc"],
 ): DataTableColumn<Item> {
-  return { id, label, value: (row) => row[id], sortable: directions };
+  return { id, label, value: ({ row }) => row[id], sortable: directions };
 }
 const code = sortable("code", "Code");
 const name = sortable("name", "Name");

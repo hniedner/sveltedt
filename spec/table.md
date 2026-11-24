@@ -127,8 +127,10 @@ its cells.
 - Layer: component.
 - Traces: PRD-B3.
 
-**RND-08** A column without a `cell` snippet MUST render `value(row)` as the cell's text.
-- Example: the column `{ id: 'name', label: 'Name', value: (r) => r.name }` shows "Beta" in row r1.
+**RND-08** A column without a `cell` snippet MUST render as the cell's text what its `value` returns for `{ row }`, that
+cell's row.
+- Example: the column `{ id: 'name', label: 'Name', value: ({ row }) => row.name }` shows "Beta" in row r1, and each call
+  of `value` received `{ row: r1 }`.
 - Reason: most columns are plain text and should not need a snippet each.
 - Layer: component.
 - Traces: PRD-B3.
