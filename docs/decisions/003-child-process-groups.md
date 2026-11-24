@@ -44,5 +44,8 @@ fetched or measured.
   behaviour a test could pin.
 - `stop` throws when a group is still there 2 s after SIGKILL (a process the kernel cannot end). No test pins that throw:
   it needs an unkillable process, and none is built.
+- `send` reports every failure as "not sent", and `groupGone` therefore reads EPERM as gone. The adversary review measured
+  EPERM for a group that holds only a zombie leader on macOS; ESRCH follows once the leader is reaped. A group that is
+  alive but not ours cannot occur: the helper only signals groups it started.
 - **Decision:** build the helper on Node's built-ins, in `scripts/children.ts`. Reopen it if Windows becomes a gate
   platform, or if the helper grows past about 150 lines.
