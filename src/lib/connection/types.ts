@@ -52,8 +52,8 @@ interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
   // Called once with an Error when an answer cannot be mapped, and once for each request refused because a sort entry
-  // names a column that no map entry serves; `table.status` becomes `'failed'` only for a refusal at mount or in `reload()`, a refused `onsort`
-  // leaves it as it was; it does not hear a rejection of `send`
+  // names a column that no map entry serves; `table.status` becomes `'failed'` only for a refusal at mount or in
+  // `reload()`, a refused `onsort` leaves it as it was; it does not hear a rejection of `send`
   readonly onerror: (error: unknown) => void;
 }
 
