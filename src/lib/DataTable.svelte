@@ -98,7 +98,7 @@
   // The applied filters as badges; none while the alert shows, as the table cannot vouch for filters it could not
   // validate (FILT-08)
   const badgeList = $derived(
-    fault === null ? badges(columns, filters, defaultMessages) : [],
+    fault === null ? badges(columns, filters, words) : [],
   );
   // Counted only while the rows shown are the answer (A11Y-05)
   const count = $derived(
@@ -164,7 +164,7 @@
     <!-- A badge exists only for a column with a filter, so the table has an onclearfilter (FILT-32) -->
     <button
       type="button"
-      aria-label={defaultMessages.clearFilter(badge.text)}
+      aria-label={words.clearFilter(badge.text)}
       onclick={() =>
         // Stryker disable next-line OptionalChaining: unreachable fallback, see above
         onclearfilter?.({ id: badge.id })}>{badge.text}</button
@@ -176,7 +176,7 @@
       type="button"
       onclick={() =>
         // Stryker disable next-line OptionalChaining: unreachable fallback, the table has an onclearfilters (FILT-32)
-        onclearfilters?.()}>{defaultMessages.clearFilters}</button
+        onclearfilters?.()}>{words.clearFilters}</button
     >
   {/if}
   {#if resetShown(fault, columns, onreset)}
@@ -184,7 +184,7 @@
       type="button"
       onclick={() =>
         // Stryker disable next-line OptionalChaining: unreachable fallback, the button shows only with an onreset (FILT-30)
-        onreset?.()}>{defaultMessages.reset}</button
+        onreset?.()}>{words.reset}</button
     >
   {/if}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
@@ -239,11 +239,10 @@
                 {:else}
                   {column.label}
                 {/if}{#if column.filter}
-                  <!-- No handler yet: the filter dialog is a later statement. The name comes from the English
-                     default until FILT-33 reads it from the given words -->
+                  <!-- No handler yet: the filter dialog is a later statement -->
                   <button
                     type="button"
-                    aria-label={defaultMessages.filterButton(column.label)}
+                    aria-label={words.filterButton(column.label)}
                     ><svg
                       aria-hidden="true"
                       focusable="false"

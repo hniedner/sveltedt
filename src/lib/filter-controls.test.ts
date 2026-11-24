@@ -2,7 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import CriteriaTable from "../../test/CriteriaTable.svelte";
 import DataTable from "./DataTable.svelte";
-import type { DataTableColumn, DataTableProps } from "./types.ts";
+import type {
+  DataTableColumn,
+  DataTableMessages,
+  DataTableProps,
+} from "./types.ts";
 
 interface Item {
   id: string;
@@ -216,6 +220,64 @@ describe("FILT-30", () => {
     });
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(resetButtons()).toEqual([]);
+  });
+});
+
+// @spec("FILT-33", "a156afc8")
+describe("FILT-33", () => {
+  // The six words of FILT-33 in another language, each shown by the statement of its row
+  const foreign: Pick<
+    DataTableMessages,
+    | "filterButton"
+    | "badgeText"
+    | "badgeOptions"
+    | "clearFilter"
+    | "clearFilters"
+    | "reset"
+  > = {
+    filterButton: (label) => `${label} filtern`,
+    badgeText: ({ label, text }) => `${label} enthält „${text}“`,
+    badgeOptions: ({ label, options }) => `${label}: ${options.join(" oder ")}`,
+    clearFilter: (words) => `Entfernen: ${words}`,
+    clearFilters: "Spaltenfilter löschen",
+    reset: "Tabelle zurücksetzen",
+  };
+  const english = [
+    "Filter Name",
+    "Filter Status",
+    "contains",
+    "Clear filter",
+    "Clear column filters",
+    "Reset table",
+  ];
+  // The page's text and its accessible names (aria-label values)
+  const page = (): string =>
+    [
+      document.body.textContent,
+      ...[...document.body.querySelectorAll("*")].flatMap((element) =>
+        [...element.attributes].map((attribute) => attribute.value),
+      ),
+    ].join("\n");
+
+  it.each([
+    ["filterButton", "Name filtern", "FILT-29"],
+    ["filterButton", "Status filtern", "FILT-29"],
+    ["badgeText and clearFilter", "Entfernen: Name enthält „Beta“", "FILT-08"],
+    ["badgeOptions", "Entfernen: Status: Active oder Inactive", "FILT-22"],
+    ["clearFilters", "Spaltenfilter löschen", "FILT-10"],
+    ["reset", "Tabelle zurücksetzen", "FILT-30"],
+  ])("shows the given %s word as the name %s (%s)", (_key, name) => {
+    mount({
+      columns: [nameColumn, statusColumn],
+      filters: {
+        name: { kind: "text", text: "Beta" },
+        status: { kind: "categorical", selected: ["active", "inactive"] },
+      },
+      onreset: vi.fn(),
+      messages: foreign,
+    });
+    expect(screen.getByRole("button", { name }).isConnected).toBe(true);
+    for (const word of english) expect(page()).not.toContain(word);
   });
 });
 
