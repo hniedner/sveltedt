@@ -1160,6 +1160,20 @@ describe("STATE-25", () => {
   );
 });
 
+// @spec("A11Y-23", "76417191")
+describe("A11Y-23", () => {
+  it("puts Try again outside the failed notice and after it", () => {
+    show({ status: "failed", onretry: () => {} });
+    const notice = screen.getByRole("alert");
+    const button = screen.getByRole("button", { name: "Try again" });
+    expect(notice.textContent.trim()).toBe(FAILED);
+    expect(notice.contains(button)).toBe(false);
+    expect(
+      notice.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
 // @spec("STATE-22", "f2c984f4")
 describe("STATE-22", () => {
   it.each<[string, unknown]>([
