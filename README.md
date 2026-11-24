@@ -30,8 +30,9 @@ There is nothing to install yet. What is on `main` today:
   English way ("1,000") whatever the runtime's locale;
 - every fixed word as a `messages` prop with an English default;
 - sort by column header: a click emits the next whole order through `onsort`, Shift+click adds a column, the
-  table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a described
-  button), and invalid sort input gets the alert; the test site's list page sorts its Order column;
+  table shows the order it is given (`aria-sort` on the lead column, a hidden direction mark and rank, a button named
+  by its label and described, and a hidden sentence in the caption that says the headers are buttons), and invalid
+  sort input gets the alert; the test site's list page sorts its Order column;
 - sort by keyboard: Enter and Space press the focused sort button, Shift+Enter and Shift+Space add a column, and
   focus stays on the button while the new order loads, proved in Chromium, Firefox and WebKit on the test site's
   sort page (`/sort.html`) with an axe check of the sort controls;

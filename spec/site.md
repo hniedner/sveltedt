@@ -266,7 +266,7 @@ output when it listens, and MUST write nothing there when it refuses.
 - Traces: PRD-W5.
 
 **LIST-03** The list page's Order column MUST be sortable both ways, the page sorting its own fixed list.
-- Example: the list page component mounted; press "Sort by Order" three times: the first cells read "Order 01" to
+- Example: the list page component mounted; press "Order" three times: the first cells read "Order 01" to
   "Order 20", then "Order 20" to "Order 01", then the fixed order of LIST-02.
 - Reason: the page shows the sort at work where a consumer uses it; the site's server answers files only (SRV-01),
   so the page's handler sorts, as an application asks its server to.
@@ -284,7 +284,7 @@ first page on a sort and, on a size change, to the page of the new size that hol
   | choose 5 in "rows per page" | "Order 07", "Order 03", "Order 15", "Order 01", "Order 20" | "Showing 1 to 5 of 20 rows" |
   | press "Page 4" | "Order 19", "Order 04", "Order 12", "Order 16", "Order 08" | "Showing 16 to 20 of 20 rows" |
   | choose 10 in "rows per page" | the 11th to 20th of LIST-02, "Order 02" to "Order 08" | "Showing 11 to 20 of 20 rows" |
-  | press "Sort by Order" | "Order 01" to "Order 10" | "Showing 1 to 10 of 20 rows" |
+  | press "Order" | "Order 01" to "Order 10" | "Showing 1 to 10 of 20 rows" |
 
   The size row tells the rules apart: a page that kept offset 15 would show the 16th to 20th rows, one that went
   back to offset 0 the 1st to 10th. The sort row starts at offset 10: a sort that kept the page would show "Order 11"
@@ -473,7 +473,7 @@ section 16's list on.
   | Feature | The table shows |
   |---|---|
   | rows | 30 body rows, r1 to r30, in the list's order |
-  | sort | "Sort by Name", "Sort by Code" and "Sort by Date" |
+  | sort | "Name", "Code" and "Date" |
   | pager | the pager at 30 rows per page of 30 in all, offering the page sizes 3 and 30 |
   | filters | "Filter Name text", a categorical filter on Code and the search field |
   | reset and chooser | "Reset table" and "Columns" |
@@ -491,9 +491,9 @@ section 16's list on.
 
   | Presses | Body rows |
   |---|---|
-  | "Sort by Name" | by Name ascending |
-  | "Sort by Name" twice | by Name descending |
-  | "Sort by Name", then "Sort by Code" with Shift | by Name ascending, then by Code ascending among equal Names |
+  | "Name" | by Name ascending |
+  | "Name" twice | by Name descending |
+  | "Name", then "Code" with Shift | by Name ascending, then by Code ascending among equal Names |
 
 - Reason: the site's server answers files only (SRV-01), so the page sorts, as LIST-03; section 16's sort intents and
   THEME-25's sorts by more than one column need a table that follows (PRD-W6).
@@ -510,7 +510,7 @@ URL as VIEW-01 to VIEW-03 state them for the list page.
   | `/full.html?tokens=dark` | the dark set's values (VIEW-01) |
   | `/full.html?tokens=none` | the empty string for each name (VIEW-01) |
   | `/full.html?density=compact&striped&cellBorders` | the compact padding, the stripe and the borders (VIEW-02) |
-  | `/full.html?orderColumn`, then "Sort by Name" | the rank 1 surface on Name's body cells (THEME-25) |
+  | `/full.html?orderColumn`, then "Name" | the rank 1 surface on Name's body cells (THEME-25) |
   | `/full.html?hover=yes` | the alert of THEME-38 for the variants (VIEW-02) |
   | `/full.html?tokens=sepia` | "Unknown tokens value: sepia", and no `table` element (VIEW-03) |
 
