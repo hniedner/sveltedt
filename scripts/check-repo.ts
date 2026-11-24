@@ -244,6 +244,72 @@ function shardJob(job: string[] | undefined): string[] {
   return found;
 }
 
+/**
+ * The job browser runs in Playwright's own image, pinned by digest, whose tag version equals the @playwright/test pin
+ * (playwright.dev/docs/docker: the versions must match). The OS part of the tag and the digest itself are not checked
+ * (the digest cannot be checked offline). What cannot be read is could-not-check, not a pass.
+ */
+function browserContainer(
+  root: string,
+  job: string[] | undefined,
+): { found: string[]; cannot?: string } {
+  if (!job) return { found: [] };
+  // Only an unquoted value without a comment is read: a quote or a `# note` after a hand edit is not guessed at
+  const image = job
+    .map((l) => /^ {6}image:\s*([^\s"'#]+)\s*$/.exec(l)?.[1])
+    .find(Boolean);
+  if (!image)
+    return {
+      found: [],
+      cannot:
+        "the job browser has no container image line (expected an unquoted `image: <reference>` under `container:`, no trailing comment)",
+    };
+  if (!/@sha256:[0-9a-f]{64}$/.test(image))
+    return {
+      found: [],
+      cannot: "the image of the job browser has no @sha256 digest",
+    };
+  const tag =
+    /^mcr\.microsoft\.com\/playwright:v(\d+\.\d+\.\d+)-[a-z]+@sha256:/.exec(
+      image,
+    )?.[1];
+  if (!tag)
+    return {
+      found: [],
+      cannot:
+        "the image of the job browser is not mcr.microsoft.com/playwright:vX.Y.Z-<os>@sha256:<digest>",
+    };
+  let pin: unknown;
+  let why = "no @playwright/test in devDependencies";
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as { devDependencies?: Record<string, unknown> } | null;
+    pin = manifest?.devDependencies?.["@playwright/test"];
+  } catch (e) {
+    why = e instanceof Error ? e.message : String(e);
+  }
+  if (typeof pin !== "string")
+    return {
+      found: [],
+      cannot: `package.json has no readable @playwright/test pin (${why})`,
+    };
+  if (!/^\d+\.\d+\.\d+$/.test(pin))
+    return {
+      found: [
+        `the pin of @playwright/test is ${pin}, not an exact version (the image of the job browser is Playwright ${tag})`,
+      ],
+    };
+  return {
+    found:
+      pin === tag
+        ? []
+        : [
+            `the image of the job browser is Playwright ${tag} but package.json pins @playwright/test ${pin}: update the image of the job browser in ${CI_FILE} (the digest: curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json' https://mcr.microsoft.com/v2/playwright/manifests/v${pin}-noble, header docker-content-digest)`,
+          ],
+  };
+}
+
 function gateNeeds(root: string, list: Set<string>): Result {
   if (!list.has(CI_FILE)) return result(CANNOT, `${CI_FILE} is not tracked`);
   const lines = readFileSync(join(root, CI_FILE), "utf8").split("\n");
@@ -287,12 +353,15 @@ function gateNeeds(root: string, list: Set<string>): Result {
   for (const name of ["browser", "mutation", "selftest"] as const)
     details.push(...leftToJob(name, lines.slice(0, start), jobs));
   details.push(...shardJob(jobs.get("selftest")));
+  const container = browserContainer(root, jobs.get("browser"));
+  details.push(...container.found);
   if (details.length)
     return result(
       FINDING,
       `${details.length} problem(s) in the gate job`,
       details,
     );
+  if (container.cannot) return result(CANNOT, container.cannot);
   return result(
     PASS,
     `gate always runs and needs all ${jobs.size - 1} other job(s)`,
@@ -445,6 +514,7 @@ async function runTestFile(
   if (!existsSync(join(root, file)))
     return { code: CANNOT, line: `${file}: missing` };
   // Run the file itself, not `node --test <file>`: the latter counts a file holding no test as one passing test.
+  const started = Date.now();
   const r = await new Promise<{
     status: number | null;
     signal: NodeJS.Signals | null;
@@ -479,13 +549,16 @@ async function runTestFile(
       ),
     };
   }
-  return { code: PASS, line: `${file}: ${tests} passed` };
+  // The wall seconds of a passing file (rounded, node start-up included) are what the shard table in scripts/shards.ts
+  // is balanced on
+  const seconds = Math.round((Date.now() - started) / 1000);
+  return { code: PASS, line: `${file}: ${tests} passed in ${seconds} s` };
 }
 
 // Every tracked test file runs in its own process, each with its own count, as many at once as the machine has cores;
 // a file with no test is could-not-check. The lines keep the order of the names, whichever file ends first.
-// GATE_SHARD=n runs only shard n of scripts/shards.ts (the CI job selftest); where not every file runs here, in a shard or
-// left to that job by GATE_SELFTEST, each tracked test file must be in exactly one shard, so none runs nowhere.
+// GATE_SHARD=n runs only shard n of scripts/shards.ts (the CI job selftest). The exactly-one-shard check, so that no
+// file runs nowhere, runs when GATE_SHARD is set, or when CI hands the step to the selftest job (GATE_SELFTEST).
 async function selftest(root: string, list: Set<string>): Promise<Result> {
   let files = [...list].filter((f) => TEST_FILES.test(f)).sort();
   const shard = process.env.GATE_SHARD;
@@ -525,7 +598,11 @@ async function selftest(root: string, list: Set<string>): Promise<Result> {
     return result(FINDING, "a test file failed", details);
   if (runs.some((r) => r.code !== PASS))
     return result(CANNOT, "a test file could not be checked", details);
-  return result(PASS, `${files.length} test file(s) ran and passed`, details);
+  return result(
+    PASS,
+    `${files.length} test file(s) ran and passed${shard === undefined ? "" : ` in shard ${shard}`}`,
+    details,
+  );
 }
 
 function needs(json: string | undefined): Result {

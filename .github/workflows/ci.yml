@@ -86,11 +86,15 @@ jobs:
           overwrite: true
           if-no-files-found: warn
 
-  # The real-browser tests in the three engines, on the site the gate's site step builds. No browser cache: restoring
-  # one costs about as much as the download (playwright.dev/docs/ci).
+  # The real-browser tests in the three engines, on the site the gate's site step builds. Run in Playwright's own image
+  # (browsers and system packages inside, the example of playwright.dev/docs/ci): an apt mirror stall in the install step
+  # made runs flaky. gate-needs checks that the tag equals the pinned @playwright/test.
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
+      options: --user 1001
     permissions:
       contents: read
     steps:
@@ -104,8 +108,6 @@ jobs:
           cache: pnpm
       - name: Install the locked development dependencies
         run: pnpm install --frozen-lockfile
-      - name: Install the browsers of the pinned Playwright
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: Build the site and run the browser step
         run: |
           node scripts/check-repo.ts site

@@ -208,9 +208,9 @@ Development dependencies on the same terms as the test toolchain.
   `browser` step. Vitest browser mode was left: it injects inline code into the page under test, which the strict
   policy of PRD-S1 refuses on the very page the tests read; Playwright's component testing was left as well (its own
   bundler, not the site's build that POL-04 proves).
-- **The browsers** come from `playwright install`, from Playwright's download hosts over TLS with no hash pinned by
+- **The browsers** come, locally, from `playwright install`, from Playwright's download hosts over TLS with no hash pinned by
   this repository: they are programs the checks run (Licences, above). A Playwright bump changes them, so its pull
-  request is read with the release notes.
+  request is read with the release notes. In CI the browser job uses Playwright's image, pinned by digest.
 
 ## Accepted advisories
 

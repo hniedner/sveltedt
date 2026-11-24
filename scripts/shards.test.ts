@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { test } from "node:test";
-import { shardProblems } from "./shards.ts";
+import { deadEntries, shardProblems } from "./shards.ts";
 
 const TABLE = [["a.test.ts", "b.test.ts"], ["c.test.ts"]];
 
@@ -24,6 +24,16 @@ test("shardProblems: a file in two shards is named with the count", () => {
     ["c.test.ts is in 2 shards of scripts/shards.ts"],
   );
 });
+test("deadEntries: a table entry that is not a tracked test file is named", () => {
+  // A deleted or renamed test file leaves no dead entry behind
+  assert.deepEqual(deadEntries(["a.test.ts", "c.test.ts"], TABLE), [
+    "b.test.ts is in scripts/shards.ts but not tracked",
+  ]);
+  assert.deepEqual(
+    deadEntries(["a.test.ts", "b.test.ts", "c.test.ts"], TABLE),
+    [],
+  );
+});
 
 // The local catch: the selftest step runs this check only under GATE_SHARD or in CI, so a developer's new test file that
 // is missing from the table fails here, in the local gate, instead of a round trip later in CI.
@@ -38,4 +48,5 @@ test("shardProblems: every tracked test file of this repository is in exactly on
     .filter((f) => /^scripts\/[^/]+\.test\.(?:mjs|ts)$/.test(f));
   assert.notEqual(files.length, 0);
   assert.deepEqual(shardProblems(files), []);
+  assert.deepEqual(deadEntries(files), []);
 });

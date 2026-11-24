@@ -33,7 +33,8 @@ archives that `.github/workflows/ci.yml` installs, checked against the sha256 li
 the package manager (CI uses the runner's copy). Any other version than the pin, older or newer, makes the gate
 answer `COULD NOT CHECK` until the pin moves; Prettier, ESLint, TypeScript and jscpd are pinned by `package.json`.
 The browser step also needs the browsers of the pinned Playwright (`pnpm exec playwright install`; on Linux with
-`--with-deps`) and 127.0.0.1:4173 free: stop `pnpm site:serve` first.
+`--with-deps`; CI uses Playwright's image instead, whose tag a Playwright bump must move too, see the gate's finding)
+and 127.0.0.1:4173 free: stop `pnpm site:serve` first.
 The gate reads tracked files: a new file counts once it is added with `git add`.
 
 Each check ends with one line: `PASS`, `FINDING`, `COULD NOT CHECK`, or `NOT APPLICABLE` when there is nothing of
@@ -52,8 +53,10 @@ The checks today:
 - **files:** the required files are tracked; LICENSE, NOTICE and `.gitignore` hold what the project needs.
 - **selftest:** every `scripts/*.test.ts` and `*.test.mjs` file runs in its own process and must pass, each with its
   own count; as many files run at once as the machine has cores. `GATE_SHARD=n` runs only shard n of
-  `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard there,
-  and `scripts/shards.test.ts` fails locally while one is in none or in two; in CI the step fails too).
+  `scripts/shards.ts` (CI runs the three shards as the matrix job `selftest`; a new test file is added to a shard in
+  `scripts/shards.ts`, and `scripts/shards.test.ts` fails locally while one is in none or in two, or while an entry is
+  not a tracked file; in CI the step fails too. A fourth shard also needs the matrix of the job `selftest` in
+  `.github/workflows/ci.yml`, which gate-needs checks).
 - **lockfile:** one lockfile document; exact development versions; what ships is `esm-env` (the range Svelte
   declares) and a `svelte` peer, nothing else (SUP-04); each workspace package in `pnpm-workspace.yaml` (one
   indented `- <folder>` per line) has only `workspace:*` links as dependencies, optional or
