@@ -144,7 +144,7 @@ string, s)`); an alias under a name no ban reads (`const d = document; d.write`,
   publint and attw (profile `esm-only`, without `./styles.css`, `internal-resolution-error` ignored, reasons in the
   code) clean, PKG-03 only the listed files, PKG-04 `LICENSE` and `NOTICE` equal the repository's, PKG-05 the
   `./styles.css` export, PKG-06 the `./connection` export (exactly `types` and `svelte`, each a file the tarball
-  holds), PKG-07 no relative `.ts` import in a `.svelte` or `.js` file (every relative import inside a
+  holds, not that the file is the module: publint and attw read the module), PKG-07 no relative `.ts` import in a `.svelte` or `.js` file (every relative import inside a
   `.svelte.ts` module, and every import of one, uses the `.js` ending, as in `./request.js`: `svelte-package` leaves
   them as written, and its docs say to import `.ts` files "using a `.js` file ending, not a `.ts` file ending",
   svelte.dev/docs/kit/packaging). Findings come first, then every canary row on a copy of the real contents; it cannot
