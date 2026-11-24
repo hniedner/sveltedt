@@ -990,19 +990,26 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
 });
 test("gate-needs: the browser job runs in Playwright's image of the version @playwright/test is pinned to", () => {
   // Another version in the tag, and a range in package.json, are findings
-  for (const [image, pin] of [
-    [IMAGE.replace(`v${PW}`, "v1.64.1"), PW],
-    [IMAGE, `^${PW}`],
-  ])
-    assert.match(
+  const rows: [string, string, string][] = [
+    [
+      IMAGE.replace(`v${PW}`, "v1.64.1"),
+      PW,
+      "is Playwright 1.64.1 but package.json pins @playwright/test 1.65.1",
+    ],
+    [
+      IMAGE,
+      `^${PW}`,
+      "is Playwright 1.65.1 but package.json pins @playwright/test ^1.65.1",
+    ],
+  ];
+  for (const [image, pin, why] of rows)
+    assert.ok(
       expect(
         "gate-needs",
         repo(ciWith(browserJob(CI, undefined, image), pin)),
         1,
-      ),
-      new RegExp(
-        `the image of the job browser is Playwright ${image.includes("v1.64.1") ? "1\\.64\\.1" : PW.replaceAll(".", "\\.")} but package\\.json pins @playwright/test ${pin.replace("^", "\\^").replaceAll(".", "\\.")}`,
-      ),
+      ).includes(why),
+      why,
     );
 });
 test("gate-needs: a browser job whose image cannot be read is could-not-check", () => {
@@ -1482,8 +1489,10 @@ test("selftest: as many test files run at once as the machine has cores", () => 
     0,
   );
   assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
+  // Without GATE_SHARD the result line names no shard
+  assert.doesNotMatch(out, /in shard/);
 });
-test("selftest: the line of a passing file gives the seconds it took (CI-SHARD balance)", () => {
+test("selftest: the line of a passing file gives the seconds it took", () => {
   // A file that waits 2.2 s: the line measures the whole child process (node start included), and a loaded runner
   // can push it past 2.5 s, so 2 to 4 s is accepted; a missing figure, "0 s" and the old line still fail
   const slow = PASSING_TEST.replace(
