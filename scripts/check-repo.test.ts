@@ -19,6 +19,7 @@ import {
   LICENSE,
   LOCK,
   NODE_MAJOR,
+  PACKAGE,
   PASSING_TEST,
   SHA,
   SUPPRESSIONS,
@@ -900,17 +901,35 @@ test("gate-needs: a job missing from gate's needs is a finding", () => {
 });
 // The static job leaves the browser step to its own CI job through GATE_BROWSER: allowed only outside the job browser,
 // and only when a job browser that runs the step exists and gate needs it
-const ciWith = (ci: string) => (root: string) =>
-  put(root, ".github/workflows/ci.yml", ci);
+// The browser job runs in Playwright's image of the version @playwright/test is pinned to, by digest
+const PW = "1.65.1";
+const DIGEST = `sha256:${"a".repeat(64)}`;
+const IMAGE = `mcr.microsoft.com/playwright:v${PW}-noble@${DIGEST}`;
+const ciWith =
+  (ci: string, pin: string | null = PW) =>
+  (root: string) => {
+    put(root, ".github/workflows/ci.yml", ci);
+    const dev = { ...PACKAGE.devDependencies };
+    if (pin) dev["@playwright/test"] = pin;
+    put(
+      root,
+      "package.json",
+      `${JSON.stringify({ ...PACKAGE, devDependencies: dev }, null, 2)}\n`,
+    );
+  };
 const leavesBrowser = CI.replace(
   "    runs-on: ubuntu-latest\n    steps:\n      - uses",
   "    runs-on: ubuntu-latest\n    env:\n      GATE_BROWSER: job\n    steps:\n      - uses",
 );
-const browserJob = (ci: string, run = "node scripts/check-repo.ts browser") =>
+const browserJob = (
+  ci: string,
+  run = "node scripts/check-repo.ts browser",
+  image = IMAGE,
+) =>
   ci
     .replace(
       "  gate:",
-      `  browser:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n  gate:`,
+      `  browser:\n    runs-on: ubuntu-latest\n${image ? `    container:\n      image: ${image}\n` : ""}    steps:\n      - run: ${run}\n  gate:`,
     )
     .replace("needs: [static]", "needs: [static, browser]");
 test("gate-needs: GATE_BROWSER needs a browser job that runs the step", () => {
@@ -968,6 +987,100 @@ test("gate-needs: a job browser that may pass without the step is a finding", ()
     "- name: Browser\n        run: node",
   );
   expect("gate-needs", repo(ciWith(named)), 0);
+});
+test("gate-needs: the browser job runs in Playwright's image of the version @playwright/test is pinned to", () => {
+  // Another version in the tag, and a range in package.json, are findings
+  const rows: [string, string, string][] = [
+    [
+      IMAGE.replace(`v${PW}`, "v1.64.1"),
+      PW,
+      "is Playwright 1.64.1 but package.json pins @playwright/test 1.65.1",
+    ],
+    [
+      IMAGE,
+      `^${PW}`,
+      "the pin of @playwright/test is ^1.65.1, not an exact version (the image of the job browser is Playwright 1.65.1)",
+    ],
+  ];
+  for (const [image, pin, why] of rows)
+    assert.ok(
+      expect(
+        "gate-needs",
+        repo(ciWith(browserJob(CI, undefined, image), pin)),
+        1,
+      ).includes(why),
+      why,
+    );
+  // A range pin is no reason to move the image: the finding does not send the contributor there
+  assert.doesNotMatch(
+    expect("gate-needs", repo(ciWith(browserJob(CI), `^${PW}`)), 1),
+    /update the image/,
+  );
+  // The finding says how to fix it: a Playwright bump also moves the image
+  assert.match(
+    expect("gate-needs", repo(ciWith(browserJob(CI), "1.66.0")), 1),
+    /update the image of the job browser in \.github\/workflows\/ci\.yml \(the digest: curl -sI -H 'Accept: application\/vnd\.oci\.image\.index\.v1\+json' https:\/\/mcr\.microsoft\.com\/v2\/playwright\/manifests\/v1\.66\.0-noble, header docker-content-digest\)/,
+  );
+});
+test("gate-needs: a browser job whose image cannot be read is could-not-check", () => {
+  const cases: [string, RegExp][] = [
+    [
+      "",
+      /the job browser has no container image line \(expected an unquoted `image: <reference>` under `container:`, no trailing comment\)/,
+    ],
+    // A hand edit after a bump: a quoted value or a trailing comment is not read as an image
+    [
+      `"${IMAGE}"`,
+      /the job browser has no container image line \(expected an unquoted/,
+    ],
+    [
+      `${IMAGE} # bumped`,
+      /the job browser has no container image line \(expected an unquoted/,
+    ],
+    [
+      IMAGE.replace(`@${DIGEST}`, ""),
+      /the image of the job browser has no @sha256 digest/,
+    ],
+    [
+      `ghcr.io/other/playwright:v${PW}-noble@${DIGEST}`,
+      /is not mcr\.microsoft\.com\/playwright:vX\.Y\.Z-<os>@sha256:<digest>/,
+    ],
+  ];
+  for (const [image, why] of cases)
+    assert.match(
+      expect("gate-needs", repo(ciWith(browserJob(CI, undefined, image))), 3),
+      why,
+    );
+});
+test("gate-needs: a browser job without a readable @playwright/test pin is could-not-check", () => {
+  const ci = browserJob(CI);
+  assert.match(
+    expect("gate-needs", repo(ciWith(ci, null)), 3),
+    /package\.json has no readable @playwright\/test pin \(no @playwright\/test in devDependencies\)/,
+  );
+  assert.match(
+    expect(
+      "gate-needs",
+      repo((root) => {
+        ciWith(ci)(root);
+        remove("package.json")(root);
+      }),
+      3,
+    ),
+    /package\.json has no readable @playwright\/test pin \(ENOENT/,
+  );
+  // A package.json that is not JSON says so
+  assert.match(
+    expect(
+      "gate-needs",
+      repo((root) => {
+        ciWith(ci)(root);
+        put(root, "package.json", "{");
+      }),
+      3,
+    ),
+    /package\.json has no readable @playwright\/test pin \(.*JSON/,
+  );
 });
 test("gate-needs: a browser job without GATE_BROWSER passes", () => {
   expect("gate-needs", repo(ciWith(browserJob(CI))), 0);
@@ -1286,11 +1399,14 @@ test("selftest: GATE_SHARD runs only the files of that shard, and names the othe
   });
   assert.match(one, /scripts\/check-repo-lint\.test\.ts: 1\b/);
   assert.doesNotMatch(one, /scripts\/check-repo\.test\.ts/);
+  // A stray GATE_SHARD in a local shell shows in the result line
+  assert.match(one, /\d+ test file\(s\) ran and passed in shard 1\n/);
   const two = expect("selftest", repo(plant), 0, {
     extraEnv: { GATE_SHARD: "2" },
   });
   assert.match(two, /scripts\/check-repo\.test\.ts: 1\b/);
   assert.doesNotMatch(two, /check-repo-lint/);
+  assert.match(two, /ran and passed in shard 2\n/);
 });
 test("selftest: a GATE_SHARD outside the table cannot be checked", () => {
   for (const GATE_SHARD of ["0", "4", "x", ""])
@@ -1409,6 +1525,22 @@ test("selftest: as many test files run at once as the machine has cores", () => 
     0,
   );
   assert.match(out, /scripts\/f0\.test\.mjs: 1 passed/);
+  // Without GATE_SHARD the result line names no shard
+  assert.doesNotMatch(out, /in shard/);
+});
+test("selftest: the line of a passing file gives the seconds it took", () => {
+  // A file that waits 2.2 s: the line measures the whole child process (node start included), and a loaded runner
+  // can push it past 2.5 s, so 2 to 4 s is accepted; a missing figure, "0 s" and the old line still fail
+  const slow = PASSING_TEST.replace(
+    "() => {}",
+    "() => new Promise((done) => setTimeout(done, 2200))",
+  );
+  const out = expect(
+    "selftest",
+    repo((root) => put(root, "scripts/slow.test.mjs", slow)),
+    0,
+  );
+  assert.match(out, /scripts\/slow\.test\.mjs: 1 passed in [2-4] s\n/);
 });
 test("selftest: no more test files run at once than the machine has cores", () => {
   // One file more than the cores, each needing all the others beside it: the first to end cannot have had them all
@@ -1451,7 +1583,7 @@ test("a ends last", () => {
   );
   assert.match(
     out,
-    /scripts\/a\.test\.mjs: 1 passed\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed/,
+    /scripts\/a\.test\.mjs: 1 passed in \d+ s\n {2}scripts\/b\.test\.mjs: 1 of 1 failed[^\n]*\n.*\n {2}scripts\/c\.test\.mjs: 1 passed in \d+ s/,
   );
 });
 test("selftest: a test file killed by a signal cannot be checked, and its line names the signal", () => {

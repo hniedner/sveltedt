@@ -256,7 +256,7 @@ CI is on in every repo (owner, 2026-11-17 11:06). Sources, read 2026-11-17 and c
   · *codeql-about* docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql
   · *codeql-suites* docs.github.com/en/code-security/code-scanning/managing-your-code-scanning-configuration/codeql-query-suites
 - *dep-review* github.com/actions/dependency-review-action · *scorecard* github.com/ossf/scorecard-action ·
-  *playwright-ci* playwright.dev/docs/ci · *setup-uv*
+  *playwright-ci* playwright.dev/docs/ci · *playwright-docker* playwright.dev/docs/docker · *setup-uv*
   docs.astral.sh/uv/guides/integration/github
 - *npm-tp* docs.npmjs.com/trusted-publishers · *npm-prov* docs.npmjs.com/generating-provenance-statements · *pypi-tp*
   docs.pypi.org/trusted-publishers/adding-a-publisher · *pypi-action* github.com/pypa/gh-action-pypi-publish ·
@@ -283,15 +283,23 @@ $0 budget, no self-hosted runners.
     failure, so one engine's failure does not hide another's *(measured: the browser rows of scripts/check-repo-site.test.ts)*.
     The `static` job leaves the step to this job through `GATE_BROWSER`; gate-needs allows the variable in any job but
     `browser`, only beside a `browser` job that runs the step, and refuses an `if:` or a `continue-on-error` in that job
-    (a later step that needs its own `if:` narrows the rule in its own branch). The job installs the three engines with
-    `playwright install --with-deps`; browsers are not cached, as Playwright advises *(fetched, playwright-ci)*.
+    (a later step that needs its own `if:` narrows the rule in its own branch). The job runs in Playwright's own image
+    (`mcr.microsoft.com/playwright`, pinned by tag and digest, `--user 1001` as in its CI example) with the engines inside
+    *(fetched, playwright-ci, playwright-docker)*; gate-needs checks that the tag's version equals the exact
+    `@playwright/test` pin, and an image or pin it cannot read is could-not-check. The digest is not checked against the tag (that needs the
+    registry). Dependabot does not update an image under `container:` (its supported-ecosystems page does not list it;
+    not tested). `@playwright/test` is a group of its own in `dependabot.yml`, so its pull request carries nothing else
+    and stays red until the image line of the job `browser` is edited by hand on it: the new tag `vX.Y.Z-noble` and the
+    new digest (the finding names the command).
   - `selftest`: the gate's own tests, in the matrix job `selftest`, one shard of `scripts/shards.ts` per entry
     (`GATE_SHARD`), balanced by each file's measured seconds. The `static` job leaves the step to it through
     `GATE_SELFTEST`, under the same rule as `GATE_BROWSER`; gate-needs also checks that the job sets `GATE_SHARD` from
-    its matrix and that the matrix holds exactly the table's shards, and the step itself, in CI or under `GATE_SHARD`, that every tracked test file is
-    in exactly one shard; locally `scripts/shards.test.ts` catches it (the fixture repos of `check-repo.test.ts` hold
-    test files outside the table, so the step cannot check unconditionally), so a new file cannot run nowhere. Measured 2026-11-23: in one job the step took 591 s of the
-    `static` job's 11 min 11 s.
+    its matrix and that the matrix holds exactly the table's shards. The exactly-one-shard check, so that a new file
+    cannot run nowhere, runs when `GATE_SHARD` is set, or when CI hands the step to the selftest job; locally
+    `scripts/shards.test.ts` catches it, and also a table entry that is not a tracked file (the fixture repositories of
+    `check-repo.test.ts` hold test files outside the table, so the step cannot check that unconditionally). The result
+    line names the shard when `GATE_SHARD` is set. Measured 2026-11-23, before the split: in one job the step took 591 s of
+    the `static` job's 11 min 11 s.
   - `red-check` (G7) in the `static` job, on each commit of the pull request.
   - `mutation` (G8) on the pull request's changed lines, Linux only, in its own job `mutation`. The `static` job leaves
     the step to it through `GATE_MUTATION`, under the same rule as `GATE_BROWSER` (gate-needs checks both).
