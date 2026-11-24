@@ -12,8 +12,8 @@
   `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
   cancel, the stopped state, `onretry` and
   writing the query (PRD-B23, PRD-B24), which this part leaves out; this part's text holds 28 statements; later
-  parts add theirs; the first page loaded on the server, which needs the site's server route; whether a superseded request is aborted (PRD-B20 is
-  silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
+  parts add theirs; the first page loaded on the server, which needs the site's server route; whether a superseded
+  request is aborted (PRD-B20 is silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
   which need fixtures not yet recorded.
 
 ## Conventions
@@ -40,7 +40,8 @@
 - **What it returns:** `{ table, pager, query, reload }`. `table` holds `rows`, `status`, `busy`, `sort`, `filters`,
   `search`, `onsort`, `onfilter`, `onclearfilter`, `onclearfilters`, `onreset` and `onsearch`; `pager` holds
   `offset`, `limit`, `total`, `unfilteredTotal`, `onpage` and `onsize`, or is `undefined` (CONN-25); `query` reads
-  the current query. A column id is "served" when a map entry's `id` is that id; the first such entry serves it. A sort entry without an `id` is served by no entry.
+  the current query. A column id is "served" when a map entry's `id` is that id; the first such entry serves it.
+  A sort entry without an `id` is served by no entry.
   The "decimal text" of a number is its digits only, without sign, space, point or exponent (`'57'`, `'057'`).
 - **Examples.** The map M is `[{ data: 'name', name: 'n', id: 'name' }, { data: 'code', name: 'c', id: 'code' },
   { data: 'status', name: 's', id: 'status' }]`, its `data` and `name` both names the server knows; the initial query
@@ -332,6 +333,8 @@ id (as CONN-16, for the filters).
   that do not match the boxes (PRD-B20).
 - Layer: component.
 - Traces: PRD-B20.
+
+## 2. The answer (CONN)
 
 **CONN-17** For an answer it can map, the helper MUST set `table.rows` to the answer's `data` itself,
 `pager.total` to `recordsFiltered`, `pager.unfilteredTotal` to `recordsTotal`, `table.status` to `'ready'` and
