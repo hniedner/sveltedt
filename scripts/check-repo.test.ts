@@ -1356,11 +1356,14 @@ test("selftest: GATE_SHARD runs only the files of that shard, and names the othe
   });
   assert.match(one, /scripts\/check-repo-lint\.test\.ts: 1\b/);
   assert.doesNotMatch(one, /scripts\/check-repo\.test\.ts/);
+  // A stray GATE_SHARD in a local shell shows in the result line
+  assert.match(one, /\d+ test file\(s\) ran and passed in shard 1\n/);
   const two = expect("selftest", repo(plant), 0, {
     extraEnv: { GATE_SHARD: "2" },
   });
   assert.match(two, /scripts\/check-repo\.test\.ts: 1\b/);
   assert.doesNotMatch(two, /check-repo-lint/);
+  assert.match(two, /ran and passed in shard 2\n/);
 });
 test("selftest: a GATE_SHARD outside the table cannot be checked", () => {
   for (const GATE_SHARD of ["0", "4", "x", ""])

@@ -584,7 +584,11 @@ async function selftest(root: string, list: Set<string>): Promise<Result> {
     return result(FINDING, "a test file failed", details);
   if (runs.some((r) => r.code !== PASS))
     return result(CANNOT, "a test file could not be checked", details);
-  return result(PASS, `${files.length} test file(s) ran and passed`, details);
+  return result(
+    PASS,
+    `${files.length} test file(s) ran and passed${shard === undefined ? "" : ` in shard ${shard}`}`,
+    details,
+  );
 }
 
 function needs(json: string | undefined): Result {
