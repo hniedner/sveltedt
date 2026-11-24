@@ -71,7 +71,7 @@
   };
 </script>
 
-{#snippet open(item: Item)}<a href={`#${item.id}`}>Open {item.code}</a
+{#snippet open({ row }: { row: Item })}<a href={`#${row.id}`}>Open {row.code}</a
   >{/snippet}
 
 <main>

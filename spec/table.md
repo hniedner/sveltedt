@@ -119,10 +119,10 @@ to the consumer as one callback (stated with the statements that add user action
 - Layer: component.
 - Traces: PRD-B1.
 
-**RND-02** A column with a `cell` snippet MUST render that snippet, called with the row and the column id, in each of
-its cells.
-- Example: a `cell` snippet that renders a link "Open Beta" for row r1 and the column id `name` shows that link in
-  r1's `name` cell, and the snippet received `(r1, 'name')`.
+**RND-02** A column with a `cell` snippet MUST render that snippet in each of its cells, called with one object
+`{ row, column }`: that cell's row and its column.
+- Example: a `cell` snippet that renders a link "Open <row's name> in <column's id>" for the Name column shows "Open
+  Beta in name" in r1's Name cell and "Open Gamma in name" in r2's.
 - Reason: links, badges and cell menus belong to the consumer, so the table needs no knowledge of what a value means.
 - Layer: component.
 - Traces: PRD-B3.

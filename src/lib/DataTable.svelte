@@ -323,8 +323,7 @@
                 {#each columns as column (column.id)}
                   <td class="sdt-cell"
                     >{#if typeof column.cell === "function"}{@render column.cell(
-                        row,
-                        column.id,
+                        { row, column },
                       )}{:else}{textOf(column, row)}{/if}</td
                   >
                 {/each}

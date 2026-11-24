@@ -225,9 +225,9 @@ describe("RND-08", () => {
   });
 });
 
-// @spec("RND-02", "9a4c8ebf")
+// @spec("RND-02", "218989a0")
 describe("RND-02", () => {
-  it("renders the cell snippet, called with the row and the column id, in each of its cells", () => {
+  it("renders the cell snippet, called with one object { row, column }, in each of its cells", () => {
     render(CellSnippetTable, {
       rows: [
         { id: "r1", name: "Beta" },

@@ -45,7 +45,7 @@
   };
 </script>
 
-{#snippet open(item: Item)}<a href={`#${item.id}`}>Open {item.name}</a
+{#snippet open({ row }: { row: Item })}<a href={`#${row.id}`}>Open {row.name}</a
   >{/snippet}
 
 {#snippet heading()}<h1><a href="#all">All orders</a></h1>{/snippet}

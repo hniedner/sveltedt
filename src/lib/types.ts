@@ -12,11 +12,15 @@ export type DataTableColumn<Row> = {
 } & (
   | {
       readonly value: (context: { readonly row: Row }) => string;
-      readonly cell?: Snippet<[Row, string]>;
+      readonly cell?: Snippet<
+        [{ readonly row: Row; readonly column: DataTableColumn<Row> }]
+      >;
     }
   | {
       readonly value?: (context: { readonly row: Row }) => string;
-      readonly cell: Snippet<[Row, string]>;
+      readonly cell: Snippet<
+        [{ readonly row: Row; readonly column: DataTableColumn<Row> }]
+      >;
     }
 );
 
