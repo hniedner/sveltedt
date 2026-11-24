@@ -160,10 +160,15 @@ describe("STATE-10", () => {
 // @spec("STATE-11", "75ae94f3")
 describe("STATE-11", () => {
   it("hides the indicator from assistive technology and puts nothing focusable in it", async () => {
-    const table = mount({ status: "loading" });
+    const table = mount({ status: "loading", oncancel: () => {} });
     await table.at(6000);
     const indicator = table.container.querySelector("[data-sdt-progress]");
     expect(indicator).not.toBeNull();
+    // Cancel is shown, so the check below is not about a missing button; it is not in the hidden indicator
+    const cancel = within(table.container).getByRole("button", {
+      name: "Cancel",
+    });
+    expect(indicator?.contains(cancel)).toBe(false);
     expect(indicator?.getAttribute("aria-hidden")).toBe("true");
     expect(indicator?.hasAttribute("tabindex")).toBe(false);
     expect(
