@@ -69,10 +69,11 @@ export interface DataTableProps<Row> {
   sort?: readonly DataTableSortEntry[] | null;
   // Called with the whole next order on a sort press; required while any column is sortable (SORT-15)
   onsort?: (next: DataTableSortEntry[]) => void;
-  // Called with no argument on a press of "Cancel", which shows beside the still-loading text; the table stops
-  // nothing itself (PRD-B23)
+  // Called with no argument on a press of "Cancel", which shows after the status element while the still-loading
+  // text shows, a busy refresh included; the table stops nothing itself and ignores what this returns (PRD-B23)
   oncancel?: () => void;
-  // Called with no argument on a press of "Try again", which shows while stopped or failed (PRD-B24)
+  // Called with no argument on a press of "Try again", which shows while stopped or failed and the input is valid,
+  // never beside the invalid-input alert; the table ignores what this returns (PRD-B24)
   onretry?: () => void;
   heading?: Snippet;
   actions?: Snippet;

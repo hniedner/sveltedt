@@ -502,7 +502,7 @@ describe("FOOT-05", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  // No timer is pending at 6000 ms today; the row guards the focus code of #147 against one that outlives the table
+  // No timer is pending at 6000 ms; this row keeps it so when code that moves focus is added
   it("leaves no timer pending when unmounted at 6000 ms, with the still-loading text and Cancel shown", async () => {
     const table = mount({ status: "loading", oncancel });
     await table.at(6000);
