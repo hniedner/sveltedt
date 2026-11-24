@@ -381,3 +381,12 @@ test(
     );
   },
 );
+test("readyLine: a child that ends first fails with its exit and what it wrote to stderr", async () => {
+  const child = spawn(
+    process.execPath,
+    ["-e", 'console.error("boom"); process.exit(4)'],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  after(() => child.kill("SIGKILL"));
+  await assert.rejects(readyLine(child, "x"), /exit 4\)[\s\S]*stderr: boom/);
+});
