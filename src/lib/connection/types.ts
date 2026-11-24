@@ -46,7 +46,11 @@ export interface ConnectionOptions {
 export interface Connection<Row> {
   readonly table: Readonly<
     Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
-  >;
+  > & {
+    // Written out, not picked: the prop's `null` is not a value of the helper's
+    readonly sort: readonly DataTableSortEntry[];
+    readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
+  };
   readonly pager:
     | Readonly<
         Required<

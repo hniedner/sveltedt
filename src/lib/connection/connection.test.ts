@@ -264,6 +264,38 @@ describe("CONN-03", () => {
   );
 });
 
+// @spec("CONN-13", "b0765463")
+describe("CONN-13", () => {
+  const codeDesc = { id: "code", direction: "desc" } as const;
+  const sorted = {
+    start: "0",
+    column: "1",
+    dir: "desc",
+  };
+  const read = (request: URLSearchParams | undefined) => ({
+    start: request?.get("start"),
+    column: request?.get("order[0][column]"),
+    dir: request?.get("order[0][dir]"),
+  });
+  it("sends one request from the first row, the sort and the offset set before it is settled, on table.onsort from offset 20", async () => {
+    const probe = mount({ query: { ...Q0, offset: 20 } });
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([codeDesc]);
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(read(probe.send.mock.calls[1]?.[0]?.request)).toEqual(sorted);
+    expect(probe.connection.table.sort).toEqual([codeDesc]);
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("sends one request and keeps no pager on table.onsort before the first answer", () => {
+    const probe = mount();
+    probe.connection.table.onsort([codeDesc]);
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    expect(read(probe.send.mock.calls[1]?.[0]?.request)).toEqual(sorted);
+    expect(probe.connection.table.sort).toEqual([codeDesc]);
+    expect(probe.connection.pager).toBeUndefined();
+  });
+});
+
 // A stated limit, outside every statement: a sort id that no column entry serves is thrown out of the mount with its
 // name; nothing is sent
 describe("an unserved sort id (stated limit)", () => {

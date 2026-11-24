@@ -1,5 +1,5 @@
 import { onMount } from "svelte";
-import type { DataTableStatus } from "../types.ts";
+import type { DataTableSortEntry, DataTableStatus } from "../types.ts";
 import { readAnswer } from "./answer.js";
 import type { Answer } from "./answer.ts";
 import { buildRequest } from "./request.js";
@@ -7,10 +7,10 @@ import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
 // the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each
-// `pager.onpage`, reading `options` when it builds each request, and maps each answer. Read `pager` from the returned
+// `pager.onpage` and `table.onsort`, reading `options` when it builds each request, and maps each answer. Read `pager` from the returned
 // object, never destructured from it: it is a getter, so a copy would hold the value it had when it was copied.
-// `table` is a plain object, so `const { table } = connection` is fine; read `table.rows`, `table.status` and
-// `table.busy` from it, not destructured.
+// `table` is a plain object, so `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy` and
+// `table.sort` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
@@ -20,6 +20,9 @@ export function createConnection<Row = unknown>(
   // True while a request runs with an answer on screen to keep
   let busy = $state(false);
   let offset = $state(options.query.offset ?? 0);
+  let sort = $state.raw<readonly DataTableSortEntry[]>(
+    options.query.sort ?? [],
+  );
   // The draw of the last request sent, 0 before the first
   let draw = 0;
   function load(): void {
@@ -30,7 +33,7 @@ export function createConnection<Row = unknown>(
       .send({
         request: buildRequest(
           options.columns,
-          { ...options.query, offset },
+          { ...options.query, sort, offset },
           sent,
         ),
         signal: new AbortController().signal,
@@ -51,6 +54,11 @@ export function createConnection<Row = unknown>(
     offset = next;
     load();
   }
+  function onsort(next: DataTableSortEntry[]): void {
+    sort = next;
+    offset = 0;
+    load();
+  }
   onMount(load);
   return {
     table: {
@@ -63,6 +71,10 @@ export function createConnection<Row = unknown>(
       get busy() {
         return busy;
       },
+      get sort() {
+        return sort;
+      },
+      onsort,
     },
     get pager() {
       return (

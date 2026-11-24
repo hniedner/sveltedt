@@ -28,7 +28,24 @@
   const connection = untrack(() => createConnection<Row>(options));
   untrack(() => onconnect(connection));
   const columns: DataTableColumn<Row>[] = [
-    { id: "name", label: "Name", value: ({ row }) => row.name },
+    {
+      id: "name",
+      label: "Name",
+      value: ({ row }) => row.name,
+      sortable: ["asc", "desc"],
+    },
+    {
+      id: "code",
+      label: "Code",
+      value: ({ row }) => row.id,
+      sortable: ["asc", "desc"],
+    },
+    {
+      id: "status",
+      label: "Status",
+      value: ({ row }) => row.name,
+      sortable: ["asc", "desc"],
+    },
   ];
   const getRowId = ({ row }: { row: Row }): string => row.id;
 </script>
@@ -41,6 +58,8 @@
   regionLabel="Rows table"
   status={connection.table.status}
   busy={connection.table.busy}
+  sort={connection.table.sort}
+  onsort={connection.table.onsort}
 />
 {#if connection.pager}
   <Pagination
