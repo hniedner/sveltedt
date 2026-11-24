@@ -86,10 +86,12 @@ function program(then: string, before = ""): string {
   writeFileSync(
     file,
     `import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnGroup, readyLine } from "${HELPER}";
 ${before}
 const child = spawnGroup(process.execPath, ["-e", ${JSON.stringify(WITH_GRANDCHILD)}], { stdio: ["ignore", "pipe", "pipe"] });
-writeFileSync(${JSON.stringify(join(dir, "child.pid"))}, String(child.pid));
+writeFileSync(join(dirname(fileURLToPath(import.meta.url)), "child.pid"), String(child.pid));
 const line = await readyLine(child, "grandchild ");
 console.log("pids " + child.pid + " " + line.slice("grandchild ".length));
 ${then}
@@ -187,7 +189,9 @@ test(
     const child = begin(
       pids,
       "-e",
-      `process.on("SIGTERM", () => setTimeout(() => { require("node:fs").writeFileSync(${JSON.stringify(marker)}, "done"); process.exit(0); }, 200)); console.log("ready"); ${IDLE}`,
+      // The marker's path is data: it comes in as the first argument, not as part of the code
+      `process.on("SIGTERM", () => setTimeout(() => { require("node:fs").writeFileSync(process.argv[1], "done"); process.exit(0); }, 200)); console.log("ready"); ${IDLE}`,
+      marker,
     );
     await readyLine(child, "ready");
     const began = Date.now();
