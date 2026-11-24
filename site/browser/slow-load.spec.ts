@@ -25,6 +25,8 @@ const set = (page: Page, props: object) =>
     (next) => (window as unknown as SlowWindow).__table.set(next),
     props,
   );
+const calls = (page: Page) =>
+  page.evaluate(() => (window as unknown as SlowWindow).__calls);
 const table = (page: Page) => page.getByRole("table", { name: "Orders" });
 const named = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
@@ -60,6 +62,8 @@ async function scrollPast(page: Page): Promise<void> {
 
 // The state a row names, drawn
 async function drawn(page: Page, state: string): Promise<void> {
+  if (state === "loading")
+    await expect(page.getByRole("status")).toContainText("Loading data…");
   if (state === "ready")
     await expect(
       page.getByRole("cell", { name: "Item 25", exact: true }),
@@ -95,5 +99,39 @@ test.describe("A11Y-28", () => {
       await expect(cancel).toHaveCount(0);
       await expect(table(page)).toBeFocused();
       expect(await scrolls(page)).toEqual(before);
+    });
+});
+
+// @spec("A11Y-30", "98aa4c29")
+test.describe("A11Y-30", () => {
+  const consumer: [string, string, string, object][] = [
+    ["stopped", "loading", "loading", { status: "loading" }],
+    ["failed", "loading", "loading", { status: "loading" }],
+    [
+      "stopped",
+      "ready with 25 rows",
+      "ready",
+      { status: "ready", rows: rows25 },
+    ],
+  ];
+  for (const [before, title, state, props] of consumer)
+    test(`moves focus to the table without scrolling when a focused Try again goes: status '${before}', the consumer passes ${title}`, async ({
+      page,
+    }) => {
+      await open(page);
+      await set(page, { status: before });
+      await drawn(page, before);
+      const retry = named(page, "Try again");
+      await expect(retry).toBeVisible();
+      await focusIt(retry);
+      await scrollPast(page);
+      await page.keyboard.press("Enter");
+      expect((await calls(page)).retry).toBe(1);
+      const scrolled = await scrolls(page);
+      await set(page, props);
+      await drawn(page, state);
+      await expect(retry).toHaveCount(0);
+      await expect(table(page)).toBeFocused();
+      expect(await scrolls(page)).toEqual(scrolled);
     });
 });

@@ -142,10 +142,15 @@
   });
   // The callback of "Cancel" while it is shown (STATE-17), nothing otherwise; the markup and the focus hand-off read it
   const cancel = $derived(still ? oncancel : undefined);
+  // The callback of "Try again" while it is shown (STATE-23), nothing otherwise
+  const retry = $derived(
+    status === "stopped" || status === "failed" ? onretry : undefined,
+  );
   // For the focus hand-off: bind:this sets them, and nulls them when their element goes. State, because a variable that
   // bind:this sets inside an {#if} must be
   let table = $state<HTMLTableElement | null>(null);
   let cancelButton = $state<HTMLButtonElement | null>(null);
+  let retryButton = $state<HTMLButtonElement | null>(null);
   // A focused button about to go hands focus to the table, which takes it without scrolling (A11Y-28). With invalid
   // input there is no table. It must run before the button leaves the DOM
   function keepFocus(button: HTMLElement | null): void {
@@ -154,9 +159,15 @@
       table.focus({ preventScroll: true });
     }
   }
-  // The consumer stops passing `oncancel`: a props flush, where a pre-effect runs before the DOM update
+  // A button goes with the props: a props flush, where a pre-effect runs before the DOM update. Both are read, so
+  // either going reruns it
   $effect.pre(() => {
-    if (!cancel) untrack(() => keepFocus(cancelButton));
+    const goneCancel = !cancel;
+    const goneRetry = !retry;
+    untrack(() => {
+      if (goneCancel) keepFocus(cancelButton);
+      if (goneRetry) keepFocus(retryButton);
+    });
   });
   // A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
   function sortState(id: string): {
@@ -274,9 +285,10 @@
         </tbody>
       </table>
     </div>
-    {#if onretry && (status === "stopped" || status === "failed")}<button
+    {#if retry}<button
+        bind:this={retryButton}
         type="button"
-        onclick={() => onretry()}>{words.retry}</button
+        onclick={() => retry()}>{words.retry}</button
       >{/if}
     <!-- The sort buttons' descriptions, outside the table so they are no header text -->
     <div hidden>

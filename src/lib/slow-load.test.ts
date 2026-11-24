@@ -556,6 +556,85 @@ describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () 
   });
 });
 
+// No marker, as for A11Y-28: the statement is a real-browser one (site/browser/slow-load.spec.ts)
+describe("A11Y-30, the focus move of a focused Try again in the simulated DOM", () => {
+  const oncancel = (): void => {};
+  const onretry = (): void => {};
+  const both = { status: "failed", busy: true, oncancel, onretry } as const;
+  const focused = (): Element | null => document.activeElement;
+  const button = (container: HTMLElement, name: string): HTMLElement =>
+    within(container).getByRole("button", { name });
+  const tableOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("table");
+
+  it.each<[string, "stopped" | "failed", Partial<DataTableProps<Item>>]>([
+    ["stopped, then loading", "stopped", { status: "loading" }],
+    ["failed, then loading", "failed", { status: "loading" }],
+    ["stopped, then ready with two rows", "stopped", { rows: twoRows }],
+  ])(
+    "moves focus to the table when a focused Try again goes: %s",
+    async (_row, first, next) => {
+      const table = mount({ status: first, onretry });
+      const retry = button(table.container, "Try again");
+      retry.focus();
+      expect(focused()).toBe(retry);
+      await table.change({ ...next, onretry });
+      expect(focused()).toBe(tableOf(table.container));
+    },
+  );
+
+  it("leaves focus alone when a Try again without focus goes", async () => {
+    const table = mount({ status: "stopped", onretry });
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      outside.focus();
+      await table.change({ status: "loading", onretry });
+      expect(focused()).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("keeps focus on a focused Cancel when Try again goes", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    expect(button(table.container, "Try again")).not.toBeNull();
+    const cancel = button(table.container, "Cancel");
+    cancel.focus();
+    await table.change({ ...both, status: "loading" });
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).toBeNull();
+    expect(focused()).toBe(cancel);
+  });
+
+  it("keeps focus on a focused Try again when Cancel goes", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    expect(button(table.container, "Cancel")).not.toBeNull();
+    const retry = button(table.container, "Try again");
+    retry.focus();
+    await table.change({ ...both, busy: false });
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+    expect(focused()).toBe(retry);
+  });
+
+  it("hands focus to the table again when a focused Try again goes after Cancel went", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    button(table.container, "Cancel").focus();
+    await table.change({ ...both, busy: false });
+    expect(focused()).toBe(tableOf(table.container));
+    const retry = button(table.container, "Try again");
+    retry.focus();
+    expect(focused()).toBe(retry);
+    await table.change({ ...both, status: "loading", busy: false });
+    expect(focused()).toBe(tableOf(table.container));
+  });
+});
+
 // @spec("FOOT-05", "9f0dae50")
 describe("FOOT-05", () => {
   const oncancel = (): void => {};
