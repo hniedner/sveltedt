@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
@@ -119,6 +119,22 @@ describe("FILT-08", () => {
   ])("shows no badge for %s", (_row, props) => {
     mount(props);
     expect(badgeButtons()).toEqual([]);
+  });
+});
+
+// @spec("FILT-09", "48cff703")
+describe("FILT-09", () => {
+  it("emits onclearfilter once with the column id on a badge press, and calls no other handler", async () => {
+    const { onclearfilter, onfilter, onclearfilters, onsort } = mount({
+      filters: { name: { kind: "text", text: "Beta" } },
+    });
+    await fireEvent.click(
+      screen.getByRole("button", { name: `Clear filter ${BETA}` }),
+    );
+    expect(onclearfilter.mock.calls).toEqual([[{ id: "name" }]]);
+    expect(onfilter).not.toHaveBeenCalled();
+    expect(onclearfilters).not.toHaveBeenCalled();
+    expect(onsort).not.toHaveBeenCalled();
   });
 });
 

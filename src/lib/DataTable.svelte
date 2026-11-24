@@ -159,8 +159,13 @@
   {@render heading?.()}
   {@render actions?.()}
   {#each badgeList as badge (badge.id)}
-    <button type="button" aria-label={defaultMessages.clearFilter(badge.text)}
-      >{badge.text}</button
+    <!-- A badge exists only for a column with a filter, so the table has an onclearfilter (FILT-32) -->
+    <button
+      type="button"
+      aria-label={defaultMessages.clearFilter(badge.text)}
+      onclick={() =>
+        // Stryker disable next-line OptionalChaining: unreachable fallback, see above
+        onclearfilter?.({ id: badge.id })}>{badge.text}</button
     >
   {/each}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
