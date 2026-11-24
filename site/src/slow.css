@@ -1,0 +1,9 @@
+/* PRD-A3's focus tests need the window's scroll position to change only by what the test does: no scroll anchoring */
+* {
+  overflow-anchor: none;
+}
+
+/* Taller than any viewport, after the table: the window can scroll the whole table out of view */
+.tall {
+  block-size: 200vh;
+}
