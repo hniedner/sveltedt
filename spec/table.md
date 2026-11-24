@@ -969,8 +969,8 @@ once each time `status` becomes `stopped`.
 
 **A11Y-28** While the input stays valid, when "Cancel" goes while it has focus, focus MUST move to the `table` element
 without scrolling.
-- Examples (the test runs every row; `status 'loading'`, `oncancel` passed; at 6000 ms the test focuses "Cancel" with
-  `focus({ preventScroll: true })`, scrolls the window so the table's top lies above the viewport, reads the window's
+- Examples (the test runs every row; `status 'loading'`, `oncancel` passed, the page sets `overflow-anchor: none`; at 6000 ms the test focuses "Cancel" with
+  `focus({ preventScroll: true })`, scrolls the window so the whole table lies above the viewport, reads the window's
   and the region's scroll positions, then passes the props of the row; after it the `table` element is the focused
   element and both scroll positions are the ones read):
 
@@ -996,8 +996,8 @@ without scrolling.
 
 **A11Y-30** While the input stays valid, when "Try again" goes while it has focus, focus MUST move to the `table`
 element without scrolling.
-- Examples (the test runs every row; `onretry` passed; the test focuses "Try again" with `focus({ preventScroll:
-  true })`, scrolls the window so the table's top lies above the viewport, presses Enter, reads the window's and the
+- Examples (the test runs every row; `onretry` passed, the page sets `overflow-anchor: none`; the test focuses "Try again" with `focus({ preventScroll:
+  true })`, scrolls the window so the whole table lies above the viewport, presses Enter, reads the window's and the
   region's scroll positions, then passes the props of the row; after it the `table` element is the focused element and
   both scroll positions are the ones read):
 
@@ -1225,7 +1225,7 @@ anything to the document head.
 - Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
   unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
   `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown); at
-  6000 ms (the still-loading text and "Cancel" shown).
+  6000 ms with "Cancel" focused (the still-loading text and "Cancel" shown).
 - Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
   first to time anything (PRD-B22).
 - Layer: component.

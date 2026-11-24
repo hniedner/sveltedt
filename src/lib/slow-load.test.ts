@@ -472,7 +472,175 @@ describe("A11Y-26", () => {
   );
 });
 
-// @spec("FOOT-05", "9f0dae50")
+// No marker: A11Y-28 is a real-browser statement (site/browser/slow-load.spec.ts); these rows pin the focus move in the
+// simulated DOM, where the unit gate and mutation testing can see it
+describe("A11Y-28, the focus move of a focused Cancel in the simulated DOM", () => {
+  const oncancel = (): void => {};
+  const focused = (): Element | null => document.activeElement;
+  const cancelOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("button", { name: "Cancel" });
+  const tableOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("table");
+
+  it.each<[string, Partial<DataTableProps<Item>>]>([
+    ["ready with two rows", { rows: twoRows }],
+    ["stopped", { status: "stopped" }],
+    ["failed", { status: "failed" }],
+  ])(
+    "moves focus to the table without scrolling when the consumer passes %s",
+    async (_row, props) => {
+      const table = mount({ status: "loading", oncancel });
+      await table.at(6000);
+      const cancel = cancelOf(table.container);
+      cancel.focus();
+      expect(focused()).toBe(cancel);
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+      try {
+        await table.change({ ...props, oncancel });
+        expect(focused()).toBe(tableOf(table.container));
+        expect(tableOf(table.container).getAttribute("tabindex")).toBe("-1");
+        expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+      } finally {
+        focus.mockRestore();
+      }
+    },
+  );
+
+  it("moves focus to the table when the consumer stops passing oncancel", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const cancel = cancelOf(table.container);
+    cancel.focus();
+    expect(focused()).toBe(cancel);
+    await table.change({ status: "loading", oncancel: undefined });
+    expect(focused()).toBe(tableOf(table.container));
+  });
+
+  it("takes the tabindex off the table when focus leaves it", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    cancelOf(table.container).focus();
+    await table.change({ status: "stopped", oncancel });
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      expect(focused()).toBe(tableOf(table.container));
+      outside.focus();
+      expect(tableOf(table.container).hasAttribute("tabindex")).toBe(false);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("leaves focus alone when a Cancel without focus goes", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      outside.focus();
+      await table.change({ rows: twoRows, oncancel });
+      expect(focused()).toBe(outside);
+      expect(tableOf(table.container).hasAttribute("tabindex")).toBe(false);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("leaves focus on the body when a focused Cancel goes because the input turned invalid", async () => {
+    const table = mount({ status: "loading", oncancel });
+    await table.at(6000);
+    cancelOf(table.container).focus();
+    await table.change({ columns: [], oncancel });
+    expect(within(table.container).getByRole("alert").textContent).toBe(
+      "This table cannot be shown.",
+    );
+    // No table, so no hand-off: Cancel went and focus fell to the page body
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+    expect(focused()).toBe(document.body);
+  });
+});
+
+// No marker, as for A11Y-28: the statement is a real-browser one (site/browser/slow-load.spec.ts)
+describe("A11Y-30, the focus move of a focused Try again in the simulated DOM", () => {
+  const oncancel = (): void => {};
+  const onretry = (): void => {};
+  const both = { status: "failed", busy: true, oncancel, onretry } as const;
+  const focused = (): Element | null => document.activeElement;
+  const button = (container: HTMLElement, name: string): HTMLElement =>
+    within(container).getByRole("button", { name });
+  const tableOf = (container: HTMLElement): HTMLElement =>
+    within(container).getByRole("table");
+
+  it.each<[string, "stopped" | "failed", Partial<DataTableProps<Item>>]>([
+    ["stopped, then loading", "stopped", { status: "loading" }],
+    ["failed, then loading", "failed", { status: "loading" }],
+    ["stopped, then ready with two rows", "stopped", { rows: twoRows }],
+  ])(
+    "moves focus to the table when a focused Try again goes: %s",
+    async (_row, first, next) => {
+      const table = mount({ status: first, onretry });
+      const retry = button(table.container, "Try again");
+      retry.focus();
+      expect(focused()).toBe(retry);
+      await table.change({ ...next, onretry });
+      expect(focused()).toBe(tableOf(table.container));
+    },
+  );
+
+  it("leaves focus alone when a Try again without focus goes", async () => {
+    const table = mount({ status: "stopped", onretry });
+    const outside = document.body.appendChild(document.createElement("button"));
+    try {
+      outside.focus();
+      await table.change({ status: "loading", onretry });
+      expect(focused()).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("keeps focus on a focused Cancel when Try again goes", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    expect(button(table.container, "Try again").isConnected).toBe(true);
+    const cancel = button(table.container, "Cancel");
+    cancel.focus();
+    await table.change({ ...both, status: "loading" });
+    expect(
+      within(table.container).queryByRole("button", { name: "Try again" }),
+    ).toBeNull();
+    expect(focused()).toBe(cancel);
+  });
+
+  it("keeps focus on a focused Try again when Cancel goes", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    expect(button(table.container, "Cancel").isConnected).toBe(true);
+    const retry = button(table.container, "Try again");
+    retry.focus();
+    await table.change({ ...both, busy: false });
+    expect(
+      within(table.container).queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+    expect(focused()).toBe(retry);
+  });
+
+  it("hands focus to the table again when a focused Try again goes after Cancel went", async () => {
+    const table = mount(both);
+    await table.at(6000);
+    button(table.container, "Cancel").focus();
+    await table.change({ ...both, busy: false });
+    expect(focused()).toBe(tableOf(table.container));
+    const retry = button(table.container, "Try again");
+    retry.focus();
+    expect(focused()).toBe(retry);
+    await table.change({ ...both, status: "loading", busy: false });
+    expect(focused()).toBe(tableOf(table.container));
+  });
+});
+
+// @spec("FOOT-05", "f912a945")
 describe("FOOT-05", () => {
   const oncancel = (): void => {};
   // Mounted loading; `answered`: ready with two rows arrives at 1100 ms; the table is unmounted at `unmountAt`
@@ -502,14 +670,22 @@ describe("FOOT-05", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  // No timer is pending at 6000 ms; this row keeps it so when code that moves focus is added
-  it("leaves no timer pending when unmounted at 6000 ms, with the still-loading text and Cancel shown", async () => {
+  // No timer is pending at 6000 ms. With "Cancel" focused, this row keeps the unmount path honest: nothing the focus
+  // code leaves behind for a focused button (a teardown that defers work) may outlive the table. A hand-off that defers
+  // itself fails earlier, in A11Y-28's rows above, which need focus on the table when the change resolves
+  it("leaves no timer pending when unmounted at 6000 ms with Cancel focused, the still-loading text and Cancel shown", async () => {
     const table = mount({ status: "loading", oncancel });
     await table.at(6000);
     expect(table.still()).toBe(true);
-    expect(
-      within(table.container).queryByRole("button", { name: "Cancel" }),
-    ).not.toBeNull();
+    const cancel = within(table.container).getByRole("button", {
+      name: "Cancel",
+    });
+    // None of the table's own timers is pending at 6000 ms; jsdom's focus() then leaves two fake timers of its own
+    // (measured with jsdom 31 under Vitest's fake timers), which no table code starts, so they are cleared
+    expect(vi.getTimerCount()).toBe(0);
+    cancel.focus();
+    expect(document.activeElement).toBe(cancel);
+    vi.clearAllTimers();
     table.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
