@@ -1128,15 +1128,17 @@ describe("STATE-23", () => {
 
 // @spec("STATE-24", "768017fd")
 describe("STATE-24", () => {
-  // Half of STATE-24 (no "Try again") is asserted by the build that adds the button, shown red with it rendered
   it.each<DataTableStatus>(["stopped", "failed"])(
-    "with status %s and invalid input, shows the one alert and no table",
+    "with status %s and invalid input, shows the one alert, no table and no Try again",
     (status) => {
-      show({ status, columns: [] });
+      show({ status, columns: [], onretry: () => {} });
       expect(
         screen.getAllByRole("alert").map((alert) => alert.textContent),
       ).toEqual([FIXED]);
       expect(screen.queryByRole("table")).toBeNull();
+      expect(
+        screen.queryAllByRole("button", { name: "Try again" }),
+      ).toHaveLength(0);
     },
   );
 });

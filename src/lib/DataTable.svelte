@@ -227,6 +227,9 @@
         </tbody>
       </table>
     </div>
+    {#if onretry && (status === "stopped" || status === "failed")}<button
+        type="button">{words.retry}</button
+      >{/if}
     <!-- The sort buttons' descriptions, outside the table so they are no header text -->
     <div hidden>
       {#each columns as column, index (column.id)}
@@ -238,7 +241,4 @@
       {/each}
     </div>
   {/if}
-  {#if onretry && (status === "stopped" || status === "failed")}<button
-      type="button">{words.retry}</button
-    >{/if}
 </div>
