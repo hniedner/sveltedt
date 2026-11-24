@@ -10,11 +10,10 @@
   offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
   refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
   `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
-  cancel, the stopped state, `onretry` and
-  writing the query (PRD-B23, PRD-B24), which this part leaves out; this part's text holds 28 statements; later
-  parts add theirs; the first page loaded on the server, which needs the site's server route; whether a superseded
-  request is aborted (PRD-B20 is silent, DataTables' practice not yet checked); and the contract tests against the recorded backends (PRD-W11),
-  which need fixtures not yet recorded.
+  cancel, the stopped state, `onretry` and writing the query (PRD-B23, PRD-B24), which this part leaves out; this
+  part's text holds 28 statements, and later parts add theirs; the first page loaded on the server, which needs the
+  site's server route; whether a superseded request is aborted (PRD-B20 is silent, DataTables' practice not yet
+  checked); and the contract tests against the recorded backends (PRD-W11), which need fixtures not yet recorded.
 
 ## Conventions
 

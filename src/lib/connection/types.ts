@@ -51,8 +51,8 @@ export interface ConnectionRequest {
 interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
-  // Called once with an Error when an answer cannot be mapped, and once for each refused sort (a sort entry that no map
-  // entry serves); `table.status` becomes `'failed'` only for a refusal at mount or in `reload()`, a refused `onsort`
+  // Called once with an Error when an answer cannot be mapped, and once for each request refused because a sort entry
+  // names a column that no map entry serves; `table.status` becomes `'failed'` only for a refusal at mount or in `reload()`, a refused `onsort`
   // leaves it as it was; it does not hear a rejection of `send`
   readonly onerror: (error: unknown) => void;
 }
@@ -91,7 +91,7 @@ export interface Connection<Row> {
   readonly table: Readonly<
     Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
   > & {
-    // Written out, not picked: the prop's `null` is not a value of the helper's
+    // Written out, not picked: the prop's `null` is not a value the helper produces
     readonly sort: readonly DataTableSortEntry[];
     readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
   };

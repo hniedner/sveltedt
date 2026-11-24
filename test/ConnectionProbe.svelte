@@ -34,6 +34,7 @@
       value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
     },
+    // `code` and `status` only give the sort intents three ids; their values are not meant to match the labels
     {
       id: "code",
       label: "Code",
