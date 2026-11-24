@@ -61,8 +61,9 @@ to the consumer as one callback (stated with the statements that add user action
   RND-05. **The failed notice** is the element of A11Y-15 that holds the failed message (it also has
   `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
-  A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
-  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
+  A11Y-14, which is not atomic (`aria-atomic="false"`), so a reader says what is added to it and not all it holds.
+  They are two elements, and both are in the document in every state, the alert's included, where both are empty. A
+  test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
   one of the three elements a test finds by an attribute, because the count has no role of its own. **The progress
   indicator** of PRD-B22 is the element with the attribute `data-sdt-progress` within the component, the second,
   because it is hidden from assistive technology and so has no role or name. **A column's grip** of COL-13 is the

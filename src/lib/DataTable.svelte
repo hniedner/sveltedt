@@ -132,7 +132,7 @@
   {@render actions?.()}
   <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced -->
-  <div role="status">
+  <div role="status" aria-atomic="false">
     {fault === null && status === "loading" ? words.loading : ""}
     {#if still}<div>{words.stillLoading}</div>{/if}
   </div>

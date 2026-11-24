@@ -206,6 +206,96 @@ describe("STATE-12", () => {
   });
 });
 
+// Counts how often the words are put into the status region: a node added with them, or a text changed to them
+function watchAdditions(table: ReturnType<typeof mount>, words: string) {
+  const region = table.container.querySelector('[role="status"]');
+  if (!region) throw new Error("no status region");
+  let added = 0;
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === "childList") {
+        for (const node of record.addedNodes) {
+          if (node.textContent?.includes(words)) added += 1;
+        }
+      } else if (
+        record.oldValue !== null &&
+        !record.oldValue.includes(words) &&
+        record.target.textContent?.includes(words)
+      ) {
+        added += 1;
+      }
+    }
+  });
+  observer.observe(region, {
+    childList: true,
+    characterData: true,
+    characterDataOldValue: true,
+    subtree: true,
+  });
+  return {
+    inRegion: (): boolean => region.textContent?.includes(words) ?? false,
+    added: (): number => {
+      observer.takeRecords();
+      return added;
+    },
+  };
+}
+
+// @spec("A11Y-20", "42a3ade6")
+describe("A11Y-20", () => {
+  it("says the text once when busy joins loading and the load goes on", async () => {
+    const table = mount({ status: "loading" });
+    const seen = watchAdditions(table, "Still loading");
+    await table.at(6000);
+    await table.change({ status: "loading", rows: twoRows, busy: true });
+    await table.at(8000);
+    expect(seen.inRegion()).toBe(true);
+    expect(seen.added()).toBe(1);
+  });
+
+  it("says the text once when the rows are replaced by new objects", async () => {
+    const table = mount({ rows: twoRows, busy: true });
+    const seen = watchAdditions(table, "Still loading");
+    await table.at(6000);
+    await table.change({
+      rows: twoRows.map((row) => ({ ...row })),
+      busy: true,
+    });
+    expect(seen.inRegion()).toBe(true);
+    expect(seen.added()).toBe(1);
+  });
+
+  it("has said it once when the answer takes it away", async () => {
+    const table = mount({ status: "loading" });
+    const seen = watchAdditions(table, "Still loading");
+    await table.at(7000);
+    await table.change({ rows: twoRows });
+    expect(seen.inRegion()).toBe(false);
+    expect(seen.added()).toBe(1);
+  });
+
+  it("says it again when a later load gets as long", async () => {
+    const table = mount({ status: "loading" });
+    const seen = watchAdditions(table, "Still loading");
+    await table.at(7000);
+    await table.change({ rows: twoRows });
+    await table.at(7100);
+    await table.change({ status: "loading" });
+    await table.at(13100);
+    expect(seen.inRegion()).toBe(true);
+    expect(seen.added()).toBe(2);
+  });
+
+  it("lets a reader say only the added text, not the whole status region", () => {
+    const table = mount({ status: "loading" });
+    expect(
+      table.container
+        .querySelector('[role="status"]')
+        ?.getAttribute("aria-atomic"),
+    ).toBe("false");
+  });
+});
+
 // @spec("FOOT-05", "9f08d2c3")
 describe("FOOT-05", () => {
   // Mounted loading; `answer` is the status at 1100 ms, if any; the table is unmounted at `unmountAt`
