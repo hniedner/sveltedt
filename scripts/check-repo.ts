@@ -1178,8 +1178,10 @@ function toolRecord<T>(
   try {
     return JSON.parse(r.stdout) as T;
   } catch {
+    // No exit status: the spawn failed (its error code) or a signal ended the probe.
+    const end = r.status ?? errorCode(r.error) ?? r.signal;
     return {
-      error: `the ${pkg} probe failed (exit ${r.status}): ${r.stderr.split("\n")[0]}`,
+      error: `the ${pkg} probe failed (exit ${end}): ${r.stderr.split("\n")[0]}`,
     };
   }
 }

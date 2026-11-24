@@ -40,7 +40,36 @@ test("lint: an ESLint that fails on the canaries cannot be checked", () => {
 test("lint: an ESLint that fails on the repository cannot be checked", () => {
   const broken = (root: string) =>
     symlinkSync("gone.mjs", join(root, "scripts", "link.mjs"));
-  assert.match(expect("lint", repo(broken), 3), /eslint probe failed/);
+  assert.match(
+    expect("lint", repo(broken), 3),
+    /eslint probe failed \(exit 1\)/,
+  );
+});
+// A probe that cannot finish names why. Each config breaks the probe before ESLint's record is printed.
+const probeBroken = (body: string, cause: RegExp) => {
+  const config = join(tempDir(), "eslint.config.mjs");
+  const real = join(here, "..", "eslint.config.mjs");
+  writeFileSync(
+    config,
+    `import base from ${JSON.stringify(real)};\n${body}\nexport default base;\n`,
+  );
+  const out = expect("lint", repo(), 3, {
+    extraEnv: { ESLINT_CONFIG: config },
+  });
+  assert.match(out, cause);
+};
+// 65 MiB is more than the step buffers, as the vitest stand-in prints for the test step.
+test("lint: a probe that cannot finish says why", () => {
+  probeBroken(
+    'process.stdout.write(" ".repeat(65 * 1024 * 1024));',
+    /the eslint probe failed \(exit ENOBUFS\)/,
+  );
+});
+test("lint: a probe killed by a signal says which", () => {
+  probeBroken(
+    'process.kill(process.pid, "SIGKILL");',
+    /the eslint probe failed \(exit SIGKILL\)/,
+  );
 });
 test("lint: a file ESLint leaves out cannot be checked", () => {
   const out = expect(
