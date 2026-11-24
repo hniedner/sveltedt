@@ -331,6 +331,7 @@ test(
       env: { ...process.env, TMPDIR: mine },
       stdio: ["ignore", "pipe", "pipe"],
     });
+    after(() => child.kill("SIGKILL"));
     const code = new Promise<number | null>((r) => child.on("close", r));
     await readyLine(child, "The consumer:");
     // Both servers' lines are in the log under the repository's test-results (a later Playwright run empties that folder)
@@ -369,6 +370,7 @@ test(
       [join(HERE, "consumer-serve.ts"), "--root", empty],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
+    after(() => child.kill("SIGKILL"));
     await assert.rejects(
       readyLine(child, "The consumer:"),
       /exit 3\)[\s\S]*COULD NOT CHECK consumer-serve: svelte-package exited/,
