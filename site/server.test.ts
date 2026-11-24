@@ -48,7 +48,7 @@ async function serve(
   return { server, dist };
 }
 
-// @spec("SRV-01", "a3f33248")
+// @spec("SRV-01", "2a6879d3")
 describe("SRV-01", () => {
   let server: Server;
   beforeAll(async () => {
