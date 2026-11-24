@@ -1,12 +1,13 @@
 # 004: Component structure: parts, state and region order
 
 Design record for the inside of `DataTable`, decided before search, filter dialogs, the column chooser, selection, child
-rows and sticky layout arrive. Facts were read at main b20d582 (READ, path:line, every line number is that commit's),
-measured with the command named (MEASURED), fetched on 2026-11-24 from the URL named (FETCHED), or reasoned (INFERRED).
-Nothing here is public API: PRD-K3 lists what is. One point is a recommendation the owner decides, not a decision (see
-Region order).
+rows and sticky layout arrive. Facts were read at main b20d582 (READ: a bare path:line; every line number is that
+commit's), measured with the command named (MEASURED), fetched on 2026-11-24 from the URL named (FETCHED), or reasoned
+(INFERRED). "At b20d582" marks a fact about the code that a later commit may change; the Decision and rule text is meant
+to last. Nothing here is public API: PRD-K3 lists what is. One point is a recommendation the owner decides, not a
+decision (see Region order).
 
-## Starting point
+## Starting point (at b20d582)
 
 - `src/lib/DataTable.svelte` is 248 lines: the props (`src/lib/DataTable.svelte:12-36`), the sort press and the Shift
   state its buttons share (`src/lib/DataTable.svelte:41-60`), the derived values with the validation
@@ -19,10 +20,11 @@ Region order).
   (`src/lib/Pagination.svelte:14-24`, `src/lib/Pagination.svelte:53`).
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-66`). PRD-T15 bans a
-  `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`; ESLint and the
-  stylesheet step, `eslint.config.mjs:60-63`, `scripts/check-stylesheet.ts:483-502`). THEME-08's scan of every `class`
-  attribute is specified (`spec/table.md:1370`, `spec/table.md:1385`) and not built (MEASURED: `git grep -n "THEME-08"
--- scripts src site` finds nothing).
+  `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
+  `<style>` block, by ESLint (labelled PRD-T3, `eslint.config.mjs:60-63`) and the stylesheet step (THEME-04,
+  `scripts/check-stylesheet.ts:483-502`). The class-name rule is enforced by neither (INFERRED from those reads):
+  THEME-08's scan of every `class` attribute is specified (`spec/table.md:1370`, `spec/table.md:1385`) and not built
+  (MEASURED: `git grep -n "THEME-08" b20d582 -- scripts src site` finds nothing).
 
 ## Decomposition
 
@@ -33,40 +35,46 @@ Region order).
   `validateTable` and the alert branch, the one `TableView`, the root `div.sdt`, and its regions and parts in document
   order: the one place the order of the regions is written. A part writes the order inside it, as `Toolbar` writes
   FILT-31's (`src/lib/parts/Toolbar.svelte:33-61`).
-- **Built so far:** `HeaderCell` (`src/lib/parts/HeaderCell.svelte:38-76`) and `Toolbar`. Expected, each written by the
-  branch that builds it (INFERRED): the filter dialog, the chooser, a body row. Whether the loading line becomes a part
-  is for #146: a part would move the Cancel button's `bind:this` and the `ending` hand-off across a part boundary
-  (INFERRED). Try again stays markup in the root while it is one element.
+- **Built, at b20d582:** `HeaderCell` (`src/lib/parts/HeaderCell.svelte:38-76`) and `Toolbar`. Expected, each written by
+  the branch that builds it (INFERRED): the filter dialog, the chooser, a body row. Root markup, not parts: the live
+  count, the failed notice, Try again, the hidden sort descriptions and the alert, each one element with no state of its
+  own. The loading line (status region, Cancel, progress indicator) owns `shown` and `still`, so rules (1) and (2) would
+  make it a part; whether it becomes one is for #146: a part would move the Cancel button's `bind:this` and the `ending`
+  hand-off across a part boundary (INFERRED).
 - **Logic:** pure functions in `.ts` beside the parts (`src/lib/sort.ts:18-51`, `src/lib/filters.ts`), reactive logic in
   `.svelte.ts` (`src/lib/view.svelte.ts`). A new module comes when a function has a statement to test on its own.
-- Every part is `generics="Row"` like the root (`src/lib/DataTable.svelte:1`, `src/lib/parts/Toolbar.svelte:1`) and
-  renders inside `div.sdt`, with no portal (THEME-09, `spec/table.md:1399-1402`). The filter dialog is a popover in the
-  top layer; its markup follows its own filter button (`spec/table.md:2773-2779`).
-- **The rule:** a feature gets its own part when it (1) is a region in the document order below, (2) owns a field of
-  `TableView`, or (3) repeats per column or per row with its own controls. Otherwise it is markup in the nearest part.
+- Today's pattern, not a rule: both parts are `generics="Row"` like the root (`src/lib/DataTable.svelte:1`,
+  `src/lib/parts/Toolbar.svelte:1`). A part renders inside `div.sdt`, with no portal (THEME-09,
+  `spec/table.md:1399-1402`; the "no portal" reading is INFERRED). The filter dialog is a popover in the top layer; its
+  markup follows its own filter button (`spec/table.md:2773-2779`).
+- **The rule:** a feature gets its own part when it (1) is a region of the document order below (a slot in that order,
+  not the spec's `role="region"` element) that has state or controls of its own, (2) owns a field of `TableView` and
+  more than one element, or (3) repeats per column or per row with its own controls. Otherwise it is markup in the
+  nearest part.
 - **Callbacks:** called once per intent (PRD-B2), in the part where the press happens
   (`src/lib/parts/Toolbar.svelte:40-59`) or through a handler the root passes down when the intent needs root state: the
   sort press and its Shift state (`src/lib/DataTable.svelte:41-60`, `src/lib/DataTable.svelte:190-198`,
   `src/lib/parts/HeaderCell.svelte:16-19`).
-- **Tests:** at the component boundary, `DataTable` mounted. No test mounts a part or imports `view.svelte.ts`
-  (MEASURED: `git grep -n -e "parts/" -e "view.svelte" -- "*.ts" "*.svelte"` lists only
+- **Tests:** at the component boundary, `DataTable` mounted. At b20d582 no test mounts a part or imports
+  `view.svelte.ts` (MEASURED: `git grep -n -e "parts/" -e "view.svelte" b20d582 -- "*.ts" "*.svelte"` lists only
   `src/lib/DataTable.svelte:5-10`).
-- **Reopens when:** a part passes about 150 lines (`HeaderCell` 76, `Toolbar` 61), or a feature fits none of (1) to (3).
+- **Reopens when:** a part passes about 150 lines (`HeaderCell` 76, `Toolbar` 61 at b20d582), or a feature fits none of
+  (1) to (3).
 
 ## State
 
 - **Need:** PRD-B2 lists the internal state and says "It resets on remount" (`docs/PRD.md:164-172`).
 - **Candidates:** (i) `$state` in each part, coordinated by props and callbacks; (ii) a context object; (iii) one class
-  with `$state` fields in a `.svelte.ts`, built per table and passed as a prop. Svelte's advice (FETCHED): "use classes
-  with `$state` fields to share reactivity between components, instead of using stores" and "Consider using context
-  instead of declaring state in a shared module" (https://svelte.dev/docs/svelte/best-practices); `.svelte.js` files are
-  "useful for creating reusable reactive logic, or sharing reactive state across your app"
-  (https://svelte.dev/docs/svelte/svelte-js-files).
+  with `$state` fields in a `.svelte.ts`, built per table and passed as a prop where a part needs it. Svelte's advice
+  (FETCHED): "use classes with `$state` fields to share reactivity between components, instead of using stores" and
+  "Consider using context instead of declaring state in a shared module"
+  (https://svelte.dev/docs/svelte/best-practices); `.svelte.js` files are "useful for creating reusable reactive logic,
+  or sharing reactive state across your app" (https://svelte.dev/docs/svelte/svelte-js-files).
 - **Decision:** (iii), `class TableView` in `src/lib/view.svelte.ts`.
-  - **Fields:** one `$state` field per PRD-B2 item that the markup, a part or one of its effects reads, named for it.
-    Today three, the slow-load items of PRD-B22: `shown`, `held` (its minimum display time is running; read only by the
-    first effect) and `still` (`src/lib/view.svelte.ts:6-10`, `src/lib/view.svelte.ts:20`). Each timer is a local of the
-    effect that starts it, cleared by its teardown (`src/lib/view.svelte.ts:31-35`, `src/lib/view.svelte.ts:41-46`;
+  - **Fields:** one `$state` field per PRD-B2 item that the markup, a part or one of its effects reads, named for it. At
+    b20d582 three, the slow-load items of PRD-B22: `shown`, `held` (its minimum display time is running; read only by
+    the first effect) and `still` (`src/lib/view.svelte.ts:6-10`, `src/lib/view.svelte.ts:20`). Each timer is a local of
+    the effect that starts it, cleared by its teardown (`src/lib/view.svelte.ts:31-35`, `src/lib/view.svelte.ts:41-46`;
     FOOT-05, `spec/table.md:1272`). No test compares the fields with PRD-B2's list; a review does.
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
@@ -81,22 +89,26 @@ Region order).
     `src/lib/DataTable.svelte:104-109`). A new instance per mount gives "resets on remount" and shares nothing between
     server requests; effects "only run in the browser, not during server-side rendering" (FETCHED,
     https://svelte.dev/docs/svelte/$effect), so no timer starts there.
-  - **A prop when a part needs a field, not context:** no part receives the `TableView` today (MEASURED: it occurs only
-    in `src/lib/view.svelte.ts` and `src/lib/DataTable.svelte:10`). Parts are one or two levels deep and a prop shows in
-    the part's `Props` type. Context would work at the peer floor of 5.20 (`package.json:57`) through `setContext` and
-    `getContext`; only the typed `createContext` needs 5.40 (FETCHED, https://svelte.dev/docs/svelte/context).
+  - **A prop when a part needs a field, not context:** at b20d582 no part receives the `TableView` (MEASURED:
+    `git grep -n TableView b20d582 -- src site` lists `src/lib/view.svelte.ts:6`, `src/lib/DataTable.svelte:10` and
+    `src/lib/DataTable.svelte:105-106`; no file under `src/lib/parts/` mentions it). Parts are one or two levels deep
+    and a prop shows in the part's `Props` type. Context would work at the peer floor of 5.20 (`package.json:57`)
+    through `setContext` and `getContext`; only the typed `createContext` needs 5.40 (FETCHED,
+    https://svelte.dev/docs/svelte/context).
   - **Props stay the only source of truth (PRD-B2):** `TableView` never copies a prop: `pending` arrives as a function
     that reads a `$derived` of the props (`src/lib/DataTable.svelte:103`, `src/lib/DataTable.svelte:107`). No `$state`
-    cell of `DataTable` or its parts starts from a prop (MEASURED: `grep -n '\$state' src/lib/*.svelte
-src/lib/parts/*.svelte src/lib/*.svelte.ts` lists `src/lib/view.svelte.ts:7-10` and
-    `src/lib/DataTable.svelte:118-120`); the connection helper, a separate entry, is not covered by this claim. Values
+    cell of `DataTable` or its parts starts from a prop (MEASURED:
+    `grep -rnE '\$state' src/lib/*.svelte src/lib/parts/*.svelte src/lib/*.svelte.ts` lists `src/lib/view.svelte.ts:7`,
+    `src/lib/view.svelte.ts:9`, `src/lib/view.svelte.ts:10` and `src/lib/DataTable.svelte:118-120`, and a comment at
+    `src/lib/DataTable.svelte:117`); the connection helper, a separate entry, is not covered by this claim. Values
     computed from props are `$derived` (`src/lib/DataTable.svelte:68-115`). Unsent search and filter text, when those
-    branches add it, shows over the applied prop only while it is newer (FILT-05, `spec/table.md:2763`, not yet built).
+    branches add it, shows over the applied prop only while it is newer (FILT-05, `spec/table.md:2763`, not built at
+    b20d582).
   - **Kept outside `TableView` (a reading of PRD-B2, INFERRED):** `keyShift`, a plain variable between a keydown and the
     click it decides, from which nothing renders (`src/lib/DataTable.svelte:41-52`), and the element references that
     `bind:this` sets for the focus hand-off (`src/lib/DataTable.svelte:118-120`).
-  - No two-way binding between parts (PRD-G2 (b)). Measured offsets reach the DOM through CSSOM in an effect, never a
-    `style` attribute (`docs/PRD.md:1429`, `docs/PRD.md:1614-1615`).
+  - No two-way binding between parts (PRD-G2 (b)). Measured offsets reach the DOM through CSSOM, never a `style`
+    attribute (`docs/PRD.md:1429`, `docs/PRD.md:1614-1615`); that this runs in an effect is INFERRED.
 - **Reopens when:** a third level of nesting needs `TableView`.
 
 ## Region order and what an adopter can change
@@ -105,7 +117,7 @@ src/lib/parts/*.svelte src/lib/*.svelte.ts` lists `src/lib/view.svelte.ts:7-10` 
   Tab and reading order follow the visible order (WCAG technique C27, FETCHED,
   https://www.w3.org/WAI/WCAG22/Techniques/css/C27: "A keyboard user may have trouble predicting where focus will go
   next when the source order does not match the visual order.").
-- **The order today** inside `div.sdt` (`src/lib/DataTable.svelte:142-248`): the `heading` snippet
+- **The order at b20d582** inside `div.sdt` (`src/lib/DataTable.svelte:142-248`): the `heading` snippet
   (`src/lib/DataTable.svelte:143`); the `actions` snippet (`src/lib/DataTable.svelte:144`); the toolbar, with no element
   of its own: badges, the `criteria` snippet, "Clear column filters", "Reset table" (`src/lib/DataTable.svelte:145-154`,
   `src/lib/parts/Toolbar.svelte:35-61`; FILT-31); the status region (`src/lib/DataTable.svelte:157-161`); Cancel
@@ -117,21 +129,25 @@ src/lib/parts/*.svelte src/lib/*.svelte.ts` lists `src/lib/view.svelte.ts:7-10` 
   (`src/lib/filters.ts:54-65`), the status region and the live count stay, both live elements empty
   (`spec/table.md:61-67`). The badges and "Clear column filters" go (FILT-08, `src/lib/parts/Toolbar.svelte:28-30`).
   Cancel goes too (INFERRED, not run: `pending` is false under a fault, `src/lib/DataTable.svelte:103`, so the first
-  effect sets `still` false, `src/lib/view.svelte.ts:19-26`). The alert takes the place of the failed notice, the
-  progress indicator, the region, Try again and the descriptions.
+  effect sets `still` false, `src/lib/view.svelte.ts:19-26`, because `still` implies `held` is false,
+  `src/lib/view.svelte.ts:20`). The alert takes the place of the failed notice, the progress indicator, the region, Try
+  again and the descriptions.
 - **What pins it:** the heading (RND-14, `spec/table.md:359`), the Tab order (A11Y-10, `spec/table.md:858`), Cancel
   (A11Y-31, `spec/table.md:1064`), the toolbar (FILT-31, `spec/table.md:3070`) and Try again (STATE-25,
-  `spec/table.md:737`; A11Y-23, `spec/table.md:931`). Tested today: RND-14, FILT-31, STATE-25 and A11Y-23 (MEASURED:
-  `git grep -l '"<ID>"' -- src site test`). Specified, not built, no test yet: the skip link first (A11Y-36,
-  `spec/table.md:4460`) and its target (A11Y-48, `spec/table.md:4468`); search before the badges (FILT-45,
-  `spec/table.md:3285`); "Columns" (COL-29, `spec/table.md:3323`); the sort summary (SORT-08, `spec/table.md:3439`).
+  `spec/table.md:737`; A11Y-23, `spec/table.md:931`). At b20d582, tested: RND-14, FILT-31, STATE-25 and A11Y-23
+  (MEASURED: `git grep -l '"<ID>"' b20d582 -- src site test`). Specified and built, no test carrying the id: A11Y-10 and
+  A11Y-31 (MEASURED: `git grep "A11Y-10\|A11Y-31" b20d582 -- src site test scripts` is empty). Specified, not built, no
+  test yet: the skip link first (A11Y-36, `spec/table.md:4460`) and its target (A11Y-48, `spec/table.md:4468`); search
+  before the badges (FILT-45, `spec/table.md:3285`); "Columns" (COL-29, `spec/table.md:3323`); the sort summary
+  (SORT-08, `spec/table.md:3439`).
 - **Decision (internal structure):**
   - The order is written once, in the root; each part writes its own inner order.
   - Places no statement gives yet (search relative to `actions`; the sort summary among the toolbar controls) are
     written by the statements of the branches that build them, not by this record. The same holds for the status region,
     the live count and the progress indicator: the branch that builds the loading line decides whether they move.
-  - The order is pinned by the spec's statements. PRD-K3's breaking list does not name element order
-    (`docs/PRD.md:1247-1258`): a change of order is a spec change, and its commit gives the changelog line.
+  - The order is pinned where a statement exists, and for the positions under "What pins it" only. PRD-K3's breaking
+    list does not name element order (`docs/PRD.md:1247-1258`): a change of order is a spec change, and its commit gives
+    the changelog line.
   - **Breaking, as a reading of PRD-K3's text (INFERRED):** PRD-K3 makes removing or renaming a public class, or moving
     it to another element, a breaking change (`docs/PRD.md:1249`), and THEME-09 gives the reason, "an application's
     selectors rely on where they sit" (`spec/table.md:1415-1416`). This record reads #191's ruling, that a change moving
@@ -156,8 +172,8 @@ src/lib/parts/*.svelte src/lib/*.svelte.ts` lists `src/lib/view.svelte.ts:7-10` 
 - **Recommendation, not a decision:** no `layout` or `dom`-style option in 0.x. Reasons: adding a snippet later is a
   minor ("MINOR version when you add functionality in a backward compatible manner", https://semver.org/, FETCHED) and
   removing one is breaking (`docs/PRD.md:1247-1249`); slot names fixed at 0.1.0 would bind every later feature before
-  those features exist (INFERRED); AG Grid and MUI X place or replace parts themselves. Offering such an option or not
-  is a product choice for the owner. It goes into `docs/departures.md` as an entry of class owner, open until he
-  decides it (#191), and that entry, not this record, carries the outcome.
+  those features exist (INFERRED); the practice is split (see the comparison above). Offering such an option or not is a
+  product choice for the owner. #191 is to record it as an open owner entry in `docs/departures.md` (none exists at
+  b20d582), and that entry, not this record, carries the outcome.
 - **Reopens when:** an adopter needs a built-in part somewhere a snippet cannot cover, the owner decides the
   recommendation otherwise, or design R (PRD-X5, `docs/PRD.md:1577`, `docs/PRD.md:1597`) changes what scrolls.
