@@ -3,10 +3,18 @@
 // Playwright starts its webServer before any global setup, so the command that serves also prepares.
 //   node scripts/consumer-serve.ts [--root <dir>]
 // It prints one line when both servers answer and then runs until it is stopped. Exit codes: 2 usage, 3 could not
-// prepare or start.
+// prepare or start. Every line of both servers also goes, timed and with the copy's path replaced, to
+// test-results/consumer-serve.log (#217), beside the trace of a failed test.
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,15 +44,29 @@ function launch(
   args: string[],
   cwd: string,
   env: NodeJS.ProcessEnv,
+  log?: string,
 ): Server {
   const server: Server = {
     name,
     child: spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] }),
     out: [],
   };
+  // The copy's real path first: on macOS the path given is a substring of the real one
+  const real = log ? realpathSync(cwd) : cwd;
   const keep = (d: Buffer): void => {
-    server.out.push(...String(d).split("\n").filter(Boolean));
+    const lines = String(d).split("\n").filter(Boolean);
+    server.out.push(...lines);
     server.out.splice(0, Math.max(0, server.out.length - 5));
+    if (log)
+      appendFileSync(
+        log,
+        lines
+          .map(
+            (l) =>
+              `${new Date().toISOString()} ${name}: ${l.replaceAll(real, "<copy>").replaceAll(cwd, "<copy>")}\n`,
+          )
+          .join(""),
+      );
   };
   server.child.stdout?.on("data", keep);
   server.child.stderr?.on("data", keep);
@@ -89,7 +111,12 @@ export async function start(
   copy: string,
   ports = PORTS,
   ms = 60_000,
+  log?: string,
 ): Promise<{ stop: () => void; died: Promise<string> } | string> {
+  if (log) {
+    mkdirSync(dirname(log), { recursive: true });
+    writeFileSync(log, "");
+  }
   mkdirSync(join(copy, "src", "routes", "mismatch"), { recursive: true });
   writeFileSync(
     join(copy, "src", "routes", "mismatch", "+page.svelte"),
@@ -101,6 +128,7 @@ export async function start(
     ["dev", "--host", "127.0.0.1", "--port", String(ports.dev), "--strictPort"],
     copy,
     childEnv(),
+    log,
   );
   let prod: Server | undefined;
   const stop = (): void => {
@@ -110,11 +138,18 @@ export async function start(
   let problem = await wait(`http://127.0.0.1:${ports.dev}/`, dev, ms);
   problem ??= await wait(`http://127.0.0.1:${ports.dev}/mismatch`, dev, ms);
   if (!problem) {
-    prod = launch("the production server", process.execPath, ["build"], copy, {
-      ...childEnv(),
-      HOST: "127.0.0.1",
-      PORT: String(ports.prod),
-    });
+    prod = launch(
+      "the production server",
+      process.execPath,
+      ["build"],
+      copy,
+      {
+        ...childEnv(),
+        HOST: "127.0.0.1",
+        PORT: String(ports.prod),
+      },
+      log,
+    );
     problem = await wait(`http://127.0.0.1:${ports.prod}/`, prod, ms);
   }
   if (problem || !prod) {
@@ -162,7 +197,12 @@ async function main(argv: string[]): Promise<number> {
   };
   const prepared = prepare(root, dir);
   if (isResult(prepared)) return fail(prepared.summary, prepared.details);
-  const started = await start(prepared.copy);
+  const started = await start(
+    prepared.copy,
+    PORTS,
+    undefined,
+    join(root, "test-results", "consumer-serve.log"),
+  );
   if (typeof started === "string") return fail(started);
   stop = started.stop;
   console.log(
