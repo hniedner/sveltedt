@@ -49,17 +49,17 @@ export function badges<Row>(
 }
 
 // "Reset table" shows while `onreset` is given and a column is sortable or has a filter. The alert state keeps it for
-// a fault of SORT-15 or FILT-32, where the columns have passed validation: it is the application's way back from a
-// server answer the table cannot show (FILT-30).
+// a fault of SORT-15 or FILT-32, where the columns have passed RND-05's checks (their own sort or filter settings may
+// be the fault): it is the application's way back from a server answer the table cannot show (FILT-30).
 export function resetShown<Row>(
   fault: TableFault | null,
   columns: readonly DataTableColumn<Row>[],
-  onreset: unknown,
+  onreset: DataTableProps<Row>["onreset"],
 ): boolean {
+  const keepsReset: readonly string[] = SORT_FILTER_FAULTS;
   return (
     typeof onreset === "function" &&
-    (fault === null ||
-      (SORT_FILTER_FAULTS as readonly TableFault[]).includes(fault)) &&
+    (fault === null || keepsReset.includes(fault)) &&
     columns.some((column) => column.sortable || column.filter)
   );
 }

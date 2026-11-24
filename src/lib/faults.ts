@@ -1,7 +1,8 @@
 import { DEV } from "esm-env";
 
-// The codes of SORT-15 and FILT-32: the columns have passed validation when one of these is the fault, so the
-// controls that read them (FILT-30) can still show
+// The codes of SORT-15 and FILT-32. When one of these is the fault, the columns have passed RND-05's checks (id, label,
+// content); their own sort or filter settings may be the fault. So the controls that read the columns (FILT-30) can
+// still show. A new SORT or FILT code goes in this array, not in the union below.
 export const SORT_FILTER_FAULTS = [
   "sortableInvalid",
   "sortHandlerMissing",

@@ -2994,7 +2994,8 @@ come with the column statements (milestone 5), which state the badges and focus 
 - Reason: the reset is the application's intent and does nothing without its handler; a table built before this
   group, with sort and no `onreset`, keeps its look (PRD-B8; RND-12 is the negative half). It stays while the alert
   shows a fault of `filters`, the application's way back from a server answer the table cannot show (RND-10); the
-  columns have passed validation there, so the rule reads them.
+  columns have passed RND-05's checks there, so the rule reads them (their own sort or filter settings may be the
+  fault).
 - Layer: component.
 - Traces: PRD-B8, PRD-B3.
 

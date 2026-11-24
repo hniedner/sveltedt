@@ -120,7 +120,8 @@ export interface DataTableProps<Row> {
   onfilter?: (change: { id: string; state: DataTableFilterState }) => void;
   onclearfilter?: (change: { id: string }) => void;
   onclearfilters?: () => void;
-  // Called on a press of "Reset table"; the button shows only while it is given (FILT-30)
+  // Called on a press of "Reset table"; the button shows while it is given, a column is sortable or filtered, and no
+  // fault but one of SORT-15 or FILT-32 shows (FILT-30)
   onreset?: () => void;
   // The application's own criteria controls: between the badges and "Clear column filters", also while the alert
   // shows (FILT-31)
