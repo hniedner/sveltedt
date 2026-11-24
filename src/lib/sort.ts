@@ -32,3 +32,20 @@ export function nextOrder(
     entry.id !== id ? [entry] : next ? [next] : [],
   );
 }
+
+// A column's direction and rank in the order; the rank only while two or more columns are sorted (SORT-05, SORT-06)
+export function sortState(
+  order: readonly DataTableSortEntry[],
+  id: string,
+): {
+  direction: SortDirection | null;
+  rank: number | null;
+} {
+  const place = order.findIndex((entry) => entry.id === id);
+  const entry = order[place];
+  if (!entry) return { direction: null, rank: null };
+  return {
+    direction: entry.direction,
+    rank: order.length > 1 ? place + 1 : null,
+  };
+}
