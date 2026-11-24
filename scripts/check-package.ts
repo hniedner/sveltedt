@@ -125,27 +125,54 @@ function imports(c: Contents): Finding[] {
   );
 }
 
+/**
+ * `exports[subpath]` has exactly the conditions `want`, each naming a file the tarball holds. Returns
+ * its problems: a missing condition, an extra one, then a file the tarball lacks.
+ */
+function conditions(
+  c: Contents,
+  subpath: string,
+  want: [string, string],
+): string[] {
+  const e = manifest(c)?.exports;
+  const s = isObject(e) ? e[subpath] : undefined;
+  if (!isObject(s)) return [`exports["${subpath}"] is not a set of conditions`];
+  const files = want.flatMap((cond) =>
+    typeof s[cond] === "string" ? [s[cond].replace(/^\.\//, "")] : [],
+  );
+  return [
+    ...want
+      .filter((cond) => typeof s[cond] !== "string")
+      .map((cond) => `no ${cond} condition`),
+    ...Object.keys(s)
+      .filter((k) => !want.includes(k))
+      .map((k) => `the condition ${k} is neither ${want[0]} nor ${want[1]}`),
+    ...[...new Set(files)]
+      .filter((file) => !c.has(file))
+      .map((file) => `${file} is not in the tarball`),
+  ];
+}
+
 /** PKG-05: `./styles.css` has exactly `style` and `default`, naming the same file, which the tarball holds. */
 function styles(c: Contents): Finding[] {
   const e = manifest(c)?.exports;
   const s = isObject(e) ? e["./styles.css"] : undefined;
-  const problems: string[] = [];
-  if (!isObject(s))
-    problems.push('exports["./styles.css"] is not a set of conditions');
-  else {
-    for (const cond of ["style", "default"])
-      if (typeof s[cond] !== "string") problems.push(`no ${cond} condition`);
-    for (const cond of Object.keys(s).filter(
-      (k) => !["style", "default"].includes(k),
-    ))
-      problems.push(`the condition ${cond} is neither style nor default`);
-    if (s.style !== s.default && s.style && s.default)
-      problems.push("style and default name different files");
-    const file = stylesheet(c);
-    if (file && !c.has(file)) problems.push(`${file} is not in the tarball`);
-  }
-  return problems.map((message) => ({ id: "PKG-05", message }));
+  const differ =
+    isObject(s) && s.style && s.default && s.style !== s.default
+      ? ["style and default name different files"]
+      : [];
+  return [
+    ...conditions(c, "./styles.css", ["style", "default"]),
+    ...differ,
+  ].map((message) => ({ id: "PKG-05", message }));
 }
+
+/** PKG-06: `./connection` has exactly `types` and `svelte`, each a file the tarball holds. */
+const connection = (c: Contents): Finding[] =>
+  conditions(c, "./connection", ["types", "svelte"]).map((message) => ({
+    id: "PKG-06",
+    message,
+  }));
 
 /** PKG-04: LICENSE and NOTICE are in the tarball with the repository's bytes. */
 function notices(c: Contents, repo: Repo): Finding[] {
@@ -172,26 +199,19 @@ export function analyse(c: Contents, repo: Repo): Finding[] {
     ...shape(c),
     ...notices(c, repo),
     ...styles(c),
+    ...connection(c),
     ...imports(c),
   ];
 }
 
-/** The packed manifest with `exports["."]` replaced, or removed when `value` is undefined. */
-const withRoot = (c: Contents, value: unknown): Contents => {
-  const m = manifest(c) ?? {};
-  const e = { ...(m.exports as object), ".": value };
-  if (value === undefined) delete (e as Record<string, unknown>)["."];
-  return put(c, "package.json", JSON.stringify({ ...m, exports: e }));
-};
-
-/** The packed manifest with `exports["./styles.css"]` replaced, or removed when `value` is undefined. */
-const withStyles = (c: Contents, value: unknown): Contents => {
+/** The packed manifest with `exports[subpath]` replaced, or removed when `value` is undefined. */
+const withExport = (c: Contents, subpath: string, value: unknown): Contents => {
   const m = manifest(c) ?? {};
   const e: Record<string, unknown> = {
     ...(m.exports as object),
-    "./styles.css": value,
+    [subpath]: value,
   };
-  if (value === undefined) delete e["./styles.css"];
+  if (value === undefined) delete e[subpath];
   return put(c, "package.json", JSON.stringify({ ...m, exports: e }));
 };
 
@@ -222,7 +242,7 @@ export const CANARIES: Canary[] = [
   ).map(([value, row, found]): Canary => ({
     id: "PKG-05",
     row,
-    plant: (c) => withStyles(c, value),
+    plant: (c) => withExport(c, "./styles.css", value),
     found,
   })),
   ...(
@@ -245,8 +265,33 @@ export const CANARIES: Canary[] = [
   ).map(([value, row, found]): Canary => ({
     id: "PKG-01",
     row,
-    plant: (c) => withRoot(c, value),
+    plant: (c) => withExport(c, ".", value),
     found,
+  })),
+  ...(
+    [
+      [{ svelte: "./dist/connection/index.js" }, "no types"],
+      [
+        {
+          types: "./dist/connection/index.d.ts",
+          default: "./dist/connection/index.js",
+        },
+        "default in place of svelte",
+      ],
+      [undefined, "absent"],
+      [
+        {
+          types: "./dist/connection/x.d.ts",
+          svelte: "./dist/connection/x.js",
+        },
+        "both conditions naming files the tarball does not hold",
+      ],
+    ] as [unknown, string][]
+  ).map(([value, row]): Canary => ({
+    id: "PKG-06",
+    row,
+    plant: (c) => withExport(c, "./connection", value),
+    found: true,
   })),
   ...[
     ["dist/DataTable.test.js", "a test file"],

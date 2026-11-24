@@ -1,9 +1,11 @@
 // The test site's server, on Node's own http module. At start it reads every file of the build folder into a map
 // from URL path to contents; a request is answered only by a lookup in that map, so no request text ever becomes a
-// file path. Start it after the site's build with: node site/server.ts (it serves the folder dist beside this file)
+// file path. The one exception is the route /api/orders, which answers from the site's fixed list and reads no file.
+// Start it after the site's build with: node site/server.ts (it serves the folder dist beside this file)
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname, join, relative, sep } from "node:path";
+import { orders, type Order } from "./src/orders.ts";
 
 const TYPES: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -41,11 +43,94 @@ function readBuild(buildFolder: string): Map<string, BuiltFile> {
   return files;
 }
 
+// The fixed list ordered by `order[0]` when it names column 0 or 1 as `asc` or `desc` and sends that column as
+// orderable, else as it is. The literals are matched first, so no request text is ever used as a key.
+function ordered(query: URLSearchParams): readonly Order[] {
+  const column = query.get("order[0][column]");
+  const direction = query.get("order[0][dir]");
+  if (
+    (column !== "0" && column !== "1") ||
+    (direction !== "asc" && direction !== "desc") ||
+    query.get(`columns[${column}][orderable]`) !== "true"
+  )
+    return orders;
+  const key: keyof Order = column === "0" ? "id" : "name";
+  const ascending = orders.toSorted((a, b) => a[key].localeCompare(b[key]));
+  return direction === "asc" ? ascending : ascending.toReversed();
+}
+
+// A count the route accepts: the decimal text of a safe non-negative integer, else undefined
+function count(text: string | null): number | undefined {
+  const number = Number(text);
+  return text !== null && /^\d+$/.test(text) && Number.isSafeInteger(number)
+    ? number
+    : undefined;
+}
+
+// The keys the route may read: both columns' `orderable` keys, though only the ordered column's is used
+const READ = [
+  "draw",
+  "start",
+  "length",
+  "order[0][column]",
+  "order[0][dir]",
+  "columns[0][orderable]",
+  "columns[1][orderable]",
+];
+
+const refuseRequest = (response: ServerResponse): void => {
+  response.writeHead(400).end();
+};
+
+// The route's answer: `draw` as a number, the ordered list from `start`, at most `length` rows, both counts the whole
+// list. A request that is malformed, or asks for an unknown column or direction or a size of 0 or over 1000, is
+// refused with 400 and an empty body before any of it is used. So is a request that sends a key the route can read
+// more than once: PHP's `$_GET` keeps the last value and `get` the first, so neither is picked for an ambiguous
+// request.
+function answerOrders(query: URLSearchParams, response: ServerResponse): void {
+  if (READ.some((key) => query.getAll(key).length > 1)) {
+    refuseRequest(response);
+    return;
+  }
+  const draw = count(query.get("draw"));
+  const start = count(query.get("start"));
+  const length = count(query.get("length"));
+  const column = query.get("order[0][column]");
+  const direction = query.get("order[0][dir]");
+  const named = column !== null || direction !== null;
+  if (
+    draw === undefined ||
+    start === undefined ||
+    length === undefined ||
+    length < 1 ||
+    length > 1000 ||
+    (named &&
+      ((column !== "0" && column !== "1") ||
+        (direction !== "asc" && direction !== "desc")))
+  ) {
+    refuseRequest(response);
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "application/json" }).end(
+    JSON.stringify({
+      draw,
+      recordsTotal: orders.length,
+      recordsFiltered: orders.length,
+      data: ordered(query).slice(start, start + length),
+    }),
+  );
+}
+
 function serve(files: ReadonlyMap<string, BuiltFile>): Server {
   return createServer((request, response) => {
-    const [path = ""] = (request.url ?? "").split("?", 1);
+    const url = request.url ?? "";
+    const [path = ""] = url.split("?", 1);
     const file = files.get(path);
     response.setHeader("Content-Security-Policy", POLICY);
+    if (path === "/api/orders") {
+      answerOrders(new URLSearchParams(url.slice(path.length + 1)), response);
+      return;
+    }
     if (!file) {
       response.writeHead(404).end();
       return;
