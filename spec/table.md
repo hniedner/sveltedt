@@ -61,8 +61,9 @@ to the consumer as one callback (stated with the statements that add user action
   RND-05. **The failed notice** is the element of A11Y-15 that holds the failed message (it also has
   `role="alert"`; a test tells the two apart by their text). **The live count** is the polite live region of A11Y-05,
   an element with `aria-live="polite"` and no role. **The status region** is the element with `role="status"` of
-  A11Y-14. They are two elements, and both are in the document in every state, the alert's included, where both are
-  empty. A test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
+  A11Y-14, which is not atomic (`aria-atomic="false"`), so a reader says what is added to it and not all it holds.
+  They are two elements, and both are in the document in every state, the alert's included, where both are empty. A
+  test finds the live count by its attribute, `[aria-live="polite"]:not([role])` within the component,
   one of the three elements a test finds by an attribute, because the count has no role of its own. **The progress
   indicator** of PRD-B22 is the element with the attribute `data-sdt-progress` within the component, the second,
   because it is hidden from assistive technology and so has no role or name. **A column's grip** of COL-13 is the
@@ -507,6 +508,7 @@ neither `status 'loading'` nor `busy` true holds.
   | at 1100 ms `status 'failed'` | 1499 ms | 1500 ms |
   | at 2000 ms `status 'ready'` with two rows, `busy false` | 1999 ms | 2000 ms |
   | at 2000 ms `status 'stopped'` | 1999 ms | 2000 ms |
+  | at 1100 ms `status 'ready'` with two rows, `busy false`; at 1200 ms `status 'loading'`; at 2500 ms `status 'ready'` with two rows, `busy false` | 2499 ms | 2500 ms |
 
 - Reason: an indicator that blinks for a frame reads as a glitch; once the answer is there and the minimum has passed,
   nothing is in progress any more (PRD-B22).
@@ -1222,7 +1224,7 @@ anything to the document head.
 **FOOT-05** After unmount, the table MUST leave no timer pending.
 - Examples (the test runs every row; fake timers; mounted with `status 'loading'`, `oncancel` passed; after the
   unmount the count of pending fake timers is 0): unmounted at 500 ms (before the indicator); at 1200 ms, 100 ms after
-  `status 'ready'` (inside the indicator's 500 ms); at 6000 ms (the still-loading text and "Cancel" shown).
+  `status 'ready'` (inside the indicator's 500 ms); at 5999 ms (the still-loading text and "Cancel" not yet shown).
 - Reason: a timer that outlives the component runs code for a table that is gone (PRD-B19); the slow-load group is the
   first to time anything (PRD-B22).
 - Layer: component.

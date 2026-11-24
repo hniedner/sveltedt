@@ -55,6 +55,7 @@ export interface DataTableMessages {
   readonly failed: string;
   readonly empty: string;
   readonly stopped: string;
+  readonly stillLoading: string;
   readonly rowCount: (count: number) => string;
   // The one text of the alert for invalid input (RND-05)
   readonly invalidInput: string;
