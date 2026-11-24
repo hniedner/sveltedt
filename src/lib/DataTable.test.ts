@@ -1062,6 +1062,46 @@ describe("STATE-08", () => {
   );
 });
 
+// @spec("STATE-28", "3b8cc640")
+describe("STATE-28", () => {
+  it.each<[string, Partial<DataTableProps<Item>>[], boolean[]]>([
+    [
+      "stopped, loading, stopped",
+      [{ status: "stopped" }, { status: "loading" }, { status: "stopped" }],
+      [true, false, true],
+    ],
+    [
+      "stopped, ready with two rows, failed, stopped",
+      [
+        { status: "stopped" },
+        { status: "ready", rows: threeRows.slice(0, 2) },
+        { status: "failed" },
+        { status: "stopped" },
+      ],
+      [true, false, false, true],
+    ],
+  ])(
+    "holds the stopped message exactly while stopped: %s",
+    async (_steps, steps, held) => {
+      const columns = [nameColumn, codeColumn];
+      const { container, rerender } = render(
+        DataTable<Item>,
+        state({ columns, ...steps[0] }),
+      );
+      for (const [index, step] of steps.entries()) {
+        if (index > 0) await rerender(state({ columns, ...step }));
+        // textContent includes hidden text, so a message only hidden still counts
+        if (held[index])
+          expect(
+            within(screen.getByRole("table")).getByText("Loading stopped")
+              .isConnected,
+          ).toBe(true);
+        else expect(container.textContent).not.toContain("Loading stopped");
+      }
+    },
+  );
+});
+
 // @spec("STATE-24", "fd6b9b8c")
 describe("STATE-24", () => {
   // The table has no onretry prop yet (the button is #145's): the test holds the state the button's absence rides on
