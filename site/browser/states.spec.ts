@@ -3,7 +3,7 @@
 // the still-loading text, which A11Y-25 owns.
 import { expect, test, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
-import { axeClean, tabKey } from "./reads.ts";
+import { axeClean, expectRing, ring, tabKey } from "./reads.ts";
 
 const exportButton = (page: Page) =>
   page.getByRole("button", { name: "Export", exact: true });
@@ -15,6 +15,21 @@ interface State {
   // Waits for what the state shows, so the state is drawn before anything is read
   drawn(page: Page, browserName: string): Promise<void>;
 }
+
+// Tab from "Export" to the region, polled since the observer that makes it a stop runs after the first frame
+const focusRegion = (page: Page, browserName: string) =>
+  expect
+    .poll(
+      async () => {
+        await exportButton(page).focus();
+        await page.keyboard.press(tabKey(browserName));
+        return page.evaluate(() =>
+          document.activeElement?.getAttribute("role"),
+        );
+      },
+      { message: "could not check: the region holds no focus" },
+    )
+    .toBe("region");
 
 const states: State[] = [
   {
@@ -47,19 +62,7 @@ const states: State[] = [
     name: "30 columns, region focused",
     query: "?cols=30",
     width: 600,
-    drawn: (page, browserName) =>
-      expect
-        .poll(
-          async () => {
-            await exportButton(page).focus();
-            await page.keyboard.press(tabKey(browserName));
-            return page.evaluate(() =>
-              document.activeElement?.getAttribute("role"),
-            );
-          },
-          { message: "could not check: the region holds no focus" },
-        )
-        .toBe("region"),
+    drawn: focusRegion,
   },
   {
     name: "the invalid-input alert, with a heading and actions",
@@ -102,11 +105,10 @@ test.describe("A11Y-06, axe finds no serious or critical violation in any state"
     });
 });
 
-// The names of the package stylesheet's tokens, read from the loaded sheet, and the elements of .sdt that compute one
-async function tokensDefined(
-  page: Page,
-): Promise<{ names: number; set: string[] }> {
-  return page.evaluate(() => {
+// No token of the package stylesheet has a value on any element of .sdt: the names are read from the loaded sheet;
+// could not check when it gave none
+async function expectNoToken(page: Page): Promise<void> {
+  const tokens = await page.evaluate(() => {
     const sheet = [...document.styleSheets].find((s) =>
       s.href?.endsWith("/sdt/styles.css"),
     );
@@ -119,6 +121,10 @@ async function tokensDefined(
     );
     return { names: names.length, set };
   });
+  expect(tokens.names, "could not check: no token name read").toBeGreaterThan(
+    0,
+  );
+  expect(tokens.set, "a token has a value").toEqual([]);
 }
 
 // @spec("THEME-03", "79091611")
@@ -126,16 +132,26 @@ test.describe("THEME-03, the same with no --sdt-* property defined", () => {
   for (const state of states)
     test(state.name, async ({ page, browserName }, testInfo) => {
       await show(page, browserName, "/table-plain.html", state);
-      const tokens = await tokensDefined(page);
-      expect(
-        tokens.names,
-        "could not check: no token name read",
-      ).toBeGreaterThan(0);
-      expect(tokens.set, "a token has a value").toEqual([]);
+      await expectNoToken(page);
       const results = await axeClean(page, testInfo);
       const ran = [...results.passes, ...results.incomplete].map((r) => r.id);
       expect(ran, "could not check: color-contrast did not run").toContain(
         "color-contrast",
       );
     });
+});
+
+// @spec("THEME-06", "b49ae54b")
+test("THEME-06: with no --sdt-* property defined the focused region shows a visible focus indicator", async ({
+  page,
+  browserName,
+}) => {
+  await page.setViewportSize({ width: 600, height: 720 });
+  await open(page, "/table-plain.html?cols=30");
+  const region = page.getByRole("region", { name: "Orders table" });
+  await expect(region).toBeVisible();
+  await expectNoToken(page);
+  const unfocused = await ring(region);
+  await focusRegion(page, browserName);
+  expectRing(await ring(region), unfocused);
 });
