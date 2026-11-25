@@ -1,7 +1,8 @@
 // The statements of the wide table's keyboard and focus that need an engine (spec/table.md: A11Y-12), against
-// site/table.html: its tables overflow only because every column is at least 120 px wide (site/src/table.css). The
-// proof that the effect writing the region's tabindex is needed comes from Chromium row 5 (a cell link) and WebKit
-// rows 2-5: with the writes deleted those fail there, and Firefox passes natively.
+// site/table.html: its tables overflow only because every column is at least 120 px wide (site/src/table.css).
+// MEASURED when A11Y-08 was built, not a proof on the current head: with the effect's attribute writes deleted by hand,
+// A11Y-12's five rows in three engines gave Chromium failing row 5 (a cell link), WebKit failing rows 2-5, and Firefox
+// passing all five.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
 import { tabKey, visibleNow } from "./reads.ts";
@@ -279,7 +280,8 @@ test("A11Y-13: the caption is hidden visually and still names the table", async 
   ).toBeVisible();
 });
 
-// The 25 rows' names as the page gives them: Beta and Gamma first (site/src/TablePage.svelte)
+// The 25 rows' names as the page gives them: Beta and Gamma first (must match TablePage.svelte; the count is checked
+// in startVisible)
 const names = Array.from({ length: 25 }, (_, index) =>
   index < 2
     ? ["Beta", "Gamma"][index]

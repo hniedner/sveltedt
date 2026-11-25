@@ -59,7 +59,8 @@ export class TableView {
     // as the region scrolls sideways only (overflow-y computes to auto beside overflow-x, so a height cap on the region
     // is not supported: it would scroll vertically without a stop). Watched on the region (the viewport's width) and on
     // the region's children, the table (its columns and rows). The attribute is written here, not in the markup, where
-    // Svelte flags a dynamic tabindex on a region (a11y_no_noninteractive_tabindex). Without a ResizeObserver (an adopter's jsdom test) there is no stop
+    // Svelte flags a dynamic tabindex on a region (a11y_no_noninteractive_tabindex). Without a ResizeObserver (an
+    // adopter's jsdom test) there is no stop.
     $effect(() => {
       const box = region();
       if (!box || typeof ResizeObserver === "undefined") return;

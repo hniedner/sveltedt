@@ -81,6 +81,7 @@ describe("A11Y-12, the region's Tab stop in the simulated DOM", () => {
     expect(region.hasAttribute("tabindex")).toBe(false);
   });
 
+  // The only guard for the `[box, ...box.children]` loop: not an implementation pin, do not delete it
   it("watches the region and the table, and nothing else", async () => {
     const { region, observer } = await mount();
     expect(observer.watched).toEqual([region, region.querySelector("table")]);
