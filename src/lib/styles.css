@@ -81,7 +81,7 @@
   inset-inline: 0;
   inset-block-end: 0;
   block-size: 0;
-  border-block-end: 0.25em solid var(--sdt-progress, Highlight);
+  border-block-end: 0.25em solid var(--sdt-progress, CanvasText);
   animation: sdt-progress 1s ease-in-out 5;
 }
 
