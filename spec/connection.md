@@ -417,8 +417,7 @@ data.
 
 - Reason: server text and error messages may hold row values and reach screenshots (PRD-S4, PRD-B20); what
   `onerror` receives is the application's to log. The rows beside an `error` are server text too (CONN-19); an
-  application that wants its own text for a code passes it as `messages.failed`. Row 2 (`leak-41`) is the row that
-  can fail; rows 1 and 3 are regression pins that no present mutant reaches.
+  application that wants its own text for a code passes it as `messages.failed`.
 - Layer: component.
 - Traces: PRD-B20, PRD-S4.
 
