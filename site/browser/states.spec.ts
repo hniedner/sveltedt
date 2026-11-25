@@ -156,20 +156,32 @@ test("THEME-06: with no --sdt-* property defined the focused region shows a visi
 test("FOOT-03: mounting, new rows, state changes and unmounting leave the window where it was", async ({
   page,
 }) => {
-  await open(page, "/table.html?long&rows=20");
+  await open(page, "/table.html?long&rows=20&link");
   const where = () => page.evaluate(() => [scrollX, scrollY]);
   await page.evaluate(() => scrollTo(0, 1200));
   expect(await where(), "could not check: not at 1200").toEqual([0, 1200]);
-  const steps: [string, object][] = [
-    ["mount", { mounted: true }],
-    ["new rows", { rows: 20 }],
-    ["loading", { status: "loading" }],
-    ["ready", { status: "ready" }],
-    ["busy", { busy: true }],
-    ["not busy", { busy: false }],
-    ["unmount", { mounted: false }],
+  const tbl = page.getByRole("table");
+  const busy = page.locator('[aria-busy="true"]');
+  const first = page.getByRole("link", { name: "Open Beta" });
+  // Each step with what shows it happened; every set gives the rows a new generation (g2 after the first step)
+  const steps: [string, object, (gen: number) => Promise<void>][] = [
+    ["mount", { mounted: true }, () => expect(tbl).toBeVisible()],
+    [
+      "new rows",
+      { rows: 20 },
+      (g) => expect(first).toHaveAttribute("href", `#g${g}-r01`),
+    ],
+    [
+      "loading",
+      { status: "loading" },
+      () => expect(page.getByRole("status")).toContainText("Loading"),
+    ],
+    ["ready", { status: "ready" }, () => expect(busy).toHaveCount(0)],
+    ["busy", { busy: true }, () => expect(busy).toHaveCount(1)],
+    ["not busy", { busy: false }, () => expect(busy).toHaveCount(0)],
+    ["unmount", { mounted: false }, () => expect(tbl).toHaveCount(0)],
   ];
-  for (const [step, props] of steps) {
+  for (const [index, [step, props, took]] of steps.entries()) {
     await page.evaluate(
       (next) =>
         (window as Window & { __table: { set(p: object): void } }).__table.set(
@@ -177,6 +189,9 @@ test("FOOT-03: mounting, new rows, state changes and unmounting leave the window
         ),
       props,
     );
+    await took(index + 2).catch((cause: unknown) => {
+      throw new Error(`could not check: ${step} did not happen`, { cause });
+    });
     await settled(page);
     expect(await where(), `after ${step}`).toEqual([0, 1200]);
   }
