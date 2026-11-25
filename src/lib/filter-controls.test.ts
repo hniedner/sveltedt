@@ -440,9 +440,9 @@ describe("EXP-04", () => {
   );
 });
 
-// @spec("EXP-06", "600297c2")
+// @spec("EXP-06", "ac5aa681")
 describe("EXP-06", () => {
-  it("renders the panels by the same elements through the alert, a load and a failure and back", async () => {
+  it("renders the panels by the same elements through the alert, a load, a failure, a busy and a stopped state and back", async () => {
     const beta = { name: { kind: "text", text: "Beta" } } as const;
     const props = (next: Partial<DataTableProps<Item>>) => ({
       ...fixture({ filters: beta, onreset: vi.fn(), ...next }).all,
@@ -454,6 +454,8 @@ describe("EXP-06", () => {
       { filters: { zzz: { kind: "text", text: "x" } } },
       { status: "loading" },
       { status: "failed", onretry: vi.fn() },
+      { busy: true },
+      { status: "stopped", onretry: vi.fn() },
       { status: "ready" },
     ] as const) {
       await rerender(props(next));

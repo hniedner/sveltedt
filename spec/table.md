@@ -1265,8 +1265,8 @@ and before the status region, in document order.
 as before.
 - Example: the `panels` snippet holds a block with the button "Apply search"; Name's text "Beta" is applied and
   `onreset` is given. The table is rerendered, each time from those props, with `filters` naming a column that is not
-  configured (the alert of RND-05), then `status 'loading'`, then `status 'failed'` with `onretry`, then
-  `status 'ready'`; after each change the button "Apply search" is the same element (`===`) as at mount. Breaks that
+  configured (the alert of RND-05), then `status 'loading'`, then `status 'failed'` with `onretry`, then `busy true`,
+  then `status 'stopped'` with `onretry`, then `status 'ready'`; after each change the button "Apply search" is the same element (`===`) as at mount. Breaks that
   turn it red: the slot rendered in each branch of the root's `{#if}` on the alert; the slot inside a `{#key}` on
   `status`.
 - Reason: a panel holds the focus and the values of the application's own inputs; a panel made anew when the table
