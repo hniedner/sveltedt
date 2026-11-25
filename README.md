@@ -28,7 +28,9 @@ There is nothing to install yet. What is on `main` today:
   arrow keys scroll it once it has focus; its focus indicator is the browser's own ring, the caption is hidden visually
   and still names the table, hovering or focusing shows nothing new, and Tab follows the reading order (heading
   controls, actions, the region, then the cells row by row). Proved in Chromium, Firefox and WebKit on the test site's
-  table page (`/table.html`). Limits: a focused region that stops overflowing loses its Tab stop and focus is not moved
+  table page (`/table.html`); axe finds no serious or critical violation in the loading, failed, empty, ready, busy,
+  focused-region and invalid-input states, there and on a page with only the package stylesheet and no token, whose
+  focus ring also shows; mounting, new rows, state changes and unmounting leave the window where it was. Limits: a focused region that stops overflowing loses its Tab stop and focus is not moved
   (not tested); the stop follows widths, not the stylesheet (without the package stylesheet the region is no scroll
   container, yet a table wider than it still makes it a stop); a height cap on the region is not supported (the region
   would scroll vertically without a stop); without `ResizeObserver` (a jsdom test) the region is never a stop;
