@@ -48,8 +48,8 @@
   `cellClass({ row, column })`, `column` being the column definition with its `id` (ruling 3 of #190).
   Amended by the owner on 2026-11-24 at 12:35 PST ("(a): send({ request, signal })."): PRD-B20's `send` takes one
   object, `send({ request, signal })`, by the rule the props of `DataTable` and `Pagination` follow (#231).
-  Amended by the owner on <OWNER WORDS> (<OWNER WORDS>): PRD-B22 reserves a status line above the region from the
-  first load or refetch until unmount (#146).
+  Amended by the owner on 2026-11-24 at 21:22 PST ("yes, option B: keep the line from the first load until
+  unmount"): PRD-B22 reserves a status line above the region from the first load or refetch until unmount (#146).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
