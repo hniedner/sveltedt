@@ -99,6 +99,23 @@ describe("A11Y-12, the region's Tab stop in the simulated DOM", () => {
     expect(Recorder.all).toEqual([]);
   });
 
+  it("builds a second observer, and disconnects the first, when the region comes back after invalid input", async () => {
+    const view = render(DataTable<Item>, props());
+    await tick();
+    const [first] = Recorder.all;
+    await view.rerender(props({ columns: [] }));
+    await tick();
+    expect(first?.disconnected).toBe(true);
+    await view.rerender(props());
+    await tick();
+    const region = screen.getByRole("region", { name: "Orders table" });
+    expect(Recorder.all).toHaveLength(2);
+    expect(Recorder.all[1]?.watched).toEqual([
+      region,
+      region.querySelector("table"),
+    ]);
+  });
+
   it("neither throws nor sets a tabindex where the environment has no ResizeObserver", async () => {
     vi.unstubAllGlobals();
     expect(typeof ResizeObserver).toBe("undefined");
