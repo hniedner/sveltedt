@@ -6,8 +6,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
 import { expectRing, ring, settled, tabKey, visibleNow } from "./reads.ts";
-
-type TableWindow = Window & { __table: { set(props: object): void } };
+import type { TableWindow } from "./reads.ts";
 
 const region = (page: Page) =>
   page.getByRole("region", { name: "Orders table" });

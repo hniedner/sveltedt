@@ -4,6 +4,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
 import { axeClean, expectRing, ring, settled, tabKey } from "./reads.ts";
+import type { TableWindow } from "./reads.ts";
 
 const exportButton = (page: Page) =>
   page.getByRole("button", { name: "Export", exact: true });
@@ -184,10 +185,7 @@ test("FOOT-03: mounting, new rows, state changes and unmounting leave the window
   ];
   for (const [index, [step, props, took]] of steps.entries()) {
     await page.evaluate(
-      (next) =>
-        (window as Window & { __table: { set(p: object): void } }).__table.set(
-          next,
-        ),
+      (next) => (window as unknown as TableWindow).__table.set(next),
       props,
     );
     await took(index + 2).catch((cause: unknown) => {

@@ -8,6 +8,9 @@ import {
   type TestInfo,
 } from "@playwright/test";
 
+// The test page of the table (site/table.html and table-plain.html) lets a test change its props
+export type TableWindow = Window & { __table: { set(props: object): void } };
+
 // The key that moves focus to the next stop. WebKit on macOS skips buttons on Tab under the system's default keyboard
 // setting, and its keyboard users press Option+Tab (microsoft/playwright issue 41808); every other engine and platform
 // tabs to buttons, and Alt+Tab would not move focus in Firefox.
