@@ -15,8 +15,7 @@ export interface ConnectionColumn {
   // The table column id the entry serves
   readonly id?: string;
   // Sent to the server as given, `true` when not given, as in DataTables; the helper does not enforce them (a sort on
-  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too,
-  // as DataTables sends it, and the server skips the column
+  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too
   readonly searchable?: boolean;
   readonly orderable?: boolean;
 }
@@ -125,7 +124,7 @@ export interface Connection<Row> {
     readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
     readonly filters: Readonly<Record<string, DataTableFilterState>>;
     readonly search: string;
-    // Written out because DataTableProps has no onsearch until the search field exists (FILT-41)
+    // Written out because DataTableProps has no onsearch until the search field exists (FILT-40, FILT-41)
     readonly onsearch: (text: string) => void;
   };
   readonly pager:

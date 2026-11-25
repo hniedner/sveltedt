@@ -46,7 +46,8 @@
       filter: { kind: "text" },
     },
     // `code` and `status` only give the intents three ids; their values are not meant to match the labels. Each column
-    // has a filter, so the table takes the filter intents; the options of Status are every value a test selects.
+    // has a filter, so the table needs the three filter handlers (validate.ts, filterFault) and accepts a filter state
+    // for each id; the options of Status are every value a test selects.
     {
       id: "code",
       label: "Code",

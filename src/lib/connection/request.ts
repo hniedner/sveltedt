@@ -23,7 +23,8 @@ const escaped = (value: string): string =>
   value.replace(/[/.*+?|()[\]{}\\$^-]/g, "\\$&");
 
 // The column search a filter sends: a text as given (CONN-09); a selection as an anchored alternation of its escaped
-// values, in the order selected, with regex true (CONN-10); none for no filter and for an empty selection
+// values, in the order selected, with regex true (CONN-10); an empty search ("", false) for no filter and for an empty
+// selection
 function searchOf(filter: DataTableFilterState | undefined) {
   if (filter === undefined) return noSearch();
   if (filter.kind === "text") return { value: filter.text, regex: false };

@@ -12,11 +12,11 @@ import type { Connection, ConnectionOptions } from "./types.js";
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on the
 // server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each `pager.onpage`,
 // `pager.onsize`, `table.onsort`, `table.onfilter`, `table.onclearfilter`, `table.onclearfilters`, `table.onsearch` and
-// `reload()` (none when a sort is refused, CONN-16), and maps each answer; a later
-// request, and unmounting, abort the one still running. It reads `options` when it builds each request, except the
-// query: it is read once, at creation, and then held by the helper. Read `pager` from the returned object, never
-// destructured from it: it is a getter, so a copy would hold the value it had when it was copied. `table` is a plain
-// object, so `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy`, `table.sort`,
+// `reload()` (none when a sort or a filter is refused, CONN-16, CONN-29), and maps each answer; a later request, and
+// unmounting, abort the one still running. It reads `options` when it builds each request, except the query: it is
+// read once, at creation, and then held by the helper. Read `pager` from the returned object, never destructured
+// from it: it is a getter, so a copy would hold the value it had when it was copied. `table` is a plain object, so
+// `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy`, `table.sort`,
 // `table.filters` and `table.search` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,

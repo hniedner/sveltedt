@@ -96,17 +96,19 @@ There is nothing to install yet. What is on `main` today:
   (`pager.onsize`) each set the query at once and send one request; so do its filter intents (`table.onfilter`,
   `onclearfilter`, `onclearfilters`) and its search intent (`table.onsearch`), each back to the first page: a text
   filter and the search go out as given, a categorical filter as an anchored alternation of its escaped values with
-  `regex=true` (a server that ignores `regex` matches no row with it), and `onsearch` waits for the table's search
-  field; `reload()` sends the current query again, the page
-  included; each column map entry can say `searchable` and `orderable`; the request goes out in the bracketed form by
-  default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort or filter on a column
-  id no map entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by hand.
+  `regex=true` (a server that ignores `regex` and matches by substring finds no row), `query.filters` and
+  `query.search` set the start and are read back as `table.filters` and `table.search`, and `table.onsearch` exists
+  but is not passed to `DataTable` until the table has its search field; `reload()` sends the current query again, the
+  page included; each column map entry can say `searchable` and `orderable`; the request goes out in the bracketed
+  form by default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort or filter on a
+  column id no map entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by
+  hand.
   The test site's connection page (`/connection.html`) loads its orders through it from the site's own route
   `/api/orders`, pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in
   Chromium, Firefox and WebKit.
 
-Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (reset;
-cancel and retry) and the published package. The order is in the
+Not yet: the search field, the filter fields and dialog, column features, selection, the rest of the connection helper
+(reset; cancel and retry) and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
