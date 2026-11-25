@@ -5,9 +5,8 @@
 // passing all five.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
-import { tabKey, visibleNow } from "./reads.ts";
-
-type TableWindow = Window & { __table: { set(props: object): void } };
+import { expectRing, ring, settled, tabKey, visibleNow } from "./reads.ts";
+import type { TableWindow } from "./reads.ts";
 
 const region = (page: Page) =>
   page.getByRole("region", { name: "Orders table" });
@@ -23,15 +22,6 @@ const focused = (page: Page) =>
       ? "the region"
       : (element.textContent ?? "").trim();
   });
-
-// Two frames later: a resize observer's callback has run and its attribute is on the element
-const settled = (page: Page) =>
-  page.evaluate(
-    () =>
-      new Promise<void>((done) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => done())),
-      ),
-  );
 
 // Opens the page at the viewport's width; the table has to be as the examples say before anything is read
 async function start(page: Page, width: number, query = ""): Promise<void> {
@@ -215,32 +205,6 @@ test("A11Y-08: the arrow keys scroll the focused region sideways", async ({
     .toBe(true);
 });
 
-// The region's outline as the browser computes it. The statement also accepts a box shadow; no engine's own ring is one,
-// so a rule that moves the indicator to a shadow extends this read
-const ring = (page: Page) =>
-  region(page).evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      style: style.outlineStyle,
-      width: parseFloat(style.outlineWidth),
-      color: style.outlineColor,
-    };
-  });
-
-// The alpha of a computed colour: rgb() and rgba() (comma or space separated), and color(<space> ...) with or without
-// "/ alpha". A form it cannot read is a test to fix, never a pass
-function alphaOf(color: string): number {
-  const slash = /^(?:rgb|rgba|color)\([^/)]*\/\s*([\d.]+)(%?)\s*\)$/.exec(
-    color,
-  );
-  if (slash) return Number(slash[1]) / (slash[2] ? 100 : 1);
-  if (/^(?:rgb|color)\([^/,)]*\)$/.test(color)) return 1;
-  const comma =
-    /^rgba?\(\s*[\d.]+,\s*[\d.]+,\s*[\d.]+(?:,\s*([\d.]+))?\s*\)$/.exec(color);
-  if (comma) return comma[1] === undefined ? 1 : Number(comma[1]);
-  throw new Error(`could not check: no alpha read from the colour ${color}`);
-}
-
 // @spec("A11Y-07", "17996113")
 test("A11Y-07: the region shows a visible focus indicator when focused by keyboard", async ({
   page,
@@ -249,17 +213,9 @@ test("A11Y-07: the region shows a visible focus indicator when focused by keyboa
   await start(page, 600, "?cols=30");
   await expectOverflow(page, true);
   await expectScroller(page);
-  const unfocused = await ring(page);
+  const unfocused = await ring(region(page));
   await expectStop(page, browserName);
-  expect(
-    await region(page).evaluate((element) => element.matches(":focus-visible")),
-    "could not check: the region does not match :focus-visible",
-  ).toBe(true);
-  const ringFocused = await ring(page);
-  expect(ringFocused.style).not.toBe("none");
-  expect(ringFocused.width).toBeGreaterThanOrEqual(1);
-  expect(alphaOf(ringFocused.color)).toBeGreaterThan(0);
-  expect(ringFocused).not.toEqual(unfocused);
+  await expectRing(region(page), unfocused);
 });
 
 // @spec("A11Y-13", "ee07066b")

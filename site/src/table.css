@@ -1,5 +1,6 @@
-/* A column is at least this wide, so 30 columns are at least 3600 px: wider than the 600 px tests. A11Y-12's row 3
-   (4000 px) relies on the content staying under that width. */
+/* The table pages (table.html and table-plain.html, which loads no other site stylesheet) load this file; it defines no
+   token. A column is at least this wide, so 30 columns are at least 3600 px: wider than the 600 px tests. A11Y-12's
+   row 3 (4000 px) relies on the content staying under that width. */
 th {
   min-width: 120px;
 }
@@ -7,4 +8,12 @@ th {
 /* PRD-A3's focus tests need the window's scroll position to change only by what the test does: no scroll anchoring */
 * {
   overflow-anchor: none;
+}
+
+/* ?long: the window can scroll before the table is mounted (FOOT-03), and the table sits in a box of fixed height */
+.spacer {
+  height: 2000px;
+}
+.box {
+  height: 400px;
 }
