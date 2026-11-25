@@ -154,7 +154,7 @@
   />
   <!-- The status line: the status region and "Cancel" beside it. The status region and the live count stay in the
      document in every state, the invalid-input alert's included, so a change of their text is announced -->
-  <div class="sdt-status">
+  <div class={[(pending || view.started) && "sdt-status"]}>
     <div role="status" aria-atomic="false">
       {fault === null && status === "loading" ? words.loading : ""}
       {#if view.still}<span>{words.stillLoading}</span>{/if}

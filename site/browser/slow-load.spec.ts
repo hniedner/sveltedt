@@ -211,3 +211,30 @@ test.describe("STATE-15", () => {
     expect(await boxes(page)).toEqual(first);
   });
 });
+
+// @spec("STATE-29", "abeffc81")
+test.describe("STATE-29", () => {
+  test("keeps no empty line above the region until the first load: status 'ready' with 25 rows, never loading or busy", async ({
+    page,
+  }) => {
+    await open(page, "/slow.html?status=ready");
+    await set(page, { rows: rows25 });
+    await drawn(page, "ready");
+    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await expect(page.getByRole("status")).toHaveText("");
+    const gap = () =>
+      page.getByRole("status").evaluate((status) => {
+        const region = document.querySelector('[role="region"]');
+        if (!region) throw new Error("no region on the page");
+        return (
+          region.getBoundingClientRect().top -
+          status.getBoundingClientRect().bottom
+        );
+      });
+    expect(await gap()).toBe(0);
+    // The control: the same measure sees the reserved line once a load starts
+    await set(page, { busy: true });
+    await expect(table(page)).toHaveAttribute("aria-busy", "true");
+    expect(await gap()).toBeGreaterThan(0);
+  });
+});

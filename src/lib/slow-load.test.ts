@@ -1,4 +1,5 @@
 import { fireEvent, render, within } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableProps } from "./types.ts";
@@ -102,6 +103,26 @@ describe("STATE-09", () => {
     expect(table.present()).toBe(false);
     await table.at(1000);
     expect(table.present()).toBe(true);
+  });
+});
+
+// No marker: STATE-15 and STATE-29 are real-browser statements (site/browser/slow-load.spec.ts); these rows pin the
+// status line's class in the simulated DOM, where the unit gate and mutation testing can see it
+describe("STATE-15 and STATE-29, the status line's class in the simulated DOM", () => {
+  const roomed = (container: HTMLElement): boolean | undefined =>
+    within(container)
+      .getByRole("status")
+      .parentElement?.classList.contains("sdt-status");
+
+  it("keeps no room before the first load, takes it at the first busy and keeps it after the answer", async () => {
+    const table = mount({ rows: twoRows });
+    expect(roomed(table.container)).toBe(false);
+    await table.change({ rows: twoRows, busy: true });
+    await tick();
+    expect(roomed(table.container)).toBe(true);
+    await table.change({ rows: twoRows });
+    await tick();
+    expect(roomed(table.container)).toBe(true);
   });
 });
 
