@@ -16,8 +16,8 @@
     },
   ];
   // The page's transport (spec/site.md, section 8): the request goes to the site's route in the bracketed form and the
-  // parsed body comes back. It rejects on a non-2xx answer, a network failure or a body that is not JSON, and the helper
-  // does not handle a rejection of `send` (src/lib/connection/types.ts), so each goes unhandled in this page
+  // parsed body comes back. It rejects on a non-2xx answer, a network failure or a body that is not JSON; a rejection
+  // shows the table's failed state and reaches `onerror`, which this page logs to the console
   async function send({
     request,
     signal,

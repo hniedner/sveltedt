@@ -51,9 +51,21 @@ export interface ConnectionRequest {
 interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
-  // Called once with an Error when an answer cannot be mapped, and once for each request refused because a sort entry
-  // names a column that no map entry serves; `table.status` becomes `'failed'` only for a refusal at mount or in
-  // `reload()`, a refused `onsort` leaves it as it was; it does not hear a rejection of `send`
+  // Called once for each failure: an answer's failure (an answer that cannot be mapped, its message naming the check
+  // that failed, or a truthy `error`), a `send` failure passed as it is (a rejection or a thrown value; a missing
+  // promise is a `TypeError` the helper provokes), and a refused sort (a sort entry names a column that no map entry
+  // serves). For a failure of a sent request, `table.busy` is false and `table.status` is `'failed'` before the
+  // call; the same status holds for a refusal on the load path (which leaves `busy` as it was); a refused `onsort`
+  // leaves both as they were.
+  // An answer's failure carries `code`, a string or `null`; a rejection is your `send`'s own error: if your
+  // transport's errors carry a string `code` (axios does), tell them apart in `send`.
+  // A rejection's value is passed as it is and may hold the request's headers: do not forward it to telemetry
+  // unredacted. `code` is the server's string, untrusted text: never render it as HTML.
+  // Stated limits: `onerror` must not throw; a refused `reload()` while a request runs (reachable only by changing the
+  // column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are, the request's own
+  // end then applying; a `send` that throws synchronously, with an `onerror` that calls `reload()`, repeats without
+  // end, and so does a refused sort on the load path with an `onerror` that calls `reload()`: both are synchronous
+  // recursion that ends in a stack overflow
   readonly onerror: (error: unknown) => void;
 }
 
@@ -62,9 +74,9 @@ interface ConnectionBaseOptions {
 // JavaScript) is sent bracketed.
 export interface ConnectionParamsOptions extends ConnectionBaseOptions {
   // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper calls it
-  // with one object holding the request and an abort signal. A rejection of `send` is not handled by the helper,
-  // and `send` must not throw synchronously either: the helper has no catch around the call, so a synchronous throw
-  // escapes.
+  // with one object holding the request and an abort signal, which is aborted when a later request is sent or the
+  // component unmounts while this one runs. A rejection, a synchronous throw or a missing promise is a failure,
+  // passed to `onerror` as it is.
   readonly send: (context: {
     readonly request: URLSearchParams;
     readonly signal: AbortSignal;

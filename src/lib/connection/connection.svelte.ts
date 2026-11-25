@@ -5,14 +5,14 @@ import type { Answer } from "./answer.ts";
 import { buildRequest, servedIndex, toParams } from "./request.js";
 import type { Connection, ConnectionOptions } from "./types.js";
 
-// Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
-// the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each
-// `pager.onpage`, `pager.onsize`, `table.onsort` and `reload()` (none when a sort is refused, CONN-16), and maps each
-// answer. It reads `options` when it builds each request, except the query's `offset`, `limit` and `sort`: they are
-// read once, at creation, and then held by the helper. Read `pager` from the returned object, never destructured from
-// it: it is a getter, so a copy would hold the value it had when it was copied. `table` is a plain object, so
-// `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy` and `table.sort` from it,
-// not destructured.
+// Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on the
+// server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each `pager.onpage`,
+// `pager.onsize`, `table.onsort` and `reload()` (none when a sort is refused, CONN-16), and maps each answer; a later
+// request, and unmounting, abort the one still running. It reads `options` when it builds each request, except the
+// query's `offset`, `limit` and `sort`: they are read once, at creation, and then held by the helper. Read `pager` from
+// the returned object, never destructured from it: it is a getter, so a copy would hold the value it had when it was
+// copied. `table` is a plain object, so `const { table } = connection` is fine; read `table.rows`, `table.status`,
+// `table.busy` and `table.sort` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
@@ -28,23 +28,26 @@ export function createConnection<Row = unknown>(
   );
   // The draw of the last request sent, 0 before the first
   let draw = 0;
-  // True, after one call of `onerror`, when an entry of `entries` names a column that no map entry serves
-  function refused(entries: readonly DataTableSortEntry[]): boolean {
+  // The controller of the request now running; none once it settled
+  let controller: AbortController | undefined;
+  // The refusal when an entry of `entries` names a column that no map entry serves; none otherwise
+  function refusal(entries: readonly DataTableSortEntry[]): Error | undefined {
     const entry = entries.find((e) => servedIndex(options.columns, e.id) < 0);
-    if (entry === undefined) return false;
-    options.onerror(
-      new Error(
-        `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
-      ),
+    if (entry === undefined) return undefined;
+    return new Error(
+      `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
     );
-    return true;
   }
   function load(): void {
-    if (refused(sort)) {
+    const refused = refusal(sort);
+    if (refused !== undefined) {
       status = "failed";
+      options.onerror(refused);
       return;
     }
     const sent = ++draw;
+    controller?.abort();
+    controller = new AbortController();
     if (status === "ready") busy = true;
     else status = "loading";
     const request = buildRequest(
@@ -52,32 +55,44 @@ export function createConnection<Row = unknown>(
       { ...options.query, sort, offset, limit },
       sent,
     );
-    const signal = new AbortController().signal;
-    void (
-      options.form === "json"
-        ? options.send({ request, signal })
-        : options.send({
-            request: toParams(request, options.form === "dotted"),
-            signal,
-          })
-    ).then((body) => {
+    const { signal } = controller;
+    // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`. The
+    // outcome of a request whose signal was aborted (superseded, or running at unmount) is dropped.
+    const fail = (reason: unknown): void => {
+      if (signal.aborted) return;
+      controller = undefined;
       busy = false;
-      const read = readAnswer<Row>(body, sent);
-      if (read === undefined) {
-        status = "failed";
-        options.onerror(new Error("The answer does not match the request."));
-        return;
-      }
-      answer = read;
-      status = "ready";
-    });
+      status = "failed";
+      options.onerror(reason);
+    };
+    try {
+      void (
+        options.form === "json"
+          ? options.send({ request, signal })
+          : options.send({
+              request: toParams(request, options.form === "dotted"),
+              signal,
+            })
+      ).then((body) => {
+        if (signal.aborted) return;
+        const read = readAnswer<Row>(body, sent);
+        if (read instanceof Error) return fail(read);
+        controller = undefined;
+        busy = false;
+        answer = read;
+        status = "ready";
+      }, fail);
+    } catch (thrown) {
+      fail(thrown);
+    }
   }
   function onpage(next: number): void {
     offset = next;
     load();
   }
   function onsort(next: DataTableSortEntry[]): void {
-    if (refused(next)) return;
+    const refused = refusal(next);
+    if (refused !== undefined) return options.onerror(refused);
     sort = next;
     offset = 0;
     load();
@@ -87,7 +102,10 @@ export function createConnection<Row = unknown>(
     limit = size;
     load();
   }
-  onMount(load);
+  onMount(() => {
+    load();
+    return () => controller?.abort();
+  });
   return {
     table: {
       get rows() {

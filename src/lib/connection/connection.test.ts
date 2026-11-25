@@ -52,21 +52,36 @@ function run<Send>(
     send: Send,
     onerror: ConnectionOptions["onerror"],
   ) => ConnectionOptions,
+  // What each call of `onerror` also does, given the connection (it exists before the helper's first request)
+  onError?: (connection: Connection<Row>) => void,
 ) {
-  const settle: ((body: unknown) => void)[] = [];
-  const send = makeSend(() => new Promise((resolve) => settle.push(resolve)));
-  const onerror = vi.fn<ConnectionOptions["onerror"]>();
+  const settle: {
+    resolve: (body: unknown) => void;
+    reject: (reason: unknown) => void;
+  }[] = [];
+  const send = makeSend(
+    () => new Promise((resolve, reject) => settle.push({ resolve, reject })),
+  );
   let connected: Connection<Row> | undefined;
-  render(Probe, {
+  const onerror = vi.fn<ConnectionOptions["onerror"]>(() => {
+    if (connected !== undefined) onError?.(connected);
+  });
+  const { unmount } = render(Probe, {
     options: make(send, onerror),
     onconnect: (connection: Connection<Row>) => (connected = connection),
   });
   return {
     send,
     onerror,
+    unmount,
     // Settles the call of `send` with index `n` with `body`, then lets the probe update
     answer: async (n: number, body: unknown) => {
-      settle[n]?.(body);
+      settle[n]?.resolve(body);
+      await tick();
+    },
+    // Rejects call `n` with `reason`, then lets the probe update
+    fail: async (n: number, reason: unknown) => {
+      settle[n]?.reject(reason);
       await tick();
     },
     get connection(): Connection<Row> {
@@ -76,10 +91,14 @@ function run<Send>(
     },
   };
 }
-function mount(options: Partial<ConnectionParamsOptions> = {}) {
+function mount(
+  options: Partial<ConnectionParamsOptions> = {},
+  onError?: (connection: Connection<Row>) => void,
+) {
   return run(
     (pending) => vi.fn<ConnectionParamsOptions["send"]>(pending),
     (send, onerror) => ({ send, onerror, columns: M, query: Q0, ...options }),
+    onError,
   );
 }
 // As `mount`, for the JSON form: `send` receives the plain object
@@ -680,14 +699,20 @@ const outcome = (probe: ReturnType<typeof mount>) => ({
     error instanceof Error ? error.message : error,
   ),
 });
-const failed = (rows: unknown) => ({
+const failed = (rows: unknown, reason: string) => ({
   status: "failed",
   busy: false,
   rows,
-  errors: ["The answer does not match the request."],
+  errors: [`The answer does not match the request: ${reason}.`],
 });
+// A revoked Proxy of a list: Array.isArray throws on it
+const revoked = () => {
+  const { proxy, revoke } = Proxy.revocable([], {});
+  revoke();
+  return proxy;
+};
 
-// @spec("CONN-18", "9fef58fa")
+// @spec("CONN-18", "e95098b2")
 describe("CONN-18", () => {
   const badCounts = [
     -1,
@@ -704,38 +729,85 @@ describe("CONN-18", () => {
     "9007199254740993",
     [5],
   ];
-  const rows: [string, unknown][] = [
-    ["null", null],
-    ["'ok'", "ok"],
-    ["[]", []],
-    ["A1 without recordsTotal", A1without("recordsTotal")],
-    ["A1 without recordsFiltered", A1without("recordsFiltered")],
-    ["A1 without data", A1without("data")],
-    ...["recordsFiltered", "recordsTotal"].flatMap((field): [string, Body][] =>
-      badCounts.map((count) => [
-        `A1 with ${field} ${JSON.stringify(count)}`,
-        A1({ [field]: count }),
-      ]),
+  const rows: [string, unknown, string][] = [
+    ["null", null, "it is not an object"],
+    ["'ok'", "ok", "it is not an object"],
+    ["undefined", undefined, "it is not an object"],
+    ["[]", [], "data is not a list"],
+    [
+      "A1 without recordsTotal",
+      A1without("recordsTotal"),
+      "recordsTotal is not a count",
+    ],
+    [
+      "A1 without recordsFiltered",
+      A1without("recordsFiltered"),
+      "recordsFiltered is not a count",
+    ],
+    ["A1 without data", A1without("data"), "data is not a list"],
+    ...["recordsFiltered", "recordsTotal"].flatMap(
+      (field): [string, Body, string][] =>
+        badCounts.map((count) => [
+          `A1 with ${field} ${JSON.stringify(count)}`,
+          A1({ [field]: count }),
+          `${field} is not a count`,
+        ]),
     ),
-    ["A1 with data {}", A1({ data: {} })],
+    ["A1 with data {}", A1({ data: {} }), "data is not a list"],
+    [
+      "A1 without data and with both counts bad",
+      A1({ data: undefined, recordsFiltered: -1, recordsTotal: -1 }),
+      "data is not a list",
+    ],
+    [
+      "A1 with both counts bad",
+      A1({ recordsFiltered: -1, recordsTotal: -1 }),
+      "recordsFiltered is not a count",
+    ],
+    [
+      "A1 with recordsTotal bad and draw 2",
+      A1({ recordsTotal: -1, draw: 2 }),
+      "recordsTotal is not a count",
+    ],
+    [
+      "A1 whose data is a revoked Proxy and recordsTotal bad",
+      A1({ data: revoked(), recordsTotal: -1 }),
+      "it cannot be read",
+    ],
     ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0", [1]].map(
-      (draw): [string, Body] => [
+      (draw): [string, Body, string] => [
         `A1 with draw ${JSON.stringify(draw)}`,
         A1({ draw }),
+        "draw is not the one sent",
       ],
     ),
+    [
+      "A1 whose recordsTotal getter throws",
+      Object.defineProperty(A1(), "recordsTotal", {
+        get() {
+          throw new Error("getter leak-12");
+        },
+      }),
+      "it cannot be read",
+    ],
+    [
+      "A1 whose data is a revoked Proxy",
+      A1({ data: revoked() }),
+      "it cannot be read",
+    ],
   ];
-  it.each(rows)("fails on %s", async (_row, body) => {
+  it.each(rows)("fails on %s", async (_row, body, reason) => {
     const probe = mount();
     await probe.answer(0, body);
-    expect(outcome(probe)).toEqual(failed([]));
+    expect(outcome(probe)).toEqual(failed([], reason));
+    expect((probe.onerror.mock.calls[0]?.[0] as Error).cause).toBeUndefined();
   });
   it("fails the second request answered without data, not busy", async () => {
     const probe = mount();
     await probe.answer(0, A1());
     probe.connection.pager?.onpage(10);
     await probe.answer(1, { ...A1without("data"), draw: 2 });
-    expect(outcome(probe)).toEqual(failed(D));
+    expect(outcome(probe)).toEqual(failed(D, "data is not a list"));
   });
   it("fails an answer of the first request's draw to the second request, the rows kept", async () => {
     const probe = mount();
@@ -743,7 +815,179 @@ describe("CONN-18", () => {
     probe.connection.pager?.onpage(10);
     expect(probe.send.mock.calls[1]?.[0].request.get("draw")).toBe("2");
     await probe.answer(1, A1());
-    expect(outcome(probe)).toEqual(failed(D));
+    expect(outcome(probe)).toEqual(failed(D, "draw is not the one sent"));
+  });
+});
+
+const REPORTED = "The answer reports an error.";
+
+// @spec("CONN-19", "47703f94")
+describe("CONN-19", () => {
+  const rows: [string, unknown][] = [
+    ["A1 with error 'SQL near WHERE'", A1({ error: "SQL near WHERE" })],
+    ["A1 with error true", A1({ error: true })],
+    [
+      "an answer of 0 rows with error and error_code",
+      {
+        draw: 1,
+        recordsTotal: 0,
+        recordsFiltered: 0,
+        data: [],
+        error: "x",
+        error_code: "invalid_filter",
+      },
+    ],
+    ["{ error: 'x' } alone", { error: "x" }],
+  ];
+  it.each(rows)("fails on %s, with the fixed message", async (_row, body) => {
+    const probe = mount();
+    await probe.answer(0, body);
+    expect(outcome(probe)).toEqual({
+      status: "failed",
+      busy: false,
+      rows: [],
+      errors: [REPORTED],
+    });
+  });
+});
+
+// @spec("CONN-21", "0e5b5709")
+describe("CONN-21", () => {
+  const rows: [string, unknown, string | null][] = [
+    [
+      "A1 with error and error_code 'TIMEOUT'",
+      A1({ error: "x", error_code: "TIMEOUT" }),
+      "TIMEOUT",
+    ],
+    [
+      "A1 with error and error_code 42",
+      A1({ error: "x", error_code: 42 }),
+      null,
+    ],
+    ["A1 with error and no error_code", A1({ error: "x" }), null],
+    [
+      "A1 without recordsTotal, with error_code 'TIMEOUT'",
+      { ...A1without("recordsTotal"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 without data, with error_code 'TIMEOUT'",
+      { ...A1without("data"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 without recordsFiltered, with error_code 'TIMEOUT'",
+      { ...A1without("recordsFiltered"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 with draw 2, with error_code 'TIMEOUT'",
+      A1({ draw: 2, error_code: "TIMEOUT" }),
+      "TIMEOUT",
+    ],
+    ["{ error: 'x' } alone", { error: "x" }, null],
+  ];
+  it.each(rows)("carries the code of %s", async (_row, body, code) => {
+    const probe = mount();
+    await probe.answer(0, body);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.onerror.mock.calls[0]?.[0]).toHaveProperty("code", code);
+  });
+});
+
+// @spec("CONN-26", "4467a69c")
+describe("CONN-26", () => {
+  const rows: [string, unknown, string][] = [
+    [
+      "A1 with error 'SQL near WHERE'",
+      A1({ error: "SQL near WHERE" }),
+      "SQL near WHERE",
+    ],
+    [
+      "A1 with error true and a row holding leak-41",
+      A1({ error: true, data: [{ id: "x1", name: "leak-41" }] }),
+      "leak-41",
+    ],
+    [
+      "A1 with error and error_code invalid_filter",
+      A1({ error: "x", error_code: "invalid_filter" }),
+      "invalid_filter",
+    ],
+  ];
+  it.each(rows)(
+    "shows the failed text, not the text of %s",
+    async (_row, body, text) => {
+      const probe = mount();
+      await probe.answer(0, body);
+      expect(document.body.textContent).toContain(
+        "The data could not be loaded.",
+      );
+      expect(document.body.textContent).not.toContain(text);
+    },
+  );
+});
+
+// What a failure of `send` leaves: the state, and the exact values `onerror` received
+const sendFailure = (probe: ReturnType<typeof mount>) => ({
+  status: probe.connection.table.status,
+  busy: probe.connection.table.busy,
+  errors: probe.onerror.mock.calls.map(([error]) => error),
+});
+
+// @spec("CONN-20", "728d9b5d")
+describe("CONN-20", () => {
+  const E = new Error("boom");
+  it("shows the failed message and nothing of the rejection's text", async () => {
+    const probe = mount();
+    await probe.fail(0, new Error("boom: row 7"));
+    expect(document.body.textContent).toContain(
+      "The data could not be loaded.",
+    );
+    expect(document.body.textContent).not.toContain("boom");
+    expect(document.body.textContent).not.toContain("row 7");
+  });
+  it("fails with the rejection itself when send rejects", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe(E);
+  });
+  it("fails with the error itself when send throws", () => {
+    const probe = mount({
+      send: vi.fn(() => {
+        throw E;
+      }),
+    });
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe(E);
+  });
+  it("fails the second request when its send rejects, keeping the sort and the rows", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    expect(probe.connection.table.busy).toBe(true);
+    await probe.fail(1, E);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(probe.connection.table.busy).toBe(false);
+    expect(probe.connection.table.sort).toEqual([
+      { id: "code", direction: "desc" },
+    ]);
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.onerror.mock.calls[0]?.[0]).toBe(E);
+  });
+  it("fails with a TypeError when send returns no promise", () => {
+    const probe = mount({
+      send: (() => undefined) as unknown as ConnectionParamsOptions["send"],
+    });
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
   });
 });
 
@@ -835,6 +1079,233 @@ describe("CONN-23", () => {
     probe.connection.pager?.onpage(10);
     await probe.answer(1, A1({ draw: 2, recordsFiltered: "5x" }));
     probe.connection.pager?.onpage(20);
+    expect(probe.connection.table).toMatchObject({
+      status: "loading",
+      busy: false,
+    });
+  });
+});
+
+// @spec("CONN-22", "a1cab22e")
+describe("CONN-22", () => {
+  const desc = [{ id: "code", direction: "desc" as const }];
+  const D2 = D.map((row) => ({ ...row, name: `Other ${row.id}` }));
+  it("drops the answer of a request that onsort superseded", async () => {
+    const probe = mount();
+    probe.connection.table.onsort(desc);
+    await probe.answer(0, A1());
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.table.rows).toEqual([]);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("drops the rejection of a request that reload superseded", async () => {
+    const probe = mount();
+    probe.connection.reload();
+    await probe.fail(0, new Error("boom"));
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("keeps the later answer when the superseded one settles after it", async () => {
+    const probe = mount();
+    probe.connection.table.onsort(desc);
+    await probe.answer(1, A1({ draw: 2, data: D2 }));
+    await probe.answer(0, A1());
+    expect(probe.connection.table.rows).toBe(D2);
+    expect(probe.connection.pager).toMatchObject({
+      total: 57,
+      unfilteredTotal: 1000,
+    });
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("drops the rejection of the onpage(10) request (draw 2), the rows kept and busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.connection.pager?.onpage(20);
+    await probe.fail(1, new Error("boom"));
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+    });
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+});
+
+// The signal the helper passed to call `n` of `send`
+const signalOf = (probe: ReturnType<typeof mount>, n: number) =>
+  probe.send.mock.calls[n]?.[0].signal;
+
+// @spec("CONN-30", "24c82141")
+describe("CONN-30", () => {
+  const E = new Error("boom");
+  it("aborts the running request when the component unmounts", () => {
+    const probe = mount();
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(true);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+  });
+  it("does not abort a request that settled when a later one is sent", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("aborts only the running request when the component unmounts after a settled one", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(true);
+  });
+  it.each([
+    [
+      "onsort",
+      (p: ReturnType<typeof mount>) =>
+        p.connection.table.onsort([{ id: "code", direction: "desc" }]),
+    ],
+    ["onpage", (p: ReturnType<typeof mount>) => p.connection.pager?.onpage(10)],
+    ["onsize", (p: ReturnType<typeof mount>) => p.connection.pager?.onsize(25)],
+    ["reload", (p: ReturnType<typeof mount>) => p.connection.reload()],
+  ])(
+    "aborts the running request when %s sends a later one",
+    async (name, act) => {
+      const probe = mount();
+      // onpage and onsize exist only once an answer is mapped; that request is then settled and keeps its signal
+      if (name === "onpage" || name === "onsize") {
+        await probe.answer(0, A1());
+        act(probe);
+        expect(signalOf(probe, 1)?.aborted).toBe(false);
+        act(probe);
+        expect(signalOf(probe, 1)?.aborted).toBe(true);
+        expect(signalOf(probe, 2)?.aborted).toBe(false);
+        return;
+      }
+      act(probe);
+      expect(signalOf(probe, 0)?.aborted).toBe(true);
+      expect(signalOf(probe, 1)?.aborted).toBe(false);
+    },
+  );
+  it("starts a new request after a failure without aborting anything", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    probe.connection.reload();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("starts a new request after an unreadable answer without aborting anything", async () => {
+    const probe = mount();
+    await probe.answer(0, null);
+    probe.connection.reload();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("aborts nothing when the component unmounts after a failure", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+  });
+  it("aborts nothing when a refused sort sends nothing", () => {
+    const probe = mount({ columns: M.filter((entry) => entry.id !== "code") });
+    probe.connection.table.onsort([{ id: "code", direction: "asc" }]);
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+  });
+});
+
+// @spec("CONN-31", "28e8f104")
+describe("CONN-31", () => {
+  it("ignores the AbortError rejection of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.fail(0, new DOMException("aborted", "AbortError"));
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.pager).toBeUndefined();
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores any rejection of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.fail(0, new Error("net"));
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores the answer of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.answer(0, A1());
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.table.rows).toEqual([]);
+    expect(probe.connection.pager).toBeUndefined();
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores an answer it cannot map after unmount, the rows kept and busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.unmount();
+    await probe.answer(1, null);
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+    });
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+});
+
+// @spec("CONN-32", "04d4f97e")
+describe("CONN-32", () => {
+  const nameDesc = { id: "name", direction: "desc" } as const;
+  const reload = (connection: Connection<Row>) => connection.reload();
+  const causes: [
+    string,
+    (connection: Connection<Row>) => void,
+    (probe: ReturnType<typeof mount>) => Promise<void>,
+    number,
+  ][] = [
+    [
+      "reload() when send rejects",
+      reload,
+      (p) => p.fail(0, new Error("boom")),
+      2,
+    ],
+    [
+      "reload() when the answer cannot be mapped",
+      reload,
+      (p) => p.answer(0, null),
+      2,
+    ],
+    [
+      "onsort when send rejects",
+      (connection) => connection.table.onsort([nameDesc]),
+      (p) => p.fail(0, new Error("boom")),
+      2,
+    ],
+  ];
+  it.each(causes)(
+    "leaves the helper as the intent called from onerror set it: %s",
+    async (_name, intent, settle, sends) => {
+      const probe = mount({}, intent);
+      await settle(probe);
+      expect(probe.onerror).toHaveBeenCalledTimes(1);
+      expect(probe.send).toHaveBeenCalledTimes(sends);
+      expect(probe.connection.table).toMatchObject({
+        status: "loading",
+        busy: false,
+      });
+    },
+  );
+  it("leaves the helper as onsort called from onerror set it when the mount's load() refuses the sort", () => {
+    const probe = mount(
+      { columns: MNoCode, query: { ...Q0, sort: [codeAsc] } },
+      (connection) => connection.table.onsort([nameAsc]),
+    );
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.send).toHaveBeenCalledTimes(1);
     expect(probe.connection.table).toMatchObject({
       status: "loading",
       busy: false,

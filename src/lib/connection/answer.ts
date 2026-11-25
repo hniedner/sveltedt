@@ -14,26 +14,51 @@ function readCount(value: unknown): number | undefined {
   return isCount(count) ? (count as number) : undefined;
 }
 
+const MISMATCH = "The answer does not match the request";
+// The Error of a refused answer. The message is fixed words, never text from the answer; `code` is the answer's
+// `error_code` when it is a string, else `null`.
+const failure = (message: string, code: unknown): Error =>
+  Object.assign(new Error(message), {
+    code: typeof code === "string" ? code : null,
+  });
+const mismatch = (reason: string, code: unknown = null): Error =>
+  failure(`${MISMATCH}: ${reason}.`, code);
+
+function read<Row>(body: unknown, sent: number): Answer<Row> | Error {
+  if (typeof body !== "object" || body === null)
+    return mismatch("it is not an object");
+  const { data, draw, error, error_code, recordsFiltered, recordsTotal } =
+    body as {
+      data?: unknown;
+      draw?: unknown;
+      error?: unknown;
+      error_code?: unknown;
+      recordsFiltered?: unknown;
+      recordsTotal?: unknown;
+    };
+  if (error) return failure("The answer reports an error.", error_code);
+  if (!Array.isArray(data)) return mismatch("data is not a list", error_code);
+  const total = readCount(recordsFiltered);
+  if (total === undefined)
+    return mismatch("recordsFiltered is not a count", error_code);
+  const unfilteredTotal = readCount(recordsTotal);
+  if (unfilteredTotal === undefined)
+    return mismatch("recordsTotal is not a count", error_code);
+  if (draw !== undefined && readCount(draw) !== sent)
+    return mismatch("draw is not the one sent", error_code);
+  return { rows: data as readonly Row[], total, unfilteredTotal };
+}
+
 // An answer body read as given: its `data` is the rows, the list itself, each count is read by `readCount`, and a
-// `draw` that is given must read to `sent`, the draw of the request answered. `undefined` when any check fails.
+// `draw` that is given must read to `sent`, the draw of the request answered. An `Error` when the answer's `error` is
+// truthy, when a check fails, naming the first one, or when a property of the body throws when read.
 export function readAnswer<Row>(
   body: unknown,
   sent: number,
-): Answer<Row> | undefined {
-  const { data, draw, recordsFiltered, recordsTotal } = Object(body) as {
-    data?: unknown;
-    draw?: unknown;
-    recordsFiltered?: unknown;
-    recordsTotal?: unknown;
-  };
-  const total = readCount(recordsFiltered);
-  const unfilteredTotal = readCount(recordsTotal);
-  if (
-    !Array.isArray(data) ||
-    total === undefined ||
-    unfilteredTotal === undefined ||
-    (draw !== undefined && readCount(draw) !== sent)
-  )
-    return undefined;
-  return { rows: data as readonly Row[], total, unfilteredTotal };
+): Answer<Row> | Error {
+  try {
+    return read(body, sent);
+  } catch {
+    return mismatch("it cannot be read");
+  }
 }
