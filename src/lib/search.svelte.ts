@@ -22,10 +22,11 @@ export class SearchText {
     this.#applied = applied;
     this.#settings = settings;
     this.#emit = emit;
-    // A changed applied search replaces the field's text, unless newer typing holds it (FILT-44, FILT-49)
+    // A changed applied search replaces the field's text, unless newer typing holds it (FILT-44, FILT-49) or it is the
+    // field's own text trimmed (FILT-58)
     $effect.pre(() => {
-      this.#applied();
-      if (!this.#newer) this.own = null;
+      const now = this.#applied();
+      if (!this.#newer && now !== this.own?.trim()) this.own = null;
     });
     // A pause that is still running when the field goes emits nothing (FOOT-05)
     $effect(() => () => clearTimeout(this.#timer));

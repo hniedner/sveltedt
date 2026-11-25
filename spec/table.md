@@ -3351,7 +3351,7 @@ text it refuses.
 - Traces: PRD-B25, PRD-B6.
 
 **FILT-44** The search field MUST take the applied text of `search` as FILT-37 says for a text filter's field, the
-mount standing for the dialog's opening.
+mount standing for the dialog's opening, except as FILT-58 says.
 - Examples (the test runs every row; "Search" after the steps):
 
   | Steps | Field reads |
@@ -3387,6 +3387,13 @@ says for a text filter.
   | paste `" beta "`, with its quotes; at 400 ms | one: `('" beta "')` (the spaces of a quoted phrase stay) |
 
 - Reason: white space around search text is accidental (PRD-B6); a quoted phrase is the deliberate form (PRD-B21).
+- Layer: component.
+- Traces: PRD-B25, PRD-B6.
+
+**FILT-58** When `search` becomes the field's text without its leading and trailing white space, the field MUST keep
+its text as typed.
+- Example: type " beta "; at 400 ms one call `('beta')`; at 500 ms `search` becomes "beta": the field reads " beta ".
+- Reason: the field keeps what the user typed (PRD-B6); the application echoes the trimmed text that FILT-57 emitted.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
@@ -5437,6 +5444,7 @@ pointer.
 | FILT-44 | PRD-B25, PRD-B6, PRD-B2 |
 | FILT-49 | PRD-B25, PRD-B6 |
 | FILT-57 | PRD-B25, PRD-B6 |
+| FILT-58 | PRD-B25, PRD-B6 |
 | FILT-46 | PRD-B8, PRD-B25 |
 | COL-01 | PRD-B10, PRD-B2 |
 | COL-24 | PRD-B10 |
@@ -5591,7 +5599,7 @@ state in their own statements.
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49, FILT-57 | in full |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49, FILT-57, FILT-58 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
@@ -5603,7 +5611,7 @@ state in their own statements.
 | PRD-D3 | STK-10 | in part: the warning for design D's layout duty; the accessibility statement itself comes with the documentation group |
 | PRD-A11 | STK-04, A11Y-40, A11Y-41, A11Y-42, A11Y-49, THEME-42 | in full, by the clipping check of PRD section 4.3, which tests overlap between controls only |
 | PRD-B27 | CHILD-01, CHILD-02, CHILD-03, CHILD-04, CHILD-05, CHILD-14, CHILD-15, CHILD-11, CHILD-06, CHILD-07, CHILD-13, CHILD-08, CHILD-12, CHILD-16, CHILD-09, CHILD-10 | in full |
-| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-57, FILT-45, FILT-46, FILT-32, FILT-55, FILT-54 | in full |
+| PRD-B25 | FILT-40, FILT-41, FILT-42, FILT-48, FILT-43, FILT-44, FILT-49, FILT-57, FILT-58, FILT-45, FILT-46, FILT-32, FILT-55, FILT-54 | in full |
 | PRD-B29 | FILT-52, FILT-18, FILT-12, FILT-47 | in full |
 | PRD-B8 | RND-12, FILT-08, FILT-22, FILT-09, FILT-24, FILT-10, FILT-25, FILT-30, FILT-26, FILT-54, FILT-31, FILT-46, FILT-23, FILT-50, FILT-51 | in full |
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |

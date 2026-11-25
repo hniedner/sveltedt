@@ -154,7 +154,7 @@ describe("FILT-41", () => {
   });
 });
 
-// @spec("FILT-44", "56b64c70")
+// @spec("FILT-44", "a1bc0fea")
 describe("FILT-44", () => {
   it("shows the applied search at the mount", () => {
     expect(mount({ search: "beta" }).field.value).toBe("beta");
@@ -246,5 +246,18 @@ describe("FILT-57", () => {
     await table.paste('" beta "');
     await table.at(400);
     expect(table.onsearch.mock.calls).toEqual([['" beta "']]);
+  });
+});
+
+// @spec("FILT-58", "cce56526")
+describe("FILT-58", () => {
+  it("keeps the typed spaces when search becomes the trimmed text", async () => {
+    const table = mount();
+    await table.type(" beta ");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+    await table.at(500);
+    await table.setSearch("beta");
+    expect(table.field.value).toBe(" beta ");
   });
 });
