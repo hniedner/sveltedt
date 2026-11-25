@@ -5,14 +5,14 @@ import type { Answer } from "./answer.ts";
 import { buildRequest, servedIndex, toParams } from "./request.js";
 import type { Connection, ConnectionOptions } from "./types.js";
 
-// Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on
-// the server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each
-// `pager.onpage`, `pager.onsize`, `table.onsort` and `reload()` (none when a sort is refused, CONN-16), and maps each
-// answer. It reads `options` when it builds each request, except the query's `offset`, `limit` and `sort`: they are
-// read once, at creation, and then held by the helper. Read `pager` from the returned object, never destructured from
-// it: it is a getter, so a copy would hold the value it had when it was copied. `table` is a plain object, so
-// `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy` and `table.sort` from it,
-// not destructured.
+// Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on the
+// server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each `pager.onpage`,
+// `pager.onsize`, `table.onsort` and `reload()` (none when a sort is refused, CONN-16), and maps each answer; a later
+// request, and unmounting, abort the one still running. It reads `options` when it builds each request, except the
+// query's `offset`, `limit` and `sort`: they are read once, at creation, and then held by the helper. Read `pager` from
+// the returned object, never destructured from it: it is a getter, so a copy would hold the value it had when it was
+// copied. `table` is a plain object, so `const { table } = connection` is fine; read `table.rows`, `table.status`,
+// `table.busy` and `table.sort` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
@@ -28,6 +28,8 @@ export function createConnection<Row = unknown>(
   );
   // The draw of the last request sent, 0 before the first
   let draw = 0;
+  // The controller of the request now running; none once it settled
+  let controller: AbortController | undefined;
   // True, after one call of `onerror`, when an entry of `entries` names a column that no map entry serves
   function refused(entries: readonly DataTableSortEntry[]): boolean {
     const entry = entries.find((e) => servedIndex(options.columns, e.id) < 0);
@@ -45,6 +47,8 @@ export function createConnection<Row = unknown>(
       return;
     }
     const sent = ++draw;
+    controller?.abort();
+    controller = new AbortController();
     if (status === "ready") busy = true;
     else status = "loading";
     const request = buildRequest(
@@ -52,11 +56,12 @@ export function createConnection<Row = unknown>(
       { ...options.query, sort, offset, limit },
       sent,
     );
-    const signal = new AbortController().signal;
+    const { signal } = controller;
     // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`. The
     // outcome of a request that a later one superseded is dropped.
     const fail = (reason: unknown): void => {
       if (sent !== draw) return;
+      controller = undefined;
       busy = false;
       status = "failed";
       options.onerror(reason);
@@ -73,6 +78,7 @@ export function createConnection<Row = unknown>(
         if (sent !== draw) return;
         const read = readAnswer<Row>(body, sent);
         if (read instanceof Error) return fail(read);
+        controller = undefined;
         busy = false;
         answer = read;
         status = "ready";
@@ -96,7 +102,10 @@ export function createConnection<Row = unknown>(
     limit = size;
     load();
   }
-  onMount(load);
+  onMount(() => {
+    load();
+    return () => controller?.abort();
+  });
   return {
     table: {
       get rows() {

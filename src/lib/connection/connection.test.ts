@@ -62,13 +62,14 @@ function run<Send>(
   );
   const onerror = vi.fn<ConnectionOptions["onerror"]>();
   let connected: Connection<Row> | undefined;
-  render(Probe, {
+  const { unmount } = render(Probe, {
     options: make(send, onerror),
     onconnect: (connection: Connection<Row>) => (connected = connection),
   });
   return {
     send,
     onerror,
+    unmount,
     // Settles the call of `send` with index `n` with `body`, then lets the probe update
     answer: async (n: number, body: unknown) => {
       settle[n]?.resolve(body);
@@ -1076,5 +1077,46 @@ describe("CONN-22", () => {
     });
     expect(probe.connection.table.rows).toBe(D);
     expect(probe.onerror).not.toHaveBeenCalled();
+  });
+});
+
+// The signal the helper passed to call `n` of `send`
+const signalOf = (probe: ReturnType<typeof mount>, n: number) =>
+  probe.send.mock.calls[n]?.[0].signal;
+
+// @spec("CONN-30", "24c82141")
+describe("CONN-30", () => {
+  it("aborts the running request when onsort sends a later one", () => {
+    const probe = mount();
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    expect(signalOf(probe, 0)?.aborted).toBe(true);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("aborts the running request when the component unmounts", () => {
+    const probe = mount();
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(true);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+  });
+  it("does not abort a request that settled when a later one is sent", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("aborts only the running request when the component unmounts after a settled one", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(true);
+  });
+  it("aborts nothing when a refused sort sends nothing", () => {
+    const probe = mount({ columns: M.filter((entry) => entry.id !== "code") });
+    probe.connection.table.onsort([{ id: "code", direction: "asc" }]);
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(probe.send).toHaveBeenCalledTimes(1);
   });
 });

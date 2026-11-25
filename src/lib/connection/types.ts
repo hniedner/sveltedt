@@ -67,8 +67,9 @@ interface ConnectionBaseOptions {
 // JavaScript) is sent bracketed.
 export interface ConnectionParamsOptions extends ConnectionBaseOptions {
   // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper calls it
-  // with one object holding the request and an abort signal. A rejection, a synchronous throw or a missing promise is
-  // a failure, passed to `onerror` as it is.
+  // with one object holding the request and an abort signal, which is aborted when a later request is sent or the
+  // component unmounts while this one runs. A rejection, a synchronous throw or a missing promise is a failure,
+  // passed to `onerror` as it is.
   readonly send: (context: {
     readonly request: URLSearchParams;
     readonly signal: AbortSignal;
