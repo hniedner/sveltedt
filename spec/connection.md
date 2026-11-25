@@ -8,12 +8,12 @@
 - Field names: no
 - **Scope:** part 1: the request the helper sends (its keys, its three forms, the query's sort, filters, search,
   offset and limit, `draw`), the return to the first page and "Reset table", the answer it maps and the answers it
-  refuses, `onerror`, dropping a superseded answer, `busy` and `loading`, the pager props before the first answer,
-  `reload()`, and the empty option of a categorical filter (in CONN-10; the id CONN-11 stays unused). Later parts:
-  cancel, the stopped state, `onretry` and writing the query (PRD-B23, PRD-B24), which this part leaves out; this
-  part's text holds 28 statements, and later parts add theirs; the first page loaded on the server, which needs the
-  site's server route; whether a superseded request is aborted (PRD-B20 is silent, DataTables' practice not yet
-  checked); and the contract tests against the recorded backends (PRD-W11), which need fixtures not yet recorded.
+  refuses, `onerror`, dropping a superseded answer, aborting a superseded or unmounted request, `busy` and `loading`,
+  the pager props before the first answer, `reload()`, and the empty option of a categorical filter (in CONN-10; the id
+  CONN-11 stays unused). Later parts: cancel, the stopped state, `onretry` and writing the query (PRD-B23, PRD-B24),
+  which this part leaves out; this part's text holds 30 statements, and later parts add theirs; the first page loaded on
+  the server, which needs the site's server route; and the contract tests against the recorded backends (PRD-W11), which
+  need fixtures not yet recorded.
 
 ## Conventions
 
@@ -467,6 +467,42 @@ else `null`.
 - Layer: component.
 - Traces: PRD-B20.
 
+**CONN-30** The signal of a request MUST be aborted when a later request is sent or the component unmounts while it
+is still running, and MUST NOT be aborted once it has settled.
+- Examples (the test runs every row):
+
+  | Before | Then | Signal of request 1 | Signal of request 2 |
+  |---|---|---|---|
+  | mount, request 1 running | `table.onsort([code desc])` | aborted | not aborted |
+  | mount, request 1 running | the component unmounts | aborted | none sent |
+  | A1 settled | `pager.onpage(10)` | not aborted | not aborted |
+  | A1 settled | `pager.onpage(10)`, then the component unmounts | not aborted | aborted |
+  | the map `M` without the entry of column id `code`, mount, request 1 running | `table.onsort([code asc])`, refused (CONN-16) | not aborted | none sent |
+
+- Reason: a request whose result will not be used need not run on (PRD-B20). TanStack Query aborts the signal of a
+  query that is out of date or inactive, and React's guide asks an effect's cleanup to "either abort the fetch or
+  ignore its result" (FETCHED 2026-11-24); DataTables lets a superseded server-side request run (DEP-59). A refused
+  intent sends nothing, so it aborts nothing (CONN-16). Testing Library's `render` returns the `unmount` the test
+  calls (`node_modules/@testing-library/svelte/src/pure.js` l.34, l.67, version 5.4.2).
+- Layer: component.
+- Traces: PRD-B20.
+
+**CONN-31** The answer or rejection of a request still running when the component unmounts MUST change nothing and
+MUST NOT call `onerror`.
+- Examples (the test runs every row; each request is settled after the component unmounted):
+
+  | Before the unmount | The request settles | `table` and `pager` | `onerror` |
+  |---|---|---|---|
+  | mount, request 1 running | request 1 rejects with a `DOMException` named `AbortError` | `'loading'`, `pager` `undefined` | not called |
+  | mount, request 1 running | request 1 with A1 | `'loading'`, no rows, `pager` `undefined` | not called |
+  | A1 on screen, `pager.onpage(10)` running | request 2 with `null` | `'ready'`, `busy` true, `rows === D` | not called |
+
+- Reason: unmounting aborts the running request (CONN-30), and the rejection that follows is the application's
+  cancellation, not a failure (PRD-B20: "a cancelled request's rejection excepted"); an answer with nowhere to show
+  it must not reach `onerror` either.
+- Layer: component.
+- Traces: PRD-B20.
+
 **CONN-23** A request MUST run as `table.busy` true with the rows kept while an answer is on screen, and as
 `table.status` `'loading'` while none is.
 - Examples (the test runs every row):
@@ -553,12 +589,14 @@ filters is served (else CONN-16, or CONN-29 for a filter).
 | CONN-27 | PRD-B20, PRD-B9 |
 | CONN-28 | PRD-B20, PRD-B8, PRD-B25 |
 | CONN-29 | PRD-B20 |
+| CONN-30 | PRD-B20 |
+| CONN-31 | PRD-B20 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-29 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, reading and writing the query, and the first page loaded on the server come with later parts |
+| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-31 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, reading and writing the query, and the first page loaded on the server come with later parts |
 | PRD-B4 | CONN-08, CONN-13 | in part: the rest is `spec/table.md`'s |
 | PRD-B6 | CONN-09 | in part: the rest is `spec/table.md`'s |
 | PRD-B7 | CONN-10 | in part: the rest is `spec/table.md`'s |
