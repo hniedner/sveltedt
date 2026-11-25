@@ -332,3 +332,49 @@ test.describe("A11Y-16, hovering or focusing makes nothing appear", () => {
     }
   });
 });
+
+// @spec("A11Y-10", "0681da42")
+test.describe("A11Y-10, the Tab order follows the reading order", () => {
+  // The table fits, so the region is no stop (A11Y-12 proves where it sits when it is). Tab on from the start of the page,
+  // which must have focus on the body
+  async function order(
+    page: Page,
+    browserName: string,
+    query: string,
+  ): Promise<string[]> {
+    await start(page, 1280, query);
+    await expectOverflow(page, false);
+    await settled(page);
+    expect(
+      await focused(page),
+      "could not check: focus is not on the body",
+    ).toBe("the body");
+    const reached: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press(tabKey(browserName));
+      reached.push(await focused(page));
+    }
+    return reached;
+  }
+  const links = ["Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma"];
+
+  test("Export, then the links of Beta and Gamma", async ({
+    page,
+    browserName,
+  }) => {
+    expect(await order(page, browserName, "?cols=2&rows=2&link&edit")).toEqual([
+      "Export",
+      ...links,
+      "After the table",
+    ]);
+  });
+
+  test("with a heading link: All orders first", async ({
+    page,
+    browserName,
+  }) => {
+    expect(
+      await order(page, browserName, "?cols=2&rows=2&link&edit&heading"),
+    ).toEqual(["All orders", "Export", ...links]);
+  });
+});
