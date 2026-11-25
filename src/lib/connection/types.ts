@@ -19,10 +19,12 @@ export interface ConnectionColumn {
   readonly orderable?: boolean;
 }
 
-// The query (spec/connection.md, Conventions, The query). The helper reads `sort`, `offset` and `limit` once, at
-// creation, and then holds the live query: read it back from `table.sort` and `pager`
+// The query (spec/connection.md, Conventions, The query). The helper reads the whole query once, at creation, and then
+// holds the live query: read it back from `table.sort` and `pager`
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
+  // The global search text, sent as given; none when not given
+  readonly search?: string;
   readonly offset?: number;
   readonly limit: number;
 }

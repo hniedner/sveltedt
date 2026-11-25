@@ -1312,3 +1312,17 @@ describe("CONN-32", () => {
     });
   });
 });
+
+// @spec("CONN-12", "063f03a8")
+describe("CONN-12", () => {
+  it.each(["beta", "a.b", ""])(
+    "sends the global search %j as given with regex false",
+    (search) => {
+      const { send } = mount({ query: { ...Q0, search } });
+      expect(send).toHaveBeenCalledTimes(1);
+      const request = send.mock.calls[0]?.[0]?.request;
+      expect(request?.get("search[value]")).toBe(search);
+      expect(request?.get("search[regex]")).toBe("false");
+    },
+  );
+});

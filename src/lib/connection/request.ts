@@ -27,7 +27,7 @@ export function buildRequest(
     draw,
     start: query.offset,
     length: query.limit,
-    search: noSearch(),
+    search: { value: query.search, regex: false },
     columns: columns.map((column) => ({
       data: column.data,
       name: nameOf(column),
