@@ -13,11 +13,12 @@ const rows25 = Array.from({ length: 25 }, (_, index) => {
   return { id: `r${n}`, name: `Item ${n}` };
 });
 
-// The page mounted `loading`, the clock paused at its start: nothing is due until a test runs time
-async function open(page: Page): Promise<void> {
+// The page mounted `loading` (or in the status its address names), the clock paused at its start: nothing is due
+// until a test runs time
+async function open(page: Page, address = "/slow.html"): Promise<void> {
   await page.clock.install({ time: START });
   await page.clock.pauseAt(new Date(START.getTime() + 1000));
-  await page.goto("/slow.html");
+  await page.goto(address);
   await expect(page.getByRole("table", { name: "Orders" })).toBeVisible();
 }
 const set = (page: Page, props: object) =>
@@ -64,6 +65,20 @@ async function scrollPast(page: Page): Promise<void> {
   );
   expect(bottom).toBeLessThan(0);
 }
+
+// The x, y, width and height of the region and of the paragraph after the table
+const boxes = async (page: Page) => {
+  const read = (locator: Locator) =>
+    locator.evaluate((el) => {
+      const { x, y, width, height } = el.getBoundingClientRect();
+      return [x, y, width, height];
+    });
+  return {
+    region: await read(page.getByRole("region", { name: "Orders table" })),
+    after: await read(page.getByText("After the table.")),
+  };
+};
+const indicator = (page: Page) => page.locator("[data-sdt-progress]");
 
 // The state a row names, drawn
 async function drawn(page: Page, state: string): Promise<void> {
@@ -147,4 +162,52 @@ test.describe("A11Y-30", () => {
       await expect(table(page)).toBeFocused();
       expect(await scrolls(page)).toEqual(scrolled);
     });
+});
+
+// @spec("STATE-15", "20ad00d6")
+test.describe("STATE-15", () => {
+  test("moves nothing when the indicator, the still-loading text and Cancel appear: mounted with status 'loading'", async ({
+    page,
+  }) => {
+    await open(page);
+    await page.clock.runFor(500);
+    await expect(indicator(page)).toHaveCount(0);
+    await expect(page.getByRole("status")).toContainText("Loading data…");
+    const first = await boxes(page);
+    await page.clock.runFor(500);
+    await expect(indicator(page)).toHaveCount(1);
+    expect(await boxes(page)).toEqual(first);
+    await page.clock.runFor(5000);
+    await expect(page.getByRole("status")).toContainText("Still loading");
+    await expect(named(page, "Cancel")).toBeVisible();
+    expect(await boxes(page)).toEqual(first);
+  });
+
+  test("moves nothing from the first busy until the answer: mounted with status 'ready' and 25 rows, busy from 100 ms to 7100 ms", async ({
+    page,
+  }) => {
+    await open(page, "/slow.html?status=ready");
+    await set(page, { rows: rows25 });
+    await drawn(page, "ready");
+    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await page.clock.runFor(100);
+    await set(page, { busy: true });
+    await expect(table(page)).toHaveAttribute("aria-busy", "true");
+    await expect(indicator(page)).toHaveCount(0);
+    const first = await boxes(page);
+    await page.clock.runFor(1000);
+    await expect(indicator(page)).toHaveCount(1);
+    expect(await boxes(page)).toEqual(first);
+    await page.clock.runFor(5000);
+    await expect(page.getByRole("status")).toContainText("Still loading");
+    await expect(named(page, "Cancel")).toBeVisible();
+    expect(await boxes(page)).toEqual(first);
+    await page.clock.runFor(1000);
+    await set(page, { busy: false });
+    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await expect(indicator(page)).toHaveCount(0);
+    await expect(page.getByRole("status")).not.toContainText("Still loading");
+    await expect(named(page, "Cancel")).toHaveCount(0);
+    expect(await boxes(page)).toEqual(first);
+  });
 });

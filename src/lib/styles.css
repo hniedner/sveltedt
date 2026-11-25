@@ -55,3 +55,15 @@
 :where(.sdt-row:not(:last-child)) > .sdt-cell {
   border-block-end: 1px solid var(--sdt-border, GrayText);
 }
+
+/* The status line holds the status region and "Cancel" on one line, with room for the progress indicator at its foot.
+   The component gives it this class from the first load or refetch until unmount, so nothing after it moves while
+   they come and go */
+/* @spec("STATE-15") */
+.sdt-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.5em;
+  min-block-size: 2.5em;
+}

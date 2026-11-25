@@ -152,18 +152,22 @@
     {onclearfilters}
     {onreset}
   />
-  <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
-     their text is announced -->
-  <div role="status" aria-atomic="false">
-    {fault === null && status === "loading" ? words.loading : ""}
-    {#if view.still}<div>{words.stillLoading}</div>{/if}
-    {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
+  <!-- The status line: the status region and "Cancel" beside it. The status region and the live count stay in the
+     document in every state, the invalid-input alert's included, so a change of their text is announced -->
+  <div class="sdt-status">
+    <div role="status" aria-atomic="false">
+      {fault === null && status === "loading" ? words.loading : ""}
+      {#if view.still}<span>{words.stillLoading}</span>{/if}
+      {#if fault === null && status === "stopped"}<div>
+          {words.stopped}
+        </div>{/if}
+    </div>
+    {#if cancel}<button
+        bind:this={cancelButton}
+        type="button"
+        onclick={() => cancel()}>{words.cancel}</button
+      >{/if}
   </div>
-  {#if cancel}<button
-      bind:this={cancelButton}
-      type="button"
-      onclick={() => cancel()}>{words.cancel}</button
-    >{/if}
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
     <div role="alert">{words.invalidInput}</div>

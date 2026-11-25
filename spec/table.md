@@ -606,18 +606,19 @@ true holds and the progress indicator has been present for 5 seconds or more.
   motion.
 - Traces: PRD-B22.
 
-**STATE-15** The position and size of the region, and of an element placed after the component, MUST be the same with
-and without the progress indicator, the still-loading text and "Cancel".
+**STATE-15** From the first time `status` is `loading`, or `busy` is true, while the input is valid, until unmount, the
+position and size of the region, and of an element placed after the component, MUST NOT change as the progress
+indicator, the still-loading text and "Cancel" appear and go.
 - Examples (the test runs every row; `oncancel` passed; the `getBoundingClientRect()` x, y, width and height of the
-  region and of a paragraph placed after the component are each equal at 500 ms, 1000 ms and 6000 ms):
+  region and of a paragraph placed after the component are each equal at every time the row names):
 
-  | State |
-  |---|
-  | `status 'loading'` |
-  | `status 'ready'` with 25 rows, `busy true` |
+  | Steps | Read at |
+  |---|---|
+  | mounted with `status 'loading'` | 500 ms, 1000 ms, 6000 ms |
+  | mounted with `status 'ready'` and 25 rows; at 100 ms `busy true`; at 7100 ms `busy false` | 100 ms, 1100 ms, 6100 ms, 7100 ms |
 
-- Reason: content that moves when the indicator appears puts something else under the pointer the user is about to
-  press (PRD-B22).
+- Reason: content that moves when the indicator, its text or "Cancel" comes or goes, or when the end of a load that
+  ends in a ready answer takes them away, puts something else under the pointer the user is about to press (PRD-B22).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B23.
 
