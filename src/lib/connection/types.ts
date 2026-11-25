@@ -54,16 +54,18 @@ interface ConnectionBaseOptions {
   // Called once for each failure: an answer's failure (an answer that cannot be mapped, its message naming the check
   // that failed, or a truthy `error`), a `send` failure passed as it is (a rejection or a thrown value; a missing
   // promise is a `TypeError` the helper provokes), and a refused sort (a sort entry names a column that no map entry
-  // serves). For a failure of a sent request (`table.busy` is then false too) and for a refusal on the load path,
-  // `table.status` is `'failed'` before the call; a refused `onsort` leaves the status as it was.
+  // serves). For a failure of a sent request, `table.busy` is false and `table.status` is `'failed'` before the
+  // call; the same status holds for a refusal on the load path (which leaves `busy` as it was); a refused `onsort`
+  // leaves both as they were.
   // An answer's failure carries `code`, a string or `null`; a rejection is your `send`'s own error: if your
   // transport's errors carry a string `code` (axios does), tell them apart in `send`.
   // A rejection's value is passed as it is and may hold the request's headers: do not forward it to telemetry
   // unredacted. `code` is the server's string, untrusted text: never render it as HTML.
   // Stated limits: `onerror` must not throw; a refused `reload()` while a request runs (reachable only by changing the
   // column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are, the request's own
-  // end then applying; a `send` that throws synchronously, with an `onerror` that calls `reload()`, repeats without end,
-  // and so does a refused sort on the load path with an `onerror` that calls `reload()`
+  // end then applying; a `send` that throws synchronously, with an `onerror` that calls `reload()`, repeats without
+  // end, and so does a refused sort on the load path with an `onerror` that calls `reload()`: both are synchronous
+  // recursion that ends in a stack overflow
   readonly onerror: (error: unknown) => void;
 }
 

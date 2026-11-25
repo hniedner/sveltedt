@@ -509,9 +509,9 @@ MUST NOT call `onerror`.
 **CONN-32** When a request fails, or the sort is refused on the load path (CONN-16), the helper MUST set
 `table.status` `'failed'` and `table.busy` `false` BEFORE it calls `onerror`, so an intent called from inside
 `onerror` leaves the helper in the state that call set (`'loading'`), never overwritten by the failure that called it.
-- Examples (the test runs every row; the second `send` is not answered):
+- Examples (the test runs every row; the `send` of the retry is not answered):
 
-  | The failure | `onerror` calls | `send` calls | `onerror` calls | `table.status` | `table.busy` |
+  | The failure | Called from `onerror` | `send` calls | `onerror` calls | `table.status` | `table.busy` |
   |---|---|---|---|---|---|
   | `send` rejects | the connection's `reload()` | 2 | 1 | `'loading'` | `false` |
   | the answer is `null` (CONN-18) | the connection's `reload()` | 2 | 1 | `'loading'` | `false` |
