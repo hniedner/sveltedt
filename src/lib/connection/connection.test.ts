@@ -790,6 +790,70 @@ describe("CONN-18", () => {
   });
 });
 
+const REPORTED = "The answer reports an error.";
+
+// @spec("CONN-19", "47703f94")
+describe("CONN-19", () => {
+  const rows: [string, unknown][] = [
+    ["A1 with error 'SQL near WHERE'", A1({ error: "SQL near WHERE" })],
+    ["A1 with error true", A1({ error: true })],
+    [
+      "an answer of 0 rows with error and error_code",
+      {
+        draw: 1,
+        recordsTotal: 0,
+        recordsFiltered: 0,
+        data: [],
+        error: "x",
+        error_code: "invalid_filter",
+      },
+    ],
+    ["{ error: 'x' } alone", { error: "x" }],
+  ];
+  it.each(rows)("fails on %s, with the fixed message", async (_row, body) => {
+    const probe = mount();
+    await probe.answer(0, body);
+    expect(outcome(probe)).toEqual({
+      status: "failed",
+      busy: false,
+      rows: [],
+      errors: [REPORTED],
+    });
+  });
+});
+
+// @spec("CONN-26", "40862f91")
+describe("CONN-26", () => {
+  const rows: [string, unknown, string][] = [
+    [
+      "A1 with error 'SQL near WHERE'",
+      A1({ error: "SQL near WHERE" }),
+      "SQL near WHERE",
+    ],
+    [
+      "A1 with error true and a row holding leak-41",
+      A1({ error: true, data: [{ id: "x1", name: "leak-41" }] }),
+      "leak-41",
+    ],
+    [
+      "A1 with error and error_code invalid_filter",
+      A1({ error: "x", error_code: "invalid_filter" }),
+      "invalid_filter",
+    ],
+  ];
+  it.each(rows)(
+    "shows the failed text, not the text of %s",
+    async (_row, body, text) => {
+      const probe = mount();
+      await probe.answer(0, body);
+      expect(document.body.textContent).toContain(
+        "The data could not be loaded.",
+      );
+      expect(document.body.textContent).not.toContain(text);
+    },
+  );
+});
+
 // What a failure of `send` leaves: the state, and the exact values `onerror` received
 const sendFailure = (probe: ReturnType<typeof mount>) => ({
   status: probe.connection.table.status,
