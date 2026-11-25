@@ -312,16 +312,20 @@ test.describe("A11Y-32", () => {
 
 // Sets every animation of the indicator, found the first time and kept after, to `ms`, and reads at once (one task, so
 // the page's time cannot move between): whether each is running and in its active phase, the indicator's `transform`,
-// and how many of the indicator's animations run when asked afresh. Playwright's clock does not fake the document
-// timeline, so the animations are moved by `currentTime`, not by runFor
-const seek = (page: Page, ms: number) =>
-  page.evaluate((time) => {
+// and how many of the indicator's animations run when asked afresh. Every call also checks that each kept animation
+// still belongs to the indicator now on the page, so a swapped-out bar cannot pass. Playwright's clock does not fake the
+// document timeline, so the animations are moved by `currentTime`, not by runFor
+const seek = async (page: Page, ms: number) => {
+  const read = await page.evaluate((time) => {
     const mine = window as unknown as { __animations?: Animation[] };
     const bar = () => document.querySelector("[data-sdt-progress]");
     mine.__animations ??= bar()?.getAnimations({ subtree: true }) ?? [];
     for (const animation of mine.__animations) animation.currentTime = time;
     return {
       stored: mine.__animations.length,
+      attached: mine.__animations.every(
+        (a) => (a.effect as KeyframeEffect | null)?.target === bar(),
+      ),
       running: mine.__animations.map((a) => a.playState === "running"),
       active: mine.__animations.map(
         (a) => a.effect?.getComputedTiming().progress != null,
@@ -332,6 +336,9 @@ const seek = (page: Page, ms: number) =>
       ).length,
     };
   }, ms);
+  expect(read.attached).toBe(true);
+  return read;
+};
 const reduced = (page: Page) =>
   page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
 

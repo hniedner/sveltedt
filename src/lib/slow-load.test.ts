@@ -124,6 +124,35 @@ describe("STATE-15 and STATE-29, the status line's class in the simulated DOM", 
     await tick();
     expect(roomed(table.container)).toBe(true);
   });
+
+  it("keeps no room for a loading table whose input is invalid, and takes it once the input is valid", async () => {
+    const table = mount({ status: "loading", columns: [] });
+    await table.at(1100);
+    expect(roomed(table.container)).toBe(false);
+    await table.change({ status: "loading" });
+    await tick();
+    expect(roomed(table.container)).toBe(true);
+  });
+
+  it("keeps the room of a table mounted loading when its answer comes", async () => {
+    const table = mount({ status: "loading" });
+    expect(roomed(table.container)).toBe(true);
+    await table.change({ rows: twoRows });
+    await tick();
+    expect(roomed(table.container)).toBe(true);
+  });
+
+  it.each(["stopped", "failed"] as const)(
+    "keeps no room for a table mounted %s until a load starts",
+    async (status) => {
+      const table = mount({ status });
+      await table.at(1100);
+      expect(roomed(table.container)).toBe(false);
+      await table.change({ status: "loading" });
+      await tick();
+      expect(roomed(table.container)).toBe(true);
+    },
+  );
 });
 
 // @spec("STATE-10", "fe290072")
