@@ -1255,9 +1255,9 @@ and before the status region, in document order.
 
 - Reason: a panel opened from the toolbar shows below it and above the status line, which stays next to the rows it
   reports on (PRD-B22); it stays in every state, the alert's included, because the `actions` snippet that opens it
-  does (EXP-02) and a button whose panel the table removed would do nothing (PRD-B3), as the `criteria` snippet stays
-  (FILT-31). Material React Table draws its progress bar under its toolbar's banner, and ProTable its loading over the
-  table under its batch-action alert (FETCHED 2026-11-25).
+  does (EXP-02) and a button whose panel the table removed would do nothing, as PRD-B3's reason does, as the `criteria`
+  snippet stays (FILT-31). Material React Table draws its progress bar under its toolbar's banner, and ProTable its
+  loading over the table under its batch-action alert (FETCHED 2026-11-25).
 - Layer: component.
 - Traces: PRD-B31, PRD-B16, PRD-A3.
 
@@ -1271,7 +1271,7 @@ as before.
   `status`.
 - Reason: a panel holds the focus and the values of the application's own inputs; a panel made anew when the table
   enters or leaves a state would drop the focus to the page and lose what was typed but not applied, just when it is
-  the way back from a refused filter (EXP-04). RND-15 keeps the rows' elements for the same reason.
+  the way back from a refused filter (RND-05). RND-15 keeps the rows' elements for the same reason.
 - Layer: component.
 - Traces: PRD-B31.
 
