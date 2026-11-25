@@ -33,16 +33,19 @@ There is nothing to install yet. What is on `main` today:
 - the stopped state: `status="stopped"` shows "Loading stopped" in one cell where the rows would be, with the header
   kept and no empty message, as plain text and not as an alert;
 - slow loads: after 1 second of loading or busy the table adds a progress indicator element, hidden from assistive
-  technology and kept at least 500 ms, drawn as a bar along the foot of the status line that grows for 5 seconds and
-  then rests (it rests from the start under `prefers-reduced-motion`), and after 5 more seconds the status element
-  also says "Still loading", added once for screen readers. From the first load or refetch until it unmounts the table
-  keeps a status line above the region, so the indicator, "Still loading", "Cancel" and the end of a load that ends in
-  a ready answer move nothing; a table that never loads has no such line, and a table mounted ready moves down by that
-  line once, when its first refetch starts. A load that ends in failure adds a line: the failed notice, an element
-  with `role="alert"`, sits between the status line and the region. Limits: a line too narrow for the words and the
-  button wraps; an application style that makes "Cancel" taller than the line moves the table; a second press made
-  right after that first one lands one line higher on the moved content. Proved in Chromium, Firefox and WebKit on the
-  test site's slow-load page;
+  technology and kept at least 500 ms, drawn as a bar along the foot of the status line that pulses (grows from its
+  centre once a second) for 5 seconds and then rests full (it rests from the start under `prefers-reduced-motion`), and
+  after 5 more seconds the status element also says "Still loading", added once for screen readers. From the first load
+  or refetch until it unmounts the table keeps a status line above the region. Once that line has appeared, the
+  indicator, "Still loading" and "Cancel" appear and go, and removing them at the end of a load that ends in a ready
+  answer, without moving the table. A table that never loads has no such line; a table mounted in any status other
+  than loading and busy moves down by that line once, when its first load or refetch starts, whatever starts it. A
+  load that ends in failure adds a line: the failed notice, an element with `role="alert"`, sits between the status
+  line and the region. Limits: the words and "Cancel" sit on one line while they fit, and "Cancel" wraps in a line too
+  narrow for both; an application style that makes "Cancel" taller than the line moves the table; a second press at
+  the same spot, made right after the press that starts the first load or refetch, lands on what is now one line above
+  the control it aimed at, because that control moved down. Proved in Chromium, Firefox and WebKit on the test site's
+  slow-load page, except the last limit;
 - the two buttons of a slow load: with `oncancel` a "Cancel" button after the status element while "Still loading"
   shows, and with `onretry` a "Try again" button after the stopped or failed table, never beside the invalid-input
   alert; a press calls its callback once with no argument, ignores what it returns, and changes nothing on screen

@@ -74,7 +74,7 @@
 }
 
 /* The progress indicator: a bar along the foot of the status line, painted by its border so that forced colours keep
-   it; it grows from its centre five times in 5 seconds, then rests full */
+   it. It grows from its centre five times in 5 seconds, then rests full */
 /* @spec("STATE-13") */
 .sdt-progress {
   position: absolute;

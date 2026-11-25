@@ -152,7 +152,8 @@
     {onclearfilters}
     {onreset}
   />
-  <!-- The status line: the status region, "Cancel" beside it and the progress indicator at its foot. The status
+  <!-- The status line: the status region, "Cancel" beside it and the progress indicator at its foot. It keeps its room
+     from the first load or refetch until unmount (STATE-15, STATE-29; `started` is set in view.svelte.ts). The status
      region and the live count stay in the document in every state, the invalid-input alert's included, so a change of
      their text is announced. The indicator is not drawn beside the alert (RND-13): `shown` outlasts a fault for up to
      its 500 ms minimum -->

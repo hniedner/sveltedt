@@ -48,6 +48,8 @@
   `cellClass({ row, column })`, `column` being the column definition with its `id` (ruling 3 of #190).
   Amended by the owner on 2026-11-24 at 12:35 PST ("(a): send({ request, signal })."): PRD-B20's `send` takes one
   object, `send({ request, signal })`, by the rule the props of `DataTable` and `Pagination` follow (#231).
+  Amended by the owner on <OWNER WORDS> (<OWNER WORDS>): PRD-B22 reserves a status line above the region from the
+  first load or refetch until unmount (#146).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -169,10 +171,10 @@ open filter dialog (PRD-B29); which rows of the page are added so far (PRD-P6); 
 drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether
 the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay
 timer, its minimum display time and whether it shows the still-loading text (B22); whether a load or a refetch has
-started since mount, from which point the line of the still-loading text and Cancel keeps its room until unmount
-(B22); the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters",
-"Next page" on the new last page) and after a control goes while focused (Cancel when the answer or a cancel removes
-it, Try again; PRD-B23, PRD-B24). It resets on remount and is documented.
+started since mount, from which the status line keeps its room until unmount (B22); the focus target pending after any
+intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page) and after a
+control goes while focused (Cancel when the answer or a cancel removes it, Try again; PRD-B23, PRD-B24). It resets on
+remount and is documented.
 
 - **Reason:** One source of truth; two emits are two requests that can race.
 - **Priority:** must
@@ -429,12 +431,15 @@ no gap), a visual progress indicator appears, and it goes when neither holds. It
 technology, covers no control and is none (PRD-B23's Cancel button sits beside the still-loading text, outside the
 indicator), and moves nothing (the table region's bounding box is the same with and without it, the still indicator's
 text and PRD-B23's button included, so nothing appears under a pointer); the indicator, its text and the button sit
-outside the region's horizontal scroll area, never scrolled horizontally out of view, nor under the sticky header. Once
-shown, it stays at least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for
-at most 5 seconds counted from when it appears; under `prefers-reduced-motion` it is shown still from the start; 5
-seconds after it appears, whether or not it was already still, it shows a visible text ("Still loading", a prop with
-that English default), which the polite status of PRD-A4 also says once, so a screen-reader user hears what a sighted
-user reads. Its colours come from tokens.
+outside the region's horizontal scroll area, never scrolled horizontally out of view, nor under the sticky header. The
+room for them is one line above the region, reserved from the first load or refetch until unmount: a table mounted in
+any status other than loading and busy moves down by that line once, when its first load or refetch starts, whatever
+starts it; a table that never loads has no such line; a failed notice adds a line of its own. Once shown, it stays at
+least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for at most 5 seconds
+counted from when it appears; under `prefers-reduced-motion` it is shown still from the start; 5 seconds after it
+appears, whether or not it was already still, it shows a visible text ("Still loading", a prop with that English
+default), which the polite status of PRD-A4 also says once, so a screen-reader user hears what a sighted user reads. Its
+colours come from tokens.
 
 - **Reason:** A slow answer must be visibly in progress; a fast one must not flash; a long one must not move forever
   beside content a user is reading (WCAG 2.2.2).
