@@ -17,10 +17,21 @@ export const servedIndex = (
 // A new empty search for each use: in the JSON form the application holds the request, and an edit must reach no other
 const noSearch = () => ({ value: "", regex: false });
 
-// The column search a filter sends: its text as given (CONN-09); none for no filter
+// One selected value with each of `/ . * + ? | ( ) [ ] { } \ $ ^ -` behind a backslash: the set of DataTables' own
+// escapeRegex (CONN-10)
+const escaped = (value: string): string =>
+  value.replace(/[/.*+?|()[\]{}\\$^-]/g, "\\$&");
+
+// The column search a filter sends: a text as given (CONN-09); a selection as an anchored alternation of its escaped
+// values, in the order selected, with regex true (CONN-10); none for no filter and for an empty selection
 function searchOf(filter: DataTableFilterState | undefined) {
-  if (filter?.kind === "text") return { value: filter.text, regex: false };
-  return noSearch();
+  if (filter === undefined) return noSearch();
+  if (filter.kind === "text") return { value: filter.text, regex: false };
+  if (filter.selected.length === 0) return noSearch();
+  return {
+    value: `^(${filter.selected.map(escaped).join("|")})$`,
+    regex: true,
+  };
 }
 
 // The request for one query as the plain object: the paging and search keys, the column entries, then one order entry

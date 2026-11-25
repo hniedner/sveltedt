@@ -1355,3 +1355,32 @@ describe("CONN-09", () => {
     expect(request?.get("columns[3][search][regex]")).toBe("false");
   });
 });
+
+// @spec("CONN-10", "088b3e10")
+describe("CONN-10", () => {
+  const rows: [string[], string, string][] = [
+    [["active"], "^(active)$", "true"],
+    [["inactive", "active"], "^(inactive|active)$", "true"],
+    [["a.b", "x-(1)", "a/b"], "^(a\\.b|x\\-\\(1\\)|a\\/b)$", "true"],
+    [["*+?[]{}\\$^"], "^(\\*\\+\\?\\[\\]\\{\\}\\\\\\$\\^)$", "true"],
+    [[], "", "false"],
+    [[""], "^()$", "true"],
+    [["active", ""], "^(active|)$", "true"],
+    [["", "active"], "^(|active)$", "true"],
+    [["a|b"], "^(a\\|b)$", "true"],
+  ];
+  it.each(rows)(
+    "sends Status's selection %j as %j with regex %s",
+    (selected, value, regex) => {
+      const { send } = mount({
+        query: {
+          ...Q0,
+          filters: { status: { kind: "categorical", selected } },
+        },
+      });
+      const request = send.mock.calls[0]?.[0]?.request;
+      expect(request?.get("columns[2][search][value]")).toBe(value);
+      expect(request?.get("columns[2][search][regex]")).toBe(regex);
+    },
+  );
+});
