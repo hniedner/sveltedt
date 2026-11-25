@@ -891,9 +891,18 @@ const sendFailure = (probe: ReturnType<typeof mount>) => ({
   errors: probe.onerror.mock.calls.map(([error]) => error),
 });
 
-// @spec("CONN-20", "b592d5ff")
+// @spec("CONN-20", "728d9b5d")
 describe("CONN-20", () => {
   const E = new Error("boom");
+  it("shows the failed message and nothing of the rejection's text", async () => {
+    const probe = mount();
+    await probe.fail(0, new Error("boom: row 7"));
+    expect(document.body.textContent).toContain(
+      "The data could not be loaded.",
+    );
+    expect(document.body.textContent).not.toContain("boom");
+    expect(document.body.textContent).not.toContain("row 7");
+  });
   it("fails with the rejection itself when send rejects", async () => {
     const probe = mount();
     await probe.fail(0, E);

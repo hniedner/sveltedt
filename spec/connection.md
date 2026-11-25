@@ -424,13 +424,15 @@ data.
 
 **CONN-20** A `send` that rejects or throws MUST be a failure: `table.status` `'failed'`, `table.busy` `false`,
 `table.rows` as before, and `onerror` called once with the rejection itself.
-- Examples (the test runs every row): `send` rejects with an `Error` E: `onerror(E)`, the same object; `send` throws E
+- Examples (the test runs every row): `send` rejects with `Error('boom: row 7')`: the failed message
+  (`messages.failed`, "The data could not be loaded.") shows; `boom` and `row 7` are absent from the document;
+  `send` rejects with an `Error` E: `onerror(E)`, the same object; `send` throws E
   when called: the same; A1 on screen, `table.onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false,
   `table.sort` `[code desc]`, `table.rows === D`; `send` returns `undefined` (plain JavaScript, no promise): `'failed'`,
   `onerror` called once with a `TypeError`.
 - Reason: the application's transport rejects every answer that is not a success (an HTTP status outside 2xx
   included); the application decides what it means (PRD-B20). The rejection reaches `onerror` only: the failed state
-  shows `words.failed` and nothing from the rejection (CONN-26).
+  shows `messages.failed` and nothing from the rejection.
 - Layer: component.
 - Traces: PRD-B20.
 
