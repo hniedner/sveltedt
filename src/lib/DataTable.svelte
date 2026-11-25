@@ -32,6 +32,7 @@
     onsearch,
     search,
     searchDelay,
+    searchOnEnter,
     maxLength,
     heading,
     actions,
@@ -148,7 +149,13 @@
 <div class="sdt">
   {@render heading?.()}
   {@render actions?.()}
-  {#if onsearch && fault === null}<Search label={words.searchLabel} />{/if}
+  {#if onsearch && fault === null}<Search
+      label={words.searchLabel}
+      {search}
+      {searchDelay}
+      {searchOnEnter}
+      {onsearch}
+    />{/if}
   <Toolbar
     {fault}
     {columns}

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableProps } from "./types.ts";
 
@@ -24,6 +24,45 @@ function props(extra: Partial<DataTableProps<Item>> = {}) {
   return all;
 }
 
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// Mounts the table at time 0 with the fake clock; `at` moves it to `ms` after the mount (the spec counts from the
+// first key, keys taking no time)
+function mount(extra: Partial<DataTableProps<Item>> = {}) {
+  const onsearch = vi.fn();
+  render(DataTable<Item>, props({ onsearch, ...extra }));
+  const field = screen.getByRole<HTMLInputElement>("searchbox", {
+    name: "Search",
+  });
+  let now = 0;
+  const keys = async (key: string, value: string) => {
+    await fireEvent.keyDown(field, { key });
+    await fireEvent.input(field, { target: { value } });
+  };
+  return {
+    onsearch,
+    field,
+    // One key press and one input event for each character, appended to what the field holds
+    type: async (text: string) => {
+      for (const char of text) await keys(char, field.value + char);
+    },
+    backspace: () => keys("Backspace", field.value.slice(0, -1)),
+    enter: async () => {
+      await fireEvent.keyDown(field, { key: "Enter" });
+    },
+    async at(ms: number): Promise<void> {
+      await vi.advanceTimersByTimeAsync(ms - now);
+      now = ms;
+    },
+  };
+}
+
 // @spec("FILT-40", "1c536137")
 describe("FILT-40", () => {
   it("shows one field named Search with autocomplete off while onsearch is given", () => {
@@ -42,5 +81,70 @@ describe("FILT-40", () => {
     render(DataTable<Item>, props({ columns: [] }));
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.queryAllByRole("searchbox")).toEqual([]);
+  });
+});
+
+// @spec("FILT-41", "261b6b17")
+describe("FILT-41", () => {
+  it("emits once at 400 ms of typing pause, not at 399 ms", async () => {
+    const table = mount();
+    await table.type("beta");
+    await table.at(399);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("restarts the pause at every key", async () => {
+    const table = mount();
+    await table.type("be");
+    await table.at(300);
+    await table.type("ta");
+    await table.at(699);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.at(700);
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("emits at once on Enter and the pause then emits nothing more", async () => {
+    const table = mount();
+    await table.type("beta");
+    await table.at(100);
+    await table.enter();
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+    await table.at(600);
+    expect(table.onsearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits only on Enter under searchOnEnter", async () => {
+    const table = mount({ searchOnEnter: true });
+    await table.type("beta");
+    await table.at(1000);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.enter();
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("emits at every key with searchDelay 0", async () => {
+    const table = mount({ searchDelay: 0 });
+    await table.type("be");
+    expect(table.onsearch.mock.calls).toEqual([["b"], ["be"]]);
+  });
+
+  it("emits nothing for a text that equals the applied search after typing and Backspace", async () => {
+    const table = mount({ search: "beta" });
+    expect(table.field.value).toBe("beta");
+    await table.type("x");
+    await table.backspace();
+    await table.at(400);
+    expect(table.field.value).toBe("beta");
+    expect(table.onsearch).not.toHaveBeenCalled();
+  });
+
+  it("emits nothing on Enter in the field of the applied search", async () => {
+    const table = mount({ search: "beta" });
+    expect(table.field.value).toBe("beta");
+    await table.enter();
+    expect(table.onsearch).not.toHaveBeenCalled();
   });
 });

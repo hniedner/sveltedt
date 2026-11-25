@@ -138,8 +138,10 @@ export interface DataTableProps<Row> {
   onsearch?: (text: string) => void;
   // The applied global search; null is not given, as `sort` (FILT-32)
   search?: string | null;
-  // Milliseconds of typing pause before a filter emits; a whole number, 0 or more (FILT-32)
+  // Milliseconds of typing pause before a filter or the search emits; a whole number, 0 or more (FILT-32)
   searchDelay?: number;
+  // The search field emits only on Enter, not after a pause; default false (FILT-41)
+  searchOnEnter?: boolean;
   // The longest text a filter field accepts; a whole number, 1 or more (FILT-32)
   maxLength?: number;
   heading?: Snippet;
