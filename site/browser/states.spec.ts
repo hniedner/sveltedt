@@ -101,3 +101,41 @@ test.describe("A11Y-06, axe finds no serious or critical violation in any state"
       await axeClean(page, testInfo);
     });
 });
+
+// The names of the package stylesheet's tokens, read from the loaded sheet, and the elements of .sdt that compute one
+async function tokensDefined(
+  page: Page,
+): Promise<{ names: number; set: string[] }> {
+  return page.evaluate(() => {
+    const sheet = [...document.styleSheets].find((s) =>
+      s.href?.endsWith("/sdt/styles.css"),
+    );
+    const text = [...(sheet?.cssRules ?? [])].map((r) => r.cssText).join("\n");
+    const names = [...new Set(text.match(/--sdt-[\w-]+/g))];
+    const set = names.flatMap((name) =>
+      [...document.querySelectorAll(".sdt, .sdt *")]
+        .filter((el) => getComputedStyle(el).getPropertyValue(name) !== "")
+        .map((el) => `${name} on ${el.tagName}`),
+    );
+    return { names: names.length, set };
+  });
+}
+
+// @spec("THEME-03", "79091611")
+test.describe("THEME-03, the same with no --sdt-* property defined", () => {
+  for (const state of states)
+    test(state.name, async ({ page, browserName }, testInfo) => {
+      await show(page, browserName, "/table-plain.html", state);
+      const tokens = await tokensDefined(page);
+      expect(
+        tokens.names,
+        "could not check: no token name read",
+      ).toBeGreaterThan(0);
+      expect(tokens.set, "a token has a value").toEqual([]);
+      const results = await axeClean(page, testInfo);
+      const ran = [...results.passes, ...results.incomplete].map((r) => r.id);
+      expect(ran, "could not check: color-contrast did not run").toContain(
+        "color-contrast",
+      );
+    });
+});
