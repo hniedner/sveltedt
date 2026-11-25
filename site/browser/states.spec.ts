@@ -149,7 +149,7 @@ test("THEME-06: with no --sdt-* property defined the focused region shows a visi
   await expectNoToken(page);
   const unfocused = await ring(region);
   await focusRegion(page, browserName);
-  expectRing(await ring(region), unfocused);
+  await expectRing(region, unfocused);
 });
 
 // @spec("FOOT-03", "9fae3ded")

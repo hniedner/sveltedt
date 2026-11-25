@@ -216,11 +216,7 @@ test("A11Y-07: the region shows a visible focus indicator when focused by keyboa
   await expectScroller(page);
   const unfocused = await ring(region(page));
   await expectStop(page, browserName);
-  expect(
-    await region(page).evaluate((element) => element.matches(":focus-visible")),
-    "could not check: the region does not match :focus-visible",
-  ).toBe(true);
-  expectRing(await ring(region(page)), unfocused);
+  await expectRing(region(page), unfocused);
 });
 
 // @spec("A11Y-13", "ee07066b")

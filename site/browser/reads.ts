@@ -94,11 +94,17 @@ function alphaOf(color: string): number {
   throw new Error(`could not check: no alpha read from the colour ${color}`);
 }
 
-// A11Y-07's and THEME-06's read: the focused ring is drawn, wide enough, not transparent, and not the unfocused one
-export function expectRing(
-  focused: Awaited<ReturnType<typeof ring>>,
+// A11Y-07's and THEME-06's read of the keyboard-focused region: it matches :focus-visible, and its ring is drawn, wide
+// enough, not transparent and not the unfocused one
+export async function expectRing(
+  region: Locator,
   unfocused: Awaited<ReturnType<typeof ring>>,
-): void {
+): Promise<void> {
+  expect(
+    await region.evaluate((element) => element.matches(":focus-visible")),
+    "could not check: the region does not match :focus-visible",
+  ).toBe(true);
+  const focused = await ring(region);
   expect(focused.style).not.toBe("none");
   expect(focused.width).toBeGreaterThanOrEqual(1);
   expect(alphaOf(focused.color)).toBeGreaterThan(0);
