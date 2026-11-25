@@ -249,3 +249,21 @@ test("A11Y-07: the region shows a visible focus indicator when focused by keyboa
   expect(alphaOf(focused.color)).toBeGreaterThan(0);
   expect(focused).not.toEqual(unfocused);
 });
+
+// @spec("A11Y-13", "ee07066b")
+test("A11Y-13: the caption is hidden visually and still names the table", async ({
+  page,
+}) => {
+  await start(page, 1280);
+  const caption = page.locator("caption");
+  await expect(caption, "could not check: no caption on the page").toHaveCount(
+    1,
+  );
+  const box = await caption.boundingBox();
+  expect(box, "could not check: the caption has no box").not.toBeNull();
+  expect(box?.width).toBeLessThanOrEqual(1);
+  expect(box?.height).toBeLessThanOrEqual(1);
+  await expect(
+    page.getByRole("table", { name: "Orders", exact: true }),
+  ).toBeVisible();
+});
