@@ -1,7 +1,7 @@
 // The sort statements that need an engine's own key handling (spec/table.md section 7), against site/sort.html.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { tabKey } from "./reads.ts";
+import { tabKey, visibleNow } from "./reads.ts";
 
 type Order = { id: string; direction: "asc" | "desc" }[];
 type SortWindow = Window & {
@@ -74,22 +74,6 @@ async function tabTo(
   }
   await expect(button(page, name)).toBeFocused();
 }
-
-// A11Y-16's visible: rendered and not hidden by display, visibility, opacity or hidden, at any scroll position. The
-// text is what a reader gets; the elements are named by their place in the tree.
-const visibleNow = (page: Page) =>
-  page.evaluate(() => {
-    const place = (el: Element): string => {
-      const parent = el.parentElement;
-      return parent === null
-        ? el.tagName
-        : `${place(parent)}>${el.tagName}${[...parent.children].indexOf(el)}`;
-    };
-    const shown = [...document.body.querySelectorAll("*")].filter((el) =>
-      el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
-    );
-    return { text: document.body.innerText, elements: shown.map(place) };
-  });
 
 // @spec("SORT-02", "71005ae9")
 test.describe("SORT-02, Shift+Enter and Shift+Space rows", () => {

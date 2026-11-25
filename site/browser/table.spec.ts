@@ -1,8 +1,8 @@
 // The statements of the wide table's keyboard and focus that need an engine (spec/table.md: A11Y-12), against
 // site/table.html: its tables overflow only because every column is at least 120 px wide (site/src/table.css).
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
-import { tabKey } from "./reads.ts";
+import { tabKey, visibleNow } from "./reads.ts";
 
 type TableWindow = Window & { __table: { set(props: object): void } };
 
@@ -266,4 +266,69 @@ test("A11Y-13: the caption is hidden visually and still names the table", async 
   await expect(
     page.getByRole("table", { name: "Orders", exact: true }),
   ).toBeVisible();
+});
+
+// The 25 rows' names as the page gives them: Beta and Gamma first (site/src/TablePage.svelte)
+const names = Array.from({ length: 25 }, (_, index) =>
+  index < 2
+    ? ["Beta", "Gamma"][index]
+    : `Item ${String(index + 1).padStart(2, "0")}`,
+);
+
+// A11Y-16: after each step the visible text and elements equal those before it. The page is the 30 by 25 table with a
+// link per row at 600 px; every hover is checked to have happened, every focus to be on the element named
+async function startVisible(page: Page) {
+  await start(page, 600, "?cols=30&link");
+  await expect(page.locator("tbody tr")).toHaveCount(25);
+  const before = await visibleNow(page);
+  expect(
+    before.elements.length,
+    "could not check: nothing is visible",
+  ).toBeGreaterThan(0);
+  return before;
+}
+
+// @spec("A11Y-16", "1044412e")
+test.describe("A11Y-16, hovering or focusing makes nothing appear", () => {
+  async function hoverAll(page: Page, cells: Locator): Promise<void> {
+    const before = await startVisible(page);
+    const count = await cells.count();
+    expect(count, "could not check: 30 cells are not there").toBe(30);
+    for (let index = 0; index < count; index++) {
+      await cells.nth(index).hover();
+      expect(
+        await cells.nth(index).evaluate((cell) => cell.matches(":hover")),
+        `could not check: cell ${index + 1} is not hovered`,
+      ).toBe(true);
+      expect(
+        await visibleNow(page),
+        `after hovering cell ${index + 1}`,
+      ).toEqual(before);
+    }
+  }
+
+  test("every header cell", async ({ page }) => {
+    await hoverAll(page, page.locator("thead th"));
+  });
+
+  for (const [index, name] of names.entries())
+    test(`every cell of the row ${name}`, async ({ page }) => {
+      await hoverAll(page, page.locator("tbody tr").nth(index).locator("td"));
+    });
+
+  test("the region and each link", async ({ page, browserName }) => {
+    const before = await startVisible(page);
+    await expectStop(page, browserName);
+    expect(await visibleNow(page), "after focusing the region").toEqual(before);
+    for (const name of names) {
+      await page.keyboard.press(tabKey(browserName));
+      expect(
+        await focused(page),
+        "could not check: the link has no focus",
+      ).toBe(`Open ${name}`);
+      expect(await visibleNow(page), `after focusing Open ${name}`).toEqual(
+        before,
+      );
+    }
+  });
 });
