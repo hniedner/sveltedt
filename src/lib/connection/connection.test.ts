@@ -372,6 +372,7 @@ describe("CONN-06", () => {
     const first = send.mock.calls[0]?.[0]?.request;
     (first?.search as { value: string }).value = "edited";
     (first?.columns[0]?.search as { value: string }).value = "edited";
+    expect(first?.columns[1]?.search.value).toBe("");
     await answer(0, A1());
     connection.reload();
     const second = send.mock.calls[1]?.[0]?.request;
