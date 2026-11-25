@@ -1,7 +1,6 @@
 // The sort statements that need an engine's own key handling (spec/table.md section 7), against site/sort.html.
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { tabKey, visibleNow } from "./reads.ts";
+import { axeClean, tabKey, visibleNow } from "./reads.ts";
 
 type Order = { id: string; direction: "asc" | "desc" }[];
 type SortWindow = Window & {
@@ -254,12 +253,7 @@ test.describe("SORT-20, axe on the sort controls", () => {
       page,
     }, testInfo) => {
       await start(page, order);
-      const results = await new AxeBuilder({ page }).analyze();
-      // Incomplete items are for the maintainer's manual review and never count as a pass
-      await testInfo.attach("axe-incomplete", {
-        body: JSON.stringify(results.incomplete, null, 2),
-        contentType: "application/json",
-      });
+      const results = await axeClean(page, testInfo);
       // Analysed, not skipped: button-name passed on the three sort buttons
       const named = results.passes.find((rule) => rule.id === "button-name");
       const html = named?.nodes.map((node) => node.html).join("");
@@ -268,10 +262,5 @@ test.describe("SORT-20, axe on the sort controls", () => {
       );
       // The name is the content: an aria-label on a sort button would show in the analysed HTML (SORT-09)
       expect(html).not.toContain("aria-label");
-      expect(
-        results.violations.filter(
-          (v) => v.impact === "serious" || v.impact === "critical",
-        ),
-      ).toEqual([]);
     });
 });
