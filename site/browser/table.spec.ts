@@ -1,5 +1,7 @@
 // The statements of the wide table's keyboard and focus that need an engine (spec/table.md: A11Y-12), against
-// site/table.html: its tables overflow only because every column is at least 120 px wide (site/src/table.css).
+// site/table.html: its tables overflow only because every column is at least 120 px wide (site/src/table.css). The
+// proof that the effect writing the region's tabindex is needed comes from Chromium row 5 (a cell link) and WebKit
+// rows 2-5: with the writes deleted those fail there, and Firefox passes natively.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
 import { tabKey, visibleNow } from "./reads.ts";
@@ -35,6 +37,10 @@ async function start(page: Page, width: number, query = ""): Promise<void> {
   await page.setViewportSize({ width, height: 720 });
   await open(page, `/table.html${query}`);
   await expect(region(page)).toBeVisible();
+  await expect(
+    page.locator("th").first(),
+    "could not check: no headers",
+  ).toBeVisible();
   const narrowest = await page
     .locator("th")
     .evaluateAll((cells) =>
@@ -196,8 +202,13 @@ test("A11Y-08: the arrow keys scroll the focused region sideways", async ({
   await expect
     .poll(pressUntil(page, "ArrowRight", (position) => position > 0))
     .toBe(true);
-  await expect.poll(() => settledLeft(page)).toBeGreaterThan(0);
-  const right = await settledLeft(page);
+  let right = NaN;
+  await expect
+    .poll(async () => {
+      right = await settledLeft(page);
+      return right > 0;
+    })
+    .toBe(true);
   await expect
     .poll(pressUntil(page, "ArrowLeft", (position) => position < right))
     .toBe(true);
@@ -243,11 +254,11 @@ test("A11Y-07: the region shows a visible focus indicator when focused by keyboa
     await region(page).evaluate((element) => element.matches(":focus-visible")),
     "could not check: the region does not match :focus-visible",
   ).toBe(true);
-  const focused = await ring(page);
-  expect(focused.style).not.toBe("none");
-  expect(focused.width).toBeGreaterThanOrEqual(1);
-  expect(alphaOf(focused.color)).toBeGreaterThan(0);
-  expect(focused).not.toEqual(unfocused);
+  const ringFocused = await ring(page);
+  expect(ringFocused.style).not.toBe("none");
+  expect(ringFocused.width).toBeGreaterThanOrEqual(1);
+  expect(alphaOf(ringFocused.color)).toBeGreaterThan(0);
+  expect(ringFocused).not.toEqual(unfocused);
 });
 
 // @spec("A11Y-13", "ee07066b")

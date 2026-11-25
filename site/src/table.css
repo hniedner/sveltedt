@@ -1,4 +1,4 @@
-/* A column is at least this wide, so a table of 30 columns is wider than any test viewport (A11Y-12) */
+/* A column is at least this wide, so 30 columns are at least 3600 px: wider than the 600 px tests, narrower than the 4000 px of A11Y-12's row 3 */
 th {
   min-width: 120px;
 }

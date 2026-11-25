@@ -1,4 +1,4 @@
-// What the real-browser specs of the keyboard share (spec conventions): the key that moves focus on, and A11Y-16's read.
+// What the real-browser specs of the keyboard share: the key that moves focus on, and A11Y-16's read.
 import type { Page } from "@playwright/test";
 
 // The key that moves focus to the next stop. WebKit on macOS skips buttons on Tab under the system's default keyboard
