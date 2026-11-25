@@ -9,6 +9,13 @@
   box-sizing: border-box;
 }
 
+/* The region scrolls sideways when the table is wider than it (PRD section 5.1); overflow-y then computes to auto too,
+   and the region's Tab stop follows widths only (a height cap on the region is not supported) */
+/* @spec("A11Y-08") */
+.sdt-region {
+  overflow-x: auto;
+}
+
 /* @spec("THEME-10") */
 .sdt-table {
   border-collapse: collapse;

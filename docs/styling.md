@@ -14,3 +14,6 @@ Set a token on any ancestor of the table (or on `:root`) to change what it paint
 
 The progress bar's default is the system text colour (`CanvasText`); a brand colour set on `--sdt-progress` should keep
 3:1 against the background (WCAG 1.4.11).
+
+The region's focus indicator is the browser's own focus ring: it has no token, and an application rule that removes
+outlines removes it.

@@ -24,6 +24,14 @@ There is nothing to install yet. What is on `main` today:
 - the read-only table: rows in the order given, text or snippet cells, a caption and a labelled region; every
   function and snippet it calls for a row or a cell takes one object (`value({ row })`, `getRowId({ row })`, a
   `cell` snippet's `{ row, column }`);
+- the wide table: the region scrolls sideways when the table is wider than it, and only then is a Tab stop, so the
+  arrow keys scroll it once it has focus; its focus indicator is the browser's own ring, the caption is hidden visually
+  and still names the table, hovering or focusing shows nothing new, and Tab follows the reading order (heading
+  controls, actions, the region, then the cells row by row). Proved in Chromium, Firefox and WebKit on the test site's
+  table page (`/table.html`). Limits: a focused region that stops overflowing loses its Tab stop and focus is not moved
+  (not tested); the stop follows widths, not the stylesheet (without the package stylesheet the region is no scroll
+  container, yet a table wider than it still makes it a stop); a height cap on the region is not supported (the region
+  would scroll vertically without a stop); without `ResizeObserver` (a jsdom test) the region is never a stop;
 - the alert for invalid input (an empty caption, missing or duplicate column ids and labels, columns, or rows while
   ready, that are not a list, empty, duplicate or unreadable row ids), shown instead of a wrong table;
 - row ids that are strings or finite numbers, as server JSON gives them;

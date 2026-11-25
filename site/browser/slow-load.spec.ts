@@ -32,8 +32,8 @@ const table = (page: Page) => page.getByRole("table", { name: "Orders" });
 const named = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
 
-// The window's and the region's scroll positions. The region scrolls only once it has an overflow rule (A11Y-12, #22):
-// until then its two values stay 0 and only the window's can differ
+// The window's and the region's scroll positions. The region scrolls sideways when its table is wider than it (A11Y-08),
+// which the 2-column table of this page never is: its two values stay 0 and only the window's can differ
 const scrolls = (page: Page) =>
   page.evaluate(() => {
     const region = document.querySelector('[role="region"]');

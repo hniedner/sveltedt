@@ -885,7 +885,7 @@ snippet's controls, then the region while it is a stop, then the controls in the
   orders", "Export", "Open Beta", "Edit Beta", "Open Gamma", "Edit Gamma". Where the region is a stop needs layout,
   so A11Y-12 proves its place between the actions and the cells.
 - Reason: keyboard users meet the controls in the order they see them (WCAG 2.4.3).
-- Layer: component.
+- Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-A3.
 
 **A11Y-05** A polite live region MUST state the row count exactly when `status` is `ready` and `busy` is false.

@@ -1,0 +1,10 @@
+/* A column is at least this wide, so 30 columns are at least 3600 px: wider than the 600 px tests. A11Y-12's row 3
+   (4000 px) relies on the content staying under that width. */
+th {
+  min-width: 120px;
+}
+
+/* PRD-A3's focus tests need the window's scroll position to change only by what the test does: no scroll anchoring */
+* {
+  overflow-anchor: none;
+}

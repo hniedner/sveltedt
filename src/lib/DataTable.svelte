@@ -106,6 +106,7 @@
   const view = new TableView(
     () => pending,
     () => keepFocus(cancelButton),
+    () => region,
   );
   // The callback of "Cancel" while it is shown (STATE-17), nothing otherwise; the markup and the focus hand-off read it
   const cancel = $derived(view.still ? oncancel : undefined);
@@ -113,8 +114,10 @@
   const retry = $derived(
     status === "stopped" || status === "failed" ? onretry : undefined,
   );
-  // For the focus hand-off: bind:this sets them, and nulls them when their element goes. State, because a variable that
-  // bind:this sets inside an {#if} must be declared with $state(...) (the compiler warns otherwise)
+  // For the focus hand-off and the region's Tab stop: bind:this sets them, and nulls them when their element goes.
+  // State, because a variable that bind:this sets inside an {#if} must be declared with $state(...) (the compiler warns
+  // otherwise)
+  let region = $state<HTMLDivElement | null>(null);
   let table = $state<HTMLTableElement | null>(null);
   let cancelButton = $state<HTMLButtonElement | null>(null);
   let retryButton = $state<HTMLButtonElement | null>(null);
@@ -183,7 +186,12 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
-    <div class="sdt-region" role="region" aria-label={regionLabel}>
+    <div
+      bind:this={region}
+      class="sdt-region"
+      role="region"
+      aria-label={regionLabel}
+    >
       <table
         bind:this={table}
         class="sdt-table"
