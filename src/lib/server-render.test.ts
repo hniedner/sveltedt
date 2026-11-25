@@ -47,6 +47,9 @@ describe("STATE-15, the status line's class in the server render", () => {
 
   it("holds the class in the server render of a loading table and not of a table that never loads", () => {
     expect(html({ status: "loading" })).toContain('class="sdt-status"');
+    expect(html({ status: "ready", busy: true })).toContain(
+      'class="sdt-status"',
+    );
     expect(html({ status: "ready" })).not.toContain("sdt-status");
     expect(errors()).toEqual([]);
   });

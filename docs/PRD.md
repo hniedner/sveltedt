@@ -429,17 +429,17 @@ filters: the positions) (this is the local data source's own cache, not a respon
 Once `status` has been `loading`, or `busy` has been true, for 1 second without a gap (a change from loading to busy is
 no gap), a visual progress indicator appears, and it goes when neither holds. It is decorative and hidden from assistive
 technology, covers no control and is none (PRD-B23's Cancel button sits beside the still-loading text, outside the
-indicator), and moves nothing (the table region's bounding box is the same with and without it, the still indicator's
-text and PRD-B23's button included, so nothing appears under a pointer); the indicator, its text and the button sit
-outside the region's horizontal scroll area, never scrolled horizontally out of view, nor under the sticky header. The
-room for them is one line above the region, reserved from the first load or refetch until unmount: a table mounted in
-any status other than loading and busy moves down by that line once, when its first load or refetch starts, whatever
-starts it; a table that never loads has no such line; a failed notice adds a line of its own. Once shown, it stays at
-least 500 ms, even if the answer arrives sooner. It moves through a class only (strict policy), for at most 5 seconds
-counted from when it appears; under `prefers-reduced-motion` it is shown still from the start; 5 seconds after it
-appears, whether or not it was already still, it shows a visible text ("Still loading", a prop with that English
-default), which the polite status of PRD-A4 also says once, so a screen-reader user hears what a sighted user reads. Its
-colours come from tokens.
+indicator), and, once its line has appeared (the one move is stated below), moves nothing (the table region's bounding
+box is the same with and without it, the still indicator's text and PRD-B23's button included, so nothing appears under
+a pointer); the indicator, its text and the button sit outside the region's horizontal scroll area, never scrolled
+horizontally out of view, nor under the sticky header. The room for them is one line above the region, reserved from the
+first load or refetch until unmount: a table mounted ready, stopped or failed moves down by that line once, when its
+first load or refetch starts, whatever starts it; a table that never loads has no such line; a failed notice adds a line
+of its own. Once shown, it stays at least 500 ms, even if the answer arrives sooner. It moves through a class only
+(strict policy), for at most 5 seconds counted from when it appears; under `prefers-reduced-motion` it is shown still
+from the start; 5 seconds after it appears, whether or not it was already still, it shows a visible text ("Still
+loading", a prop with that English default), which the polite status of PRD-A4 also says once, so a screen-reader user
+hears what a sighted user reads. Its colours come from tokens.
 
 - **Reason:** A slow answer must be visibly in progress; a fast one must not flash; a long one must not move forever
   beside content a user is reading (WCAG 2.2.2).

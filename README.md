@@ -38,9 +38,9 @@ There is nothing to install yet. What is on `main` today:
   after 5 more seconds the status element also says "Still loading", added once for screen readers. From the first load
   or refetch until it unmounts the table keeps a status line above the region. Once that line has appeared, the
   indicator, "Still loading" and "Cancel" appear and go, and removing them at the end of a load that ends in a ready
-  answer, without moving the table. A table that never loads has no such line; a table mounted in any status other
-  than loading and busy moves down by that line once, when its first load or refetch starts, whatever starts it. A
-  load that ends in failure adds a line: the failed notice, an element with `role="alert"`, sits between the status
+  answer, without moving the table. A table that never loads has no such line; a table mounted ready, stopped or
+  failed moves down by that line once, when its first load or refetch starts, whatever starts it (a sort or page
+  press, a timer, a push). A load that ends in failure adds a line: the failed notice, an element with `role="alert"`, sits between the status
   line and the region. Limits: the words and "Cancel" sit on one line while they fit, and "Cancel" wraps in a line too
   narrow for both; an application style that makes "Cancel" taller than the line moves the table; a second press at
   the same spot, made right after the press that starts the first load or refetch, lands on what is now one line above
