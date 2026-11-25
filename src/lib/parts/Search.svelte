@@ -1,29 +1,35 @@
 <script lang="ts">
   import { SearchText } from "../search.svelte.js";
-  import type { DataTableProps } from "../types.js";
+  import type { DataTableMessages, DataTableProps } from "../types.js";
 
   type Props = Pick<
     DataTableProps<unknown>,
     "search" | "searchDelay" | "searchOnEnter" | "maxLength"
-  > & { label: string; onsearch: (text: string) => void };
+  > & {
+    label: string;
+    words: Pick<DataTableMessages, "textHiddenCharacter" | "textTooLong">;
+    onsearch: (text: string) => void;
+  };
 
   const {
     label,
+    words,
     search,
     searchDelay,
     searchOnEnter,
     maxLength,
     onsearch,
   }: Props = $props();
-  // Ties the label to its field, unique per table on the page
+  // Ties the label and the messages to the field, unique per part on the page
   const id = $props.id();
+  const limit = $derived(maxLength ?? 255);
   // The defaults are applied here, after the table validated the settings, so a null stays a fault
   const box = new SearchText(
     () => search ?? "",
     () => ({
       delay: searchDelay ?? 400,
       onEnter: searchOnEnter ?? false,
-      maxLength: maxLength ?? 255,
+      maxLength: limit,
     }),
     (text) => onsearch(text),
   );
@@ -38,9 +44,22 @@
     type="search"
     autocomplete="off"
     value={box.text}
+    aria-invalid={box.hidden || box.tooLong ? "true" : undefined}
+    aria-describedby={[
+      box.hidden ? `${id}-hidden` : null,
+      box.tooLong ? `${id}-long` : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined}
     oninput={(event) => box.input(event.currentTarget.value)}
     onkeydown={(event) => {
       if (event.key === "Enter") box.apply();
     }}
   />
+  {#if box.hidden}<div role="alert" id="{id}-hidden">
+      {words.textHiddenCharacter}
+    </div>{/if}
+  {#if box.tooLong}<div role="alert" id="{id}-long">
+      {words.textTooLong(limit)}
+    </div>{/if}
 </div>

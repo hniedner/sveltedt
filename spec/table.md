@@ -3331,19 +3331,26 @@ a control character (Unicode category Cc) or is longer than `maxLength` characte
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-48** The search field MUST be `aria-invalid="true"` and described by the alert of FILT-15 exactly while it holds
-text it refuses.
-- Examples (the test runs every row; the checks right after the last step):
+**FILT-48** The search field MUST be `aria-invalid="true"` and described by one message for each refusal of FILT-42
+that holds, exactly while it holds.
+- Examples (the test runs every row; the checks right after the last step; each message is an element with
+  `role="alert"`, and the words are the defaults of FILT-55):
 
   | Steps | `aria-invalid` | Described by |
   |---|---|---|
-  | paste "a", U+0001 | "true" | "Use at most 255 characters without control characters." |
-  | type 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters without control characters." |
-  | paste "a", U+0001, then press Backspace | not "true" | no alert |
-  | mount with `search` "a" followed by U+0001 | "true" | "Use at most 255 characters without control characters." |
+  | paste "a", U+0001 | "true" | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." |
+  | paste "a", U+0085 | "true" | the same |
+  | paste 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters." |
+  | paste 1001 times "x", with `maxLength={1000}` | "true" | "Use at most 1,000 characters." (the grouping proved) |
+  | paste "a", U+0001, then 300 times "x" | "true" | both messages, the hidden-character one first |
+  | paste "a", U+0001, then press Backspace | not "true" | no message |
+  | paste "a", U+0009 | not "true" | no message (an outer tab is white space, FILT-57) |
+  | mount with `search` "a" followed by U+0001 | "true" | the hidden-character message |
 
   An applied `search` the field would refuse is no fault (FILT-32): the field shows it and marks it.
-- Reason: the user learns at the field why nothing is applied, and a stale error misleads (PRD-B6, WCAG 3.3.1).
+- Reason: the user learns at the field why nothing is applied and what to do, and a stale error misleads (PRD-B6,
+  WCAG 3.3.1); the English grouping of the number is the table's own (I18N-01), its locale independence left to the
+  filter dialog's German check.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6, PRD-A1.
 

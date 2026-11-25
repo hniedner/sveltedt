@@ -86,6 +86,10 @@ export interface DataTableMessages {
   readonly reset: string;
   // The visible label and the name of the global search field (FILT-40)
   readonly searchLabel: string;
+  // The search field's refusal of a control character in its text (FILT-48)
+  readonly textHiddenCharacter: string;
+  // The search field's refusal of a text longer than `maxLength` (FILT-48)
+  readonly textTooLong: (maxLength: number) => string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (

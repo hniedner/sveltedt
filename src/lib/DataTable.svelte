@@ -151,6 +151,7 @@
   {@render actions?.()}
   {#if onsearch && fault === null}<Search
       label={words.searchLabel}
+      {words}
       {search}
       {searchDelay}
       {searchOnEnter}

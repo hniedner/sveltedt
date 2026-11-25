@@ -48,10 +48,14 @@ export class SearchText {
     return this.text.trim();
   }
 
-  // Refused (FILT-42): the trimmed text holds a control character, or is longer than `maxLength` in code points
-  get refused(): boolean {
-    const text = this.trimmed;
-    return CONTROL.test(text) || [...text].length > this.#settings().maxLength;
+  // The trimmed text holds a control character (FILT-42, FILT-48)
+  get hidden(): boolean {
+    return CONTROL.test(this.trimmed);
+  }
+
+  // The trimmed text is longer than `maxLength` code points (FILT-42, FILT-48)
+  get tooLong(): boolean {
+    return [...this.trimmed].length > this.#settings().maxLength;
   }
 
   // Every input event: the new text, then the pause. Under searchOnEnter only Enter applies (FILT-28); a delay of 0
@@ -70,7 +74,7 @@ export class SearchText {
   // (FILT-27, FILT-57); the pause then emits nothing more
   apply(): void {
     clearTimeout(this.#timer);
-    if (this.refused) return;
+    if (this.hidden || this.tooLong) return;
     const text = this.trimmed;
     // Cleared before the equality return: a field that holds the applied text has taken it (FILT-44)
     this.#newer = false;

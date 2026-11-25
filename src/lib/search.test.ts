@@ -316,3 +316,73 @@ describe("FILT-42", () => {
     expect(table.onsearch.mock.calls).toEqual([["x".repeat(255)]]);
   });
 });
+
+const HIDDEN =
+  "The text contains a hidden character, often from pasted text. Clear the field and type the text again.";
+
+// The texts of the elements the field's aria-describedby names
+function described(field: HTMLElement): string[] {
+  return (field.getAttribute("aria-describedby") ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .map((id) => document.getElementById(id)?.textContent ?? "");
+}
+
+// @spec("FILT-48", "b1827535")
+describe("FILT-48", () => {
+  it.each([
+    ["a control character", "a\u0001", {}, [HIDDEN]],
+    ["U+0085", "a\u0085", {}, [HIDDEN]],
+    [
+      "11 characters with maxLength 10",
+      "x".repeat(11),
+      { maxLength: 10 },
+      ["Use at most 10 characters."],
+    ],
+    [
+      "1001 characters with maxLength 1000, the grouping proved",
+      "x".repeat(1001),
+      { maxLength: 1000 },
+      ["Use at most 1,000 characters."],
+    ],
+    [
+      "a control character and 300 characters",
+      `a\u0001${"x".repeat(300)}`,
+      {},
+      [HIDDEN, "Use at most 255 characters."],
+    ],
+  ] as const)(
+    "marks %s invalid and describes it by one alert per condition",
+    async (_name, text, extra, messages) => {
+      const table = mount(extra);
+      await table.paste(text);
+      expect(table.field.getAttribute("aria-invalid")).toBe("true");
+      expect(described(table.field)).toEqual(messages);
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual(messages);
+    },
+  );
+
+  it("marks nothing once Backspace leaves a text that is accepted", async () => {
+    const table = mount();
+    await table.paste("a\u0001");
+    await table.backspace();
+    expect(table.field.getAttribute("aria-invalid")).not.toBe("true");
+    expect(described(table.field)).toEqual([]);
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
+  it("marks nothing for an outer tab, which is white space", async () => {
+    const table = mount();
+    await table.paste("a\u0009");
+    expect(table.field.getAttribute("aria-invalid")).not.toBe("true");
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
+  it("marks an applied search that the field would refuse", () => {
+    const table = mount({ search: "a\u0001" });
+    expect(table.field.getAttribute("aria-invalid")).toBe("true");
+    expect(described(table.field)).toEqual([HIDDEN]);
+  });
+});

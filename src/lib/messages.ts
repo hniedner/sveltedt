@@ -25,6 +25,10 @@ export const defaultMessages: DataTableMessages = {
   clearFilters: "Clear column filters",
   reset: "Reset table",
   searchLabel: "Search",
+  textHiddenCharacter:
+    "The text contains a hidden character, often from pasted text. Clear the field and type the text again.",
+  textTooLong: (maxLength) =>
+    `Use at most ${number.format(maxLength)} characters.`,
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =
