@@ -94,3 +94,11 @@
     transform: scaleX(1);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  /* A user who asked for less motion gets the bar still from the start */
+  /* @spec("STATE-14") */
+  .sdt-progress {
+    animation: none;
+  }
+}

@@ -606,7 +606,7 @@ true holds and the progress indicator has been present for 5 seconds or more.
 - Example: `matchMedia('(prefers-reduced-motion: reduce)').matches` is true; `status 'loading'`: at 1000 ms and at
   6000 ms neither the indicator nor any element in it has a running animation.
 - Reason: a user who asked the system for less motion gets a still indicator from the start (PRD-B22).
-- Layer: real browser (Chromium, Firefox, WebKit), in the browser instance the test runner configures with reduced
+- Layer: real browser (Chromium, Firefox, WebKit), in a browser context the test runner configures with reduced
   motion.
 - Traces: PRD-B22.
 

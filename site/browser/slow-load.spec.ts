@@ -362,3 +362,47 @@ test.describe("STATE-13", () => {
     expect(end.fresh).toBe(0);
   });
 });
+
+// @spec("STATE-14", "830fa296")
+test.describe("STATE-14", () => {
+  test.use({ reducedMotion: "reduce" });
+  test("keeps the indicator still at 1000 ms and at 6000 ms: status 'loading'", async ({
+    page,
+  }) => {
+    await open(page);
+    expect(await reduced(page)).toBe(true);
+    await page.clock.runFor(1000);
+    await expect(indicator(page)).toHaveCount(1);
+    // Still, not missing: the bar has a box, between "Export" and the region
+    const place = await page.evaluate(() => {
+      const box = (el: Element | null) => {
+        if (!el) throw new Error("an element of the page is missing");
+        return el.getBoundingClientRect();
+      };
+      const element = document.querySelector<HTMLElement>(
+        "[data-sdt-progress]",
+      );
+      const bar = box(element);
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const exported = buttons.find((b) => b.textContent.trim() === "Export");
+      return {
+        // The layout size, which a transform does not change
+        width: element?.offsetWidth ?? 0,
+        height: element?.offsetHeight ?? 0,
+        top: bar.top,
+        bottom: bar.bottom,
+        exportBottom: box(exported ?? null).bottom,
+        regionTop: box(document.querySelector('[role="region"]')).top,
+      };
+    });
+    expect(place.width).toBeGreaterThan(1);
+    expect(place.height).toBeGreaterThan(1);
+    expect(place.top).toBeGreaterThanOrEqual(place.exportBottom);
+    expect(place.bottom).toBeLessThanOrEqual(place.regionTop);
+    expect((await seek(page, 0)).fresh).toBe(0);
+    await page.clock.runFor(5000);
+    await expect(page.getByRole("status")).toContainText("Still loading");
+    await expect(indicator(page)).toHaveCount(1);
+    expect((await seek(page, 5999)).fresh).toBe(0);
+  });
+});
