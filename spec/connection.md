@@ -506,15 +506,17 @@ MUST NOT call `onerror`.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-32** When a request fails, the helper MUST set `table.status` `'failed'` and `table.busy` `false` BEFORE it
-calls `onerror`, so a `reload()` (or any intent) called from inside `onerror` leaves the helper in the state that call
-set (`'loading'`), never overwritten by the failure that called it.
-- Examples (the test runs every row; `onerror` calls `table`'s `reload()`, and the second `send` is not answered):
+**CONN-32** When a request fails, or the sort is refused on the load path (CONN-16), the helper MUST set
+`table.status` `'failed'` and `table.busy` `false` BEFORE it calls `onerror`, so an intent called from inside
+`onerror` leaves the helper in the state that call set (`'loading'`), never overwritten by the failure that called it.
+- Examples (the test runs every row; the second `send` is not answered):
 
-  | The first request | `send` calls | `onerror` calls | `table.status` | `table.busy` |
-  |---|---|---|---|---|
-  | `send` rejects | 2 | 1 | `'loading'` | `false` |
-  | is answered with `null` (CONN-18) | 2 | 1 | `'loading'` | `false` |
+  | The failure | `onerror` calls | `send` calls | `onerror` calls | `table.status` | `table.busy` |
+  |---|---|---|---|---|---|
+  | `send` rejects | the connection's `reload()` | 2 | 1 | `'loading'` | `false` |
+  | the answer is `null` (CONN-18) | the connection's `reload()` | 2 | 1 | `'loading'` | `false` |
+  | `send` rejects | `table.onsort` with `[name desc]` | 2 | 1 | `'loading'` | `false` |
+  | the mount's `load()` refuses the sort (no entry serves `code`) | `table.onsort` with `[name asc]` | 1 | 1 | `'loading'` | `false` |
 
 - Reason: a retry from `onerror` is a normal consumer pattern (PRD-B20: `onretry` and `reload()` send the current
   query again); if the failure were written after `onerror`, it would overwrite the retry's `'loading'`. With no rows

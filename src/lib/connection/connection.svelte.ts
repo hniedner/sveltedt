@@ -30,20 +30,19 @@ export function createConnection<Row = unknown>(
   let draw = 0;
   // The controller of the request now running; none once it settled
   let controller: AbortController | undefined;
-  // True, after one call of `onerror`, when an entry of `entries` names a column that no map entry serves
-  function refused(entries: readonly DataTableSortEntry[]): boolean {
+  // The refusal when an entry of `entries` names a column that no map entry serves; none otherwise
+  function refusal(entries: readonly DataTableSortEntry[]): Error | undefined {
     const entry = entries.find((e) => servedIndex(options.columns, e.id) < 0);
-    if (entry === undefined) return false;
-    options.onerror(
-      new Error(
-        `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
-      ),
+    if (entry === undefined) return undefined;
+    return new Error(
+      `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
     );
-    return true;
   }
   function load(): void {
-    if (refused(sort)) {
+    const refused = refusal(sort);
+    if (refused !== undefined) {
       status = "failed";
+      options.onerror(refused);
       return;
     }
     const sent = ++draw;
@@ -92,7 +91,8 @@ export function createConnection<Row = unknown>(
     load();
   }
   function onsort(next: DataTableSortEntry[]): void {
-    if (refused(next)) return;
+    const refused = refusal(next);
+    if (refused !== undefined) return options.onerror(refused);
     sort = next;
     offset = 0;
     load();

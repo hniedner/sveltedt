@@ -52,6 +52,8 @@ function run<Send>(
     send: Send,
     onerror: ConnectionOptions["onerror"],
   ) => ConnectionOptions,
+  // What each call of `onerror` also does, given the connection (it exists before the helper's first request)
+  onError?: (connection: Connection<Row>) => void,
 ) {
   const settle: {
     resolve: (body: unknown) => void;
@@ -60,8 +62,10 @@ function run<Send>(
   const send = makeSend(
     () => new Promise((resolve, reject) => settle.push({ resolve, reject })),
   );
-  const onerror = vi.fn<ConnectionOptions["onerror"]>();
   let connected: Connection<Row> | undefined;
+  const onerror = vi.fn<ConnectionOptions["onerror"]>(() => {
+    if (connected !== undefined) onError?.(connected);
+  });
   const { unmount } = render(Probe, {
     options: make(send, onerror),
     onconnect: (connection: Connection<Row>) => (connected = connection),
@@ -87,10 +91,14 @@ function run<Send>(
     },
   };
 }
-function mount(options: Partial<ConnectionParamsOptions> = {}) {
+function mount(
+  options: Partial<ConnectionParamsOptions> = {},
+  onError?: (connection: Connection<Row>) => void,
+) {
   return run(
     (pending) => vi.fn<ConnectionParamsOptions["send"]>(pending),
     (send, onerror) => ({ send, onerror, columns: M, query: Q0, ...options }),
+    onError,
   );
 }
 // As `mount`, for the JSON form: `send` receives the plain object
@@ -1249,25 +1257,58 @@ describe("CONN-31", () => {
   });
 });
 
-// @spec("CONN-32", "33c0ed71")
+// @spec("CONN-32", "79ea75b6")
 describe("CONN-32", () => {
-  const causes: [string, (probe: ReturnType<typeof mount>) => Promise<void>][] =
+  const nameDesc = { id: "name", direction: "desc" } as const;
+  const reload = (connection: Connection<Row>) => connection.reload();
+  const causes: [
+    string,
+    (connection: Connection<Row>) => void,
+    (probe: ReturnType<typeof mount>) => Promise<void>,
+    number,
+  ][] = [
     [
-      ["send rejects", (probe) => probe.fail(0, new Error("boom"))],
-      ["the answer cannot be mapped", (probe) => probe.answer(0, null)],
-    ];
+      "reload() when send rejects",
+      reload,
+      (p) => p.fail(0, new Error("boom")),
+      2,
+    ],
+    [
+      "reload() when the answer cannot be mapped",
+      reload,
+      (p) => p.answer(0, null),
+      2,
+    ],
+    [
+      "onsort when send rejects",
+      (connection) => connection.table.onsort([nameDesc]),
+      (p) => p.fail(0, new Error("boom")),
+      2,
+    ],
+  ];
   it.each(causes)(
-    "leaves the helper as a reload() from onerror set it when %s",
-    async (_cause, settle) => {
-      const probe = mount();
-      probe.onerror.mockImplementation(() => probe.connection.reload());
+    "leaves the helper as the intent called from onerror set it: %s",
+    async (_name, intent, settle, sends) => {
+      const probe = mount({}, intent);
       await settle(probe);
       expect(probe.onerror).toHaveBeenCalledTimes(1);
-      expect(probe.send).toHaveBeenCalledTimes(2);
+      expect(probe.send).toHaveBeenCalledTimes(sends);
       expect(probe.connection.table).toMatchObject({
         status: "loading",
         busy: false,
       });
     },
   );
+  it("leaves the helper as onsort called from onerror set it when the mount's load() refuses the sort", () => {
+    const probe = mount(
+      { columns: MNoCode, query: { ...Q0, sort: [codeAsc] } },
+      (connection) => connection.table.onsort([nameAsc]),
+    );
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.table).toMatchObject({
+      status: "loading",
+      busy: false,
+    });
+  });
 });
