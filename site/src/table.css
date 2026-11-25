@@ -1,0 +1,9 @@
+/* A column is at least this wide, so a table of 30 columns is wider than any test viewport (A11Y-12) */
+th {
+  width: 120px;
+}
+
+/* PRD-A3's focus tests need the window's scroll position to change only by what the test does: no scroll anchoring */
+* {
+  overflow-anchor: none;
+}
