@@ -1484,3 +1484,34 @@ describe("CONN-28", () => {
     expect(probe.connection.pager).toBeUndefined();
   });
 });
+
+// @spec("CONN-29", "2730161e")
+describe("CONN-29", () => {
+  const filters = { code: { kind: "text" as const, text: "B" } };
+  const refused = () => mount({ columns: MNoCode, query: { ...Q0, filters } });
+  it("sends nothing, keeps the filters and names code once on table.onfilter for code", async () => {
+    const probe = mount({ columns: MNoCode });
+    await probe.answer(0, A1());
+    probe.connection.table.onfilter({ id: "code", state: filters.code });
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.table.filters).toEqual({});
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing, keeps the filters, fails and names code once on a mount with a filter on code", () => {
+    const probe = refused();
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.filters).toEqual(filters);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(messages(probe)).toEqual([expect.stringContaining("code")]);
+  });
+  it("sends nothing and names code once more on reload() after that mount", () => {
+    const probe = refused();
+    probe.connection.reload();
+    expect(probe.send).not.toHaveBeenCalled();
+    expect(probe.connection.table.filters).toEqual(filters);
+    expect(messages(probe)).toEqual([
+      expect.stringContaining("code"),
+      expect.stringContaining("code"),
+    ]);
+  });
+});

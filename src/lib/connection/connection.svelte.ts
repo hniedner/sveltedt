@@ -39,16 +39,24 @@ export function createConnection<Row = unknown>(
   let draw = 0;
   // The controller of the request now running; none once it settled
   let controller: AbortController | undefined;
-  // The refusal when an entry of `entries` names a column that no map entry serves; none otherwise
-  function refusal(entries: readonly DataTableSortEntry[]): Error | undefined {
+  // The refusal when an entry of `entries`, or an id of `ids`, names a column that no map entry serves; none otherwise
+  function refusal(
+    entries: readonly DataTableSortEntry[],
+    ids: readonly string[] = [],
+  ): Error | undefined {
     const entry = entries.find((e) => servedIndex(options.columns, e.id) < 0);
-    if (entry === undefined) return undefined;
+    if (entry !== undefined)
+      return new Error(
+        `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
+      );
+    const id = ids.find((key) => servedIndex(options.columns, key) < 0);
+    if (id === undefined) return undefined;
     return new Error(
-      `No column map entry serves the sort's column id ${JSON.stringify(entry.id)}.`,
+      `No column map entry serves the filter's column id ${JSON.stringify(id)}.`,
     );
   }
   function load(): void {
-    const refused = refusal(sort);
+    const refused = refusal(sort, Object.keys(filters));
     if (refused !== undefined) {
       status = "failed";
       options.onerror(refused);
@@ -107,6 +115,8 @@ export function createConnection<Row = unknown>(
     load();
   }
   function onfilter(change: { id: string; state: DataTableFilterState }): void {
+    const refused = refusal([], [change.id]);
+    if (refused !== undefined) return options.onerror(refused);
     filters = { ...filters, [change.id]: change.state };
     offset = 0;
     load();
