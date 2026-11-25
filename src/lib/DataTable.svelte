@@ -33,6 +33,7 @@
     maxLength,
     heading,
     actions,
+    panels,
   }: DataTableProps<Row> = $props();
   // The caption text and the hint (SORT-28) are one name: Svelte trims a bare space beside a tag, so it is a value
   const SPACE = " ";
@@ -155,6 +156,7 @@
     {onclearfilters}
     {onreset}
   />
+  {#if panels !== undefined}{@render panels()}{/if}
   <!-- The status line: the status region, "Cancel" beside it and the progress indicator at its foot. It keeps its room
      from the first load or refetch until unmount (STATE-15, STATE-29; `started` is set in view.svelte.ts). The status
      region and the live count stay in the document in every state, the invalid-input alert's included, so a change of

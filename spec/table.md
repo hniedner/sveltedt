@@ -45,6 +45,7 @@ to the consumer as one callback (stated with the statements that add user action
   `cancel`, `stopped` and `retry`; the filter statements of milestone 4 add a column's `filter`, `filters`,
   `onfilter({ id, state })`, `searchDelay`, `searchOnEnter` and `maxLength` (section 11), and `onclearfilter({ id })`,
   `onclearfilters()`, `onreset()` and the snippet `criteria`, and `search` and `onsearch(text)` (the global search);
+  the panels statements of milestone 4 add the snippet `panels` (section 4);
   the column statements of milestone 5 add `columnState` and `oncolumnstate(next)` (section 12); the selection
   statements of milestone 6 add `selection`, `onselectrow(event)` and `onselectpage(selected)` (section 13), the
   sticky statements `stickyHeader`, `stickyTop` and a column's `sticky` (section 14), and the child-row statements the
@@ -91,8 +92,8 @@ to the consumer as one callback (stated with the statements that add user action
   only adds (it never removes, renames or reorders one), or a single value. A row is passed inside the object
   (`value({ row })`, `getRowId({ row })`), never alone. A callback that reports one new state value receives that
   value alone (`onsort(next)`, `onpage(offset)`); one with nothing to report receives nothing (`onclearfilters()`);
-  a snippet with nothing to show takes nothing (`heading`, `actions`, `criteria`); none receives two or more arguments
-  (`onfilter({ id, state })`, never `onfilter(id, state)`). The words' functions follow the same rule
+  a snippet with nothing to show takes nothing (`heading`, `actions`, `criteria`, `panels`); none receives two or more
+  arguments (`onfilter({ id, state })`, never `onfilter(id, state)`). The words' functions follow the same rule
   (`rowCount(count)`, `info({ first, last, total })`). Reason: a positional list can only grow at its end and never
   drop a place without breaking every caller, and PRD-K3 makes each signature public; one object lets a later
   release add a field without a break and lets a consumer take only the fields it needs. AG Grid passes one object
@@ -1227,6 +1228,38 @@ that does not focus a button on a click.
 - Reason: downloads are the consumer's; a component that writes files works around the consumer's policy.
 - Layer: component.
 - Traces: PRD-S3, PRD-B17.
+
+### The panels snippet (milestone 4)
+
+These statements add the snippet `panels` (PRD-B31): the application's own panels, such as an advanced search or
+batch actions that a button of its `actions` snippet opens. The table adds no behaviour to it: no open state, no
+toggle. Every control of the toolbar (the controls of FILT-31 and those a later group adds to the toolbar) comes
+before it, and the status line of STATE-15, "Cancel" included, after it; a later group that adds a control to the
+toolbar states its place before the `panels` snippet in its own statement.
+
+**EXP-04** The `panels` snippet MUST render in every state, after the `actions` snippet and the controls of FILT-31
+and before the status region, in document order.
+- Examples (the test runs every row; the `actions` snippet holds "Export", the `criteria` snippet "Clear my criteria"
+  and the `panels` snippet a block holding the button "Apply search"; Name has a text filter and `onreset` is given;
+  each row lists the buttons before the status region in document order, then the status region):
+
+  | State | In document order |
+  |---|---|
+  | `status 'ready'` with rows, Name's text "Beta" applied | "Export", the badge of Name, "Clear my criteria", "Clear column filters", "Reset table", "Apply search", the status region |
+  | `status 'ready'`, no rows, `filters` `{}` | "Export", "Clear my criteria", "Reset table", "Apply search", the status region |
+  | `status 'ready'` with rows, `busy true`, Name's text "Beta" applied | as the first row |
+  | `status 'loading'`, Name's text "Beta" applied | as the first row |
+  | `status 'failed'`, `onretry` passed, Name's text "Beta" applied | as the first row |
+  | `status 'stopped'`, `onretry` passed, Name's text "Beta" applied | as the first row |
+  | `filters` names a column that is not configured (the alert of RND-05) | "Export", "Clear my criteria", "Reset table", "Apply search", the status region |
+
+- Reason: a panel opened from the toolbar shows below it and above the status line, which stays next to the rows it
+  reports on (PRD-B22); it stays in every state, the alert's included, because the `actions` snippet that opens it
+  does (EXP-02) and a button whose panel the table removed would do nothing (PRD-B3), as the `criteria` snippet stays
+  (FILT-31). Material React Table draws its progress bar under its toolbar's banner, and ProTable its loading over the
+  table under its batch-action alert (FETCHED 2026-11-25).
+- Layer: component.
+- Traces: PRD-B31, PRD-B16, PRD-A3.
 
 ## 5. No global footprint (FOOT)
 
@@ -5217,6 +5250,7 @@ pointer.
 | EXP-02 | PRD-B17, PRD-B16 |
 | EXP-01 | PRD-B17 |
 | EXP-03 | PRD-S3, PRD-B17 |
+| EXP-04 | PRD-B31, PRD-B16, PRD-A3 |
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
@@ -5523,8 +5557,9 @@ state in their own statements.
 | PRD-B9 | PAGE-01 to PAGE-27 except PAGE-19 and PAGE-20 | in full |
 | PRD-B26 | PAGE-37, PAGE-38, PAGE-39, PAGE-40, PAGE-16, PAGE-19, I18N-01 | in full |
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21, STATE-28 | in full |
-| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, RND-17, STATE-08, EXP-02, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
+| PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, RND-17, STATE-08, EXP-02, EXP-04, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
+| PRD-B31 | EXP-04 | in part: the width is EXP-05's, the kept elements EXP-06's |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-29, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
@@ -5532,7 +5567,7 @@ state in their own statements.
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, STATE-28, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08, FILT-56 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
 | PRD-A2 | A11Y-01, A11Y-13, A11Y-09, A11Y-12, A11Y-08, A11Y-02, A11Y-04, A11Y-03, SORT-06, SORT-08, A11Y-35, STK-09, SORT-28, FILT-56 | in full |
-| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
+| PRD-A3 | A11Y-12, A11Y-08, A11Y-10, FOOT-03, RND-14, SORT-11, PAGE-10, PAGE-05, PAGE-21, PAGE-06, PAGE-23, A11Y-17, A11Y-19, PAGE-33, STATE-25, A11Y-23, A11Y-24, A11Y-27, A11Y-28, A11Y-29, A11Y-30, A11Y-31, FILT-24, FILT-31, EXP-04, FILT-45, FILT-50, COL-29, COL-11, PAGE-40, CHILD-07, CHILD-13, CHILD-16, A11Y-37, A11Y-38, A11Y-48, I18N-03 | in part: focus and no-scroll after the intents of later groups, and the place of the sort buttons and "Reset table" in the Tab order, arrive as the later groups' own statements |
 | PRD-A4 | A11Y-05, A11Y-14, A11Y-15, A11Y-22, A11Y-20, A11Y-26, COL-12, COL-18, PAGE-39, CHILD-15 | in full |
 | PRD-A8 | A11Y-11, THEME-45 | in part: the contrast-theme step of the release (PRD-A5) is the rendered proof in Firefox; WebKit's limit is stated in PRD-D3 |
 | PRD-A10 | A11Y-16, SORT-18, PAGE-28, A11Y-46 | in part: the skip-link and dialog groups state their own controls in their own statements |

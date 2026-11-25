@@ -377,6 +377,69 @@ describe("FILT-31", () => {
   );
 });
 
+// @spec("EXP-04", "c3a8a4be")
+describe("EXP-04", () => {
+  // The buttons before the status region, by their text, then the status region
+  const order = (container: HTMLElement): string[] => {
+    const found: string[] = [];
+    for (const element of container.querySelectorAll(
+      'button, [role="status"]',
+    )) {
+      if (element.getAttribute("role") === "status")
+        return [...found, "status"];
+      found.push(element.textContent.trim());
+    }
+    return found;
+  };
+  const beta = { name: { kind: "text", text: "Beta" } } as const;
+  const all = ["Export", BETA, "Clear my criteria", CLEAR_ALL, RESET];
+  const panel = ["Apply search", "status"];
+
+  it.each<[string, Partial<DataTableProps<Item>>, string[]]>([
+    ["status 'ready', with rows", { filters: beta }, [...all, ...panel]],
+    [
+      "status 'ready', no rows",
+      { rows: [], filters: {} },
+      ["Export", "Clear my criteria", RESET, ...panel],
+    ],
+    [
+      "status 'ready', with rows, busy true",
+      { busy: true, filters: beta },
+      [...all, ...panel],
+    ],
+    [
+      "status 'loading'",
+      { status: "loading", filters: beta },
+      [...all, ...panel],
+    ],
+    [
+      "status 'failed', onretry passed",
+      { status: "failed", filters: beta, onretry: vi.fn() },
+      [...all, ...panel],
+    ],
+    [
+      "status 'stopped', onretry passed",
+      { status: "stopped", filters: beta, onretry: vi.fn() },
+      [...all, ...panel],
+    ],
+    [
+      "the alert of RND-05",
+      { filters: { zzz: { kind: "text", text: "x" } } },
+      ["Export", "Clear my criteria", RESET, ...panel],
+    ],
+  ])(
+    "in %s puts the panels after the toolbar and before the status region",
+    (_row, props, expected) => {
+      const { container } = render(CriteriaTable, {
+        ...fixture({ ...props, onreset: vi.fn() }).all,
+        withActions: true,
+        withPanels: true,
+      });
+      expect(order(container)).toEqual(expected);
+    },
+  );
+});
+
 // @spec("FILT-26", "58072d25")
 describe("FILT-26", () => {
   it("emits onreset once with no argument on a press, and calls neither onsort nor onclearfilters", async () => {
