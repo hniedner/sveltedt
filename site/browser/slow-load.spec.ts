@@ -78,6 +78,16 @@ const boxes = async (page: Page) => {
     after: await read(page.getByText("After the table.")),
   };
 };
+// 5 s on: "Still loading" and "Cancel" are in, and the boxes are still `first`
+async function stillLoadingHolds(
+  page: Page,
+  first: Awaited<ReturnType<typeof boxes>>,
+): Promise<void> {
+  await page.clock.runFor(5000);
+  await expect(page.getByRole("status")).toContainText("Still loading");
+  await expect(named(page, "Cancel")).toBeVisible();
+  expect(await boxes(page)).toEqual(first);
+}
 const indicator = (page: Page) => page.locator("[data-sdt-progress]");
 
 // For each element whose own text holds `words` and whose box is wider and higher than 1 px, not clipped to less: whether
@@ -132,6 +142,19 @@ async function drawn(page: Page, state: string): Promise<void> {
     default:
       throw new Error(`no such state: ${state}`);
   }
+}
+
+// The page mounted `ready` with 25 rows, nothing loading, and drawn so
+async function openReady(page: Page): Promise<void> {
+  await open(page, "/slow.html?status=ready");
+  await set(page, { rows: rows25 });
+  await drawn(page, "ready");
+  await expect(table(page)).toHaveAttribute("aria-busy", "false");
+}
+// Sets `busy` and checks the table says so
+async function setBusy(page: Page, busy: boolean): Promise<void> {
+  await set(page, { busy });
+  await expect(table(page)).toHaveAttribute("aria-busy", String(busy));
 }
 
 // @spec("A11Y-28", "1f207c4c")
@@ -207,34 +230,23 @@ test.describe("STATE-15", () => {
     await page.clock.runFor(500);
     await expect(indicator(page)).toHaveCount(1);
     expect(await boxes(page)).toEqual(first);
-    await page.clock.runFor(5000);
-    await expect(page.getByRole("status")).toContainText("Still loading");
-    await expect(named(page, "Cancel")).toBeVisible();
-    expect(await boxes(page)).toEqual(first);
+    await stillLoadingHolds(page, first);
   });
 
   test("moves nothing from the first busy until the answer: mounted with status 'ready' and 25 rows, busy from 100 ms to 7100 ms", async ({
     page,
   }) => {
-    await open(page, "/slow.html?status=ready");
-    await set(page, { rows: rows25 });
-    await drawn(page, "ready");
-    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await openReady(page);
     await page.clock.runFor(100);
-    await set(page, { busy: true });
-    await expect(table(page)).toHaveAttribute("aria-busy", "true");
+    await setBusy(page, true);
     await expect(indicator(page)).toHaveCount(0);
     const first = await boxes(page);
     await page.clock.runFor(1000);
     await expect(indicator(page)).toHaveCount(1);
     expect(await boxes(page)).toEqual(first);
-    await page.clock.runFor(5000);
-    await expect(page.getByRole("status")).toContainText("Still loading");
-    await expect(named(page, "Cancel")).toBeVisible();
-    expect(await boxes(page)).toEqual(first);
+    await stillLoadingHolds(page, first);
     await page.clock.runFor(1000);
-    await set(page, { busy: false });
-    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await setBusy(page, false);
     await expect(indicator(page)).toHaveCount(0);
     await expect(page.getByRole("status")).not.toContainText("Still loading");
     await expect(named(page, "Cancel")).toHaveCount(0);
@@ -247,10 +259,7 @@ test.describe("STATE-29", () => {
   test("keeps no empty line above the region until the first load: status 'ready' with 25 rows, never loading or busy", async ({
     page,
   }) => {
-    await open(page, "/slow.html?status=ready");
-    await set(page, { rows: rows25 });
-    await drawn(page, "ready");
-    await expect(table(page)).toHaveAttribute("aria-busy", "false");
+    await openReady(page);
     await expect(page.getByRole("status")).toHaveText("");
     const gap = () =>
       page.getByRole("status").evaluate((status) => {
@@ -263,8 +272,7 @@ test.describe("STATE-29", () => {
       });
     expect(await gap()).toBe(0);
     // The control: the same measure sees the reserved line once a load starts
-    await set(page, { busy: true });
-    await expect(table(page)).toHaveAttribute("aria-busy", "true");
+    await setBusy(page, true);
     expect(await gap()).toBeGreaterThan(0);
   });
 });
