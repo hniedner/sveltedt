@@ -380,31 +380,48 @@ as before, and `onerror` called once with an `Error`.
 
 **CONN-19** An answer whose `error` is true as a JavaScript condition MUST be a failure whatever its counts and
 data.
-- Examples (the test runs every row): A1 with `error: 'SQL near WHERE'`, and A1 with `error: true`: `table.status`
-  `'failed'`, `onerror` called once. (`error` given as `''`, `null`, `false` or `0` is no error: CONN-17.)
+- Examples (the test runs every row; in each row `table.status` is `'failed'` and `onerror` is called once):
+
+  | Answer | Result |
+  |---|---|
+  | A1 with `error: 'SQL near WHERE'` | `'failed'` |
+  | A1 with `error: true` | `'failed'` |
+  | `{ draw: 1, recordsTotal: 0, recordsFiltered: 0, data: [], error: 'x', error_code: 'invalid_filter' }` | `'failed'`, not `'ready'` with the empty text |
+  | `{ error: 'x' }` alone (no `draw`, counts or `data`) | `'failed'` |
+
+  In each row `onerror` receives an `Error` whose message is `The answer reports an error.`, which holds no text from
+  the answer. (`error` given as `''`, `null`, `false` or `0` is no error: CONN-17.)
 - Reason: the manual's `error` means the script failed, so its counts and rows are not to be trusted; DataTables
-  tests it by its truth (READ 2026-11-20, 2.1.8 source) (PRD-B20, PRD-B15).
+  tests it by its truth (READ 2026-11-20, 2.1.8 source) (PRD-B20, PRD-B15). A refused request answered with 0 rows
+  would read as "no data" (PRD-B15); DataTables' reference script answers a fatal error as `{"error": msg}` alone,
+  with HTTP 200 (`ssp.class.php` ad98978 l.533-540, FETCHED 2026-11-24).
 - Layer: component.
 - Traces: PRD-B20, PRD-B15.
 
-**CONN-26** No text from an answer body or from a rejection of `send` MUST appear on screen.
-- Examples (the test runs every row; the document is read after the failure):
+**CONN-26** After a failure caused by an answer, no text from that answer MUST appear on screen.
+- Examples (the test runs every row; the document is read after the failure, and holds the failed text):
 
-  | Failure | Text the document does not hold |
+  | Answer | Text the document does not hold |
   |---|---|
   | A1 with `error: 'SQL near WHERE'` | `SQL near WHERE` |
-  | the body `'ok-7731'` (not an object, CONN-18) | `ok-7731` |
-  | `send` rejects with `new Error('boom: row 7')` | `boom`, `row 7` |
+  | A1 with `error: true` and `data` `[{ id: 'x1', name: 'leak-41' }]` | `leak-41` |
+  | A1 with `error: 'x'`, `error_code: 'invalid_filter'` | `invalid_filter` |
+
+  In every row the document holds the failed text.
 
 - Reason: server text and error messages may hold row values and reach screenshots (PRD-S4, PRD-B20); what
-  `onerror` receives is the application's to log.
+  `onerror` receives is the application's to log. The rows beside an `error` are server text too (CONN-19); an
+  application that wants its own text for a code passes it as `messages.failed`. Rows 1 and 3 are regression pins:
+  no present change to the helper reaches them.
 - Layer: component.
 - Traces: PRD-B20, PRD-S4.
 
-**CONN-20** A `send` that rejects or throws MUST be a failure: `table.status` `'failed'` and `onerror` called once
-with the rejection itself.
+**CONN-20** A `send` that rejects or throws MUST be a failure: `table.status` `'failed'`, `table.busy` `false`,
+`table.rows` as before, and `onerror` called once with the rejection itself.
 - Examples (the test runs every row): `send` rejects with an `Error` E: `onerror(E)`, the same object; `send` throws E
-  when called: the same; A1 on screen, `onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false.
+  when called: the same; A1 on screen, `table.onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false,
+  `table.sort` `[code desc]`, `table.rows === D`; `send` returns `undefined` (plain JavaScript, no promise): `'failed'`,
+  `onerror` called once with a `TypeError`.
 - Reason: the application's transport rejects every answer that is not a success (an HTTP status outside 2xx
   included); the application decides what it means (PRD-B20).
 - Layer: component.
@@ -420,6 +437,7 @@ else `null`.
   | A1 with `error: 'x'`, `error_code: 42` | `null` |
   | A1 with `error: 'x'` | `null` |
   | A1 without `recordsTotal`, with `error_code: 'TIMEOUT'` | `'TIMEOUT'` |
+  | `{ error: 'x' }` alone | `null` |
 
 - Reason: the application can tell a refusal it knows from any other without reading server text (PRD-B20); the
   code is passed as given, the helper maps none.
@@ -428,13 +446,15 @@ else `null`.
 
 **CONN-22** The answer or rejection of a request that a later request superseded MUST change nothing and MUST NOT call
 `onerror`.
-- Examples (the test runs every row; request 1 sent, then `onsort([code desc])` sends request 2):
+- Examples (the test runs every row; request 1 is sent, then a later intent sends request 2, as the row says; D2 is a
+  list of rows other than D):
 
-  | Settled, in this order | `table` and `pager` | `onerror` |
-  |---|---|---|
-  | request 1 with A1 | still `'loading'`, no rows | not called |
-  | request 1 rejects | still `'loading'` | not called |
-  | request 2 with a valid answer (draw 2), then request 1 with A1 | request 2's rows and totals | not called |
+  | Before | The later intent | Settled, in this order | `table` and `pager` | `onerror` |
+  |---|---|---|---|---|
+  | mount, request 1 running | `table.onsort([code desc])` | request 1 with A1 | still `'loading'`, no rows | not called |
+  | mount, request 1 running | `reload()` | request 1 rejects | still `'loading'` | not called |
+  | mount, request 1 running | `table.onsort([code desc])` | request 2 with A1 with `draw: 2` and data D2, then request 1 with A1 | `rows === D2`, request 2's totals | not called |
+  | A1 on screen, `pager.onpage(10)` running | `pager.onpage(20)` | the `onpage(10)` request (draw 2) rejects | `'ready'`, `busy` true, `rows === D` | not called |
 
 - Reason: only the latest request's answer matches the marks and boxes on screen (PRD-B20).
 - Layer: component.
