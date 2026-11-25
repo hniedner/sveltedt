@@ -1,4 +1,5 @@
-// What the real-browser specs of the keyboard share: the key that moves focus on, A11Y-16's read, and the axe run.
+// What the real-browser specs share: the key that moves focus on, A11Y-16's read, the axe run, the focus ring's read
+// and the wait for two frames.
 import AxeBuilder from "@axe-core/playwright";
 import {
   expect,
@@ -29,9 +30,10 @@ export const visibleNow = (page: Page) =>
     return { text: document.body.innerText, elements: shown.map(place) };
   });
 
-// Runs axe on the page. Pass: no serious or critical violation, and a node inside the table's root was analysed.
-// Finding: the violations, printed with their rule ids. Could not check: nothing inside the table's root was analysed.
-// Incomplete items are attached for the maintainer's manual contrast review and never count as a pass
+// Runs axe on the page. Pass: no serious or critical violation, and a rule passed on a node inside .sdt (a mustPass rule
+// too, when named). Finding: the violations, printed with their rule ids. Could not check: no such pass. Incomplete
+// items are attached for manual review and never count as a pass. The guard is weak by design: the node inside .sdt may
+// be a heading or the status node, not the table itself
 export async function axeClean(
   page: Page,
   testInfo: TestInfo,
@@ -111,7 +113,7 @@ export async function expectRing(
   expect(focused).not.toEqual(unfocused);
 }
 
-// Two frames later: a resize observer's callback has run and its attribute is on the element
+// Two frames later: pending effects, observers and paint have run (a resize observer's callback is one use)
 export const settled = (page: Page) =>
   page.evaluate(
     () =>

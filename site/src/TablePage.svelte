@@ -5,7 +5,7 @@
     type DataTableStatus,
   } from "@hniedner/sveltedt";
 
-  // The page of the real-browser keyboard and focus tests (A11Y-12, A11Y-08 and the statements beside them): a table
+  // The page of the real-browser keyboard and focus tests (A11Y-12, A11Y-08, A11Y-06, THEME-03, THEME-06, FOOT-03 and the statements beside them): a table
   // of ?cols= columns (default 3) and ?rows= rows (default 25), "Name" first. With ?link the first column's cell is a
   // link "Open <name>", with ?edit the second column's is "Edit <name>", with ?heading a link "All orders" stands in
   // the heading. A test changes the number of columns, the number of rows, the status, busy and whether the table is

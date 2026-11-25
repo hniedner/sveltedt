@@ -1,4 +1,4 @@
-// The statements that hold in every state of the table (spec/table.md: A11Y-06), against site/table.html. The states
+// The statements that hold in every state of the table (spec/table.md: A11Y-06), against site/table.html and site/table-plain.html. The states
 // are the rows of A11Y-06's table; the real clock runs, so "loading" is read before or after the progress indicator and
 // the still-loading text, which A11Y-25 owns.
 import { expect, test, type Page } from "@playwright/test";
@@ -77,8 +77,9 @@ const states: State[] = [
   },
 ];
 
-// Opens the page in the state and checks that it is drawn and that the window and the region are at scroll 0. The
-// window is tall enough for 25 rows: a shorter one makes the browser scroll the window to the region it focuses
+// Opens the page in the state and checks that it is drawn and that the window and the region, if the state draws one, are at scroll 0. The
+// window is tall enough for 25 rows: a shorter one makes the browser scroll the window by 24 px to the region it focuses (MEASURED in Chromium and
+// WebKit)
 async function show(
   page: Page,
   browserName: string,
