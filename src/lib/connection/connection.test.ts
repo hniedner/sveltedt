@@ -746,6 +746,26 @@ describe("CONN-18", () => {
         ]),
     ),
     ["A1 with data {}", A1({ data: {} }), "data is not a list"],
+    [
+      "A1 without data and with both counts bad",
+      A1({ data: undefined, recordsFiltered: -1, recordsTotal: -1 }),
+      "data is not a list",
+    ],
+    [
+      "A1 with both counts bad",
+      A1({ recordsFiltered: -1, recordsTotal: -1 }),
+      "recordsFiltered is not a count",
+    ],
+    [
+      "A1 with recordsTotal bad and draw 2",
+      A1({ recordsTotal: -1, draw: 2 }),
+      "recordsTotal is not a count",
+    ],
+    [
+      "A1 whose data is a revoked Proxy and recordsTotal bad",
+      A1({ data: revoked(), recordsTotal: -1 }),
+      "it cannot be read",
+    ],
     ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0", [1]].map(
       (draw): [string, Body, string] => [
         `A1 with draw ${JSON.stringify(draw)}`,
@@ -840,6 +860,21 @@ describe("CONN-21", () => {
     [
       "A1 without recordsTotal, with error_code 'TIMEOUT'",
       { ...A1without("recordsTotal"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 without data, with error_code 'TIMEOUT'",
+      { ...A1without("data"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 without recordsFiltered, with error_code 'TIMEOUT'",
+      { ...A1without("recordsFiltered"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    [
+      "A1 with draw 2, with error_code 'TIMEOUT'",
+      A1({ draw: 2, error_code: "TIMEOUT" }),
       "TIMEOUT",
     ],
     ["{ error: 'x' } alone", { error: "x" }, null],
@@ -1095,12 +1130,7 @@ const signalOf = (probe: ReturnType<typeof mount>, n: number) =>
 
 // @spec("CONN-30", "24c82141")
 describe("CONN-30", () => {
-  it("aborts the running request when onsort sends a later one", () => {
-    const probe = mount();
-    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
-    expect(signalOf(probe, 0)?.aborted).toBe(true);
-    expect(signalOf(probe, 1)?.aborted).toBe(false);
-  });
+  const E = new Error("boom");
   it("aborts the running request when the component unmounts", () => {
     const probe = mount();
     probe.unmount();
@@ -1122,6 +1152,54 @@ describe("CONN-30", () => {
     expect(signalOf(probe, 0)?.aborted).toBe(false);
     expect(signalOf(probe, 1)?.aborted).toBe(true);
   });
+  it.each([
+    [
+      "onsort",
+      (p: ReturnType<typeof mount>) =>
+        p.connection.table.onsort([{ id: "code", direction: "desc" }]),
+    ],
+    ["onpage", (p: ReturnType<typeof mount>) => p.connection.pager?.onpage(10)],
+    ["onsize", (p: ReturnType<typeof mount>) => p.connection.pager?.onsize(25)],
+    ["reload", (p: ReturnType<typeof mount>) => p.connection.reload()],
+  ])(
+    "aborts the running request when %s sends a later one",
+    async (name, act) => {
+      const probe = mount();
+      // onpage and onsize exist only once an answer is mapped; that request is then settled and keeps its signal
+      if (name === "onpage" || name === "onsize") {
+        await probe.answer(0, A1());
+        act(probe);
+        expect(signalOf(probe, 1)?.aborted).toBe(false);
+        act(probe);
+        expect(signalOf(probe, 1)?.aborted).toBe(true);
+        expect(signalOf(probe, 2)?.aborted).toBe(false);
+        return;
+      }
+      act(probe);
+      expect(signalOf(probe, 0)?.aborted).toBe(true);
+      expect(signalOf(probe, 1)?.aborted).toBe(false);
+    },
+  );
+  it("starts a new request after a failure without aborting anything", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    probe.connection.reload();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("starts a new request after an unreadable answer without aborting anything", async () => {
+    const probe = mount();
+    await probe.answer(0, null);
+    probe.connection.reload();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+    expect(signalOf(probe, 1)?.aborted).toBe(false);
+  });
+  it("aborts nothing when the component unmounts after a failure", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    probe.unmount();
+    expect(signalOf(probe, 0)?.aborted).toBe(false);
+  });
   it("aborts nothing when a refused sort sends nothing", () => {
     const probe = mount({ columns: M.filter((entry) => entry.id !== "code") });
     probe.connection.table.onsort([{ id: "code", direction: "asc" }]);
@@ -1138,6 +1216,13 @@ describe("CONN-31", () => {
     await probe.fail(0, new DOMException("aborted", "AbortError"));
     expect(probe.connection.table.status).toBe("loading");
     expect(probe.connection.pager).toBeUndefined();
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores any rejection of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.fail(0, new Error("net"));
+    expect(probe.connection.table.status).toBe("loading");
     expect(probe.onerror).not.toHaveBeenCalled();
   });
   it("ignores the answer of the request running at unmount", async () => {
