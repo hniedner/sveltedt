@@ -1,6 +1,7 @@
 // The sort statements that need an engine's own key handling (spec/table.md section 7), against site/sort.html.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { tabKey } from "./reads.ts";
 
 type Order = { id: string; direction: "asc" | "desc" }[];
 type SortWindow = Window & {
@@ -59,18 +60,13 @@ async function emitted(page: Page, orders: string[]): Promise<void> {
   expect(await sorts(page)).toEqual(expected);
 }
 
-// Tab on from where focus is (the region may come first) until the button has it. WebKit on macOS skips buttons on
-// Tab under the system's default keyboard setting, and its keyboard users press Option+Tab (microsoft/playwright
-// issue 41808); every other engine and platform tabs to buttons, and Alt+Tab would not move focus in Firefox.
+// Tab on from where focus is (the region may come first) until the button has it
 async function tabTo(
   page: Page,
   name: string,
   browserName: string,
 ): Promise<void> {
-  const tab =
-    browserName === "webkit" && process.platform === "darwin"
-      ? "Alt+Tab"
-      : "Tab";
+  const tab = tabKey(browserName);
   for (let i = 0; i < 4; i++) {
     if (await button(page, name).evaluate((b) => b === document.activeElement))
       break;
