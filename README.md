@@ -46,7 +46,7 @@ There is nothing to install yet. What is on `main` today:
   both; an application style that makes "Cancel" taller than the line moves the table; a second press at the same spot,
   made right after the press that starts the first load or refetch, lands on what is now one line above the control it
   aimed at, because that control moved down. Proved in Chromium, Firefox and WebKit on the test site's slow-load page,
-  except the last limit and the move of a table mounted failed;
+  except the last limit and the moves of tables mounted stopped or failed;
 - the two buttons of a slow load: with `oncancel` a "Cancel" button after the status element while "Still loading"
   shows, and with `onretry` a "Try again" button after the stopped or failed table, never beside the invalid-input
   alert; a press calls its callback once with no argument, ignores what it returns, and changes nothing on screen
