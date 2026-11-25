@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
-import type { DataTableProps } from "./types.ts";
+import type { DataTableMessages, DataTableProps } from "./types.ts";
 
 interface Item {
   id: string;
@@ -37,9 +37,7 @@ afterEach(() => {
 function mount(extra: Partial<DataTableProps<Item>> = {}) {
   const onsearch = vi.fn();
   const { rerender } = render(DataTable<Item>, props({ onsearch, ...extra }));
-  const field = screen.getByRole<HTMLInputElement>("searchbox", {
-    name: "Search",
-  });
+  const field = screen.getByRole<HTMLInputElement>("searchbox");
   let now = 0;
   const keys = async (key: string, value: string) => {
     await fireEvent.keyDown(field, { key });
@@ -399,4 +397,39 @@ describe("FILT-43", () => {
       expect(described(table.field)).toEqual(hint);
     },
   );
+});
+
+// @spec("FILT-55", "acbb139a")
+describe("FILT-55", () => {
+  // The four words of the search in another language, each shown by the statement of its row
+  const foreign: Pick<
+    DataTableMessages,
+    "searchLabel" | "pressEnter" | "textHiddenCharacter" | "textTooLong"
+  > = {
+    searchLabel: "Suche",
+    pressEnter: "Mit Enter anwenden.",
+    textHiddenCharacter: "Der Text enthält ein verstecktes Zeichen.",
+    textTooLong: (maxLength) => `Höchstens ${maxLength} Zeichen.`,
+  };
+  const english = ["Search", "Press Enter", "hidden character", "Use at most"];
+
+  it.each([
+    ["searchLabel", {}, "", []],
+    ["pressEnter", { searchOnEnter: true }, "", ["Mit Enter anwenden."]],
+    [
+      "textHiddenCharacter",
+      {},
+      "a\u0001",
+      ["Der Text enthält ein verstecktes Zeichen."],
+    ],
+    ["textTooLong", {}, "x".repeat(256), ["Höchstens 255 Zeichen."]],
+  ] as const)("shows the given %s word", async (_key, extra, text, words) => {
+    const table = mount({ ...extra, messages: foreign });
+    if (text) await table.paste(text);
+    expect(table.field.labels?.[0]?.textContent).toBe("Suche");
+    expect(described(table.field)).toEqual(words);
+    // Case-sensitive: type="search" holds the lowercase word
+    for (const word of english)
+      expect(document.body.textContent).not.toContain(word);
+  });
 });

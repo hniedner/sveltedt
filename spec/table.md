@@ -3254,6 +3254,9 @@ for the code the examples below list.
   | Message | English default | Shown by |
   |---|---|---|
   | `searchLabel` | "Search" | FILT-40 |
+  | `pressEnter` | "Press Enter to apply." | FILT-43, with `searchOnEnter` |
+  | `textHiddenCharacter` | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." | FILT-48, with U+0001 pasted |
+  | `textTooLong` (a function of `maxLength`) | "Use at most 255 characters." for 255 | FILT-48, with 256 characters pasted |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-B25).
 - Layer: component.
