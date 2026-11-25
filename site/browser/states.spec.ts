@@ -133,11 +133,7 @@ test.describe("THEME-03, the same with no --sdt-* property defined", () => {
     test(state.name, async ({ page, browserName }, testInfo) => {
       await show(page, browserName, "/table-plain.html", state);
       await expectNoToken(page);
-      const results = await axeClean(page, testInfo);
-      const ran = [...results.passes, ...results.incomplete].map((r) => r.id);
-      expect(ran, "could not check: color-contrast did not run").toContain(
-        "color-contrast",
-      );
+      await axeClean(page, testInfo, "color-contrast");
     });
 });
 

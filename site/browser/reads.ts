@@ -32,23 +32,34 @@ export const visibleNow = (page: Page) =>
 // Runs axe on the page. Pass: no serious or critical violation, and a node inside the table's root was analysed.
 // Finding: the violations, printed with their rule ids. Could not check: nothing inside the table's root was analysed.
 // Incomplete items are attached for the maintainer's manual contrast review and never count as a pass
-export async function axeClean(page: Page, testInfo: TestInfo) {
+export async function axeClean(
+  page: Page,
+  testInfo: TestInfo,
+  mustPass?: string,
+) {
   const results = await new AxeBuilder({ page }).analyze();
   await testInfo.attach("axe-incomplete", {
     body: JSON.stringify(results.incomplete, null, 2),
     contentType: "application/json",
   });
-  const analysed = [...results.passes, ...results.incomplete].flatMap((rule) =>
-    rule.nodes.map((node) => String(node.target[0])),
-  );
-  const inside = await page.evaluate(
-    (targets) =>
-      targets.some((t) => document.querySelector(t)?.closest(".sdt")),
-    analysed,
-  );
-  expect(inside, "could not check: axe analysed nothing inside .sdt").toBe(
-    true,
-  );
+  // The passes of the rules asked for (all rules when none is named) that touch a node inside .sdt
+  const passedInside = (id?: string) =>
+    page.evaluate(
+      (targets) =>
+        targets.some((t) => document.querySelector(t)?.closest(".sdt")),
+      results.passes
+        .filter((rule) => id === undefined || rule.id === id)
+        .flatMap((rule) => rule.nodes.map((node) => String(node.target[0]))),
+    );
+  expect(
+    await passedInside(),
+    "could not check: axe passed nothing inside .sdt",
+  ).toBe(true);
+  if (mustPass !== undefined)
+    expect(
+      await passedInside(mustPass),
+      `could not check: ${mustPass} passed nothing inside .sdt`,
+    ).toBe(true);
   expect(
     results.violations
       .filter((v) => v.impact === "serious" || v.impact === "critical")
