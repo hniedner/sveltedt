@@ -217,7 +217,7 @@ test.describe("A11Y-30", () => {
     });
 });
 
-// @spec("STATE-15", "20ad00d6")
+// @spec("STATE-15", "8c82c7f5")
 test.describe("STATE-15", () => {
   test("moves nothing when the indicator, the still-loading text and Cancel appear: mounted with status 'loading'", async ({
     page,
@@ -252,9 +252,28 @@ test.describe("STATE-15", () => {
     await expect(named(page, "Cancel")).toHaveCount(0);
     expect(await boxes(page)).toEqual(first);
   });
+
+  test("moves the region down by the failed notice's height: mounted with status 'loading', status 'failed' from 6000 ms", async ({
+    page,
+  }) => {
+    await open(page);
+    await page.clock.runFor(6000);
+    await expect(named(page, "Cancel")).toBeVisible();
+    const first = await boxes(page);
+    await set(page, { status: "failed" });
+    await drawn(page, "failed");
+    await expect(indicator(page)).toHaveCount(0);
+    await expect(named(page, "Cancel")).toHaveCount(0);
+    const notice = await page
+      .getByRole("alert")
+      .evaluate((el) => el.getBoundingClientRect().height);
+    expect(notice).toBeGreaterThan(0);
+    const after = await boxes(page);
+    expect(after.region[1] - first.region[1]).toBe(notice);
+  });
 });
 
-// @spec("STATE-29", "abeffc81")
+// @spec("STATE-29", "1e92145d")
 test.describe("STATE-29", () => {
   test("keeps no empty line above the region until the first load: status 'ready' with 25 rows, never loading or busy", async ({
     page,

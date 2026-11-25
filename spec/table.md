@@ -81,10 +81,10 @@ to the consumer as one callback (stated with the statements that add user action
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
   id or a class, except THEME-09, THEME-48 and THEME-49, which test the public
   classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
-  hook props write and the THEME-09 classes beside them,
-  and the unmarked component rows of STATE-15 and STATE-29, which read the status line's internal class `sdt-status`,
-  because the room it keeps can be seen only in a real browser and the simulated DOM and the server render show only
-  the class.
+  hook props write and the THEME-09 classes beside them. The unmarked component and server-render rows of STATE-15 and
+  STATE-29 read the status line's class `sdt-status`: the room it keeps can be seen only in a real browser, and the
+  simulated DOM and the server render show only the class. The classes `sdt-status`, `sdt-progress` and `sdt-stopped`
+  are internal: they are not among the public classes of PRD-K3.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **One object argument.** Every function in the props of `DataTable` and `Pagination`, and every snippet among them
   that receives anything, takes at most ONE argument: an object, read-only in its type, whose fields a later release
@@ -610,29 +610,35 @@ true holds and the progress indicator has been present for 5 seconds or more.
   motion.
 - Traces: PRD-B22.
 
-**STATE-15** From the first time `status` is `loading`, or `busy` is true, while the input is valid, until unmount, the
-position and size of the region, and of an element placed after the component, MUST NOT change as the progress
-indicator, the still-loading text and "Cancel" appear and go.
-- Examples (the test runs every row; `oncancel` passed; the `getBoundingClientRect()` x, y, width and height of the
-  region and of a paragraph placed after the component are each equal at every time the row names):
+**STATE-15** After the line for them has appeared, and until unmount, the position and size of the region, and of an
+element placed after the component, MUST NOT change as the progress indicator, the still-loading text and "Cancel"
+appear and go. The line appears when `status` is first `loading`, or `busy` first true, while the input is valid; the
+failed notice is the exception, which adds a line of its own.
+- Examples (the test runs every row; `oncancel` passed; times are counted from the mount; the `getBoundingClientRect()`
+  x, y, width and height of the region and of a paragraph placed after the component are each equal at every time the
+  row names, the first time being read after the line has appeared):
 
   | Steps | Read at |
   |---|---|
   | mounted with `status 'loading'` | 500 ms, 1000 ms, 6000 ms |
   | mounted with `status 'ready'` and 25 rows; at 100 ms `busy true`; at 7100 ms `busy false` | 100 ms, 1100 ms, 6100 ms, 7100 ms |
 
-- Reason: content that moves when the indicator, its text or "Cancel" comes or goes, or when the end of a load that
-  ends in a ready answer takes them away, puts something else under the pointer the user is about to press (PRD-B22).
+- Example, the exception: mounted with `status 'loading'`, at 6000 ms `status 'failed'`; the indicator and "Cancel" are
+  gone and the region's y is greater than at 6000 ms by the height of the element with role `alert`.
+- Reason: content that moves when the indicator, its text or "Cancel" comes or goes, or when removing the indicator,
+  the text and "Cancel" at the end of a load that ends in a ready answer, puts something else under the pointer the
+  user is about to press (PRD-B22). The failed notice must be seen and announced (WCAG 4.1.3, DEP-61), so it takes a
+  line of its own.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B23.
 
 **STATE-29** Until `status` has first been `loading`, or `busy` first true, while the input is valid, the component
 MUST keep no empty line between the status region and the region.
 - Example: `status 'ready'` with 25 rows, `oncancel` passed, a `heading` snippet holding a link "All orders" and an
-  `actions` snippet holding "Export", never loading or busy since mount: the region's `getBoundingClientRect()` top
-  equals the bottom of the status region, which is empty.
+  `actions` snippet holding "Export", never loading or busy since mount: the top of the element with role `region`
+  equals the bottom of the element with role `status`, which is empty.
 - Reason: a table that never loads, such as one fed by the local data source (PRD-B21), shows no empty line above it;
-  from its first load or refetch the line keeps its room until unmount (STATE-15). The owner's choice (PRD-B2).
+  from its first load or refetch the line keeps its room until unmount (STATE-15). The owner's choice (PRD-B22).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B2.
 
