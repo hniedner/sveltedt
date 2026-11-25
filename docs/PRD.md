@@ -168,10 +168,11 @@ open dialog and its trigger; unsent filter and search text, its error and its pa
 open filter dialog (PRD-B29); which rows of the page are added so far (PRD-P6); whether the chooser is open; an active
 drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether
 the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay
-timer, its minimum display time and whether it shows the still-loading text (B22); the focus target pending after any
-intent whose control can vanish (a cleared badge, "Clear column filters", "Next page" on the new last page) and after a
-control goes while focused (Cancel when the answer or a cancel removes it, Try again; PRD-B23, PRD-B24). It resets on
-remount and is documented.
+timer, its minimum display time and whether it shows the still-loading text (B22); whether a load or a refetch has
+started since mount, from which point the line of the still-loading text and Cancel keeps its room until unmount
+(B22); the focus target pending after any intent whose control can vanish (a cleared badge, "Clear column filters",
+"Next page" on the new last page) and after a control goes while focused (Cancel when the answer or a cancel removes
+it, Try again; PRD-B23, PRD-B24). It resets on remount and is documented.
 
 - **Reason:** One source of truth; two emits are two requests that can race.
 - **Priority:** must
