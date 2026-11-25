@@ -58,9 +58,9 @@ export function createConnection<Row = unknown>(
     );
     const { signal } = controller;
     // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`. The
-    // outcome of a request that a later one superseded is dropped.
+    // outcome of a request whose signal was aborted (superseded, or running at unmount) is dropped.
     const fail = (reason: unknown): void => {
-      if (sent !== draw) return;
+      if (signal.aborted) return;
       controller = undefined;
       busy = false;
       status = "failed";
@@ -75,7 +75,7 @@ export function createConnection<Row = unknown>(
               signal,
             })
       ).then((body) => {
-        if (sent !== draw) return;
+        if (signal.aborted) return;
         const read = readAnswer<Row>(body, sent);
         if (read instanceof Error) return fail(read);
         controller = undefined;

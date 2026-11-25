@@ -1120,3 +1120,37 @@ describe("CONN-30", () => {
     expect(probe.send).toHaveBeenCalledTimes(1);
   });
 });
+
+// @spec("CONN-31", "28e8f104")
+describe("CONN-31", () => {
+  it("ignores the AbortError rejection of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.fail(0, new DOMException("aborted", "AbortError"));
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.pager).toBeUndefined();
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores the answer of the request running at unmount", async () => {
+    const probe = mount();
+    probe.unmount();
+    await probe.answer(0, A1());
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.table.rows).toEqual([]);
+    expect(probe.connection.pager).toBeUndefined();
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("ignores an answer it cannot map after unmount, the rows kept and busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.unmount();
+    await probe.answer(1, null);
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+    });
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+});
