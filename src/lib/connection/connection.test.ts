@@ -1032,3 +1032,49 @@ describe("CONN-23", () => {
     });
   });
 });
+
+// @spec("CONN-22", "a1cab22e")
+describe("CONN-22", () => {
+  const desc = [{ id: "code", direction: "desc" as const }];
+  const D2 = D.map((row) => ({ ...row, name: `Other ${row.id}` }));
+  it("drops the answer of a request that onsort superseded", async () => {
+    const probe = mount();
+    probe.connection.table.onsort(desc);
+    await probe.answer(0, A1());
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.connection.table.rows).toEqual([]);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("drops the rejection of a request that reload superseded", async () => {
+    const probe = mount();
+    probe.connection.reload();
+    await probe.fail(0, new Error("boom"));
+    expect(probe.connection.table.status).toBe("loading");
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("keeps the later answer when the superseded one settles after it", async () => {
+    const probe = mount();
+    probe.connection.table.onsort(desc);
+    await probe.answer(1, A1({ draw: 2, data: D2 }));
+    await probe.answer(0, A1());
+    expect(probe.connection.table.rows).toBe(D2);
+    expect(probe.connection.pager).toMatchObject({
+      total: 57,
+      unfilteredTotal: 1000,
+    });
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+  it("drops the rejection of the onpage(10) request (draw 2), the rows kept and busy", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.pager?.onpage(10);
+    probe.connection.pager?.onpage(20);
+    await probe.fail(1, new Error("boom"));
+    expect(probe.connection.table).toMatchObject({
+      status: "ready",
+      busy: true,
+    });
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).not.toHaveBeenCalled();
+  });
+});

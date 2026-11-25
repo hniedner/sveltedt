@@ -53,8 +53,10 @@ export function createConnection<Row = unknown>(
       sent,
     );
     const signal = new AbortController().signal;
-    // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`
+    // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`. The
+    // outcome of a request that a later one superseded is dropped.
     const fail = (reason: unknown): void => {
+      if (sent !== draw) return;
       busy = false;
       status = "failed";
       options.onerror(reason);
@@ -68,6 +70,7 @@ export function createConnection<Row = unknown>(
               signal,
             })
       ).then((body) => {
+        if (sent !== draw) return;
         const read = readAnswer<Row>(body, sent);
         if (read instanceof Error) return fail(read);
         busy = false;
