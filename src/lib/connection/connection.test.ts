@@ -1248,3 +1248,26 @@ describe("CONN-31", () => {
     expect(probe.onerror).not.toHaveBeenCalled();
   });
 });
+
+// @spec("CONN-32", "33c0ed71")
+describe("CONN-32", () => {
+  const causes: [string, (probe: ReturnType<typeof mount>) => Promise<void>][] =
+    [
+      ["send rejects", (probe) => probe.fail(0, new Error("boom"))],
+      ["the answer cannot be mapped", (probe) => probe.answer(0, null)],
+    ];
+  it.each(causes)(
+    "leaves the helper as a reload() from onerror set it when %s",
+    async (_cause, settle) => {
+      const probe = mount();
+      probe.onerror.mockImplementation(() => probe.connection.reload());
+      await settle(probe);
+      expect(probe.onerror).toHaveBeenCalledTimes(1);
+      expect(probe.send).toHaveBeenCalledTimes(2);
+      expect(probe.connection.table).toMatchObject({
+        status: "loading",
+        busy: false,
+      });
+    },
+  );
+});

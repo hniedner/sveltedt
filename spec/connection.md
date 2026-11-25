@@ -11,7 +11,7 @@
   refuses, `onerror`, dropping a superseded answer, aborting a superseded or unmounted request, `busy` and `loading`,
   the pager props before the first answer, `reload()`, and the empty option of a categorical filter (in CONN-10; the id
   CONN-11 stays unused). Later parts: cancel, the stopped state, `onretry` and writing the query (PRD-B23, PRD-B24),
-  which this part leaves out; this part's text holds 30 statements, and later parts add theirs; the first page loaded on
+  which this part leaves out; this part's text holds 31 statements, and later parts add theirs; the first page loaded on
   the server, which needs the site's server route; and the contract tests against the recorded backends (PRD-W11), which
   need fixtures not yet recorded.
 
@@ -506,6 +506,22 @@ MUST NOT call `onerror`.
 - Layer: component.
 - Traces: PRD-B20.
 
+**CONN-32** When a request fails, the helper MUST set `table.status` `'failed'` and `table.busy` `false` BEFORE it
+calls `onerror`, so a `reload()` (or any intent) called from inside `onerror` leaves the helper in the state that call
+set (`'loading'`), never overwritten by the failure that called it.
+- Examples (the test runs every row; `onerror` calls `table`'s `reload()`, and the second `send` is not answered):
+
+  | The first request | `send` calls | `onerror` calls | `table.status` | `table.busy` |
+  |---|---|---|---|---|
+  | `send` rejects | 2 | 1 | `'loading'` | `false` |
+  | is answered with `null` (CONN-18) | 2 | 1 | `'loading'` | `false` |
+
+- Reason: a retry from `onerror` is a normal consumer pattern (PRD-B20: `onretry` and `reload()` send the current
+  query again); if the failure were written after `onerror`, it would overwrite the retry's `'loading'`. With no rows
+  on screen the retry runs as `'loading'` with `busy` false (CONN-23).
+- Layer: component.
+- Traces: PRD-B20.
+
 **CONN-23** A request MUST run as `table.busy` true with the rows kept while an answer is on screen, and as
 `table.status` `'loading'` while none is.
 - Examples (the test runs every row):
@@ -594,12 +610,13 @@ filters is served (else CONN-16, or CONN-29 for a filter).
 | CONN-29 | PRD-B20 |
 | CONN-30 | PRD-B20 |
 | CONN-31 | PRD-B20 |
+| CONN-32 | PRD-B20 |
 
 ### PRD must -> statements
 
 | PRD id | Statements | Coverage |
 |---|---|---|
-| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-31 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, reading and writing the query, and the first page loaded on the server come with later parts |
+| PRD-B20 | CONN-01 to CONN-10, CONN-12 to CONN-32 | in part: the export path is PKG-06 of `spec/package.md`; cancel, the stopped state and `onretry`, reading and writing the query, and the first page loaded on the server come with later parts |
 | PRD-B4 | CONN-08, CONN-13 | in part: the rest is `spec/table.md`'s |
 | PRD-B6 | CONN-09 | in part: the rest is `spec/table.md`'s |
 | PRD-B7 | CONN-10 | in part: the rest is `spec/table.md`'s |
