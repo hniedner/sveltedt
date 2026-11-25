@@ -152,8 +152,10 @@
     {onclearfilters}
     {onreset}
   />
-  <!-- The status line: the status region and "Cancel" beside it. The status region and the live count stay in the
-     document in every state, the invalid-input alert's included, so a change of their text is announced -->
+  <!-- The status line: the status region, "Cancel" beside it and the progress indicator at its foot. The status
+     region and the live count stay in the document in every state, the invalid-input alert's included, so a change of
+     their text is announced. The indicator is not drawn beside the alert (RND-13): `shown` outlasts a fault for up to
+     its 500 ms minimum -->
   <div class={[(pending || view.started) && "sdt-status"]}>
     <div role="status" aria-atomic="false">
       {fault === null && status === "loading" ? words.loading : ""}
@@ -167,6 +169,11 @@
         type="button"
         onclick={() => cancel()}>{words.cancel}</button
       >{/if}
+    {#if view.shown && fault === null}<div
+        class="sdt-progress"
+        data-sdt-progress
+        aria-hidden="true"
+      ></div>{/if}
   </div>
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
@@ -175,7 +182,6 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
-    {#if view.shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table
         bind:this={table}

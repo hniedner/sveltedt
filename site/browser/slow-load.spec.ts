@@ -309,3 +309,56 @@ test.describe("A11Y-32", () => {
     expect(await visibleCopies(page, "Loading stopped")).toEqual([true]);
   });
 });
+
+// Sets every animation of the indicator, found the first time and kept after, to `ms`, and reads at once (one task, so
+// the page's time cannot move between): whether each is running and in its active phase, the indicator's `transform`,
+// and how many of the indicator's animations run when asked afresh. Playwright's clock does not fake the document
+// timeline, so the animations are moved by `currentTime`, not by runFor
+const seek = (page: Page, ms: number) =>
+  page.evaluate((time) => {
+    const mine = window as unknown as { __animations?: Animation[] };
+    const bar = () => document.querySelector("[data-sdt-progress]");
+    mine.__animations ??= bar()?.getAnimations({ subtree: true }) ?? [];
+    for (const animation of mine.__animations) animation.currentTime = time;
+    return {
+      stored: mine.__animations.length,
+      running: mine.__animations.map((a) => a.playState === "running"),
+      active: mine.__animations.map(
+        (a) => a.effect?.getComputedTiming().progress != null,
+      ),
+      transform: bar() ? getComputedStyle(bar() as Element).transform : "",
+      fresh: (bar()?.getAnimations({ subtree: true }) ?? []).filter(
+        (a) => a.playState === "running",
+      ).length,
+    };
+  }, ms);
+const reduced = (page: Page) =>
+  page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+// @spec("STATE-13", "b6eb09ff")
+test.describe("STATE-13", () => {
+  test.use({ reducedMotion: "no-preference" });
+  test("moves the indicator for 5 seconds after it appears and not after: status 'loading'", async ({
+    page,
+  }) => {
+    await open(page);
+    expect(await reduced(page)).toBe(false);
+    await page.clock.runFor(1000);
+    await expect(indicator(page)).toHaveCount(1);
+    const start = await seek(page, 0);
+    expect(start.stored).toBeGreaterThan(0);
+    expect(start.running.every(Boolean)).toBe(true);
+    expect(start.active.every(Boolean)).toBe(true);
+    expect((await seek(page, 500)).transform).not.toBe(start.transform);
+    await page.clock.runFor(4999);
+    const last = await seek(page, 4999);
+    expect(last.running.every(Boolean)).toBe(true);
+    expect(last.active.every(Boolean)).toBe(true);
+    await page.clock.runFor(1);
+    await expect(page.getByRole("status")).toContainText("Still loading");
+    await expect(indicator(page)).toHaveCount(1);
+    const end = await seek(page, 5000);
+    expect(end.running.some(Boolean)).toBe(false);
+    expect(end.fresh).toBe(0);
+  });
+});

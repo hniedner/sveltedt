@@ -63,9 +63,34 @@
    they come and go */
 /* @spec("STATE-15") */
 .sdt-status {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 0.5em;
+  box-sizing: border-box;
   min-block-size: 2.5em;
+  padding-block-end: 0.25em;
+}
+
+/* The progress indicator: a bar along the foot of the status line, painted by its border so that forced colours keep
+   it; it grows from its centre five times in 5 seconds, then rests full */
+/* @spec("STATE-13") */
+.sdt-progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 0;
+  border-block-end: 0.25em solid var(--sdt-progress, Highlight);
+  animation: sdt-progress 1s ease-in-out 5;
+}
+
+/* @spec("STATE-13") */
+@keyframes sdt-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
