@@ -48,13 +48,25 @@ async function start(page: Page, width: number, query = ""): Promise<void> {
 
 // Whether the table is wider than the region, which the example needs to be so (or not)
 async function expectOverflow(page: Page, wanted: boolean): Promise<void> {
-  const overflows = await region(page).evaluate(
+  const wider = await region(page).evaluate(
     (element) => element.scrollWidth > element.clientWidth,
   );
   expect(
-    overflows,
+    wider,
     `could not check: the table ${wanted ? "fits" : "overflows"}`,
   ).toBe(wanted);
+}
+
+// A11Y-12's "yes" rows need a scroll container, not a clipped box: the statement says "a scroll container whose content
+// overflows", and the effect reads the widths only
+async function expectScroller(page: Page): Promise<void> {
+  const overflowX = await region(page).evaluate(
+    (element) => getComputedStyle(element).overflowX,
+  );
+  expect(
+    ["auto", "scroll"],
+    `could not check: the region's overflow-x is ${overflowX}`,
+  ).toContain(overflowX);
 }
 
 // One Tab from "Export", the focusable element just before the table; returns where focus is then
@@ -100,6 +112,7 @@ test.describe("A11Y-12, the region is in the Tab order exactly while its content
   test("30 columns in 600 px: yes", async ({ page, browserName }) => {
     await start(page, 600, "?cols=30");
     await expectOverflow(page, true);
+    await expectScroller(page);
     await expectStop(page, browserName);
   });
 
@@ -109,6 +122,7 @@ test.describe("A11Y-12, the region is in the Tab order exactly while its content
   }) => {
     await start(page, 600, "?cols=30");
     await expectOverflow(page, true);
+    await expectScroller(page);
     await expectStop(page, browserName);
     const kept = await keep(page);
     await page.setViewportSize({ width: 4000, height: 720 });
@@ -130,6 +144,7 @@ test.describe("A11Y-12, the region is in the Tab order exactly while its content
     );
     await expectSame(page, kept);
     await expectOverflow(page, true);
+    await expectScroller(page);
     await expectStop(page, browserName);
   });
 
@@ -139,8 +154,51 @@ test.describe("A11Y-12, the region is in the Tab order exactly while its content
   }) => {
     await start(page, 600, "?cols=30&link");
     await expectOverflow(page, true);
+    await expectScroller(page);
     await expectStop(page, browserName);
     await page.keyboard.press(tabKey(browserName));
     expect(await focused(page)).toBe("Open Beta");
   });
+});
+
+const left = (page: Page) =>
+  region(page).evaluate((element) => element.scrollLeft);
+
+// The region's scroll position once it has stopped moving (a smooth scroll is still on its way), NaN while it moves
+const settledLeft = async (page: Page): Promise<number> => {
+  const before = await left(page);
+  await settled(page);
+  return (await left(page)) === before ? before : NaN;
+};
+
+// WebKit drops arrow presses that follow one another at once. A poll for the position the key must reach repeats the
+// press until it has had its effect, and the poll's own intervals space the presses: no fixed wait
+const pressUntil =
+  (page: Page, key: string, reached: (position: number) => boolean) =>
+  async (): Promise<boolean> => {
+    const position = await left(page);
+    if (!reached(position)) await page.keyboard.press(key);
+    return reached(position);
+  };
+
+// @spec("A11Y-08", "c33a1c9f")
+test("A11Y-08: the arrow keys scroll the focused region sideways", async ({
+  page,
+  browserName,
+}) => {
+  await start(page, 600, "?cols=30");
+  await expectOverflow(page, true);
+  await expectStop(page, browserName);
+  expect(await left(page), "could not check: the region starts scrolled").toBe(
+    0,
+  );
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(pressUntil(page, "ArrowRight", (position) => position > 0))
+    .toBe(true);
+  await expect.poll(() => settledLeft(page)).toBeGreaterThan(0);
+  const right = await settledLeft(page);
+  await expect
+    .poll(pressUntil(page, "ArrowLeft", (position) => position < right))
+    .toBe(true);
 });

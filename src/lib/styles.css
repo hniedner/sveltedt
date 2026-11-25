@@ -9,6 +9,12 @@
   box-sizing: border-box;
 }
 
+/* The region scrolls sideways, and only sideways, when the table is wider than it (PRD section 5.1) */
+/* @spec("A11Y-08") */
+.sdt-region {
+  overflow-x: auto;
+}
+
 /* @spec("THEME-10") */
 .sdt-table {
   border-collapse: collapse;
