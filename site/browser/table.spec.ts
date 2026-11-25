@@ -347,3 +347,52 @@ test.describe("A11Y-10, the Tab order follows the reading order", () => {
     ).toEqual(["All orders", "Export", ...links]);
   });
 });
+
+// @spec("EXP-05", "989838dd")
+test.describe("EXP-05, a block in the panels snippet is as wide as the region and lies above it", () => {
+  const box = async (locator: Locator) => {
+    const found = await locator.boundingBox();
+    expect(found, "could not check: no box").not.toBeNull();
+    return found!;
+  };
+  async function boxes(page: Page) {
+    return {
+      panel: await box(
+        page.getByRole("button", { name: "Apply search" }).locator(".."),
+      ),
+      region: await box(region(page)),
+      exported: await box(exportButton(page)),
+    };
+  }
+  function between({
+    panel,
+    region: r,
+    exported,
+  }: Awaited<ReturnType<typeof boxes>>): void {
+    expect(panel.x).toBe(r.x);
+    expect(panel.width).toBe(r.width);
+    expect(panel.y).toBeGreaterThanOrEqual(exported.y + exported.height);
+    expect(panel.y + panel.height).toBeLessThanOrEqual(r.y);
+  }
+  test("1280 px, 3 columns", async ({ page }) => {
+    await start(page, 1280, "?panels");
+    between(await boxes(page));
+  });
+  test("600 px, 30 columns, the region scrolled to its right end", async ({
+    page,
+  }) => {
+    await start(page, 600, "?panels&cols=30");
+    const left = await region(page).evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+      return el.scrollLeft;
+    });
+    const read = await boxes(page);
+    // The row's own claim first, so a break that widens the table's root fails here, not on the precondition below
+    expect(read.panel.x).toBeGreaterThanOrEqual(0);
+    expect(read.panel.x + read.panel.width).toBeLessThanOrEqual(600);
+    between(read);
+    expect(left, "could not check: the region did not scroll").toBeGreaterThan(
+      0,
+    );
+  });
+});

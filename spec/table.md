@@ -1275,6 +1275,21 @@ as before.
 - Layer: component.
 - Traces: PRD-B31.
 
+**EXP-05** A block that the `panels` snippet holds MUST be as wide as the region and lie between the `actions`
+snippet's controls and the region, whatever the table's width.
+- Examples (the test runs every row; the `actions` snippet holds "Export" and the `panels` snippet a `div` holding the
+  button "Apply search"; the panel's box is that `div`'s `getBoundingClientRect()`):
+
+  | Viewport and columns | The panel's box |
+  |---|---|
+  | 1280 px wide, 3 columns | its x and width equal the region's; its top is at or below the bottom of "Export" and its bottom at or above the top of the region |
+  | 600 px wide, 30 columns, the region scrolled to its right end | the same, and it lies within the viewport's width |
+
+- Reason: a panel takes the table's width on lines of its own, not a place among the toolbar's buttons, and a wide
+  table scrolls inside the region without carrying the panel out of view (PRD-B31; as STATE-16 for the status line).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B31.
+
 ## 5. No global footprint (FOOT)
 
 **FOOT-01** Mounting, rerendering and unmounting the table MUST leave the root element's attributes and inline style
@@ -5266,6 +5281,7 @@ pointer.
 | EXP-03 | PRD-S3, PRD-B17 |
 | EXP-04 | PRD-B31, PRD-B16, PRD-A3 |
 | EXP-06 | PRD-B31 |
+| EXP-05 | PRD-B31 |
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
@@ -5574,7 +5590,7 @@ state in their own statements.
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21, STATE-28 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, RND-17, STATE-08, EXP-02, EXP-04, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
-| PRD-B31 | EXP-04, EXP-06 | in part: the width is EXP-05's |
+| PRD-B31 | EXP-04, EXP-06, EXP-05 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-29, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
