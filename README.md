@@ -93,16 +93,20 @@ There is nothing to install yet. What is on `main` today:
   is; if your transport's errors carry a string `code` (axios does), tell them apart in `send`. To show your own text
   for a code, pass it as `messages.failed` of `DataTable`. The answer or rejection of a superseded request, or of one
   running at unmount, is dropped, and its signal is aborted. Its sort intent (`table.onsort`) and page-size intent
-  (`pager.onsize`) each set the query at once and send one request; `reload()` sends the current query again, the page
+  (`pager.onsize`) each set the query at once and send one request; so do its filter intents (`table.onfilter`,
+  `onclearfilter`, `onclearfilters`) and its search intent (`table.onsearch`), each back to the first page: a text
+  filter and the search go out as given, a categorical filter as an anchored alternation of its escaped values with
+  `regex=true` (a server that ignores `regex` matches no row with it), and `onsearch` waits for the table's search
+  field; `reload()` sends the current query again, the page
   included; each column map entry can say `searchable` and `orderable`; the request goes out in the bracketed form by
-  default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort on a column id no map
-  entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by hand. The test
-  site's connection page (`/connection.html`) loads its orders through it from the site's own route `/api/orders`, pages
-  them with `Pagination`, sorts them by the Order column and changes the page size, proved in Chromium, Firefox and
-  WebKit.
+  default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort or filter on a column
+  id no map entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by hand.
+  The test site's connection page (`/connection.html`) loads its orders through it from the site's own route
+  `/api/orders`, pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in
+  Chromium, Firefox and WebKit.
 
-Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (filter
-and search intents; cancel and retry) and the published package. The order is in the
+Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (reset;
+cancel and retry) and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them

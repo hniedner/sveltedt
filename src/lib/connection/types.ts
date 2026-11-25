@@ -15,14 +15,15 @@ export interface ConnectionColumn {
   // The table column id the entry serves
   readonly id?: string;
   // Sent to the server as given, `true` when not given, as in DataTables; the helper does not enforce them (a sort on
-  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too, as
-  // DataTables sends it, and the server skips the column
+  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too,
+  // as DataTables sends it, and the server skips the column
   readonly searchable?: boolean;
   readonly orderable?: boolean;
 }
 
 // The query (spec/connection.md, Conventions, The query). The helper reads the whole query once, at creation, and then
-// holds the live query: read it back from `table.sort`, `table.filters`, `table.search` and `pager`
+// holds the live query: read it back from `table.sort`, `table.filters`, `table.search` and `pager` (`pager` is
+// `undefined` before the first answer)
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
   // The applied filter of each column, by table column id
