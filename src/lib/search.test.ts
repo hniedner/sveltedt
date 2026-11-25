@@ -36,7 +36,7 @@ afterEach(() => {
 // first key, keys taking no time)
 function mount(extra: Partial<DataTableProps<Item>> = {}) {
   const onsearch = vi.fn();
-  render(DataTable<Item>, props({ onsearch, ...extra }));
+  const { rerender } = render(DataTable<Item>, props({ onsearch, ...extra }));
   const field = screen.getByRole<HTMLInputElement>("searchbox", {
     name: "Search",
   });
@@ -56,6 +56,9 @@ function mount(extra: Partial<DataTableProps<Item>> = {}) {
     enter: async () => {
       await fireEvent.keyDown(field, { key: "Enter" });
     },
+    // The application's new `search`, the other props as they were
+    setSearch: (search: string) =>
+      rerender(props({ onsearch, ...extra, search })),
     async at(ms: number): Promise<void> {
       await vi.advanceTimersByTimeAsync(ms - now);
       now = ms;
@@ -146,5 +149,37 @@ describe("FILT-41", () => {
     expect(table.field.value).toBe("beta");
     await table.enter();
     expect(table.onsearch).not.toHaveBeenCalled();
+  });
+});
+
+// @spec("FILT-44", "56b64c70")
+describe("FILT-44", () => {
+  it("shows the applied search at the mount", () => {
+    expect(mount({ search: "beta" }).field.value).toBe("beta");
+  });
+
+  it("takes a new search when nothing was typed", async () => {
+    const table = mount({ search: "" });
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("gamma");
+  });
+
+  it("keeps the text it emitted while the search is unchanged", async () => {
+    const table = mount();
+    await table.type("x");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x"]]);
+    await table.at(450);
+    expect(table.field.value).toBe("x");
+  });
+
+  it("takes the new search after the text was emitted", async () => {
+    const table = mount();
+    await table.type("x");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x"]]);
+    await table.at(500);
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("gamma");
   });
 });

@@ -20,6 +20,11 @@ export class SearchText {
     this.#applied = applied;
     this.#settings = settings;
     this.#emit = emit;
+    // A changed applied search replaces the field's text (FILT-44)
+    $effect.pre(() => {
+      this.#applied();
+      this.own = null;
+    });
     // A pause that is still running when the field goes emits nothing (FOOT-05)
     $effect(() => () => clearTimeout(this.#timer));
   }
