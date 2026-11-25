@@ -3287,16 +3287,19 @@ not in a dialog, so its statements are tested in the simulated DOM, with time mo
 first key, keys taking no time and a control character pasted, as in section 11. "Search" is the field found by role
 `searchbox` and that name. What matches the text is the data source's (PRD-B25).
 
-**FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given.
+**FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given and the alert does not
+show.
 - Examples (the test runs every row):
 
   | `onsearch` | Fields with role `searchbox` |
   |---|---|
   | given | one, named "Search", with `autocomplete="off"` |
   | not given | none |
+  | given, with `columns: []` (the alert of RND-05) | none |
 
 - Reason: the search box of DataTables' default layout, shown only where the application can answer it (PRD-B25);
-  browser suggestions would show earlier searches to the next user of a shared machine (as FILT-14).
+  browser suggestions would show earlier searches to the next user of a shared machine (as FILT-14); the table cannot
+  vouch for a search it could not validate, as for the badges (FILT-08).
 - Layer: component.
 - Traces: PRD-B25.
 

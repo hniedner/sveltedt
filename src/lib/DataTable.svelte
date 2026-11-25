@@ -3,6 +3,7 @@
   import { faultLine } from "./faults.js";
   import { defaultMessages, mergeMessages } from "./messages.js";
   import HeaderCell from "./parts/HeaderCell.svelte";
+  import Search from "./parts/Search.svelte";
   import Toolbar from "./parts/Toolbar.svelte";
   import { nextOrder, sortState } from "./sort.js";
   import type { DataTableColumn, DataTableProps } from "./types.js";
@@ -28,6 +29,7 @@
     onclearfilters,
     onreset,
     criteria,
+    onsearch,
     search,
     searchDelay,
     maxLength,
@@ -146,6 +148,7 @@
 <div class="sdt">
   {@render heading?.()}
   {@render actions?.()}
+  {#if onsearch && fault === null}<Search label={words.searchLabel} />{/if}
   <Toolbar
     {fault}
     {columns}
