@@ -519,8 +519,8 @@ MUST NOT call `onerror`.
   | the mount's `load()` refuses the sort (no entry serves `code`) | `table.onsort` with `[name asc]` | 1 | 1 | `'loading'` | `false` |
 
 - Reason: a retry from `onerror` is a normal consumer pattern (PRD-B20: `onretry` and `reload()` send the current
-  query again); if the failure were written after `onerror`, it would overwrite the retry's `'loading'`. With no rows
-  on screen the retry runs as `'loading'` with `busy` false (CONN-23).
+  query again); if the failure were written after `onerror`, it would overwrite the retry's `'loading'`. After a
+  failure the retry runs as `'loading'` with `busy` false, rows kept or not (CONN-23).
 - Layer: component.
 - Traces: PRD-B20.
 
