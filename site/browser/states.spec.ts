@@ -3,7 +3,7 @@
 // the still-loading text, which A11Y-25 owns.
 import { expect, test, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
-import { axeClean, expectRing, ring, tabKey } from "./reads.ts";
+import { axeClean, expectRing, ring, settled, tabKey } from "./reads.ts";
 
 const exportButton = (page: Page) =>
   page.getByRole("button", { name: "Export", exact: true });
@@ -154,4 +154,34 @@ test("THEME-06: with no --sdt-* property defined the focused region shows a visi
   const unfocused = await ring(region);
   await focusRegion(page, browserName);
   expectRing(await ring(region), unfocused);
+});
+
+// @spec("FOOT-03", "9fae3ded")
+test("FOOT-03: mounting, new rows, state changes and unmounting leave the window where it was", async ({
+  page,
+}) => {
+  await open(page, "/table.html?long&rows=20");
+  const where = () => page.evaluate(() => [scrollX, scrollY]);
+  await page.evaluate(() => scrollTo(0, 1200));
+  expect(await where(), "could not check: not at 1200").toEqual([0, 1200]);
+  const steps: [string, object][] = [
+    ["mount", { mounted: true }],
+    ["new rows", { rows: 20 }],
+    ["loading", { status: "loading" }],
+    ["ready", { status: "ready" }],
+    ["busy", { busy: true }],
+    ["not busy", { busy: false }],
+    ["unmount", { mounted: false }],
+  ];
+  for (const [step, props] of steps) {
+    await page.evaluate(
+      (next) =>
+        (window as Window & { __table: { set(p: object): void } }).__table.set(
+          next,
+        ),
+      props,
+    );
+    await settled(page);
+    expect(await where(), `after ${step}`).toEqual([0, 1200]);
+  }
 });

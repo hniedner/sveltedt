@@ -93,3 +93,12 @@ export function expectRing(
   expect(alphaOf(focused.color)).toBeGreaterThan(0);
   expect(focused).not.toEqual(unfocused);
 }
+
+// Two frames later: a resize observer's callback has run and its attribute is on the element
+export const settled = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );

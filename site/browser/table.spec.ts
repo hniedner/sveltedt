@@ -5,7 +5,7 @@
 // passing all five.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { open } from "./csp.ts";
-import { expectRing, ring, tabKey, visibleNow } from "./reads.ts";
+import { expectRing, ring, settled, tabKey, visibleNow } from "./reads.ts";
 
 type TableWindow = Window & { __table: { set(props: object): void } };
 
@@ -23,15 +23,6 @@ const focused = (page: Page) =>
       ? "the region"
       : (element.textContent ?? "").trim();
   });
-
-// Two frames later: a resize observer's callback has run and its attribute is on the element
-const settled = (page: Page) =>
-  page.evaluate(
-    () =>
-      new Promise<void>((done) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => done())),
-      ),
-  );
 
 // Opens the page at the viewport's width; the table has to be as the examples say before anything is read
 async function start(page: Page, width: number, query = ""): Promise<void> {
