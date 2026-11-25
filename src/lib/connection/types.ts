@@ -22,7 +22,7 @@ export interface ConnectionColumn {
 }
 
 // The query (spec/connection.md, Conventions, The query). The helper reads the whole query once, at creation, and then
-// holds the live query: read it back from `table.sort` and `pager`
+// holds the live query: read it back from `table.sort`, `table.filters`, `table.search` and `pager`
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
   // The applied filter of each column, by table column id
@@ -107,11 +107,25 @@ export type ConnectionOptions = ConnectionParamsOptions | ConnectionJsonOptions;
 // application's claim about the rows of its answers, which the helper passes on unread.
 export interface Connection<Row> {
   readonly table: Readonly<
-    Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
+    Required<
+      Pick<
+        DataTableProps<Row>,
+        | "rows"
+        | "status"
+        | "busy"
+        | "onfilter"
+        | "onclearfilter"
+        | "onclearfilters"
+      >
+    >
   > & {
     // Written out, not picked: the prop's `null` is not a value the helper produces
     readonly sort: readonly DataTableSortEntry[];
     readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
+    readonly filters: Readonly<Record<string, DataTableFilterState>>;
+    readonly search: string;
+    // Written out because DataTableProps has no onsearch until the search field exists (FILT-41)
+    readonly onsearch: (text: string) => void;
   };
   readonly pager:
     | Readonly<

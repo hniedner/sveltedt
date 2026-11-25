@@ -1,5 +1,9 @@
 import { onMount } from "svelte";
-import type { DataTableSortEntry, DataTableStatus } from "../types.ts";
+import type {
+  DataTableFilterState,
+  DataTableSortEntry,
+  DataTableStatus,
+} from "../types.ts";
 import { readAnswer } from "./answer.js";
 import type { Answer } from "./answer.ts";
 import { buildRequest, servedIndex, toParams } from "./request.js";
@@ -7,12 +11,13 @@ import type { Connection, ConnectionOptions } from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on the
 // server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each `pager.onpage`,
-// `pager.onsize`, `table.onsort` and `reload()` (none when a sort is refused, CONN-16), and maps each answer; a later
+// `pager.onsize`, `table.onsort`, `table.onfilter`, `table.onclearfilter`, `table.onclearfilters`, `table.onsearch` and
+// `reload()` (none when a sort is refused, CONN-16), and maps each answer; a later
 // request, and unmounting, abort the one still running. It reads `options` when it builds each request, except the
 // query: it is read once, at creation, and then held by the helper. Read `pager` from the returned object, never
 // destructured from it: it is a getter, so a copy would hold the value it had when it was copied. `table` is a plain
-// object, so `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy` and `table.sort`
-// from it, not destructured.
+// object, so `const { table } = connection` is fine; read `table.rows`, `table.status`, `table.busy`, `table.sort`,
+// `table.filters` and `table.search` from it, not destructured.
 export function createConnection<Row = unknown>(
   options: ConnectionOptions,
 ): Connection<Row> {
@@ -26,8 +31,10 @@ export function createConnection<Row = unknown>(
   let sort = $state.raw<readonly DataTableSortEntry[]>(
     options.query.sort ?? [],
   );
-  const filters = options.query.filters ?? {};
-  const search = options.query.search ?? "";
+  let filters = $state.raw<Readonly<Record<string, DataTableFilterState>>>(
+    options.query.filters ?? {},
+  );
+  let search = $state(options.query.search ?? "");
   // The draw of the last request sent, 0 before the first
   let draw = 0;
   // The controller of the request now running; none once it settled
@@ -99,6 +106,28 @@ export function createConnection<Row = unknown>(
     offset = 0;
     load();
   }
+  function onfilter(change: { id: string; state: DataTableFilterState }): void {
+    filters = { ...filters, [change.id]: change.state };
+    offset = 0;
+    load();
+  }
+  function onclearfilter(change: { id: string }): void {
+    filters = Object.fromEntries(
+      Object.entries(filters).filter(([id]) => id !== change.id),
+    );
+    offset = 0;
+    load();
+  }
+  function onclearfilters(): void {
+    filters = {};
+    offset = 0;
+    load();
+  }
+  function onsearch(text: string): void {
+    search = text;
+    offset = 0;
+    load();
+  }
   function onsize(size: number): void {
     offset -= offset % size;
     limit = size;
@@ -123,6 +152,16 @@ export function createConnection<Row = unknown>(
         return sort;
       },
       onsort,
+      get filters() {
+        return filters;
+      },
+      get search() {
+        return search;
+      },
+      onfilter,
+      onclearfilter,
+      onclearfilters,
+      onsearch,
     },
     get pager() {
       return (

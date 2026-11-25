@@ -672,6 +672,15 @@ describe("CONN-15", () => {
       probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
     ).toEqual(["1", "2", "3", "4"]);
   });
+  it("counts a sort, a reload and a search, none answered, as draw 2, 3 and 4 after mount", () => {
+    const probe = mount();
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    probe.connection.reload();
+    probe.connection.table.onsearch("x");
+    expect(
+      probe.send.mock.calls.map(([{ request }]) => request.get("draw")),
+    ).toEqual(["1", "2", "3", "4"]);
+  });
   it("counts only the requests sent: refusals take no draw", async () => {
     const probe = mount({
       columns: MNoCode,
@@ -976,6 +985,19 @@ describe("CONN-20", () => {
     expect(probe.connection.table.sort).toEqual([
       { id: "code", direction: "desc" },
     ]);
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.onerror.mock.calls[0]?.[0]).toBe(E);
+  });
+  it("fails the filter intent's request when its send rejects, keeping the filter and the rows", async () => {
+    const beta = { kind: "text" as const, text: "beta" };
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.table.onfilter({ id: "name", state: beta });
+    await probe.fail(1, E);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(probe.connection.table.busy).toBe(false);
+    expect(probe.connection.table.filters.name).toBe(beta);
     expect(probe.connection.table.rows).toBe(D);
     expect(probe.onerror).toHaveBeenCalledTimes(1);
     expect(probe.onerror.mock.calls[0]?.[0]).toBe(E);
@@ -1383,4 +1405,82 @@ describe("CONN-10", () => {
       expect(request?.get("columns[2][search][regex]")).toBe(regex);
     },
   );
+});
+
+// @spec("CONN-28", "a0ae78bf")
+describe("CONN-28", () => {
+  const text = (value: string) => ({ kind: "text" as const, text: value });
+  const beta = text("beta");
+  // The probe from offset 20 with the first answer settled, as the rows of the spec's table start
+  const settled = async (query: Partial<ConnectionQuery> = {}) => {
+    const probe = mount({ query: { ...Q0, offset: 20, ...query } });
+    await probe.answer(0, A1());
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.pager?.offset).toBe(20);
+    return probe;
+  };
+  // The one request the intent sent, read before it is settled
+  const sent = (probe: Awaited<ReturnType<typeof settled>>) => {
+    expect(probe.send).toHaveBeenCalledTimes(2);
+    const request = probe.send.mock.calls[1]?.[0]?.request;
+    return (key: string) => request?.get(key);
+  };
+  it("sends one request from the first row with the filter set on table.onfilter", async () => {
+    const probe = await settled();
+    probe.connection.table.onfilter({ id: "name", state: beta });
+    const read = sent(probe);
+    expect(read("start")).toBe("0");
+    expect(read("columns[0][search][value]")).toBe("beta");
+    expect(probe.connection.table.filters.name).toBe(beta);
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("sends one request from the first row with the filter gone on table.onclearfilter", async () => {
+    const probe = await settled({ filters: { name: beta } });
+    probe.connection.table.onclearfilter({ id: "name" });
+    const read = sent(probe);
+    expect(read("start")).toBe("0");
+    expect(read("columns[0][search][value]")).toBe("");
+    expect(probe.connection.table.filters).toEqual({});
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("keeps the other filters on table.onclearfilter", async () => {
+    const code = text("B");
+    const probe = await settled({ filters: { name: beta, code } });
+    probe.connection.table.onclearfilter({ id: "name" });
+    const read = sent(probe);
+    expect(read("columns[0][search][value]")).toBe("");
+    expect(read("columns[1][search][value]")).toBe("B");
+    expect(probe.connection.table.filters).toEqual({ code });
+  });
+  it("clears every filter and keeps the search on table.onclearfilters", async () => {
+    const probe = await settled({ filters: { name: beta }, search: "x" });
+    probe.connection.table.onclearfilters();
+    const read = sent(probe);
+    expect(read("start")).toBe("0");
+    for (const i of [0, 1, 2])
+      expect(read(`columns[${i}][search][value]`)).toBe("");
+    expect(read("search[value]")).toBe("x");
+    expect(probe.connection.table.filters).toEqual({});
+    expect(probe.connection.table.search).toBe("x");
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("sends one request from the first row with the search set on table.onsearch", async () => {
+    const probe = await settled();
+    probe.connection.table.onsearch("beta");
+    const read = sent(probe);
+    expect(read("start")).toBe("0");
+    expect(read("search[value]")).toBe("beta");
+    expect(probe.connection.table.search).toBe("beta");
+    expect(probe.connection.pager?.offset).toBe(0);
+  });
+  it("sends one request and keeps no pager on table.onsearch before the first answer", () => {
+    const probe = mount();
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    probe.connection.table.onsearch("beta");
+    const read = sent(probe);
+    expect(read("start")).toBe("0");
+    expect(read("search[value]")).toBe("beta");
+    expect(probe.connection.table.search).toBe("beta");
+    expect(probe.connection.pager).toBeUndefined();
+  });
 });
