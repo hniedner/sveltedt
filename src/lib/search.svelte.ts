@@ -35,6 +35,11 @@ export class SearchText {
     return this.own ?? this.#applied();
   }
 
+  // The text as emitted: without its leading and trailing white space (FILT-57)
+  get trimmed(): string {
+    return this.text.trim();
+  }
+
   // Every input event: the new text, then the pause. Under searchOnEnter only Enter applies (FILT-28); a delay of 0
   // applies at once (FILT-01)
   input(value: string): void {
@@ -47,11 +52,11 @@ export class SearchText {
     else this.#timer = setTimeout(() => this.apply(), delay);
   }
 
-  // The pause ending or Enter: emits the text unless it equals the applied one (FILT-27); the pause then emits nothing
-  // more
+  // The pause ending or Enter: emits the trimmed text unless it equals the applied one (FILT-27, FILT-57); the pause
+  // then emits nothing more
   apply(): void {
     clearTimeout(this.#timer);
-    const text = this.text;
+    const text = this.trimmed;
     if (text === this.#applied()) return;
     this.#newer = false;
     this.#emit(text);

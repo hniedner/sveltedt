@@ -53,6 +53,8 @@ function mount(extra: Partial<DataTableProps<Item>> = {}) {
       for (const char of text) await keys(char, field.value + char);
     },
     backspace: () => keys("Backspace", field.value.slice(0, -1)),
+    // The whole text as one input event, as a paste or a script sets it
+    paste: (value: string) => fireEvent.input(field, { target: { value } }),
     enter: async () => {
       await fireEvent.keyDown(field, { key: "Enter" });
     },
@@ -198,5 +200,51 @@ describe("FILT-49", () => {
     expect(table.field.value).toBe("melanoma");
     await table.at(850);
     expect(table.onsearch.mock.calls).toEqual([["mel"], ["melanoma"]]);
+  });
+});
+
+// @spec("FILT-57", "414c7cd1")
+describe("FILT-57", () => {
+  it("emits the typed text without its outer spaces", async () => {
+    const table = mount();
+    await table.type(" beta ");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("emits a pasted text without an outer tab", async () => {
+    const table = mount();
+    await table.paste("beta\t");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("emits nothing for a space after the applied search", async () => {
+    const table = mount({ search: "beta" });
+    await table.type(" ");
+    await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
+  });
+
+  it("emits the empty text for a field that holds only a space", async () => {
+    const table = mount({ search: "beta" });
+    await table.paste(" ");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([[""]]);
+  });
+
+  it("emits the trimmed text on Enter", async () => {
+    const table = mount();
+    await table.type(" beta ");
+    await table.at(100);
+    await table.enter();
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("keeps the spaces inside and around a quoted phrase", async () => {
+    const table = mount();
+    await table.paste('" beta "');
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([['" beta "']]);
   });
 });
