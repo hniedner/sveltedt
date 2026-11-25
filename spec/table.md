@@ -3420,9 +3420,11 @@ its text as typed.
 - Layer: component.
 - Traces: PRD-B8, PRD-B25.
 
-**FILT-45** The search field MUST come before the badges of FILT-31 and before the region, in document order.
-- Example: `onsearch` given, Name's text "Beta" applies: "Search" comes before the badge "Clear filter Name: contains
-  “Beta”", which comes before the region.
+**FILT-45** The search field MUST come after the `actions` snippet, before the badges of FILT-31, before the `panels`
+snippet and before the region, in document order.
+- Example: `onsearch` given, an `actions` snippet holding "Export", Name's text "Beta" applies: "Export" comes before
+  "Search", which comes before the badge "Clear filter Name: contains “Beta”", which comes before the `panels`
+  snippet, which comes before the region.
 - Reason: the search narrows every column, so it leads what narrows the rows (DataTables' default layout puts it at
   the top; WCAG 1.3.2).
 - Layer: component.

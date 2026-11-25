@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import CriteriaTable from "../../test/CriteriaTable.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableMessages, DataTableProps } from "./types.ts";
 
@@ -477,5 +478,50 @@ describe("FILT-54", () => {
     expect(table.field.value).toBe("beta");
     await table.setSearch("gamma");
     expect(table.field.value).toBe("gamma");
+  });
+});
+
+// @spec("FILT-45", "263812a7")
+describe("FILT-45", () => {
+  it("puts the field after the actions and before the badges, the panels and the region", () => {
+    const { container } = render(CriteriaTable, {
+      rows: [{ id: "r1", name: "Alpha", code: "A-1", status: "", note: "" }],
+      columns: [
+        {
+          id: "name",
+          label: "Name",
+          value: ({ row }: { row: Item }) => row.name,
+          filter: { kind: "text" },
+        },
+      ],
+      getRowId: ({ row }: { row: Item }) => row.id,
+      caption: "Orders",
+      regionLabel: "Orders table",
+      filters: { name: { kind: "text", text: "Beta" } },
+      onfilter: vi.fn(),
+      onclearfilter: vi.fn(),
+      onclearfilters: vi.fn(),
+      onsearch: vi.fn(),
+      withActions: true,
+      withPanels: true,
+    });
+    // The controls up to the region, which holds the rows
+    const names: string[] = [];
+    for (const element of container.querySelectorAll(
+      'button, input, [role="region"]',
+    )) {
+      if (element.matches('[role="region"]')) break;
+      names.push(
+        element.matches("input") ? "Search" : element.textContent.trim(),
+      );
+    }
+    expect(names).toEqual([
+      "Export",
+      "Search",
+      "Name: contains “Beta”",
+      "Clear my criteria",
+      "Clear column filters",
+      "Apply search",
+    ]);
   });
 });
