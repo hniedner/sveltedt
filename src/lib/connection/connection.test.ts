@@ -1326,3 +1326,32 @@ describe("CONN-12", () => {
     },
   );
 });
+
+// @spec("CONN-09", "2c3a5b25")
+describe("CONN-09", () => {
+  const text = (value: string) => ({ kind: "text" as const, text: value });
+  const rows: [string, ConnectionQuery["filters"], string][] = [
+    ["Beta ", { name: text("Beta ") }, "Beta "],
+    ["a.b", { name: text("a.b") }, "a.b"],
+    ["an empty text", { name: text("") }, ""],
+    ["none, with Code filtered", { code: text("B") }, ""],
+  ];
+  it.each(rows)(
+    "sends Name's filter %s as given with regex false",
+    (_row, filters, value) => {
+      const { send } = mount({ query: { ...Q0, filters } });
+      const request = send.mock.calls[0]?.[0]?.request;
+      expect(request?.get("columns[0][search][value]")).toBe(value);
+      expect(request?.get("columns[0][search][regex]")).toBe("false");
+    },
+  );
+  it("reads no inherited property for an entry whose id is constructor", () => {
+    const { send } = mount({
+      columns: [...M, { data: "ctor", id: "constructor" }],
+      query: { ...Q0, filters: {} },
+    });
+    const request = send.mock.calls[0]?.[0]?.request;
+    expect(request?.get("columns[3][search][value]")).toBe("");
+    expect(request?.get("columns[3][search][regex]")).toBe("false");
+  });
+});

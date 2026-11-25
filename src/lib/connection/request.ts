@@ -1,3 +1,4 @@
+import type { DataTableFilterState } from "../types.ts";
 import type {
   ConnectionColumn,
   ConnectionQuery,
@@ -16,6 +17,12 @@ export const servedIndex = (
 // A new empty search for each use: in the JSON form the application holds the request, and an edit must reach no other
 const noSearch = () => ({ value: "", regex: false });
 
+// The column search a filter sends: its text as given (CONN-09); none for no filter
+function searchOf(filter: DataTableFilterState | undefined) {
+  if (filter?.kind === "text") return { value: filter.text, regex: false };
+  return noSearch();
+}
+
 // The request for one query as the plain object: the paging and search keys, the column entries, then one order entry
 // per sort entry (spec/connection.md, section 1)
 export function buildRequest(
@@ -28,12 +35,18 @@ export function buildRequest(
     start: query.offset,
     length: query.limit,
     search: { value: query.search, regex: false },
-    columns: columns.map((column) => ({
+    columns: columns.map((column, i) => ({
       data: column.data,
       name: nameOf(column),
       searchable: column.searchable ?? true,
       orderable: column.orderable ?? true,
-      search: noSearch(),
+      // The first filter whose column id this entry serves; looked up among the filters' own keys, so an id such as
+      // `constructor` reads nothing inherited
+      search: searchOf(
+        Object.entries(query.filters).find(
+          ([id]) => servedIndex(columns, id) === i,
+        )?.[1],
+      ),
     })),
     order: query.sort.map((entry) => {
       const column = servedIndex(columns, entry.id);

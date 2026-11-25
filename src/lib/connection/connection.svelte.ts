@@ -26,6 +26,7 @@ export function createConnection<Row = unknown>(
   let sort = $state.raw<readonly DataTableSortEntry[]>(
     options.query.sort ?? [],
   );
+  const filters = options.query.filters ?? {};
   const search = options.query.search ?? "";
   // The draw of the last request sent, 0 before the first
   let draw = 0;
@@ -53,7 +54,7 @@ export function createConnection<Row = unknown>(
     else status = "loading";
     const request = buildRequest(
       options.columns,
-      { sort, search, offset, limit },
+      { sort, filters, search, offset, limit },
       sent,
     );
     const { signal } = controller;

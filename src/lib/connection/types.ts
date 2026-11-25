@@ -1,4 +1,5 @@
 import type {
+  DataTableFilterState,
   DataTableProps,
   DataTableSortEntry,
   PaginationProps,
@@ -14,7 +15,8 @@ export interface ConnectionColumn {
   // The table column id the entry serves
   readonly id?: string;
   // Sent to the server as given, `true` when not given, as in DataTables; the helper does not enforce them (a sort on
-  // an entry with `orderable: false` is still sent), and `searchable` matters once the filter intents exist
+  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too, as
+  // DataTables sends it, and the server skips the column
   readonly searchable?: boolean;
   readonly orderable?: boolean;
 }
@@ -23,6 +25,8 @@ export interface ConnectionColumn {
 // holds the live query: read it back from `table.sort` and `pager`
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
+  // The applied filter of each column, by table column id
+  readonly filters?: Readonly<Record<string, DataTableFilterState>>;
   // The global search text, sent as given; none when not given
   readonly search?: string;
   readonly offset?: number;
