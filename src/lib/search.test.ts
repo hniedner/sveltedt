@@ -183,3 +183,20 @@ describe("FILT-44", () => {
     expect(table.field.value).toBe("gamma");
   });
 });
+
+// @spec("FILT-49", "6b5336d8")
+describe("FILT-49", () => {
+  it("keeps newer typing when the search changes to the text emitted before it", async () => {
+    const table = mount();
+    await table.type("mel");
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["mel"]]);
+    await table.at(450);
+    await table.type("anoma");
+    await table.at(500);
+    await table.setSearch("mel");
+    expect(table.field.value).toBe("melanoma");
+    await table.at(850);
+    expect(table.onsearch.mock.calls).toEqual([["mel"], ["melanoma"]]);
+  });
+});

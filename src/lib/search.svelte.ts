@@ -7,6 +7,8 @@
 export class SearchText {
   // The field's text as typed; null: it shows the applied search, which is the one source of truth
   own = $state<string | null>(null);
+  // Typed since the last emit; a plain field, so the effect below does not rerun on it
+  #newer = false;
   #timer: ReturnType<typeof setTimeout> | undefined;
   readonly #applied: () => string;
   readonly #settings: () => { delay: number; onEnter: boolean };
@@ -20,10 +22,10 @@ export class SearchText {
     this.#applied = applied;
     this.#settings = settings;
     this.#emit = emit;
-    // A changed applied search replaces the field's text (FILT-44)
+    // A changed applied search replaces the field's text, unless newer typing holds it (FILT-44, FILT-49)
     $effect.pre(() => {
       this.#applied();
-      this.own = null;
+      if (!this.#newer) this.own = null;
     });
     // A pause that is still running when the field goes emits nothing (FOOT-05)
     $effect(() => () => clearTimeout(this.#timer));
@@ -37,6 +39,7 @@ export class SearchText {
   // applies at once (FILT-01)
   input(value: string): void {
     this.own = value;
+    this.#newer = true;
     clearTimeout(this.#timer);
     const { delay, onEnter } = this.#settings();
     if (onEnter) return;
@@ -49,6 +52,8 @@ export class SearchText {
   apply(): void {
     clearTimeout(this.#timer);
     const text = this.text;
-    if (text !== this.#applied()) this.#emit(text);
+    if (text === this.#applied()) return;
+    this.#newer = false;
+    this.#emit(text);
   }
 }
