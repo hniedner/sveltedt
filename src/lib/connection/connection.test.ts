@@ -1447,12 +1447,14 @@ describe("CONN-28", () => {
   });
   it("keeps the other filters on table.onclearfilter", async () => {
     const code = text("B");
-    const probe = await settled({ filters: { name: beta, code } });
+    const probe = await settled({ filters: { name: beta, code }, search: "x" });
     probe.connection.table.onclearfilter({ id: "name" });
     const read = sent(probe);
     expect(read("columns[0][search][value]")).toBe("");
     expect(read("columns[1][search][value]")).toBe("B");
+    expect(read("search[value]")).toBe("x");
     expect(probe.connection.table.filters).toEqual({ code });
+    expect(probe.connection.table.search).toBe("x");
   });
   it("clears every filter and keeps the search on table.onclearfilters", async () => {
     const probe = await settled({ filters: { name: beta }, search: "x" });
@@ -1536,7 +1538,7 @@ describe("CONN-29", () => {
       expect.stringContaining("code"),
     ]);
   });
-  it("sends one request and leaves failed on table.onclearfilters after a refused mount", () => {
+  it("sends one request and leaves the failed state on table.onclearfilters after a refused mount", () => {
     const probe = refused();
     probe.connection.table.onclearfilters();
     expect(probe.send).toHaveBeenCalledTimes(1);
