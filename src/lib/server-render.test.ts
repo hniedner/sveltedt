@@ -3,6 +3,7 @@ import { render } from "svelte/server";
 import { describe, expect, it } from "vitest";
 import { useConsoleErrors } from "../../test/console-spy.ts";
 import DataTable from "./DataTable.svelte";
+import type { DataTableColumn, DataTableProps } from "./types.ts";
 
 interface Item {
   id: string;
@@ -23,6 +24,33 @@ describe("RND-17", () => {
       },
     });
     expect(body).toContain("This table cannot be shown.");
+    expect(errors()).toEqual([]);
+  });
+});
+
+// No marker: STATE-15 is a real-browser statement (site/browser/slow-load.spec.ts); this row pins in the server render
+// the class that keeps the status line's room, which a table that loads must have from its first byte
+describe("STATE-15, the status line's class in the server render", () => {
+  const html = (props: Partial<DataTableProps<Item>>): string =>
+    render(DataTable<Item>, {
+      props: {
+        rows: [],
+        columns: [
+          { id: "id", label: "Id", value: ({ row }) => row.id },
+        ] satisfies DataTableColumn<Item>[],
+        getRowId: ({ row }: { row: Item }): string => row.id,
+        caption: "Orders",
+        regionLabel: "Orders table",
+        ...props,
+      },
+    }).body;
+
+  it("holds the class in the server render of a loading table and not of a table that never loads", () => {
+    expect(html({ status: "loading" })).toContain('class="sdt-status"');
+    expect(html({ status: "ready", busy: true })).toContain(
+      'class="sdt-status"',
+    );
+    expect(html({ status: "ready" })).not.toContain("sdt-status");
     expect(errors()).toEqual([]);
   });
 });

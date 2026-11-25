@@ -15,10 +15,12 @@
   caption-side: top;
 }
 
-/* The caption and the live count stay in the accessibility tree and take no room (A11Y-13) */
+/* The caption and the live count stay in the accessibility tree and take no room (A11Y-13); so does the stopped
+   message in the status region, which the table's cell shows (A11Y-32) */
 /* @spec("THEME-10") */
 .sdt-caption,
-.sdt-sr-only {
+.sdt-sr-only,
+.sdt-stopped {
   position: absolute;
   box-sizing: border-box;
   width: 1px;
@@ -54,4 +56,49 @@
 /* @spec("THEME-10") */
 :where(.sdt-row:not(:last-child)) > .sdt-cell {
   border-block-end: 1px solid var(--sdt-border, GrayText);
+}
+
+/* The status line holds the status region and "Cancel" on one line, with room for the progress indicator at its foot.
+   The component gives it this class from the first load or refetch until unmount, so nothing after it moves while
+   they come and go */
+/* @spec("STATE-15") */
+.sdt-status {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.5em;
+  box-sizing: border-box;
+  min-block-size: 2.5em;
+  padding-block-end: 0.25em;
+}
+
+/* The progress indicator: a bar along the foot of the status line, painted by its border so that forced colours keep
+   it. It grows from its centre five times in 5 seconds, then rests full */
+/* @spec("STATE-13") */
+.sdt-progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 0;
+  border-block-end: 0.25em solid var(--sdt-progress, CanvasText);
+  animation: sdt-progress 1s ease-in-out 5;
+}
+
+/* @spec("STATE-13") */
+@keyframes sdt-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A user who asked for less motion gets the bar still from the start */
+  /* @spec("STATE-14") */
+  .sdt-progress {
+    animation: none;
+  }
 }

@@ -33,15 +33,25 @@ There is nothing to install yet. What is on `main` today:
 - the stopped state: `status="stopped"` shows "Loading stopped" in one cell where the rows would be, with the header
   kept and no empty message, as plain text and not as an alert;
 - slow loads: after 1 second of loading or busy the table adds a progress indicator element, hidden from assistive
-  technology and kept at least 500 ms (its look and motion come later), and after 5 more seconds the status element
-  also says "Still loading", added once for screen readers; until the stylesheet reserves the line, that text can
-  move the table down by one line;
+  technology and kept at least 500 ms, drawn as a bar along the foot of the status line that pulses (grows from its
+  centre once a second) for 5 seconds and then rests full (it rests from the start under `prefers-reduced-motion`), and
+  after 5 more seconds the status element also says "Still loading", added once for screen readers. From the first load
+  or refetch until it unmounts the table keeps a status line above the region. Once that line has appeared, the
+  indicator, "Still loading" and "Cancel" can appear and go, and a load that ends in a ready answer can take them away,
+  without moving the table. A table that never loads has no status line; any other table moves down once, by at most the
+  height of that line, when its first load or refetch starts (measured for a table mounted ready; for one mounted in
+  another state the move is that line less what it replaces, not browser-proved). A load that ends in failure adds a
+  line: the failed notice, an element with `role="alert"`, sits between the status line and the region. Limits: the
+  words and "Cancel" sit on one line while they fit, and "Cancel" wraps in a line too narrow for both; an application
+  style that makes "Cancel" taller than the line moves the table; a second press at the same spot, made right after the
+  press that starts the first load or refetch, lands on what is now one line above the control it aimed at, because that
+  control moved down. Proved in Chromium, Firefox and WebKit on the test site's slow-load page, except the last limit
+  and the move of a table mounted in another state;
 - the two buttons of a slow load: with `oncancel` a "Cancel" button after the status element while "Still loading"
   shows, and with `onretry` a "Try again" button after the stopped or failed table, never beside the invalid-input
   alert; a press calls its callback once with no argument, ignores what it returns, and changes nothing on screen
   by itself (a double press calls it twice); the status element also says "Loading stopped" once when `status` becomes
-  `stopped`. Until the stylesheet is done, "Cancel" can add a second line of shift at 6 seconds and "Loading stopped"
-  shows twice. When new props remove a focused "Cancel" or "Try again", focus moves to the table without scrolling
+  `stopped`. When new props remove a focused "Cancel" or "Try again", focus moves to the table without scrolling
   (proved in Chromium, Firefox and WebKit on the test site's slow-load page), and the table can take focus only until
   focus leaves it. If the window loses focus right after the move, for example when the user switches window, the table
   gives up that focus while it is still the active element and focus lands on the page body. With invalid input there is

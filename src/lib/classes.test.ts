@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import SnippetsTable from "../../test/SnippetsTable.svelte";
 import DataTable from "./DataTable.svelte";
@@ -126,6 +126,19 @@ describe("THEME-48", () => {
     render(DataTable<Item>, { ...base, rows: [] });
     expect(withClass("sdt-empty")).toEqual([
       screen.getByRole("cell", { name: "No data." }),
+    ]);
+  });
+});
+
+// @spec("THEME-49", "c62d237e")
+describe("THEME-49", () => {
+  it("puts sdt-cell on the one cell that holds the stopped message", () => {
+    render(SnippetsTable, { ...base, rows: rows(2), status: "stopped" });
+    expect(counts(SEVEN)).toEqual([1, 1, 1, 2, 0, 1, 0]);
+    expect(withClass("sdt-cell")).toEqual([
+      within(screen.getByRole("table")).getByRole("cell", {
+        name: "Loading stopped",
+      }),
     ]);
   });
 });

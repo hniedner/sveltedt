@@ -79,9 +79,12 @@ to the consumer as one callback (stated with the statements that add user action
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
-  id or a class, except THEME-09 and THEME-48, which test the public
+  id or a class, except THEME-09, THEME-48 and THEME-49, which test the public
   classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
-  hook props write and the THEME-09 classes beside them.
+  hook props write and the THEME-09 classes beside them. The unmarked component and server-render rows of STATE-15 and
+  STATE-29 read the status line's class `sdt-status`: the room it keeps can be seen only in a real browser, and the
+  simulated DOM and the server render show only the class. The classes `sdt-status`, `sdt-progress` and `sdt-stopped`
+  are internal: they are not among the public classes of PRD-K3.
 - **Words.** Quoted words are the English defaults. Every fixed word is a prop (RND-06, SORT-17, PAGE-19).
 - **One object argument.** Every function in the props of `DataTable` and `Pagination`, and every snippet among them
   that receives anything, takes at most ONE argument: an object, read-only in its type, whose fields a later release
@@ -526,7 +529,8 @@ is the still-loading text; "Cancel" and "Try again" are buttons found by those n
 Covered by earlier statements, rows added by this group's build (their words reach every state or the whole mounted
 life): STATE-04 (`status 'stopped'`: "false"); A11Y-05 (`status 'stopped'`: the live count is empty); A11Y-22 (a step
 from `failed` to `stopped`); RND-13 (`status 'stopped'`: "Loading stopped" is not shown; `status 'loading'` with
-`oncancel` passed, at 6000 ms: no progress indicator, no "Still loading", no "Cancel"); RND-14 and EXP-02 (`status
+`oncancel` passed, at 6000 ms: no progress indicator, no "Still loading", no "Cancel"; `status 'loading'`, at
+1100 ms `columns []`: no progress indicator); RND-14 and EXP-02 (`status
 'stopped'`, with and without `onretry`); EXP-01 and EXP-03 (the same states); FOOT-01 and FOOT-03 (a rerender run
 through the indicator, the still-loading text with "Cancel", `stopped` with "Try again" and `failed` with "Try
 again"); FOOT-02 (the same run, with a press on each button).
@@ -602,24 +606,41 @@ true holds and the progress indicator has been present for 5 seconds or more.
 - Example: `matchMedia('(prefers-reduced-motion: reduce)').matches` is true; `status 'loading'`: at 1000 ms and at
   6000 ms neither the indicator nor any element in it has a running animation.
 - Reason: a user who asked the system for less motion gets a still indicator from the start (PRD-B22).
-- Layer: real browser (Chromium, Firefox, WebKit), in the browser instance the test runner configures with reduced
+- Layer: real browser (Chromium, Firefox, WebKit), in a browser context the test runner configures with reduced
   motion.
 - Traces: PRD-B22.
 
-**STATE-15** The position and size of the region, and of an element placed after the component, MUST be the same with
-and without the progress indicator, the still-loading text and "Cancel".
-- Examples (the test runs every row; `oncancel` passed; the `getBoundingClientRect()` x, y, width and height of the
-  region and of a paragraph placed after the component are each equal at 500 ms, 1000 ms and 6000 ms):
+**STATE-15** After the line for them has appeared, and until unmount, the position and size of the region, and of an
+element placed after the component, MUST NOT change as the progress indicator, the still-loading text and "Cancel"
+appear and go. The line appears when `status` is first `loading`, or `busy` first true, while the input is valid; the
+failed notice is the exception, which adds a line of its own.
+- Examples (the test runs every row; `oncancel` passed; times are counted from the mount; the `getBoundingClientRect()`
+  x, y, width and height of the region and of a paragraph placed after the component are each equal at every time the
+  row names, the first time being read after the line has appeared):
 
-  | State |
-  |---|
-  | `status 'loading'` |
-  | `status 'ready'` with 25 rows, `busy true` |
+  | Steps | Read at |
+  |---|---|
+  | mounted with `status 'loading'` | 500 ms, 1000 ms, 6000 ms |
+  | mounted with `status 'ready'` and 25 rows; at 100 ms `busy true`; at 7100 ms `busy false` | 100 ms, 1100 ms, 6100 ms, 7100 ms |
 
-- Reason: content that moves when the indicator appears puts something else under the pointer the user is about to
-  press (PRD-B22).
+- Example, the exception: mounted with `status 'loading'`, at 6000 ms `status 'failed'`; the indicator and "Cancel" are
+  gone and the region's y is greater than at 6000 ms by the height of the element with role `alert`.
+- Reason: content that moves when the indicator, its text or "Cancel" comes or goes, or when removing the indicator,
+  the text and "Cancel" at the end of a load that ends in a ready answer, puts something else under the pointer the
+  user is about to press (PRD-B22). The failed notice must be seen and announced (WCAG 4.1.3, DEP-61), so it takes a
+  line of its own.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B22, PRD-B23.
+
+**STATE-29** Until `status` has first been `loading`, or `busy` first true, while the input is valid, the component
+MUST keep no empty line between the status region and the region.
+- Example: `status 'ready'` with 25 rows, `oncancel` passed, a `heading` snippet holding a link "All orders" and an
+  `actions` snippet holding "Export", never loading or busy since mount: the top of the element with role `region`
+  equals the bottom of the element with role `status`, which is empty.
+- Reason: a table that never loads, such as one fed by the local data source (PRD-B21), shows no empty line above it;
+  from its first load or refetch the line keeps its room until unmount (STATE-15). The owner's choice (PRD-B22).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B22, PRD-B2.
 
 **STATE-16** The progress indicator, the still-loading text and "Cancel", each with its descendants, MUST overlap
 neither the region nor a control of the `heading` or `actions` snippet, and MUST lie within the viewport's width.
@@ -1425,6 +1446,19 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
   empty message, and with 2 rows no element has `sdt-empty`. No other element carries one of the four classes.
 - Reason: a selector of the stylesheet has one class at most (THEME-12), so the region, the caption, the live count and
   the empty cell need a class of their own; like the seven of THEME-09 they are public interface (PRD-K3).
+- Layer: component.
+- Traces: PRD-K3.
+
+**THEME-49** With `status 'stopped'`, the one body cell that holds the stopped message MUST carry `sdt-cell`, as
+THEME-09 requires of every body cell; this pins the stopped state's counts.
+- Example: `status 'stopped'`, 2 rows, 2 columns; the test counts the elements carrying each class:
+
+  | Props | `sdt` | `sdt-table` | `sdt-head-row` | `sdt-th` | `sdt-row` | `sdt-cell` | `sdt-pager` |
+  |---|---|---|---|---|---|---|---|
+  | `status 'stopped'`, 2 rows, 2 columns | 1 | 1 | 1 | 2 | 0 | 1 | 0 |
+
+- Reason: an application's rule for the cell class must style the stopped message's cell like any other body cell
+  (PRD-K3).
 - Layer: component.
 - Traces: PRD-K3.
 
@@ -5139,6 +5173,7 @@ pointer.
 | STATE-13 | PRD-B22 |
 | STATE-14 | PRD-B22 |
 | STATE-15 | PRD-B22, PRD-B23 |
+| STATE-29 | PRD-B22, PRD-B2 |
 | STATE-16 | PRD-B22, PRD-B23 |
 | STATE-17 | PRD-B23, PRD-B3 |
 | STATE-18 | PRD-B23, PRD-B24, PRD-B2 |
@@ -5441,6 +5476,7 @@ pointer.
 | THEME-45 | PRD-A8, PRD-T10 |
 | THEME-46 | PRD-T1 |
 | THEME-48 | PRD-K3 |
+| THEME-49 | PRD-K3 |
 | THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
 | THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -5465,7 +5501,7 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06, THEME-29 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, STATE-29, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |
@@ -5491,7 +5527,7 @@ state in their own statements.
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
-| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
+| PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-29, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
 | PRD-B23 | STATE-11, STATE-15, STATE-16, STATE-17, STATE-18, STATE-19, STATE-26, A11Y-25, A11Y-27, A11Y-28, A11Y-31 | in full |
 | PRD-B24 | STATE-18, STATE-19, STATE-20, STATE-21, STATE-22, STATE-23, STATE-24, STATE-25, STATE-26, STATE-28, A11Y-21, A11Y-23, A11Y-25, A11Y-26, A11Y-29, A11Y-30, A11Y-32 | in full |
 | PRD-A1 | A11Y-06, A11Y-07, A11Y-16, A11Y-18, THEME-03, THEME-06, SORT-09, SORT-13, SORT-18, SORT-19, SORT-20, SORT-21, SORT-22, PAGE-09, PAGE-11, PAGE-04, PAGE-24, PAGE-28, PAGE-29, PAGE-30, PAGE-34, PAGE-35, A11Y-25, THEME-15, FILT-13, FILT-15, FILT-02, FILT-34, FILT-11, FILT-12, FILT-07, FILT-20, FILT-21, FILT-08, FILT-48, COL-26, COL-27, COL-08, COL-10, COL-13, COL-21, COL-32, SEL-01, SEL-06, CHILD-01, A11Y-43, A11Y-44, A11Y-39, A11Y-40, A11Y-41, A11Y-42, A11Y-45, A11Y-49, I18N-02, THEME-43, THEME-44, STK-08, FILT-56 | in part: "with none" (no tokens) is THEME-03, THEME-06, SORT-21, SORT-22, PAGE-34 and PAGE-35; "with the example tokens" is THEME-17 and THEME-33, the browser check a later theming branch's; target size is A11Y-39; the remaining criteria of PRD section 4.3 arrive with the controls they concern |
@@ -5523,7 +5559,7 @@ state in their own statements.
 | PRD-T7 | THEME-23, THEME-31 | in full |
 | PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
 | PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
-| PRD-K3 | THEME-09, THEME-48, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
+| PRD-K3 | THEME-09, THEME-48, THEME-49, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 

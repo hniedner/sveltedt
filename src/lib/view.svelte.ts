@@ -1,13 +1,17 @@
 import { untrack } from "svelte";
 
 // The slow-load state of PRD-B2, one per table: `shown` is the progress indicator being in the component, `held` its
-// 500 ms minimum still running, `still` the still-loading text being shown. Read as `view.still`, never destructured,
-// so the reads stay reactive
+// 500 ms minimum still running, `still` the still-loading text being shown, `started` whether a load or refetch has
+// started since mount. Read as `view.still`, never destructured, so the reads stay reactive
 export class TableView {
   shown = $state(false);
   // Stryker disable next-line BooleanLiteral: equivalent, a wrongly true start only skips a reset of shown and still, which are false then
   held = $state(false);
   still = $state(false);
+  // Set by the first load or refetch with valid input and never cleared: from then on the status line keeps its room
+  // until unmount (STATE-15); before it, none (STATE-29). The table's markup also reads `pending`, because this field
+  // is set by an effect, which does not run on the server, where a loading table must already have its room
+  started = $state(false);
 
   // Built only while a component initialises (its effects need that context), at the place the table's script gives
   // it. `pending` is read in the first effect, so a change of it reruns that one; `ending` is the table's focus
@@ -27,6 +31,7 @@ export class TableView {
         }
         return;
       }
+      this.started = true;
       if (this.shown) return;
       const delay = setTimeout(() => {
         this.shown = true;

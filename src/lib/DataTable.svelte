@@ -152,18 +152,30 @@
     {onclearfilters}
     {onreset}
   />
-  <!-- Both live elements stay in the document in every state, the invalid-input alert's included, so a change of
-     their text is announced -->
-  <div role="status" aria-atomic="false">
-    {fault === null && status === "loading" ? words.loading : ""}
-    {#if view.still}<div>{words.stillLoading}</div>{/if}
-    {#if fault === null && status === "stopped"}<div>{words.stopped}</div>{/if}
+  <!-- The status line: the status region, "Cancel" beside it and the progress indicator at its foot. It keeps its room
+     from the first load or refetch until unmount (STATE-15, STATE-29; `started` is set in view.svelte.ts). The status
+     region and the live count stay in the document in every state, the invalid-input alert's included, so a change of
+     their text is announced. The indicator is not drawn beside the alert (RND-13): `shown` outlasts a fault for up to
+     its 500 ms minimum -->
+  <div class={[(pending || view.started) && "sdt-status"]}>
+    <div role="status" aria-atomic="false">
+      {fault === null && status === "loading" ? words.loading : ""}
+      {#if view.still}<span>{words.stillLoading}</span>{/if}
+      {#if fault === null && status === "stopped"}<div class="sdt-stopped">
+          {words.stopped}
+        </div>{/if}
+    </div>
+    {#if cancel}<button
+        bind:this={cancelButton}
+        type="button"
+        onclick={() => cancel()}>{words.cancel}</button
+      >{/if}
+    {#if view.shown && fault === null}<div
+        class="sdt-progress"
+        data-sdt-progress
+        aria-hidden="true"
+      ></div>{/if}
   </div>
-  {#if cancel}<button
-      bind:this={cancelButton}
-      type="button"
-      onclick={() => cancel()}>{words.cancel}</button
-    >{/if}
   <div class="sdt-sr-only" aria-live="polite">{count}</div>
   {#if fault !== null}
     <div role="alert">{words.invalidInput}</div>
@@ -171,7 +183,6 @@
     {#if status === "failed"}
       <div role="alert">{words.failed}</div>
     {/if}
-    {#if view.shown}<div data-sdt-progress aria-hidden="true"></div>{/if}
     <div class="sdt-region" role="region" aria-label={regionLabel}>
       <table
         bind:this={table}

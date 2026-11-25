@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // The real-browser layer (spec/site.md): the site's build served by its own server on its one address, in the three
-// engines (the browser step requires these three names). A further browser instance (reduced motion, say) is one
-// more entry of ENGINES with its own `use`.
+// engines (the browser step requires these three names). A test that needs another setting (reduced motion, say) sets
+// it for its describe with `test.use`, in each of the three engines.
 const ENGINES = [
   { name: "chromium", use: devices["Desktop Chrome"] },
   { name: "firefox", use: devices["Desktop Firefox"] },
