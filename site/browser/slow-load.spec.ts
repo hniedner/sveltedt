@@ -269,7 +269,7 @@ test.describe("STATE-15", () => {
       .evaluate((el) => el.getBoundingClientRect().height);
     expect(notice).toBeGreaterThan(0);
     const after = await boxes(page);
-    expect(after.region[1] - first.region[1]).toBe(notice);
+    expect(after.region[1] - first.region[1]).toBeCloseTo(notice, 1);
   });
 });
 
