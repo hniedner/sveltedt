@@ -13,12 +13,14 @@ decision (see Region order).
   state its buttons share (`src/lib/DataTable.svelte:41-60`), the derived values with the validation
   (`src/lib/DataTable.svelte:68-115`), the one `TableView` (`src/lib/DataTable.svelte:104-109`), the focus hand-off
   (`src/lib/DataTable.svelte:116-139`) and the markup (`src/lib/DataTable.svelte:142-248`).
-- Three parts exist, `src/lib/parts/HeaderCell.svelte` (76 lines), `src/lib/parts/Search.svelte` (36) and
-  `src/lib/parts/Toolbar.svelte` (61), and two state classes, `src/lib/view.svelte.ts` (49) and
-  `src/lib/search.svelte.ts` (65). None is exported: the root entry `src/lib/index.ts` exports `DataTable`,
+- Two parts exist, `src/lib/parts/HeaderCell.svelte` (76 lines) and `src/lib/parts/Toolbar.svelte` (61), and one state
+  class, `src/lib/view.svelte.ts` (49). None is exported: the root entry `src/lib/index.ts` exports `DataTable`,
   `Pagination` and types (`src/lib/index.ts:1-15`); the package's other entries are `./connection` and `./styles.css`
   (`package.json:8-17`). `Pagination` is placed by the application and holds the information line
   (`src/lib/Pagination.svelte:14-24`, `src/lib/Pagination.svelte:53`).
+- Added with the global search (#162), measured at 8374644: a third part,
+  `src/lib/parts/Search.svelte` (36 lines), and a second state class, `src/lib/search.svelte.ts` (66 lines), built by
+  the part, which amends the Fields rule below.
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the

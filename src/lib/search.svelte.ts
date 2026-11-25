@@ -7,7 +7,7 @@
 export class SearchText {
   // The field's text as typed; null: it shows the applied search, which is the one source of truth
   own = $state<string | null>(null);
-  // Typed since the last emit; a plain field, so the effect below does not rerun on it
+  // Typed since the last emit; a plain field, so the effect below does not rerun on it (`own` does, via `own?.trim()`)
   #newer = false;
   #timer: ReturnType<typeof setTimeout> | undefined;
   readonly #applied: () => string;

@@ -89,9 +89,10 @@ There is nothing to install yet. What is on `main` today:
   Enter only with `searchOnEnter`; the text emitted has no leading or trailing white space, while the field keeps what
   was typed. It shows the applied `search`, and keeps newer typing when `search` changes. An application that wants
   another field leaves out `onsearch` and renders its own, and then has neither the pause, the trimming nor the
-  newer-typing rule. Limits: Enter inside the application's own `<form>` submits that form; Enter that confirms an IME
-  composition applies the search; a text with a control character, or one longer than `maxLength`, is not refused yet
-  and is emitted, and the field has no hint under `searchOnEnter` yet;
+  newer-typing rule. Limits: an application that applies `search` only after the answer arrives should still pass the
+  new text at once, as the connection helper does; Enter inside the application's own `<form>` submits that form;
+  Enter that confirms an IME composition applies the search; a text with a control character, or one longer than
+  `maxLength`, is not refused yet and is emitted, and the field has no hint under `searchOnEnter` yet;
 - the filter controls, driven by the application's `filters`: a button "Filter <label>" in the header cell of each
   filtered column (it does nothing yet), a clearable badge for each applied filter, "Clear column filters", "Reset
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
