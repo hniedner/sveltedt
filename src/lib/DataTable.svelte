@@ -158,7 +158,7 @@
     <div role="status" aria-atomic="false">
       {fault === null && status === "loading" ? words.loading : ""}
       {#if view.still}<span>{words.stillLoading}</span>{/if}
-      {#if fault === null && status === "stopped"}<div>
+      {#if fault === null && status === "stopped"}<div class="sdt-stopped">
           {words.stopped}
         </div>{/if}
     </div>

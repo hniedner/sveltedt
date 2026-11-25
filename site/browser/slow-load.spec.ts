@@ -80,6 +80,36 @@ const boxes = async (page: Page) => {
 };
 const indicator = (page: Page) => page.locator("[data-sdt-progress]");
 
+// For each element whose own text holds `words` and whose box is wider and higher than 1 px, not clipped to less: whether
+// it lies inside the table. Not clipped to less: no `clip-path` or `clip` on it or an ancestor, and its box cut by the
+// box of each ancestor with an overflow rule is still wider and higher than 1 px (any clip only lowers the count)
+const visibleCopies = (page: Page, words: string) =>
+  page.evaluate((text) => {
+    const seen = (el: Element): boolean => {
+      let { left, right, top, bottom } = el.getBoundingClientRect();
+      for (let at: Element | null = el; at; at = at.parentElement) {
+        const style = getComputedStyle(at);
+        if (style.clipPath !== "none" || style.clip !== "auto") return false;
+        if (at !== el && style.overflow !== "visible") {
+          const box = at.getBoundingClientRect();
+          left = Math.max(left, box.left);
+          right = Math.min(right, box.right);
+          top = Math.max(top, box.top);
+          bottom = Math.min(bottom, box.bottom);
+        }
+      }
+      return right - left > 1 && bottom - top > 1;
+    };
+    const own = (el: Element): string =>
+      Array.from(el.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent)
+        .join("");
+    return Array.from(document.body.querySelectorAll("*"))
+      .filter((el) => own(el).includes(text) && seen(el))
+      .map((el) => el.closest("table") !== null);
+  }, words);
+
 // The state a row names, drawn
 async function drawn(page: Page, state: string): Promise<void> {
   switch (state) {
@@ -236,5 +266,38 @@ test.describe("STATE-29", () => {
     await set(page, { busy: true });
     await expect(table(page)).toHaveAttribute("aria-busy", "true");
     expect(await gap()).toBeGreaterThan(0);
+  });
+});
+
+// @spec("A11Y-32", "a688baf2")
+test.describe("A11Y-32", () => {
+  test("shows the still-loading text once: status 'loading' at 6000 ms", async ({
+    page,
+  }) => {
+    await open(page);
+    await page.clock.runFor(6000);
+    await expect(page.locator("body")).toContainText("Still loading");
+    expect(await visibleCopies(page, "Still loading")).toHaveLength(1);
+  });
+
+  test("shows the still-loading text once: status 'ready' with two rows, busy true at 6000 ms", async ({
+    page,
+  }) => {
+    await open(page, "/slow.html?status=ready");
+    await set(page, { rows: rows25.slice(0, 2), busy: true });
+    await expect(table(page)).toHaveAttribute("aria-busy", "true");
+    await page.clock.runFor(6000);
+    await expect(page.locator("body")).toContainText("Still loading");
+    expect(await visibleCopies(page, "Still loading")).toHaveLength(1);
+  });
+
+  test("shows the stopped message once, in the table: status 'stopped'", async ({
+    page,
+  }) => {
+    await open(page);
+    await set(page, { status: "stopped" });
+    await drawn(page, "stopped");
+    await expect(page.locator("body")).toContainText("Loading stopped");
+    expect(await visibleCopies(page, "Loading stopped")).toEqual([true]);
   });
 });

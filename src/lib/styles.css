@@ -15,10 +15,12 @@
   caption-side: top;
 }
 
-/* The caption and the live count stay in the accessibility tree and take no room (A11Y-13) */
+/* The caption and the live count stay in the accessibility tree and take no room (A11Y-13); so does the stopped
+   message in the status region, which the table's cell shows (A11Y-32) */
 /* @spec("THEME-10") */
 .sdt-caption,
-.sdt-sr-only {
+.sdt-sr-only,
+.sdt-stopped {
   position: absolute;
   box-sizing: border-box;
   width: 1px;
