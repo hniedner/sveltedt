@@ -1,33 +1,47 @@
 <script lang="ts">
-  import { DataTable, type DataTableColumn } from "@hniedner/sveltedt";
+  import {
+    DataTable,
+    type DataTableColumn,
+    type DataTableStatus,
+  } from "@hniedner/sveltedt";
 
   // The page of the real-browser keyboard and focus tests (A11Y-12, A11Y-08 and the statements beside them): a table
   // of ?cols= columns (default 3) and ?rows= rows (default 25), "Name" first. With ?link the first column's cell is a
   // link "Open <name>", with ?edit the second column's is "Edit <name>", with ?heading a link "All orders" stands in
-  // the heading. A test changes the number of columns through window.__table.set({ cols })
+  // the heading. A test changes the number of columns, the number of rows, the status, busy and whether the table is
+  // mounted through window.__table.set; every set gives the rows new ids (a generation prefix, as a refetch would).
+  // ?status= mounts in that status (an unknown one is the invalid-input alert) and ?busy with busy; ?long puts 2000 px
+  // above and below a box of fixed height and leaves the table unmounted until a test sets mounted
   interface Item {
     id: string;
     name: string;
   }
   const params = new URLSearchParams(location.search);
-  const table = $state({ cols: Number(params.get("cols") ?? 3) });
+  const table = $state({
+    cols: Number(params.get("cols") ?? 3),
+    rows: Number(params.get("rows") ?? 25),
+    status: (params.get("status") ?? "ready") as DataTableStatus,
+    busy: params.has("busy"),
+    mounted: !params.has("long"),
+  });
+  let generation = $state(1);
   Object.assign(window, {
     __table: {
       set: (next: Partial<typeof table>): void => {
         for (const key of Object.keys(next))
           if (!(key in table)) throw new Error(`unknown prop ${key}`);
         Object.assign(table, next);
+        generation += 1;
       },
     },
   });
 
   const names = ["Beta", "Gamma"];
-  const rows: Item[] = Array.from(
-    { length: Number(params.get("rows") ?? 25) },
-    (_, index) => ({
-      id: `r${String(index + 1).padStart(2, "0")}`,
+  const rows: Item[] = $derived(
+    Array.from({ length: table.rows }, (_, index) => ({
+      id: `g${generation}-r${String(index + 1).padStart(2, "0")}`,
       name: names[index] ?? `Item ${String(index + 1).padStart(2, "0")}`,
-    }),
+    })),
   );
   const getRowId = ({ row }: { row: Item }): string => row.id;
   const columns: DataTableColumn<Item>[] = $derived(
@@ -51,15 +65,29 @@
 {#snippet heading()}<h1><a href="#all">All orders</a></h1>{/snippet}
 {#snippet actions()}<button type="button">Export</button>{/snippet}
 
+{#snippet view()}
+  {#if table.mounted}
+    <DataTable
+      {rows}
+      {columns}
+      {getRowId}
+      caption="Orders"
+      regionLabel="Orders table"
+      status={table.status}
+      busy={table.busy}
+      heading={params.has("heading") ? heading : undefined}
+      {actions}
+    />
+  {/if}
+{/snippet}
+
 <main>
-  <DataTable
-    {rows}
-    {columns}
-    {getRowId}
-    caption="Orders"
-    regionLabel="Orders table"
-    heading={params.has("heading") ? heading : undefined}
-    {actions}
-  />
+  {#if params.has("long")}
+    <div class="spacer"></div>
+    <div class="box">{@render view()}</div>
+    <div class="spacer"></div>
+  {:else}
+    {@render view()}
+  {/if}
   <p><a href="#after">After the table</a></p>
 </main>

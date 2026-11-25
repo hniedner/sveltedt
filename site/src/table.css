@@ -8,3 +8,11 @@ th {
 * {
   overflow-anchor: none;
 }
+
+/* ?long: the window can scroll before the table is mounted (FOOT-03), and the table sits in a box of fixed height */
+.spacer {
+  height: 2000px;
+}
+.box {
+  height: 400px;
+}
