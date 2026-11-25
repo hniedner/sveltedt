@@ -4,17 +4,27 @@
 
   type Props = Pick<
     DataTableProps<unknown>,
-    "search" | "searchDelay" | "searchOnEnter"
+    "search" | "searchDelay" | "searchOnEnter" | "maxLength"
   > & { label: string; onsearch: (text: string) => void };
 
-  const { label, search, searchDelay, searchOnEnter, onsearch }: Props =
-    $props();
+  const {
+    label,
+    search,
+    searchDelay,
+    searchOnEnter,
+    maxLength,
+    onsearch,
+  }: Props = $props();
   // Ties the label to its field, unique per table on the page
   const id = $props.id();
   // The defaults are applied here, after the table validated the settings, so a null stays a fault
   const box = new SearchText(
     () => search ?? "",
-    () => ({ delay: searchDelay ?? 400, onEnter: searchOnEnter ?? false }),
+    () => ({
+      delay: searchDelay ?? 400,
+      onEnter: searchOnEnter ?? false,
+      maxLength: maxLength ?? 255,
+    }),
     (text) => onsearch(text),
   );
 </script>

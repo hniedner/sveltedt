@@ -3320,9 +3320,13 @@ show.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, as FILT-03 says for a text filter.
+**FILT-42** The search field MUST NOT emit `onsearch` while its text, without leading and trailing white space, holds
+a control character (Unicode category Cc) or is longer than `maxLength` characters (code points).
 - Examples (the test runs every row: the steps, then at 400 ms press Enter; no call): paste "a", U+0001; paste "a",
-  U+007F; type 256 times "x"; type 11 times "x", with `maxLength={10}`.
+  U+007F; paste "a", U+0009, "b" (an inner tab); paste "a", U+0085 (next line: a control character, not white
+  space); paste 256 times "x"; paste 11 times "x", with `maxLength={10}`; paste 256 times U+1F600 (one code point
+  each). At the limit the text is emitted, one call at 400 ms: 10 times "x" with `maxLength={10}`, 255 times U+1F600,
+  and 255 times "x" followed by a space (the call holds the 255 "x").
 - Reason: the server would refuse the query (PRD-B6).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.

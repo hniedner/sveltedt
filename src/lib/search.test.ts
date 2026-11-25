@@ -274,3 +274,45 @@ describe("FILT-58", () => {
     expect(table.onsearch.mock.calls).toEqual([["beta"]]);
   });
 });
+
+// @spec("FILT-42", "902c2e39")
+describe("FILT-42", () => {
+  const refused: [string, string, Partial<DataTableProps<Item>>?][] = [
+    ["a control character U+0001", "a\u0001"],
+    ["a control character U+007F", "a\u007F"],
+    ["an inner tab", "a\tb"],
+    ["U+0085, which is a control character and not white space", "a\u0085"],
+    ["256 characters", "x".repeat(256)],
+    ["11 characters with maxLength 10", "x".repeat(11), { maxLength: 10 }],
+    ["256 code points", "\u{1F600}".repeat(256)],
+  ];
+
+  it.each(refused)("emits nothing for %s", async (_name, text, extra) => {
+    const table = mount(extra);
+    await table.paste(text);
+    await table.at(400);
+    await table.enter();
+    expect(table.onsearch).not.toHaveBeenCalled();
+  });
+
+  it("emits a text of exactly maxLength characters", async () => {
+    const table = mount({ maxLength: 10 });
+    await table.paste("x".repeat(10));
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x".repeat(10)]]);
+  });
+
+  it("counts code points, not UTF-16 units", async () => {
+    const table = mount();
+    await table.paste("\u{1F600}".repeat(255));
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["\u{1F600}".repeat(255)]]);
+  });
+
+  it("judges the text without its outer white space", async () => {
+    const table = mount();
+    await table.paste(`${"x".repeat(255)} `);
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x".repeat(255)]]);
+  });
+});

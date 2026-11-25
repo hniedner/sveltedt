@@ -154,6 +154,7 @@
       {search}
       {searchDelay}
       {searchOnEnter}
+      {maxLength}
       {onsearch}
     />{/if}
   <Toolbar
