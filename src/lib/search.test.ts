@@ -465,3 +465,17 @@ describe("FILT-46", () => {
     expect(table.field.value).toBe("beta");
   });
 });
+
+// @spec("FILT-54", "ee45db73")
+describe("FILT-54", () => {
+  it("leaves the field's text until search changes", async () => {
+    const onreset = vi.fn();
+    const table = mount(withFilter({ onreset }));
+    await fireEvent.click(screen.getByRole("button", { name: "Reset table" }));
+    expect(onreset).toHaveBeenCalledTimes(1);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    expect(table.field.value).toBe("beta");
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("gamma");
+  });
+});
