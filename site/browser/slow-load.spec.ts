@@ -290,9 +290,33 @@ test.describe("STATE-29", () => {
         );
       });
     expect(await gap()).toBe(0);
+    // The wrapper of the status region is the status line; its box and the region's top are read together
+    const line = () =>
+      page.getByRole("status").evaluate((status) => {
+        const wrapper = status.parentElement;
+        const region = document.querySelector('[role="region"]');
+        if (!wrapper || !region) throw new Error("no status line or region");
+        return {
+          top: region.getBoundingClientRect().top,
+          height: wrapper.getBoundingClientRect().height,
+          font: parseFloat(getComputedStyle(wrapper).fontSize),
+        };
+      });
+    const before = await line();
     // The control: the same measure sees the reserved line once a load starts
     await setBusy(page, true);
     expect(await gap()).toBeGreaterThan(0);
+    // The one move: by the height of the line (its 2.5em minimum), and no more
+    const first = await line();
+    expect(first.height).toBeCloseTo(2.5 * first.font, 1);
+    expect(first.top - before.top).toBeGreaterThan(0);
+    expect(first.top - before.top).toBeCloseTo(first.height - before.height, 1);
+    // Not again: the indicator, the text, the end of the load and a second load leave the region where it is
+    await page.clock.runFor(6000);
+    await setBusy(page, false);
+    expect((await line()).top).toBe(first.top);
+    await setBusy(page, true);
+    expect((await line()).top).toBe(first.top);
   });
 });
 
