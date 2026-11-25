@@ -1257,7 +1257,7 @@ describe("CONN-31", () => {
   });
 });
 
-// @spec("CONN-32", "e8491cdc")
+// @spec("CONN-32", "04d4f97e")
 describe("CONN-32", () => {
   const nameDesc = { id: "name", direction: "desc" } as const;
   const reload = (connection: Connection<Row>) => connection.reload();

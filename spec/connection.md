@@ -506,9 +506,10 @@ MUST NOT call `onerror`.
 - Layer: component.
 - Traces: PRD-B20.
 
-**CONN-32** When a request fails, or the sort is refused on the load path (CONN-16), the helper MUST set
-`table.status` `'failed'` and `table.busy` `false` BEFORE it calls `onerror`, so an intent called from inside
-`onerror` leaves the helper in the state that call set (`'loading'`), never overwritten by the failure that called it.
+**CONN-32** When a request fails, the helper MUST set `table.status` `'failed'` and `table.busy` `false` BEFORE it
+calls `onerror`; when the sort is refused on the load path (CONN-16), it MUST set `table.status` `'failed'` BEFORE it
+calls `onerror` and leave `table.busy` as it was. So an intent called from inside `onerror` leaves the helper in the
+state that call set (`'loading'`), never overwritten by the failure that called it.
 - Examples (the test runs every row; the `send` of the retry is not answered):
 
   | The failure | Called from `onerror` | `send` calls | `onerror` calls | `table.status` | `table.busy` |
