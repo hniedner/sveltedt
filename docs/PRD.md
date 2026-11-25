@@ -50,6 +50,10 @@
   object, `send({ request, signal })`, by the rule the props of `DataTable` and `Pagination` follow (#231).
   Amended by the owner on 2026-11-24 at 21:22 PST ("yes, option B: keep the line from the first load until
   unmount"): PRD-B22 reserves a status line above the region from the first load or refetch until unmount (#146).
+  Amended by the owner on 2026-11-25 at about 09:27 PST ("the advisor will provide you with the recommendations that I
+  have endorsed and approved"; the advisor's recommendation 1): PRD-B31, a `panels` snippet between the toolbar and the
+  table, and PRD-X7, an advanced-search builder as a separate optional component, on the Later list; the slot's place
+  after the toolbar and before the status line, and its showing in every state, decided by the reviewer (#263).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -538,6 +542,19 @@ options as before (PRD-B7).
   holds all rows knows them, since the table sees one page; owner, 2026-11-19: "keep the row in the PRD but not in scope
   for 1.0".
 - **Priority:** later
+
+#### PRD-B31
+
+A `panels` snippet places the application's own panels, such as an advanced search or batch actions that a button in
+the actions snippet opens, across the table's width between its toolbar and the status line of PRD-B22. It shows in
+every state, the invalid-input alert's included. The table adds no behaviour to it: no open state and no toggle.
+
+- **Reason:** With one fixed order and no layout option in 0.x (`docs/departures.md`, DEP-56), a panel needs a place
+  of its own: above the toolbar it would come before the button that opens it, and in the `criteria` snippet it would
+  sit among the badges. The status line stays next to the rows it reports on; the panels stay in every state because
+  the actions do (PRD-B17), so the button that opens one always works. The slot: owner, 2026-11-25; its place and its
+  showing in every state: decided by the reviewer.
+- **Priority:** must
 
 **Slow data sources** (explanatory: it restates PRD-B15, PRD-A4, PRD-B20, PRD-B22 to PRD-B24 and PRD-D6 in one place,
 and adds no requirement). Loading shows the loading text, never the empty text, with `aria-busy` (PRD-B15) and a polite
@@ -1584,10 +1601,11 @@ helper's request serialiser and answer mapper against every set.
 
 **Later:** (PRD-X1, header drag to reorder, moved into 1.0 by the owner: B11 b); PRD-X2 fit width to content; PRD-X3 columns sticky at the inline end;
 PRD-X5 a region-scrolling sticky layout for app-shell pages (design R of section 5.1); PRD-B30 the vocabulary helper of the local data source; PRD-X6 a built-in number or date
-range filter (until then the application's criteria, section 5.2).
+range filter (until then the application's criteria, section 5.2); PRD-X7 an advanced-search builder, a separate
+optional component, on adopter demand (until then the application's own, in the `panels` snippet, PRD-B31).
 
-**Counts:** 98 must (none depends on an open question), 7 should,
-5 later.
+**Counts:** 99 must (none depends on an open question), 7 should,
+6 later.
 
 ## 5. Decisions made in this PRD
 
