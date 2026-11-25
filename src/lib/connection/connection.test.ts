@@ -1350,9 +1350,11 @@ describe("CONN-12", () => {
   );
 });
 
+// A text filter
+const text = (value: string) => ({ kind: "text" as const, text: value });
+
 // @spec("CONN-09", "2c3a5b25")
 describe("CONN-09", () => {
-  const text = (value: string) => ({ kind: "text" as const, text: value });
   const rows: [string, ConnectionQuery["filters"], string][] = [
     ["Beta ", { name: text("Beta ") }, "Beta "],
     ["a.b", { name: text("a.b") }, "a.b"],
@@ -1410,7 +1412,6 @@ describe("CONN-10", () => {
 
 // @spec("CONN-28", "a0ae78bf")
 describe("CONN-28", () => {
-  const text = (value: string) => ({ kind: "text" as const, text: value });
   const beta = text("beta");
   // The probe from offset 20 with the first answer settled, as the rows of the spec's table start
   const settled = async (query: Partial<ConnectionQuery> = {}) => {
@@ -1484,11 +1485,31 @@ describe("CONN-28", () => {
     expect(probe.connection.table.search).toBe("beta");
     expect(probe.connection.pager).toBeUndefined();
   });
+  it("keeps the filters already set on table.onfilter for another column", async () => {
+    const code = text("B");
+    const probe = await settled({ filters: { code } });
+    probe.connection.table.onfilter({ id: "name", state: beta });
+    const read = sent(probe);
+    expect(read("columns[0][search][value]")).toBe("beta");
+    expect(read("columns[1][search][value]")).toBe("B");
+    expect(probe.connection.table.filters).toEqual({ name: beta, code });
+  });
+  it("keeps the search on table.onfilter and the filters on table.onsearch", async () => {
+    const withSearch = await settled({ search: "x" });
+    withSearch.connection.table.onfilter({ id: "name", state: beta });
+    expect(sent(withSearch)("search[value]")).toBe("x");
+    expect(withSearch.connection.table.search).toBe("x");
+    const withFilter = await settled({ filters: { name: beta } });
+    withFilter.connection.table.onsearch("y");
+    const read = sent(withFilter);
+    expect(read("columns[0][search][value]")).toBe("beta");
+    expect(withFilter.connection.table.filters).toEqual({ name: beta });
+  });
 });
 
 // @spec("CONN-29", "2730161e")
 describe("CONN-29", () => {
-  const filters = { code: { kind: "text" as const, text: "B" } };
+  const filters = { code: text("B") };
   const refused = () => mount({ columns: MNoCode, query: { ...Q0, filters } });
   it("sends nothing, keeps the filters and names code once on table.onfilter for code", async () => {
     const probe = mount({ columns: MNoCode });
@@ -1514,5 +1535,13 @@ describe("CONN-29", () => {
       expect.stringContaining("code"),
       expect.stringContaining("code"),
     ]);
+  });
+  it("sends one request and leaves failed on table.onclearfilters after a refused mount", () => {
+    const probe = refused();
+    probe.connection.table.onclearfilters();
+    expect(probe.send).toHaveBeenCalledTimes(1);
+    expect(probe.connection.table.filters).toEqual({});
+    expect(probe.connection.table.status).toBe("loading");
+    expect(messages(probe)).toHaveLength(1);
   });
 });
