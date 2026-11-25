@@ -1356,6 +1356,25 @@ describe("RND-13", () => {
       vi.useRealTimers();
     }
   });
+
+  it("shows no progress indicator beside the alert when the input turns invalid inside the 500 ms minimum", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = render(
+        DataTable<Item>,
+        state({ status: "loading" }),
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(container.querySelector("[data-sdt-progress]")).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(100);
+      await rerender(state({ columns: [], status: "loading" }));
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.getByRole("alert").textContent).toBe(FIXED);
+      expect(container.querySelector("[data-sdt-progress]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // @spec("RND-17", "048e2060")

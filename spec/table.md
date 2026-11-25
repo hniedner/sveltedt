@@ -529,7 +529,8 @@ is the still-loading text; "Cancel" and "Try again" are buttons found by those n
 Covered by earlier statements, rows added by this group's build (their words reach every state or the whole mounted
 life): STATE-04 (`status 'stopped'`: "false"); A11Y-05 (`status 'stopped'`: the live count is empty); A11Y-22 (a step
 from `failed` to `stopped`); RND-13 (`status 'stopped'`: "Loading stopped" is not shown; `status 'loading'` with
-`oncancel` passed, at 6000 ms: no progress indicator, no "Still loading", no "Cancel"); RND-14 and EXP-02 (`status
+`oncancel` passed, at 6000 ms: no progress indicator, no "Still loading", no "Cancel"; `status 'loading'`, at
+1100 ms `columns []`: no progress indicator); RND-14 and EXP-02 (`status
 'stopped'`, with and without `onretry`); EXP-01 and EXP-03 (the same states); FOOT-01 and FOOT-03 (a rerender run
 through the indicator, the still-loading text with "Cancel", `stopped` with "Try again" and `failed` with "Try
 again"); FOOT-02 (the same run, with a press on each button).
