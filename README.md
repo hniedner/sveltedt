@@ -66,22 +66,22 @@ There is nothing to install yet. What is on `main` today:
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
   column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
   search input gets the alert; the filter fields and dialog are not done yet;
-- the connection helper, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first request
-  through the application's `send({ request, signal })`, maps the answer to rows and totals, and changes page through
-  `pager.onpage` with the rows kept while busy. An answer it cannot map (its message names the field that does not
-  match), an answer with a true `error`, and a `send` that rejects, throws or returns no promise each show the failed
-  state and reach `onerror` once, and no server text is shown. An answer's failure carries `code`, a string or `null`
-  (the answer's `error_code` when it is a string); a rejection is your `send`'s own error, passed as it is; if your
-  transport's errors carry a string `code` (axios does), tell them apart in `send`. To show your own text for a code,
-  pass it as `messages.failed` of `DataTable`. The answer or rejection of a superseded request, or of one running at
-  unmount, is dropped, and its signal is aborted. Its sort intent (`table.onsort`) and page-size intent
+- the connection helper, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first request through
+  the application's `send({ request, signal })`, maps the answer to rows and totals, and changes page through
+  `pager.onpage` with the rows kept while busy. An answer it cannot map (its message names the check that failed), an
+  answer with a truthy `error` (the server's text counts), and a `send` that rejects, throws or returns no promise each
+  show the failed state and reach `onerror` once, and no server text is shown. An answer's failure carries `code`, a
+  string or `null` (the answer's `error_code` when it is a string); a rejection is your `send`'s own error, passed as it
+  is; if your transport's errors carry a string `code` (axios does), tell them apart in `send`. To show your own text
+  for a code, pass it as `messages.failed` of `DataTable`. The answer or rejection of a superseded request, or of one
+  running at unmount, is dropped, and its signal is aborted. Its sort intent (`table.onsort`) and page-size intent
   (`pager.onsize`) each set the query at once and send one request; `reload()` sends the current query again, the page
   included; each column map entry can say `searchable` and `orderable`; the request goes out in the bracketed form by
   default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort on a column id no map
   entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by hand. The test
-  site's connection page (`/connection.html`) loads its orders through it from the site's own route `/api/orders`,
-  pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in Chromium, Firefox
-  and WebKit.
+  site's connection page (`/connection.html`) loads its orders through it from the site's own route `/api/orders`, pages
+  them with `Pagination`, sorts them by the Order column and changes the page size, proved in Chromium, Firefox and
+  WebKit.
 
 Not yet: search, the filter fields and dialog, column features, selection, the rest of the connection helper (filter
 and search intents; cancel and retry) and the published package. The order is in the

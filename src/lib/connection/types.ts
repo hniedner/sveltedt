@@ -51,14 +51,17 @@ export interface ConnectionRequest {
 interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
-  // Called once with an Error when an answer cannot be mapped, its message naming the check that failed, once with
-  // the rejection or the thrown value of a `send` that fails, passed as it is, and once for each request refused
-  // because a sort entry names a column that no map entry serves; `table.status` becomes `'failed'` for each except a
-  // refused `onsort`, which leaves it as it was. An answer's failure carries `code`, a string or `null`; a rejection is
-  // your `send`'s own error, passed as it is: if your transport's errors carry a string `code` (axios does), tell them
-  // apart in `send`. Stated limit: a refused `reload()` while a request runs (reachable only by changing the column
-  // map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are; the request's own end
-  // then applies
+  // Called once for each failure: an answer's failure (an answer that cannot be mapped, its message naming the check
+  // that failed, or a truthy `error`), a `send` failure passed as it is (a rejection or a thrown value; a missing
+  // promise is a `TypeError` the helper provokes), and a refused sort (a sort entry names a column that no map entry
+  // serves). `table.status` is `'failed'` before the call, except for a refused `onsort`, which leaves it as it was.
+  // An answer's failure carries `code`, a string or `null`; a rejection is your `send`'s own error: if your
+  // transport's errors carry a string `code` (axios does), tell them apart in `send`.
+  // A rejection's value is passed as it is and may hold the request's headers: do not forward it to telemetry
+  // unredacted. `code` is the server's string, untrusted text: never render it as HTML.
+  // Stated limits: `onerror` must not throw; a refused `reload()` while a request runs (reachable only by changing the
+  // column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are, the request's own
+  // end then applying; a `send` that throws synchronously, with an `onerror` that calls `reload()`, repeats without end
   readonly onerror: (error: unknown) => void;
 }
 

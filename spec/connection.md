@@ -373,8 +373,8 @@ as before, and `onerror` called once with an `Error`.
   message `... data is not a list.` With A1 on screen, `pager.onpage(10)`, its request sent with `draw=2` and answered
   by A1 (`draw: 1`, the first request's): `'failed'`, `table.rows === D`, message `... draw is not the one sent.` In
   every row `onerror` receives an `Error` with no `cause`, whose message names the first check that fails, in the
-  order: an answer that cannot be read first; then object; a true `error` (CONN-19); then `data`,
-  `recordsFiltered`, `recordsTotal`, `draw`; and holds no value from the answer.
+  order: cannot be read; not an object; truthy `error` (CONN-19); `data`; `recordsFiltered`; `recordsTotal`; `draw`;
+  and holds no value from the answer.
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
   `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20). The
@@ -424,12 +424,12 @@ data.
 
 **CONN-20** A `send` that rejects or throws MUST be a failure: `table.status` `'failed'`, `table.busy` `false`,
 `table.rows` as before, and `onerror` called once with the rejection itself.
-- Examples (the test runs every row): `send` rejects with `Error('boom: row 7')`: the failed message
-  (`messages.failed`, "The data could not be loaded.") shows; `boom` and `row 7` are absent from the document;
-  `send` rejects with an `Error` E: `onerror(E)`, the same object; `send` throws E
-  when called: the same; A1 on screen, `table.onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false,
-  `table.sort` `[code desc]`, `table.rows === D`; `send` returns `undefined` (plain JavaScript, no promise): `'failed'`,
-  `onerror` called once with a `TypeError`.
+- Examples (the test runs every row): `send` rejects with `Error('boom: row 7')`: the failed message (`messages.failed`,
+  "The data could not be loaded.") shows; `boom` and `row 7` are absent from the document; `send` rejects with an
+  `Error` E: `onerror(E)`, the same object; `send` throws E when called: the same; A1 on screen,
+  `table.onsort([code desc])`, its `send` rejects: `'failed'`, `busy` false, `table.sort` `[code desc]`,
+  `table.rows === D`; `send` returns `undefined` (plain JavaScript, no promise): `'failed'`, `onerror` called once with
+  a `TypeError`.
 - Reason: the application's transport rejects every answer that is not a success (an HTTP status outside 2xx
   included); the application decides what it means (PRD-B20). The rejection reaches `onerror` only: the failed state
   shows `messages.failed` and nothing from the rejection.
@@ -483,11 +483,10 @@ is still running, and MUST NOT be aborted once it has settled.
 
 - Reason: a request whose result will not be used need not run on. This is best practice with no PRD sentence behind
   it (DEP-59), traced to PRD-B20. One signal covers both triggers: the helper aborts it whether a later request or
-  the unmount ends the request's use. TanStack Query aborts the signal
-  of a query that is out of date or inactive, and React's guide asks an effect's cleanup to "either abort the fetch or
-  ignore its result" (FETCHED 2026-11-24); DataTables lets a superseded server-side request run (DEP-59). A refused
-  intent sends nothing, so it aborts nothing (CONN-16). The test calls the documented `unmount` that Testing
-  Library's `render` returns.
+  the unmount ends the request's use. TanStack Query aborts the signal of a query that is out of date or inactive,
+  and React's guide asks an effect's cleanup to "either abort the fetch or ignore its result" (FETCHED 2026-11-24);
+  DataTables lets a superseded server-side request run (DEP-59). A refused intent sends nothing, so it aborts
+  nothing (CONN-16). The test calls the documented `unmount` that Testing Library's `render` returns.
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -504,7 +503,7 @@ MUST NOT call `onerror`.
 - Reason: unmounting aborts the running request (CONN-30), and the rejection that follows is the application's
   cancellation, not a failure. This extends PRD-B20's rule for a cancelled request ("only the latest request's
   answer is used"; the `oncancel` sentence excepts a cancelled request's rejection) to the unmount; an answer with
-  nowhere to show it must not reach `onerror` either. One signal covers both triggers (CONN-30).
+  nowhere to show it must not reach `onerror` either.
 - Layer: component.
 - Traces: PRD-B20.
 

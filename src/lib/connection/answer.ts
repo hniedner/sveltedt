@@ -15,8 +15,8 @@ function readCount(value: unknown): number | undefined {
 }
 
 const MISMATCH = "The answer does not match the request";
-// The Error of a refused answer: fixed words, never a value from the answer, and `code`, the answer's `error_code`
-// when it is a string, else `null`
+// The Error of a refused answer. The message is fixed words, never text from the answer; `code` is the answer's
+// `error_code` when it is a string, else `null`.
 const failure = (message: string, code: unknown): Error =>
   Object.assign(new Error(message), {
     code: typeof code === "string" ? code : null,
@@ -51,7 +51,7 @@ function read<Row>(body: unknown, sent: number): Answer<Row> | Error {
 
 // An answer body read as given: its `data` is the rows, the list itself, each count is read by `readCount`, and a
 // `draw` that is given must read to `sent`, the draw of the request answered. An `Error` when the answer's `error` is
-// true as a condition, when a check fails, naming the first one, or when a property of the body throws when read.
+// truthy, when a check fails, naming the first one, or when a property of the body throws when read.
 export function readAnswer<Row>(
   body: unknown,
   sent: number,
