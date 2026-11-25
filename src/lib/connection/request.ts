@@ -1,3 +1,4 @@
+import type { DataTableFilterState } from "../types.ts";
 import type {
   ConnectionColumn,
   ConnectionQuery,
@@ -16,6 +17,24 @@ export const servedIndex = (
 // A new empty search for each use: in the JSON form the application holds the request, and an edit must reach no other
 const noSearch = () => ({ value: "", regex: false });
 
+// One selected value with each of `/ . * + ? | ( ) [ ] { } \ $ ^ -` behind a backslash: the set of DataTables' own
+// escapeRegex (CONN-10)
+const escaped = (value: string): string =>
+  value.replace(/[/.*+?|()[\]{}\\$^-]/g, "\\$&");
+
+// The column search a filter sends: a text as given (CONN-09); a selection as an anchored alternation of its escaped
+// values, in the order selected, with regex true (CONN-10); an empty search ("", false) for no filter and for an empty
+// selection
+function searchOf(filter: DataTableFilterState | undefined) {
+  if (filter === undefined) return noSearch();
+  if (filter.kind === "text") return { value: filter.text, regex: false };
+  if (filter.selected.length === 0) return noSearch();
+  return {
+    value: `^(${filter.selected.map(escaped).join("|")})$`,
+    regex: true,
+  };
+}
+
 // The request for one query as the plain object: the paging and search keys, the column entries, then one order entry
 // per sort entry (spec/connection.md, section 1)
 export function buildRequest(
@@ -27,13 +46,19 @@ export function buildRequest(
     draw,
     start: query.offset,
     length: query.limit,
-    search: noSearch(),
-    columns: columns.map((column) => ({
+    search: { value: query.search, regex: false },
+    columns: columns.map((column, i) => ({
       data: column.data,
       name: nameOf(column),
       searchable: column.searchable ?? true,
       orderable: column.orderable ?? true,
-      search: noSearch(),
+      // The first filter whose column id this entry serves; looked up among the filters' own keys, so an id such as
+      // `constructor` reads nothing inherited
+      search: searchOf(
+        Object.entries(query.filters).find(
+          ([id]) => servedIndex(columns, id) === i,
+        )?.[1],
+      ),
     })),
     order: query.sort.map((entry) => {
       const column = servedIndex(columns, entry.id);

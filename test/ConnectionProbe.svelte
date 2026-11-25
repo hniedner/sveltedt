@@ -27,25 +27,44 @@
   // The probe never changes its options, so what the helper reads of them at each request stays the same.
   const connection = untrack(() => createConnection<Row>(options));
   untrack(() => onconnect(connection));
+  // Every value a test selects in Status, so no test mounts a table that DataTable refuses
+  const statusOptions = [
+    "active",
+    "inactive",
+    "a.b",
+    "x-(1)",
+    "a/b",
+    "*+?[]{}\\$^",
+    "a|b",
+  ].map((value) => ({ value, label: value }));
   const columns: DataTableColumn<Row>[] = [
     {
       id: "name",
       label: "Name",
       value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
+      filter: { kind: "text" },
     },
-    // `code` and `status` only give the sort intents three ids; their values are not meant to match the labels
+    // `code` and `status` only give the intents three ids; their values are not meant to match the labels. Each column
+    // has a filter, so the table needs the three filter handlers (validate.ts, filterFault) and accepts a filter state
+    // for each id; the options of Status are every value a test selects.
     {
       id: "code",
       label: "Code",
       value: ({ row }) => row.id,
       sortable: ["asc", "desc"],
+      filter: { kind: "text" },
     },
     {
       id: "status",
       label: "Status",
       value: ({ row }) => row.name,
       sortable: ["asc", "desc"],
+      filter: {
+        kind: "categorical",
+        options: statusOptions,
+        emptyOption: true,
+      },
     },
   ];
   const getRowId = ({ row }: { row: Row }): string => row.id;
@@ -61,6 +80,11 @@
   busy={connection.table.busy}
   sort={connection.table.sort}
   onsort={connection.table.onsort}
+  filters={connection.table.filters}
+  onfilter={connection.table.onfilter}
+  onclearfilter={connection.table.onclearfilter}
+  onclearfilters={connection.table.onclearfilters}
+  search={connection.table.search}
 />
 {#if connection.pager}
   <Pagination

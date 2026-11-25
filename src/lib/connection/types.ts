@@ -1,4 +1,5 @@
 import type {
+  DataTableFilterState,
   DataTableProps,
   DataTableSortEntry,
   PaginationProps,
@@ -14,15 +15,20 @@ export interface ConnectionColumn {
   // The table column id the entry serves
   readonly id?: string;
   // Sent to the server as given, `true` when not given, as in DataTables; the helper does not enforce them (a sort on
-  // an entry with `orderable: false` is still sent), and `searchable` matters once the filter intents exist
+  // an entry with `orderable: false` is still sent); a filter on an entry with `searchable: false` is still sent too
   readonly searchable?: boolean;
   readonly orderable?: boolean;
 }
 
-// The query (spec/connection.md, Conventions, The query). The helper reads `sort`, `offset` and `limit` once, at
-// creation, and then holds the live query: read it back from `table.sort` and `pager`
+// The query (spec/connection.md, Conventions, The query). The helper reads the whole query once, at creation, and then
+// holds the live query: read it back from `table.sort`, `table.filters`, `table.search` and `pager` (`pager` is
+// `undefined` before the first answer)
 export interface ConnectionQuery {
   readonly sort?: readonly DataTableSortEntry[];
+  // The applied filter of each column, by table column id
+  readonly filters?: Readonly<Record<string, DataTableFilterState>>;
+  // The global search text, sent as given; none when not given
+  readonly search?: string;
   readonly offset?: number;
   readonly limit: number;
 }
@@ -53,10 +59,10 @@ interface ConnectionBaseOptions {
   readonly query: ConnectionQuery;
   // Called once for each failure: an answer's failure (an answer that cannot be mapped, its message naming the check
   // that failed, or a truthy `error`), a `send` failure passed as it is (a rejection or a thrown value; a missing
-  // promise is a `TypeError` the helper provokes), and a refused sort (a sort entry names a column that no map entry
-  // serves). For a failure of a sent request, `table.busy` is false and `table.status` is `'failed'` before the
-  // call; the same status holds for a refusal on the load path (which leaves `busy` as it was); a refused `onsort`
-  // leaves both as they were.
+  // promise is a `TypeError` the helper provokes), and a refused sort or filter (a sort entry or a filter names a
+  // column id that no map entry serves). For a failure of a sent request, `table.busy` is false and `table.status` is
+  // `'failed'` before the call; the same status holds for a refusal on the load path (which leaves `busy` as it was); a
+  // refused `onsort` or `onfilter` leaves both as they were.
   // An answer's failure carries `code`, a string or `null`; a rejection is your `send`'s own error: if your
   // transport's errors carry a string `code` (axios does), tell them apart in `send`.
   // A rejection's value is passed as it is and may hold the request's headers: do not forward it to telemetry
@@ -64,8 +70,8 @@ interface ConnectionBaseOptions {
   // Stated limits: `onerror` must not throw; a refused `reload()` while a request runs (reachable only by changing the
   // column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are, the request's own
   // end then applying; a `send` that throws synchronously, with an `onerror` that calls `reload()`, repeats without
-  // end, and so does a refused sort on the load path with an `onerror` that calls `reload()`: both are synchronous
-  // recursion that ends in a stack overflow
+  // end, and so does a refused sort or filter on the load path with an `onerror` that calls `reload()`: both are
+  // synchronous recursion that ends in a stack overflow.
   readonly onerror: (error: unknown) => void;
 }
 
@@ -101,11 +107,25 @@ export type ConnectionOptions = ConnectionParamsOptions | ConnectionJsonOptions;
 // application's claim about the rows of its answers, which the helper passes on unread.
 export interface Connection<Row> {
   readonly table: Readonly<
-    Required<Pick<DataTableProps<Row>, "rows" | "status" | "busy">>
+    Required<
+      Pick<
+        DataTableProps<Row>,
+        | "rows"
+        | "status"
+        | "busy"
+        | "onfilter"
+        | "onclearfilter"
+        | "onclearfilters"
+      >
+    >
   > & {
     // Written out, not picked: the prop's `null` is not a value the helper produces
     readonly sort: readonly DataTableSortEntry[];
     readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
+    readonly filters: Readonly<Record<string, DataTableFilterState>>;
+    readonly search: string;
+    // Written out because DataTableProps has no onsearch until the search field exists (FILT-40, FILT-41)
+    readonly onsearch: (text: string) => void;
   };
   readonly pager:
     | Readonly<
