@@ -365,7 +365,7 @@ as before, and `onerror` called once with an `Error`.
   | `null`, `'ok'`, `undefined` | not an object | `it is not an object.` |
   | A1 without `recordsTotal`; without `recordsFiltered`; without `data` | a field missing | `recordsTotal is not a count.`; `recordsFiltered is not a count.`; `data is not a list.` |
   | A1 with `recordsFiltered` -1, 1.5, `'5x'`, `'-1'`, `''`, 2^53, `null`, `'1e3'`, `'+5'`, `' 5'`, `'5.0'`, `'9007199254740993'` | neither a safe non-negative integer nor its decimal text (the same for `recordsTotal`) | `<that field> is not a count.` |
-  | A1 with `data: {}`; `[]` | not a list | `data is not a list.` |
+  | A1 with `data: {}`; `[]` | `data` is not a list (the answer `[]` is an object without a list `data`) | `data is not a list.` |
   | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'`, `'1e0'`, `'+1'`, `'1.0'` | `draw` given and neither the number sent nor its decimal text | `draw is not the one sent.` |
   | A1 whose `recordsTotal` is a getter that throws, or whose `data` is a revoked `Proxy` | cannot be read | `it cannot be read.` |
 
@@ -429,7 +429,8 @@ data.
   `table.sort` `[code desc]`, `table.rows === D`; `send` returns `undefined` (plain JavaScript, no promise): `'failed'`,
   `onerror` called once with a `TypeError`.
 - Reason: the application's transport rejects every answer that is not a success (an HTTP status outside 2xx
-  included); the application decides what it means (PRD-B20).
+  included); the application decides what it means (PRD-B20). The rejection reaches `onerror` only: the failed state
+  shows `words.failed` and nothing from the rejection (CONN-26).
 - Layer: component.
 - Traces: PRD-B20.
 
