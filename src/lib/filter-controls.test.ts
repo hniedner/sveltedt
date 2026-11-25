@@ -440,6 +440,28 @@ describe("EXP-04", () => {
   );
 });
 
+// @spec("EXP-06", "600297c2")
+describe("EXP-06", () => {
+  it("renders the panels by the same elements through the alert, a load and a failure and back", async () => {
+    const beta = { name: { kind: "text", text: "Beta" } } as const;
+    const props = (next: Partial<DataTableProps<Item>>) => ({
+      ...fixture({ filters: beta, onreset: vi.fn(), ...next }).all,
+      withPanels: true,
+    });
+    const { rerender } = render(CriteriaTable, props({}));
+    const panel = screen.getByRole("button", { name: "Apply search" });
+    for (const next of [
+      { filters: { zzz: { kind: "text", text: "x" } } },
+      { status: "loading" },
+      { status: "failed", onretry: vi.fn() },
+      { status: "ready" },
+    ] as const) {
+      await rerender(props(next));
+      expect(screen.getByRole("button", { name: "Apply search" })).toBe(panel);
+    }
+  });
+});
+
 // @spec("FILT-26", "58072d25")
 describe("FILT-26", () => {
   it("emits onreset once with no argument on a press, and calls neither onsort nor onclearfilters", async () => {

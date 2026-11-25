@@ -1261,6 +1261,20 @@ and before the status region, in document order.
 - Layer: component.
 - Traces: PRD-B31, PRD-B16, PRD-A3.
 
+**EXP-06** After the table's state changes, the content of the `panels` snippet MUST be rendered by the same elements
+as before.
+- Example: the `panels` snippet holds a block with the button "Apply search"; Name's text "Beta" is applied and
+  `onreset` is given. The table is rerendered, each time from those props, with `filters` naming a column that is not
+  configured (the alert of RND-05), then `status 'loading'`, then `status 'failed'` with `onretry`, then
+  `status 'ready'`; after each change the button "Apply search" is the same element (`===`) as at mount. Breaks that
+  turn it red: the slot rendered in each branch of the root's `{#if}` on the alert; the slot inside a `{#key}` on
+  `status`.
+- Reason: a panel holds the focus and the values of the application's own inputs; a panel made anew when the table
+  enters or leaves a state would drop the focus to the page and lose what was typed but not applied, just when it is
+  the way back from a refused filter (EXP-04). RND-15 keeps the rows' elements for the same reason.
+- Layer: component.
+- Traces: PRD-B31.
+
 ## 5. No global footprint (FOOT)
 
 **FOOT-01** Mounting, rerendering and unmounting the table MUST leave the root element's attributes and inline style
@@ -5251,6 +5265,7 @@ pointer.
 | EXP-01 | PRD-B17 |
 | EXP-03 | PRD-S3, PRD-B17 |
 | EXP-04 | PRD-B31, PRD-B16, PRD-A3 |
+| EXP-06 | PRD-B31 |
 | FOOT-01 | PRD-B19 |
 | FOOT-02 | PRD-B19 |
 | FOOT-03 | PRD-B19, PRD-A3 |
@@ -5559,7 +5574,7 @@ state in their own statements.
 | PRD-B15 | STATE-01, STATE-02, STATE-03, STATE-04, STATE-06, STATE-07, STATE-08, A11Y-15, RND-13, A11Y-05, STATE-20, STATE-21, A11Y-21, STATE-28 | in full |
 | PRD-B16 | RND-05, RND-09, RND-10, RND-13, RND-14, RND-17, STATE-08, EXP-02, EXP-04, SORT-15, SORT-16, STATE-22, STATE-24, FILT-32, FILT-39, COL-25, SEL-10, CHILD-09, THEME-31, THEME-38, STK-11 | in full for the props so far; later groups state the faults of their own props in their own statements |
 | PRD-B17 | EXP-02, EXP-01, EXP-03 | in full |
-| PRD-B31 | EXP-04 | in part: the width is EXP-05's, the kept elements EXP-06's |
+| PRD-B31 | EXP-04, EXP-06 | in part: the width is EXP-05's |
 | PRD-B18 | ID-01, ID-02, ID-03, CHILD-11 | in part: each later group that adds an id reference states its instances in its own statement |
 | PRD-B19 | FOOT-01, FOOT-02, FOOT-03, FOOT-04, SORT-24, PAGE-31, PAGE-32, PAGE-33, FOOT-05, FILT-19, FILT-36, COL-28, COL-16, COL-31 | in part: the filter dialog adds no listener on `document` or `window` (FILT-19 by the browser's light dismiss) and states the Escape rule (FILT-36); B19's oracle allows "at most one passive outside-press listener" for the open dialog, and the filter dialog adds none; the column chooser states its own |
 | PRD-B22 | STATE-09, STATE-10, STATE-11, STATE-12, STATE-13, STATE-14, STATE-15, STATE-29, STATE-16, STATE-26, FOOT-05, A11Y-25, A11Y-20, A11Y-32 | in part: not under the sticky header arrives with the later sticky branch; colours from tokens: THEME-01, which reaches every colour of the stylesheet |
