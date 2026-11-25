@@ -58,8 +58,9 @@ export class SearchText {
   apply(): void {
     clearTimeout(this.#timer);
     const text = this.trimmed;
-    if (text === this.#applied()) return;
+    // Cleared before the equality return: a field that holds the applied text has taken it (FILT-44)
     this.#newer = false;
+    if (text === this.#applied()) return;
     this.#emit(text);
   }
 }

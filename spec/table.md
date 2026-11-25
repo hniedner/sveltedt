@@ -3360,6 +3360,7 @@ mount standing for the dialog's opening, except as FILT-58 says.
   | mount with `search` ""; with nothing typed, `search` becomes "gamma" | "gamma" |
   | type "x"; at 400 ms one call with "x"; at 450 ms, `search` unchanged | "x" |
   | type "x"; at 400 ms one call with "x"; at 500 ms `search` becomes "gamma" | "gamma" |
+  | mount with `search` "beta"; type "x", then Backspace; at 400 ms, `search` becomes "gamma" | "gamma" |
 
 - Reason: the field shows what narrows the rows; the props are the one source of truth (PRD-B2).
 - Layer: component.

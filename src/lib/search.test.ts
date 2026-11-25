@@ -154,7 +154,7 @@ describe("FILT-41", () => {
   });
 });
 
-// @spec("FILT-44", "a1bc0fea")
+// @spec("FILT-44", "343d3f01")
 describe("FILT-44", () => {
   it("shows the applied search at the mount", () => {
     expect(mount({ search: "beta" }).field.value).toBe("beta");
@@ -181,6 +181,16 @@ describe("FILT-44", () => {
     await table.at(400);
     expect(table.onsearch.mock.calls).toEqual([["x"]]);
     await table.at(500);
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("gamma");
+  });
+
+  it("takes a new search after typing that ended equal to the applied search", async () => {
+    const table = mount({ search: "beta" });
+    await table.type("x");
+    await table.backspace();
+    await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
     await table.setSearch("gamma");
     expect(table.field.value).toBe("gamma");
   });
