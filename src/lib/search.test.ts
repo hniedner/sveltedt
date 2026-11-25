@@ -433,3 +433,35 @@ describe("FILT-55", () => {
       expect(document.body.textContent).not.toContain(word);
   });
 });
+
+// A table with a text filter on Name, applied, and the handlers its filters need (FILT-32); `search` "beta"
+const withFilter = (extra: Partial<DataTableProps<Item>> = {}) => ({
+  columns: [
+    {
+      id: "name",
+      label: "Name",
+      value: ({ row }: { row: Item }) => row.name,
+      filter: { kind: "text" as const },
+    },
+  ],
+  filters: { name: { kind: "text" as const, text: "Gamma" } },
+  onfilter: vi.fn(),
+  onclearfilter: vi.fn(),
+  onclearfilters: vi.fn(),
+  search: "beta",
+  ...extra,
+});
+
+// @spec("FILT-46", "0011d453")
+describe("FILT-46", () => {
+  it("leaves the field's text and calls only onclearfilters", async () => {
+    const onclearfilters = vi.fn();
+    const table = mount(withFilter({ onclearfilters }));
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Clear column filters" }),
+    );
+    expect(onclearfilters).toHaveBeenCalledTimes(1);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    expect(table.field.value).toBe("beta");
+  });
+});
