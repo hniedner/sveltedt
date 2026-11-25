@@ -303,6 +303,7 @@ test.describe("STATE-29", () => {
         };
       });
     const before = await line();
+    expect(before.height).toBe(0);
     // The control: the same measure sees the reserved line once a load starts
     await setBusy(page, true);
     expect(await gap()).toBeGreaterThan(0);
@@ -313,7 +314,11 @@ test.describe("STATE-29", () => {
     expect(first.top - before.top).toBeCloseTo(first.height - before.height, 1);
     // Not again: the indicator, the text, the end of the load and a second load leave the region where it is
     await page.clock.runFor(6000);
+    await expect(indicator(page)).toHaveCount(1);
+    await expect(page.getByRole("status")).toContainText("Still loading");
+    expect((await line()).top).toBe(first.top);
     await setBusy(page, false);
+    await expect(indicator(page)).toHaveCount(0);
     expect((await line()).top).toBe(first.top);
     await setBusy(page, true);
     expect((await line()).top).toBe(first.top);
