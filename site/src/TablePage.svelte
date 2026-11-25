@@ -4,14 +4,13 @@
     type DataTableColumn,
     type DataTableStatus,
   } from "@hniedner/sveltedt";
-
-  // The page of the real-browser keyboard and focus tests (A11Y-12, A11Y-08, A11Y-06, THEME-03, THEME-06, FOOT-03 and the statements beside them): a table
-  // of ?cols= columns (default 3) and ?rows= rows (default 25), "Name" first. With ?link the first column's cell is a
-  // link "Open <name>", with ?edit the second column's is "Edit <name>", with ?heading a link "All orders" stands in
-  // the heading. A test changes the number of columns, the number of rows, the status, busy and whether the table is
-  // mounted through window.__table.set; every set gives the rows new ids (a generation prefix, as a refetch would).
-  // ?status= mounts in that status (an unknown one is the invalid-input alert) and ?busy with busy; ?long puts 2000 px
-  // above and below a box of fixed height and leaves the table unmounted until a test sets mounted
+  // The page of the real-browser tests of the table (keyboard, focus, states, scroll), served twice, as table.html and
+  // table-plain.html: a table of ?cols= columns (default 3) and ?rows= rows (default 25), "Name" first. With ?link the
+  // first column's cell is a link "Open <name>", with ?edit the second column's is "Edit <name>", with ?heading a link
+  // "All orders" stands in the heading. A test changes the number of columns, the number of rows, the status, busy and
+  // whether the table is mounted through window.__table.set; every set gives the rows new ids (a generation prefix, as
+  // a refetch would). ?status= mounts in that status (an unknown one is the invalid-input alert) and ?busy with busy;
+  // ?long puts 2000 px above and below a box of fixed height and leaves the table unmounted until a test sets mounted
   interface Item {
     id: string;
     name: string;

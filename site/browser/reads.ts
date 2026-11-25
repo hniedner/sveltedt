@@ -30,10 +30,10 @@ export const visibleNow = (page: Page) =>
     return { text: document.body.innerText, elements: shown.map(place) };
   });
 
-// Runs axe on the page. Pass: no serious or critical violation, and a rule passed on a node inside .sdt (a mustPass rule
-// too, when named). Finding: the violations, printed with their rule ids. Could not check: no such pass. Incomplete
-// items are attached for manual review and never count as a pass. The guard is weak by design: the node inside .sdt may
-// be a heading or the status node, not the table itself
+// Runs axe on the page. Pass: no serious or critical violation, and a rule passed on a node inside .sdt (a mustPass
+// rule too, when named). Finding: the violations, printed with their rule ids. Could not check: no such pass.
+// Incomplete items are attached for manual review and never count as a pass. The guard is weak by design: the node
+// inside .sdt may be a heading or the status node, not the table itself
 export async function axeClean(
   page: Page,
   testInfo: TestInfo,
@@ -70,8 +70,8 @@ export async function axeClean(
   return results;
 }
 
-// The region's outline as the browser computes it. The statement also accepts a box shadow; no engine's own ring is one,
-// so a rule that moves the indicator to a shadow extends this read
+// The region's outline as the browser computes it. The statement also accepts a box shadow; no engine's own ring is
+// one, so a rule that moves the indicator to a shadow extends this read
 export const ring = (region: Locator) =>
   region.evaluate((element) => {
     const style = getComputedStyle(element);
