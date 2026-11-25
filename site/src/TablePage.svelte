@@ -10,7 +10,8 @@
   // "All orders" stands in the heading. A test changes the number of columns, the number of rows, the status, busy and
   // whether the table is mounted through window.__table.set; every set gives the rows new ids (a generation prefix, as
   // a refetch would). ?status= mounts in that status (an unknown one is the invalid-input alert) and ?busy with busy;
-  // ?long puts 2000 px above and below a box of fixed height and leaves the table unmounted until a test sets mounted
+  // ?long puts 2000 px above and below a box of fixed height and leaves the table unmounted until a test sets mounted;
+  // ?panels fills the panels snippet with a block holding the button "Apply search" (EXP-05)
   interface Item {
     id: string;
     name: string;
@@ -63,6 +64,9 @@
   >{/snippet}
 {#snippet heading()}<h1><a href="#all">All orders</a></h1>{/snippet}
 {#snippet actions()}<button type="button">Export</button>{/snippet}
+{#snippet panel()}<div>
+    <button type="button">Apply search</button>
+  </div>{/snippet}
 
 {#snippet view()}
   {#if table.mounted}
@@ -76,6 +80,7 @@
       busy={table.busy}
       heading={params.has("heading") ? heading : undefined}
       {actions}
+      panels={params.has("panels") ? panel : undefined}
     />
   {/if}
 {/snippet}

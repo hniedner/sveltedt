@@ -89,6 +89,15 @@ There is nothing to install yet. What is on `main` today:
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
   column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
   search input gets the alert; the filter fields and dialog are not done yet;
+- the `panels` snippet, for the application's own panels (an advanced search, batch actions) that a button in its
+  `actions` snippet opens: rendered after the toolbar's controls and before the status line, in every state, the
+  invalid-input alert's included, with its elements kept when the state changes (proved by component tests). A block
+  in it is as wide as the region (proved in Chromium, Firefox and WebKit on the test site's table page). The table
+  keeps no open state and adds no toggle: the application decides when a panel shows, and gives its button
+  `aria-expanded` and `aria-controls` (the WAI-ARIA disclosure pattern). Limits: inline content sits on the toolbar's
+  line, so wrap a panel in a block element; opening or closing a panel moves the status line and the table, as any
+  content above them does; with a panel open, Tab reaches "Cancel" only after the panel's controls; the table moves no
+  focus when a panel opens or closes;
 - the connection helper, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first request through
   the application's `send({ request, signal })`, maps the answer to rows and totals, and changes page through
   `pager.onpage` with the rows kept while busy. An answer it cannot map (its message names the check that failed), an

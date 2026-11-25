@@ -140,6 +140,8 @@ export interface DataTableProps<Row> {
   maxLength?: number;
   heading?: Snippet;
   actions?: Snippet;
+  // The application's own panels: after the toolbar and before the status line, in every state (EXP-04)
+  panels?: Snippet;
 }
 
 // Every fixed word of the pager (PAGE-19): the step names, the page and size words, the information line and the
