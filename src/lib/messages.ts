@@ -25,6 +25,7 @@ export const defaultMessages: DataTableMessages = {
   clearFilters: "Clear column filters",
   reset: "Reset table",
   searchLabel: "Search",
+  pressEnter: "Press Enter to apply.",
   textHiddenCharacter:
     "The text contains a hidden character, often from pasted text. Clear the field and type the text again.",
   textTooLong: (maxLength) =>

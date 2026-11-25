@@ -86,6 +86,8 @@ export interface DataTableMessages {
   readonly reset: string;
   // The visible label and the name of the global search field (FILT-40)
   readonly searchLabel: string;
+  // The search field's hint under `searchOnEnter` (FILT-43)
+  readonly pressEnter: string;
   // The search field's refusal of a control character in its text (FILT-48)
   readonly textHiddenCharacter: string;
   // The search field's refusal of a text longer than `maxLength` (FILT-48)

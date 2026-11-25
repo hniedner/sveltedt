@@ -386,3 +386,17 @@ describe("FILT-48", () => {
     expect(described(table.field)).toEqual([HIDDEN]);
   });
 });
+
+// @spec("FILT-43", "d9a4df9f")
+describe("FILT-43", () => {
+  it.each([
+    [true, ["Press Enter to apply."]],
+    [false, []],
+  ])(
+    "with searchOnEnter %s the field is described by %j",
+    (searchOnEnter, hint) => {
+      const table = mount({ searchOnEnter });
+      expect(described(table.field)).toEqual(hint);
+    },
+  );
+});

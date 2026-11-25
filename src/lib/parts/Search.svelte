@@ -7,7 +7,10 @@
     "search" | "searchDelay" | "searchOnEnter" | "maxLength"
   > & {
     label: string;
-    words: Pick<DataTableMessages, "textHiddenCharacter" | "textTooLong">;
+    words: Pick<
+      DataTableMessages,
+      "pressEnter" | "textHiddenCharacter" | "textTooLong"
+    >;
     onsearch: (text: string) => void;
   };
 
@@ -46,6 +49,7 @@
     value={box.text}
     aria-invalid={box.hidden || box.tooLong ? "true" : undefined}
     aria-describedby={[
+      searchOnEnter ? `${id}-hint` : null,
       box.hidden ? `${id}-hidden` : null,
       box.tooLong ? `${id}-long` : null,
     ]
@@ -56,6 +60,7 @@
       if (event.key === "Enter") box.apply();
     }}
   />
+  {#if searchOnEnter}<div id="{id}-hint">{words.pressEnter}</div>{/if}
   {#if box.hidden}<div role="alert" id="{id}-hidden">
       {words.textHiddenCharacter}
     </div>{/if}
