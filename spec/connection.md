@@ -373,8 +373,8 @@ as before, and `onerror` called once with an `Error`.
   message `... data is not a list.` With A1 on screen, `pager.onpage(10)`, its request sent with `draw=2` and answered
   by A1 (`draw: 1`, the first request's): `'failed'`, `table.rows === D`, message `... draw is not the one sent.` In
   every row `onerror` receives an `Error` with no `cause`, whose message names the first check that fails, in the
-  order object, `data`, `recordsFiltered`, `recordsTotal`, `draw`, and holds no value from the answer. (An answer with
-  a true `error` is CONN-19.)
+  order: an answer that cannot be read first; then object; a true `error` (CONN-19); then `data`,
+  `recordsFiltered`, `recordsTotal`, `draw`; and holds no value from the answer.
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
   `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20). The
@@ -413,12 +413,12 @@ data.
   | A1 with `error: true` and `data` `[{ id: 'x1', name: 'leak-41' }]` | `leak-41` |
   | A1 with `error: 'x'`, `error_code: 'invalid_filter'` | `invalid_filter` |
 
-  In every row the document holds the failed text.
+  In every row the document holds the failed message (`messages.failed`, "The data could not be loaded.").
 
 - Reason: server text and error messages may hold row values and reach screenshots (PRD-S4, PRD-B20); what
   `onerror` receives is the application's to log. The rows beside an `error` are server text too (CONN-19); an
-  application that wants its own text for a code passes it as `messages.failed`. Rows 1 and 3 are regression pins:
-  no present change to the helper reaches them.
+  application that wants its own text for a code passes it as `messages.failed`. Row 2 (`leak-41`) is the row that
+  can fail; rows 1 and 3 are regression pins that no present mutant reaches.
 - Layer: component.
 - Traces: PRD-B20, PRD-S4.
 
@@ -481,11 +481,13 @@ is still running, and MUST NOT be aborted once it has settled.
   | A1 settled | `pager.onpage(10)`, then the component unmounts | not aborted | aborted |
   | the map `M` without the entry of column id `code`, mount, request 1 running | `table.onsort([code asc])`, refused (CONN-16) | not aborted | none sent |
 
-- Reason: a request whose result will not be used need not run on (PRD-B20). TanStack Query aborts the signal of a
-  query that is out of date or inactive, and React's guide asks an effect's cleanup to "either abort the fetch or
+- Reason: a request whose result will not be used need not run on. This is best practice with no PRD sentence behind
+  it (DEP-59), traced to PRD-B20. One signal covers both triggers: the helper aborts it whether a later request or
+  the unmount ends the request's use. TanStack Query aborts the signal
+  of a query that is out of date or inactive, and React's guide asks an effect's cleanup to "either abort the fetch or
   ignore its result" (FETCHED 2026-11-24); DataTables lets a superseded server-side request run (DEP-59). A refused
-  intent sends nothing, so it aborts nothing (CONN-16). Testing Library's `render` returns the `unmount` the test
-  calls (`node_modules/@testing-library/svelte/src/pure.js` l.34, l.67, version 5.4.2).
+  intent sends nothing, so it aborts nothing (CONN-16). The test calls the documented `unmount` that Testing
+  Library's `render` returns.
 - Layer: component.
 - Traces: PRD-B20.
 
@@ -500,8 +502,9 @@ MUST NOT call `onerror`.
   | A1 on screen, `pager.onpage(10)` running | request 2 with `null` | `'ready'`, `busy` true, `rows === D` | not called |
 
 - Reason: unmounting aborts the running request (CONN-30), and the rejection that follows is the application's
-  cancellation, not a failure (PRD-B20: "a cancelled request's rejection excepted"); an answer with nowhere to show
-  it must not reach `onerror` either.
+  cancellation, not a failure. This extends PRD-B20's rule for a cancelled request ("only the latest request's
+  answer is used"; the `oncancel` sentence excepts a cancelled request's rejection) to the unmount; an answer with
+  nowhere to show it must not reach `onerror` either. One signal covers both triggers (CONN-30).
 - Layer: component.
 - Traces: PRD-B20.
 

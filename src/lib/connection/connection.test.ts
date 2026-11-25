@@ -704,7 +704,7 @@ const revoked = () => {
   return proxy;
 };
 
-// @spec("CONN-18", "50f61f4a")
+// @spec("CONN-18", "bfeb6c04")
 describe("CONN-18", () => {
   const badCounts = [
     -1,
@@ -852,7 +852,7 @@ describe("CONN-21", () => {
   });
 });
 
-// @spec("CONN-26", "40862f91")
+// @spec("CONN-26", "4467a69c")
 describe("CONN-26", () => {
   const rows: [string, unknown, string][] = [
     [
