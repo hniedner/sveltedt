@@ -79,7 +79,7 @@ to the consumer as one callback (stated with the statements that add user action
 - **Queries.** A test finds elements by role, accessible name and visible text, may read the tag, the ARIA and HTML
   attributes, the ancestors and the descendants of an element so found, and may assert that the component holds no
   element of a named tag or selector, and may read a checkbox's `checked` and `indeterminate` properties; never a test
-  id or a class, except THEME-09 and THEME-48, which test the public
+  id or a class, except THEME-09, THEME-48 and THEME-49, which test the public
   classes of PRD-K3 themselves, and THEME-23, THEME-24, THEME-27, THEME-28 and THEME-29, which test the classes the
   hook props write and the THEME-09 classes beside them,
   and the unmarked component rows of STATE-15 and STATE-29, which read the status line's internal class `sdt-status`,
@@ -1439,6 +1439,19 @@ data row, `sdt-cell` on every body cell, and `sdt-pager` on the pager's `nav`.
   empty message, and with 2 rows no element has `sdt-empty`. No other element carries one of the four classes.
 - Reason: a selector of the stylesheet has one class at most (THEME-12), so the region, the caption, the live count and
   the empty cell need a class of their own; like the seven of THEME-09 they are public interface (PRD-K3).
+- Layer: component.
+- Traces: PRD-K3.
+
+**THEME-49** With `status 'stopped'`, the one body cell that holds the stopped message MUST carry `sdt-cell`, as
+THEME-09 requires of every body cell; this pins the stopped state's counts.
+- Example: `status 'stopped'`, 2 rows, 2 columns; the test counts the elements carrying each class:
+
+  | Props | `sdt` | `sdt-table` | `sdt-head-row` | `sdt-th` | `sdt-row` | `sdt-cell` | `sdt-pager` |
+  |---|---|---|---|---|---|---|---|
+  | `status 'stopped'`, 2 rows, 2 columns | 1 | 1 | 1 | 2 | 0 | 1 | 0 |
+
+- Reason: an application's rule for the cell class must style the stopped message's cell like any other body cell
+  (PRD-K3).
 - Layer: component.
 - Traces: PRD-K3.
 
@@ -5456,6 +5469,7 @@ pointer.
 | THEME-45 | PRD-A8, PRD-T10 |
 | THEME-46 | PRD-T1 |
 | THEME-48 | PRD-K3 |
+| THEME-49 | PRD-K3 |
 | THEME-38 | PRD-B16, PRD-T5, PRD-T6, PRD-T13 |
 | THEME-39 | PRD-I1 |
 | A11Y-46 | PRD-A9, PRD-A10 |
@@ -5538,7 +5552,7 @@ state in their own statements.
 | PRD-T7 | THEME-23, THEME-31 | in full |
 | PRD-T8 | THEME-24, THEME-28, THEME-29, THEME-31 | in full |
 | PRD-T14 | THEME-27, THEME-26, THEME-30, THEME-31 | in full |
-| PRD-K3 | THEME-09, THEME-48, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
+| PRD-K3 | THEME-09, THEME-48, THEME-49, RND-18 | in part: the public classes on their elements and the one-object argument of the functions and snippets in the props; the documented ARIA state selectors and what counts as breaking are not stated yet |
 | PRD-G2 | THEME-07 | in part: rule (b) for `style:` only; the other forms and rules (a), (c) to (e) come with the gate statements |
 | PRD-G4 | THEME-13, THEME-14 | in part: a rule that only the consumer project's tests can prove gets its marker statement with the consumer project |
 
