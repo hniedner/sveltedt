@@ -269,5 +269,8 @@ describe("FILT-58", () => {
     await table.at(500);
     await table.setSearch("beta");
     expect(table.field.value).toBe(" beta ");
+    // Enter applies the field's text trimmed: equal to the search that reached the component, so no second call
+    await table.enter();
+    expect(table.onsearch.mock.calls).toEqual([["beta"]]);
   });
 });

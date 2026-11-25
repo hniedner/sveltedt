@@ -724,11 +724,12 @@ describe("FOOT-05", () => {
   // while it runs leaves none behind
   it("leaves no timer pending when unmounted during the search field's pause", async () => {
     const table = mount({ rows: twoRows, onsearch: () => {} });
+    expect(vi.getTimerCount()).toBe(0);
     await fireEvent.input(
       within(table.container).getByRole("searchbox", { name: "Search" }),
       { target: { value: "beta" } },
     );
-    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    expect(vi.getTimerCount()).toBe(1);
     table.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
