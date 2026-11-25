@@ -18,6 +18,9 @@ decision (see Region order).
   `Pagination` and types (`src/lib/index.ts:1-15`); the package's other entries are `./connection` and `./styles.css`
   (`package.json:8-17`). `Pagination` is placed by the application and holds the information line
   (`src/lib/Pagination.svelte:14-24`, `src/lib/Pagination.svelte:53`).
+- Added with the global search (#162), measured at 8374644: a third part,
+  `src/lib/parts/Search.svelte` (36 lines), and a second state class, `src/lib/search.svelte.ts` (66 lines), built by
+  the part, which amends the Fields rule below.
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
@@ -81,6 +84,9 @@ decision (see Region order).
     FOOT-05, `spec/table.md:1272`). At b20d582 no test compares the fields with PRD-B2's list; a review does (MEASURED:
     `git grep -n "PRD-B2" b20d582 -- src site test scripts` finds no test of the fields: `scripts/trace.test.ts:61` is a
     trace-hash test, the other hits are comments).
+    This amends the rule above: a field the user types into keeps its unsent text and its pause timer in a class of its
+    own, built by the part that shows the field (`src/lib/search.svelte.ts`, #162); `TableView` keeps the table-wide
+    items.
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
     `grep -rnE "view\.\w+ =" src/lib` finds nothing). The fields are public and writable in TypeScript; a part that

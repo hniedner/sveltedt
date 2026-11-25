@@ -720,6 +720,20 @@ describe("FOOT-05", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  // The search field's pause (FILT-41) is a timer the table starts after the user's first key; a table unmounted
+  // while it runs leaves none behind
+  it("leaves no timer pending when unmounted during the search field's pause", async () => {
+    const table = mount({ rows: twoRows, onsearch: () => {} });
+    expect(vi.getTimerCount()).toBe(0);
+    await fireEvent.input(
+      within(table.container).getByRole("searchbox", { name: "Search" }),
+      { target: { value: "beta" } },
+    );
+    expect(vi.getTimerCount()).toBe(1);
+    table.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   // No timer is pending at 6000 ms. With "Cancel" focused, this row keeps the unmount path honest: nothing the focus
   // code leaves behind for a focused button (a teardown that defers work) may outlive the table. A hand-off that defers
   // itself fails earlier, in A11Y-28's rows above, which need focus on the table when the change resolves

@@ -24,6 +24,7 @@ export const defaultMessages: DataTableMessages = {
   clearFilter: (words) => `Clear filter ${words}`,
   clearFilters: "Clear column filters",
   reset: "Reset table",
+  searchLabel: "Search",
   sortRank: (rank) => String(rank),
   sortDescription: ({ direction, rank }) => {
     const hint =

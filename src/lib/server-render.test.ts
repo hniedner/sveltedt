@@ -54,3 +54,27 @@ describe("STATE-15, the status line's class in the server render", () => {
     expect(errors()).toEqual([]);
   });
 });
+
+// No marker: the search field is a component-layer statement (FILT-40, FILT-44); this row pins in the server render
+// that the field is there from the first byte and shows the applied search, since the server never runs an effect
+// (PRD-B2, record 004)
+describe("The search field in the server render", () => {
+  it("shows the field with the applied search and writes no console line", () => {
+    const { body } = render(DataTable<Item>, {
+      props: {
+        rows: [],
+        columns: [
+          { id: "id", label: "Id", value: ({ row }) => row.id },
+        ] satisfies DataTableColumn<Item>[],
+        getRowId: ({ row }: { row: Item }): string => row.id,
+        caption: "Orders",
+        regionLabel: "Orders table",
+        onsearch: () => undefined,
+        search: "beta",
+      },
+    });
+    expect(body).toContain('type="search"');
+    expect(body).toContain('value="beta"');
+    expect(errors()).toEqual([]);
+  });
+});

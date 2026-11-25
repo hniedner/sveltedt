@@ -84,6 +84,15 @@ There is nothing to install yet. What is on `main` today:
 - the pager's information line ("Showing 1 to 10 of 57 rows", with "(filtered from 1,000 total rows)" when an
   unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
   announced, and every fixed word of the pager as a `messages` prop with an English default;
+- the global search field, shown while `onsearch` is given and the alert is not showing, after the `actions` snippet
+  and before the filter badges. It emits through `onsearch` after the `searchDelay` pause, at once on Enter, or on
+  Enter only with `searchOnEnter`; the text emitted has no leading or trailing white space, while the field keeps what
+  was typed. It shows the applied `search`, and keeps newer typing when `search` changes. An application that wants
+  another field leaves out `onsearch` and renders its own, and then has neither the pause, the trimming nor the
+  newer-typing rule. Limits: an application that applies `search` only after the answer arrives should still pass the
+  new text at once, as the connection helper does; Enter inside the application's own `<form>` submits that form;
+  Enter that confirms an IME composition applies the search; a text with a control character, or one longer than
+  `maxLength`, is not refused yet and is emitted, and the field has no hint under `searchOnEnter` yet;
 - the filter controls, driven by the application's `filters`: a button "Filter <label>" in the header cell of each
   filtered column (it does nothing yet), a clearable badge for each applied filter, "Clear column filters", "Reset
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
@@ -112,8 +121,8 @@ There is nothing to install yet. What is on `main` today:
   intents returns to the first page (the page-size intent keeps the page of the first row shown): a text filter and
   the search go out as given, a categorical filter as an anchored alternation of its escaped values with `regex=true`
   (a server that ignores `regex` and matches by substring finds no row), `query.filters` and `query.search` give the
-  starting filters and search and are read back as `table.filters` and `table.search`, and `table.onsearch` exists but
-  is not passed to `DataTable` until the table has its search field; `reload()` sends the current query again, the
+  starting filters and search and are read back as `table.filters` and `table.search`, and `table.onsearch` is the
+  `onsearch` of `DataTable`; `reload()` sends the current query again, the
   page included; each column map entry can say `searchable` and `orderable`; the request goes out in the bracketed
   form by default, dotted with `form: "dotted"`, or as the plain object with `form: "json"`; and a sort or filter on a
   column id no map entry serves sends nothing and is reported once through `onerror`. Its tests use answers written by
@@ -122,7 +131,7 @@ There is nothing to install yet. What is on `main` today:
   `/api/orders`, pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in
   Chromium, Firefox and WebKit.
 
-Not yet: the search field, the filter fields and dialog, column features, selection, the rest of the connection helper
+Not yet: the filter fields and dialog, column features, selection, the rest of the connection helper
 (reset; cancel and retry) and the published package. The order is in the
 [milestones](https://github.com/hniedner/sveltedt/milestones).
 

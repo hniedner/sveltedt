@@ -124,7 +124,7 @@ export interface Connection<Row> {
     readonly onsort: NonNullable<DataTableProps<Row>["onsort"]>;
     readonly filters: Readonly<Record<string, DataTableFilterState>>;
     readonly search: string;
-    // Written out because DataTableProps has no onsearch until the search field exists (FILT-40, FILT-41)
+    // Written out like `search`: the helper's onsearch is never undefined, while the prop's is optional
     readonly onsearch: (text: string) => void;
   };
   readonly pager:

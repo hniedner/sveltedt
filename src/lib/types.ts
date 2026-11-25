@@ -84,6 +84,8 @@ export interface DataTableMessages {
   readonly clearFilters: string;
   // The button that asks the application to restore the order and the filters (FILT-30)
   readonly reset: string;
+  // The visible label and the name of the global search field (FILT-40)
+  readonly searchLabel: string;
   readonly sortRank: (rank: number) => string;
   // `rank` is the column's place while two or more columns are sorted, else null (SORT-06)
   readonly sortDescription: (
@@ -132,10 +134,14 @@ export interface DataTableProps<Row> {
   // The application's own criteria controls: between the badges and "Clear column filters", also while the alert
   // shows (FILT-31)
   criteria?: Snippet;
+  // Called with the search text; the search field shows while it is given and no fault shows (FILT-40)
+  onsearch?: (text: string) => void;
   // The applied global search; null is not given, as `sort` (FILT-32)
   search?: string | null;
-  // Milliseconds of typing pause before a filter emits; a whole number, 0 or more (FILT-32)
+  // Milliseconds of typing pause before a filter or the search emits; a whole number, 0 or more (FILT-32)
   searchDelay?: number;
+  // The search field emits only on Enter, not after a pause; default false (FILT-41)
+  searchOnEnter?: boolean;
   // The longest text a filter field accepts; a whole number, 1 or more (FILT-32)
   maxLength?: number;
   heading?: Snippet;
