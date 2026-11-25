@@ -54,9 +54,11 @@ interface ConnectionBaseOptions {
   // Called once with an Error when an answer cannot be mapped, its message naming the check that failed, once with
   // the rejection or the thrown value of a `send` that fails, passed as it is, and once for each request refused
   // because a sort entry names a column that no map entry serves; `table.status` becomes `'failed'` for each except a
-  // refused `onsort`, which leaves it as it was. Stated limit: a refused `reload()` while a request runs (reachable
-  // only by changing the column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they
-  // are; the request's own end then applies
+  // refused `onsort`, which leaves it as it was. An answer's failure carries `code`, a string or `null`; a rejection is
+  // your `send`'s own error, passed as it is: if your transport's errors carry a string `code` (axios does), tell them
+  // apart in `send`. Stated limit: a refused `reload()` while a request runs (reachable only by changing the column
+  // map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they are; the request's own end
+  // then applies
   readonly onerror: (error: unknown) => void;
 }
 

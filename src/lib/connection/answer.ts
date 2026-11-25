@@ -15,28 +15,37 @@ function readCount(value: unknown): number | undefined {
 }
 
 const MISMATCH = "The answer does not match the request";
-// The Error of a refused answer: fixed words naming the check that failed, never a value from the answer
-const failure = (reason: string): Error => new Error(`${MISMATCH}: ${reason}.`);
+// The Error of a refused answer: fixed words, never a value from the answer, and `code`, the answer's `error_code`
+// when it is a string, else `null`
+const failure = (message: string, code: unknown): Error =>
+  Object.assign(new Error(message), {
+    code: typeof code === "string" ? code : null,
+  });
+const mismatch = (reason: string, code: unknown = null): Error =>
+  failure(`${MISMATCH}: ${reason}.`, code);
 
 function read<Row>(body: unknown, sent: number): Answer<Row> | Error {
   if (typeof body !== "object" || body === null)
-    return failure("it is not an object");
-  const { data, draw, error, recordsFiltered, recordsTotal } = body as {
-    data?: unknown;
-    draw?: unknown;
-    error?: unknown;
-    recordsFiltered?: unknown;
-    recordsTotal?: unknown;
-  };
-  if (error) return new Error("The answer reports an error.");
-  if (!Array.isArray(data)) return failure("data is not a list");
+    return mismatch("it is not an object");
+  const { data, draw, error, error_code, recordsFiltered, recordsTotal } =
+    body as {
+      data?: unknown;
+      draw?: unknown;
+      error?: unknown;
+      error_code?: unknown;
+      recordsFiltered?: unknown;
+      recordsTotal?: unknown;
+    };
+  if (error) return failure("The answer reports an error.", error_code);
+  if (!Array.isArray(data)) return mismatch("data is not a list", error_code);
   const total = readCount(recordsFiltered);
-  if (total === undefined) return failure("recordsFiltered is not a count");
+  if (total === undefined)
+    return mismatch("recordsFiltered is not a count", error_code);
   const unfilteredTotal = readCount(recordsTotal);
   if (unfilteredTotal === undefined)
-    return failure("recordsTotal is not a count");
+    return mismatch("recordsTotal is not a count", error_code);
   if (draw !== undefined && readCount(draw) !== sent)
-    return failure("draw is not the one sent");
+    return mismatch("draw is not the one sent", error_code);
   return { rows: data as readonly Row[], total, unfilteredTotal };
 }
 
@@ -50,6 +59,6 @@ export function readAnswer<Row>(
   try {
     return read(body, sent);
   } catch {
-    return failure("it cannot be read");
+    return mismatch("it cannot be read");
   }
 }

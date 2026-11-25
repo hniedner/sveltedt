@@ -822,6 +822,35 @@ describe("CONN-19", () => {
   });
 });
 
+// @spec("CONN-21", "0e5b5709")
+describe("CONN-21", () => {
+  const rows: [string, unknown, string | null][] = [
+    [
+      "A1 with error and error_code 'TIMEOUT'",
+      A1({ error: "x", error_code: "TIMEOUT" }),
+      "TIMEOUT",
+    ],
+    [
+      "A1 with error and error_code 42",
+      A1({ error: "x", error_code: 42 }),
+      null,
+    ],
+    ["A1 with error and no error_code", A1({ error: "x" }), null],
+    [
+      "A1 without recordsTotal, with error_code 'TIMEOUT'",
+      { ...A1without("recordsTotal"), error_code: "TIMEOUT" },
+      "TIMEOUT",
+    ],
+    ["{ error: 'x' } alone", { error: "x" }, null],
+  ];
+  it.each(rows)("carries the code of %s", async (_row, body, code) => {
+    const probe = mount();
+    await probe.answer(0, body);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.onerror.mock.calls[0]?.[0]).toHaveProperty("code", code);
+  });
+});
+
 // @spec("CONN-26", "40862f91")
 describe("CONN-26", () => {
   const rows: [string, unknown, string][] = [
