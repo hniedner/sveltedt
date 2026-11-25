@@ -360,21 +360,27 @@ id (as CONN-16, for the filters).
 as before, and `onerror` called once with an `Error`.
 - Examples (the test runs every row; the request sent `draw=1`):
 
-  | Answer | Why |
-  |---|---|
-  | `null`, `'ok'`, `[]` | not an object |
-  | A1 without `recordsTotal`; without `recordsFiltered`; without `data` | a field missing |
-  | A1 with `recordsFiltered` -1, 1.5, `'5x'`, `'-1'`, `''`, 2^53, `null`, `'1e3'`, `'+5'`, `' 5'`, `'5.0'`, `'9007199254740993'` | neither a safe non-negative integer nor its decimal text (the same for `recordsTotal`) |
-  | A1 with `data: {}` | not a list |
-  | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'`, `'1e0'`, `'+1'`, `'1.0'` | `draw` given and neither the number sent nor its decimal text |
+  | Answer | Why | The message after `The answer does not match the request: ` |
+  |---|---|---|
+  | `null`, `'ok'`, `undefined` | not an object | `it is not an object.` |
+  | A1 without `recordsTotal`; without `recordsFiltered`; without `data` | a field missing | `recordsTotal is not a count.`; `recordsFiltered is not a count.`; `data is not a list.` |
+  | A1 with `recordsFiltered` -1, 1.5, `'5x'`, `'-1'`, `''`, 2^53, `null`, `'1e3'`, `'+5'`, `' 5'`, `'5.0'`, `'9007199254740993'` | neither a safe non-negative integer nor its decimal text (the same for `recordsTotal`) | `<that field> is not a count.` |
+  | A1 with `data: {}`; `[]` | not a list | `data is not a list.` |
+  | A1 with `draw` 2, `'2'`, `null`, `'1a'`, `' 1'`, `'1e0'`, `'+1'`, `'1.0'` | `draw` given and neither the number sent nor its decimal text | `draw is not the one sent.` |
+  | A1 whose `recordsTotal` is a getter that throws, or whose `data` is a revoked `Proxy` | cannot be read | `it cannot be read.` |
 
-  With A1 on screen, the second request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false.
-  With A1 on screen, `pager.onpage(10)`, its request sent with `draw=2` and answered by A1 (`draw: 1`, the first
-  request's): `'failed'`, `table.rows === D`. In every row `onerror` receives an `Error` whose message is `The answer
-  does not match the request.`, which holds no value from the answer.
+  With A1 on screen, the second request answered by A1 with `draw: 2` and without `data`: `'failed'`, `busy` false,
+  message `... data is not a list.` With A1 on screen, `pager.onpage(10)`, its request sent with `draw=2` and answered
+  by A1 (`draw: 1`, the first request's): `'failed'`, `table.rows === D`, message `... draw is not the one sent.` In
+  every row `onerror` receives an `Error` with no `cause`, whose message names the first check that fails, in the
+  order object, `data`, `recordsFiltered`, `recordsTotal`, `draw`, and holds no value from the answer. (An answer with
+  a true `error` is CONN-19.)
 
 - Reason: a wrong table is worse than none; a total that is not a safe integer breaks the pager (PRD-B9); the manual's
-  `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20).
+  `draw` echoes the request's counter, and an answer for another request is the helper's failure (PRD-B20). The
+  field's name lets a server's developer fix the answer without the network log; it is the protocol's, never a value
+  (PRD-S4). DataTables names the kind of failure ('Invalid JSON response', 'Ajax error'; FETCHED 2026-11-24,
+  DataTablesSrc ad98978 js/core/ajax.ts l.104-108).
 - Layer: component.
 - Traces: PRD-B20, PRD-B9.
 

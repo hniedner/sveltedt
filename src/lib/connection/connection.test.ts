@@ -680,14 +680,20 @@ const outcome = (probe: ReturnType<typeof mount>) => ({
     error instanceof Error ? error.message : error,
   ),
 });
-const failed = (rows: unknown) => ({
+const failed = (rows: unknown, reason: string) => ({
   status: "failed",
   busy: false,
   rows,
-  errors: ["The answer does not match the request."],
+  errors: [`The answer does not match the request: ${reason}.`],
 });
+// A revoked Proxy of a list: Array.isArray throws on it
+const revoked = () => {
+  const { proxy, revoke } = Proxy.revocable([], {});
+  revoke();
+  return proxy;
+};
 
-// @spec("CONN-18", "9fef58fa")
+// @spec("CONN-18", "122770d8")
 describe("CONN-18", () => {
   const badCounts = [
     -1,
@@ -704,38 +710,65 @@ describe("CONN-18", () => {
     "9007199254740993",
     [5],
   ];
-  const rows: [string, unknown][] = [
-    ["null", null],
-    ["'ok'", "ok"],
-    ["[]", []],
-    ["A1 without recordsTotal", A1without("recordsTotal")],
-    ["A1 without recordsFiltered", A1without("recordsFiltered")],
-    ["A1 without data", A1without("data")],
-    ...["recordsFiltered", "recordsTotal"].flatMap((field): [string, Body][] =>
-      badCounts.map((count) => [
-        `A1 with ${field} ${JSON.stringify(count)}`,
-        A1({ [field]: count }),
-      ]),
+  const rows: [string, unknown, string][] = [
+    ["null", null, "it is not an object"],
+    ["'ok'", "ok", "it is not an object"],
+    ["undefined", undefined, "it is not an object"],
+    ["[]", [], "data is not a list"],
+    [
+      "A1 without recordsTotal",
+      A1without("recordsTotal"),
+      "recordsTotal is not a count",
+    ],
+    [
+      "A1 without recordsFiltered",
+      A1without("recordsFiltered"),
+      "recordsFiltered is not a count",
+    ],
+    ["A1 without data", A1without("data"), "data is not a list"],
+    ...["recordsFiltered", "recordsTotal"].flatMap(
+      (field): [string, Body, string][] =>
+        badCounts.map((count) => [
+          `A1 with ${field} ${JSON.stringify(count)}`,
+          A1({ [field]: count }),
+          `${field} is not a count`,
+        ]),
     ),
-    ["A1 with data {}", A1({ data: {} })],
+    ["A1 with data {}", A1({ data: {} }), "data is not a list"],
     ...[2, "2", null, "1a", " 1", "1e0", "+1", "1.0", [1]].map(
-      (draw): [string, Body] => [
+      (draw): [string, Body, string] => [
         `A1 with draw ${JSON.stringify(draw)}`,
         A1({ draw }),
+        "draw is not the one sent",
       ],
     ),
+    [
+      "A1 whose recordsTotal getter throws",
+      Object.defineProperty(A1(), "recordsTotal", {
+        get() {
+          throw new Error("getter leak-12");
+        },
+      }),
+      "it cannot be read",
+    ],
+    [
+      "A1 whose data is a revoked Proxy",
+      A1({ data: revoked() }),
+      "it cannot be read",
+    ],
   ];
-  it.each(rows)("fails on %s", async (_row, body) => {
+  it.each(rows)("fails on %s", async (_row, body, reason) => {
     const probe = mount();
     await probe.answer(0, body);
-    expect(outcome(probe)).toEqual(failed([]));
+    expect(outcome(probe)).toEqual(failed([], reason));
+    expect((probe.onerror.mock.calls[0]?.[0] as Error).cause).toBeUndefined();
   });
   it("fails the second request answered without data, not busy", async () => {
     const probe = mount();
     await probe.answer(0, A1());
     probe.connection.pager?.onpage(10);
     await probe.answer(1, { ...A1without("data"), draw: 2 });
-    expect(outcome(probe)).toEqual(failed(D));
+    expect(outcome(probe)).toEqual(failed(D, "data is not a list"));
   });
   it("fails an answer of the first request's draw to the second request, the rows kept", async () => {
     const probe = mount();
@@ -743,7 +776,7 @@ describe("CONN-18", () => {
     probe.connection.pager?.onpage(10);
     expect(probe.send.mock.calls[1]?.[0].request.get("draw")).toBe("2");
     await probe.answer(1, A1());
-    expect(outcome(probe)).toEqual(failed(D));
+    expect(outcome(probe)).toEqual(failed(D, "draw is not the one sent"));
   });
 });
 

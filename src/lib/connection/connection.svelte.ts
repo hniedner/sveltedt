@@ -63,9 +63,9 @@ export function createConnection<Row = unknown>(
     ).then((body) => {
       busy = false;
       const read = readAnswer<Row>(body, sent);
-      if (read === undefined) {
+      if (read instanceof Error) {
         status = "failed";
-        options.onerror(new Error("The answer does not match the request."));
+        options.onerror(read);
         return;
       }
       answer = read;
