@@ -51,10 +51,12 @@ export interface ConnectionRequest {
 interface ConnectionBaseOptions {
   readonly columns: readonly ConnectionColumn[];
   readonly query: ConnectionQuery;
-  // Called once with an Error when an answer cannot be mapped, its message naming the check that failed, and once for
-  // each request refused because a sort entry names a column that no map entry serves; `table.status` becomes
-  // `'failed'` only for a refusal at mount or in `reload()`, a refused `onsort` leaves it as it was; it does not hear a
-  // rejection of `send`
+  // Called once with an Error when an answer cannot be mapped, its message naming the check that failed, once with
+  // the rejection or the thrown value of a `send` that fails, passed as it is, and once for each request refused
+  // because a sort entry names a column that no map entry serves; `table.status` becomes `'failed'` for each except a
+  // refused `onsort`, which leaves it as it was. Stated limit: a refused `reload()` while a request runs (reachable
+  // only by changing the column map's entries meanwhile) sets `'failed'` and leaves `busy` and that request as they
+  // are; the request's own end then applies
   readonly onerror: (error: unknown) => void;
 }
 
@@ -63,9 +65,8 @@ interface ConnectionBaseOptions {
 // JavaScript) is sent bracketed.
 export interface ConnectionParamsOptions extends ConnectionBaseOptions {
   // The application's transport: it resolves with the parsed answer body, not a `Response`; the helper calls it
-  // with one object holding the request and an abort signal. A rejection of `send` is not handled by the helper,
-  // and `send` must not throw synchronously either: the helper has no catch around the call, so a synchronous throw
-  // escapes.
+  // with one object holding the request and an abort signal. A rejection, a synchronous throw or a missing promise is
+  // a failure, passed to `onerror` as it is.
   readonly send: (context: {
     readonly request: URLSearchParams;
     readonly signal: AbortSignal;

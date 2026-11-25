@@ -53,8 +53,13 @@ function run<Send>(
     onerror: ConnectionOptions["onerror"],
   ) => ConnectionOptions,
 ) {
-  const settle: ((body: unknown) => void)[] = [];
-  const send = makeSend(() => new Promise((resolve) => settle.push(resolve)));
+  const settle: {
+    resolve: (body: unknown) => void;
+    reject: (reason: unknown) => void;
+  }[] = [];
+  const send = makeSend(
+    () => new Promise((resolve, reject) => settle.push({ resolve, reject })),
+  );
   const onerror = vi.fn<ConnectionOptions["onerror"]>();
   let connected: Connection<Row> | undefined;
   render(Probe, {
@@ -66,7 +71,12 @@ function run<Send>(
     onerror,
     // Settles the call of `send` with index `n` with `body`, then lets the probe update
     answer: async (n: number, body: unknown) => {
-      settle[n]?.(body);
+      settle[n]?.resolve(body);
+      await tick();
+    },
+    // Rejects call `n` with `reason`, then lets the probe update
+    fail: async (n: number, reason: unknown) => {
+      settle[n]?.reject(reason);
       await tick();
     },
     get connection(): Connection<Row> {
@@ -777,6 +787,61 @@ describe("CONN-18", () => {
     expect(probe.send.mock.calls[1]?.[0].request.get("draw")).toBe("2");
     await probe.answer(1, A1());
     expect(outcome(probe)).toEqual(failed(D, "draw is not the one sent"));
+  });
+});
+
+// What a failure of `send` leaves: the state, and the exact values `onerror` received
+const sendFailure = (probe: ReturnType<typeof mount>) => ({
+  status: probe.connection.table.status,
+  busy: probe.connection.table.busy,
+  errors: probe.onerror.mock.calls.map(([error]) => error),
+});
+
+// @spec("CONN-20", "b592d5ff")
+describe("CONN-20", () => {
+  const E = new Error("boom");
+  it("fails with the rejection itself when send rejects", async () => {
+    const probe = mount();
+    await probe.fail(0, E);
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe(E);
+  });
+  it("fails with the error itself when send throws", () => {
+    const probe = mount({
+      send: vi.fn(() => {
+        throw E;
+      }),
+    });
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe(E);
+  });
+  it("fails the second request when its send rejects, keeping the sort and the rows", async () => {
+    const probe = mount();
+    await probe.answer(0, A1());
+    probe.connection.table.onsort([{ id: "code", direction: "desc" }]);
+    expect(probe.connection.table.busy).toBe(true);
+    await probe.fail(1, E);
+    expect(probe.connection.table.status).toBe("failed");
+    expect(probe.connection.table.busy).toBe(false);
+    expect(probe.connection.table.sort).toEqual([
+      { id: "code", direction: "desc" },
+    ]);
+    expect(probe.connection.table.rows).toBe(D);
+    expect(probe.onerror).toHaveBeenCalledTimes(1);
+    expect(probe.onerror.mock.calls[0]?.[0]).toBe(E);
+  });
+  it("fails with a TypeError when send returns no promise", () => {
+    const probe = mount({
+      send: (() => undefined) as unknown as ConnectionParamsOptions["send"],
+    });
+    const { errors, ...state } = sendFailure(probe);
+    expect(state).toEqual({ status: "failed", busy: false });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
   });
 });
 

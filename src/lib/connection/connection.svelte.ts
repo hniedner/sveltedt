@@ -53,24 +53,30 @@ export function createConnection<Row = unknown>(
       sent,
     );
     const signal = new AbortController().signal;
-    void (
-      options.form === "json"
-        ? options.send({ request, signal })
-        : options.send({
-            request: toParams(request, options.form === "dotted"),
-            signal,
-          })
-    ).then((body) => {
+    // A request that fails for any reason ends the same way: not busy, `'failed'`, then one call of `onerror`
+    const fail = (reason: unknown): void => {
       busy = false;
-      const read = readAnswer<Row>(body, sent);
-      if (read instanceof Error) {
-        status = "failed";
-        options.onerror(read);
-        return;
-      }
-      answer = read;
-      status = "ready";
-    });
+      status = "failed";
+      options.onerror(reason);
+    };
+    try {
+      void (
+        options.form === "json"
+          ? options.send({ request, signal })
+          : options.send({
+              request: toParams(request, options.form === "dotted"),
+              signal,
+            })
+      ).then((body) => {
+        const read = readAnswer<Row>(body, sent);
+        if (read instanceof Error) return fail(read);
+        busy = false;
+        answer = read;
+        status = "ready";
+      }, fail);
+    } catch (thrown) {
+      fail(thrown);
+    }
   }
   function onpage(next: number): void {
     offset = next;
