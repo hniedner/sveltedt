@@ -263,3 +263,20 @@ test.describe("FILT-59, a text filter emits its text without outer white space",
     expect(await calls()).toEqual([text("name", '" beta "')]);
   });
 });
+
+// @spec("FILT-60", "74a3f411")
+test("FILT-60, a filter field keeps typed white space when filters echoes the trimmed text", async ({
+  page,
+}) => {
+  const { field, at, calls } = await openName(page);
+  await field.pressSequentially(" beta ");
+  await at(400);
+  expect(await calls()).toEqual([text("name", "beta")]);
+  await at(500);
+  await page.evaluate(() =>
+    (window as unknown as DialogWindow).__table.set({
+      filters: { name: { kind: "text", text: "beta" } },
+    }),
+  );
+  await expect(field).toHaveValue(" beta ");
+});

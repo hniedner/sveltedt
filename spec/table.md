@@ -2838,8 +2838,8 @@ the options' order.
 - Traces: PRD-B7.
 
 **FILT-37** A text filter's field MUST take the applied text of `filters` when its dialog opens, and when `filters`
-changes while nothing has been typed in it since it last emitted or last took the applied text; otherwise it keeps
-its text.
+changes while nothing has been typed in it since it last emitted or last took the applied text, except as FILT-60
+says; otherwise it keeps its text.
 - Examples (the test runs every row; "Filter Name text" after the steps):
 
   | Steps | Field reads |
@@ -2880,6 +2880,14 @@ its text.
 
 - Reason: white space around filter text is accidental, as around search text (FILT-57); a quoted phrase is the
   deliberate form (PRD-B6).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B6.
+
+**FILT-60** When `filters` becomes the open field's text without its leading and trailing white space, the field MUST
+keep its text as typed.
+- Example: type " beta "; at 400 ms one call with "beta"; at 500 ms `filters` becomes `name: { kind: 'text', text:
+  'beta' }`: the field reads " beta ".
+- Reason: the field keeps what the user typed (PRD-B6); the application echoes the trimmed text that FILT-59 emitted.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
@@ -5486,6 +5494,7 @@ pointer.
 | FILT-57 | PRD-B25, PRD-B6 |
 | FILT-58 | PRD-B25, PRD-B6 |
 | FILT-59 | PRD-B6 |
+| FILT-60 | PRD-B6 |
 | FILT-46 | PRD-B8, PRD-B25 |
 | COL-01 | PRD-B10, PRD-B2 |
 | COL-24 | PRD-B10 |
@@ -5640,7 +5649,7 @@ state in their own statements.
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |
-| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49, FILT-57, FILT-58, FILT-59 | in full |
+| PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49, FILT-57, FILT-58, FILT-59, FILT-60 | in full |
 | PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
