@@ -237,7 +237,7 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(active.checked).toBe(true);
   });
 
-  // A press on a selected option leaves it checked; an isSelected result of false would show here
+  // A press on a selected option leaves it checked; resetting the box to a constant false would show here
   it("stay checked after a press on a selected one while filters is unchanged", async () => {
     const table = mount(withSelected("inactive"));
     await toggle(table, 1, "open");
