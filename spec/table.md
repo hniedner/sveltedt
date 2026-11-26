@@ -3290,6 +3290,9 @@ not in a dialog, so its statements are tested in the simulated DOM, with time mo
 first key, keys taking no time and a control character pasted, as in section 11. "Search" is the field found by role
 `searchbox` and that name. What matches the text is the data source's (PRD-B25).
 
+Covered by earlier statements (their words name the whole mounted life): FOOT-05 (a pending search pause leaves no
+timer after unmount) and FOOT-02 (the search field adds no `keydown` listener on `window`).
+
 **FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given and the alert does not
 show.
 - Examples (the test runs every row):

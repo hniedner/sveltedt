@@ -85,14 +85,15 @@ There is nothing to install yet. What is on `main` today:
   unfiltered total is given and differs), plain text between the page-size select and the step buttons and not
   announced, and every fixed word of the pager as a `messages` prop with an English default;
 - the global search field, shown while `onsearch` is given and the alert is not showing, after the `actions` snippet
-  and before the filter badges. It emits through `onsearch` after the `searchDelay` pause, at once on Enter, or on
-  Enter only with `searchOnEnter`; the text emitted has no leading or trailing white space, while the field keeps what
-  was typed. It shows the applied `search`, and keeps newer typing when `search` changes. An application that wants
-  another field leaves out `onsearch` and renders its own, and then has neither the pause, the trimming nor the
-  newer-typing rule. Limits: an application that applies `search` only after the answer arrives should still pass the
-  new text at once, as the connection helper does; Enter inside the application's own `<form>` submits that form;
-  Enter that confirms an IME composition applies the search; a text with a control character, or one longer than
-  `maxLength`, is not refused yet and is emitted, and the field has no hint under `searchOnEnter` yet;
+  and before the filter badges and the `panels` snippet. It emits through `onsearch` after the `searchDelay` pause, at
+  once on Enter, or on Enter only with `searchOnEnter`, and then says "Press Enter to apply."; the text emitted has no
+  leading or trailing white space, while the field keeps what was typed. A text that, trimmed, holds a control
+  character or is longer than `maxLength` (counted in code points) is not emitted: the field is marked invalid, with a
+  message of its own for each condition. It shows the applied `search`, and keeps newer typing when `search` changes.
+  An application that wants another field leaves out `onsearch` and renders its own, and then has neither the pause,
+  the trimming, the refusal nor the newer-typing rule. Limits: an application that applies `search` only after the
+  answer arrives should still pass the new text at once, as the connection helper does; Enter inside the
+  application's own `<form>` submits that form; Enter that confirms an IME composition applies the search;
 - the filter controls, driven by the application's `filters`: a button "Filter <label>" in the header cell of each
   filtered column (it does nothing yet), a clearable badge for each applied filter, "Clear column filters", "Reset
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its

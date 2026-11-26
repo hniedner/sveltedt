@@ -18,8 +18,8 @@ decision (see Region order).
   `Pagination` and types (`src/lib/index.ts:1-15`); the package's other entries are `./connection` and `./styles.css`
   (`package.json:8-17`). `Pagination` is placed by the application and holds the information line
   (`src/lib/Pagination.svelte:14-24`, `src/lib/Pagination.svelte:53`).
-- Added with the global search (#162), measured at 8374644: a third part,
-  `src/lib/parts/Search.svelte` (36 lines), and a second state class, `src/lib/search.svelte.ts` (66 lines), built by
+- Added with the global search (#162), measured at 1df7c3b: a third part,
+  `src/lib/parts/Search.svelte` (70 lines), and a second state class, `src/lib/search.svelte.ts` (84 lines), built by
   the part, which amends the Fields rule below.
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
