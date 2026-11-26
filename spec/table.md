@@ -2819,9 +2819,16 @@ described by one alert for each reason that holds.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-A1.
 
-**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alert.
-- Example: paste "a", U+0001, then press Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
-  dialog; at 400 ms one call with "a".
+**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alerts.
+- Examples (the test runs every row; after the key the field is not `aria-invalid`, no alert is in the dialog, and at
+  400 ms one call is made with the text the row says):
+
+  | Steps | Field reads | The call's text |
+  |---|---|---|
+  | paste "a", U+0001, then press Backspace | "a" | "a" |
+  | paste "a", U+0009, "b", then press Backspace | "a", U+0009 | "a" (the tab left at the end is trimmed) |
+  | type 11 times "x", with `maxLength={10}`, then press Backspace | 10 times "x" | 10 times "x" |
+
 - Reason: a stale error misleads (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.

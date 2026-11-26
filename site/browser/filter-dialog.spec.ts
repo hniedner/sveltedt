@@ -560,3 +560,54 @@ test.describe("FILT-15, refused filter text is marked invalid with one alert per
       await expect(field).toHaveAccessibleDescription(row.alerts.join(" "));
     });
 });
+
+// @spec("FILT-16", "4e99d60e")
+test.describe("FILT-16, a key that makes the filter text valid removes the mark and alerts", () => {
+  const rows: (Entry & { reads: string; sent: string })[] = [
+    {
+      title: "paste a, U+0001",
+      value: "a\u0001",
+      pasted: true,
+      reads: "a",
+      sent: "a",
+    },
+    {
+      title: "paste a, U+0009, b",
+      value: "a\tb",
+      pasted: true,
+      reads: "a\t",
+      sent: "a",
+    },
+    {
+      title: "type 11 x, maxLength 10",
+      value: "x".repeat(11),
+      pasted: false,
+      address: MAX_TEN,
+      reads: "x".repeat(10),
+      sent: "x".repeat(10),
+    },
+  ];
+  for (const row of rows)
+    test(`${row.title}, then Backspace`, async ({ page }) => {
+      const { field, at, calls } = await openName(page, row.address);
+      const alerts = page
+        .getByRole("dialog", { name: "Name filter", exact: true })
+        .getByRole("alert");
+      await put(page, field, row);
+      // The text is refused before the key, so the key is what clears the mark
+      await expect(
+        field,
+        "could not check: the text is not refused",
+      ).toHaveAttribute("aria-invalid", "true");
+      await expect(
+        alerts,
+        "could not check: no alert before the key",
+      ).toHaveCount(1);
+      await field.press("Backspace");
+      await expect(field).toHaveValue(row.reads);
+      await expect(field).not.toHaveAttribute("aria-invalid", "true");
+      await expect(alerts).toHaveCount(0);
+      await at(400);
+      expect(await calls()).toEqual([text("name", row.sent)]);
+    });
+});
