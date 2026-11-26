@@ -235,6 +235,10 @@ test.describe("FILT-59, a text filter emits its text without outer white space",
     const { field, at, calls } = await openName(page, undefined, {
       name: { kind: "text", text: "beta" },
     });
+    await expect(
+      field,
+      "could not check: the field lacks the applied text",
+    ).toHaveValue("beta");
     await field.pressSequentially(" ");
     await at(400);
     expect(await calls()).toEqual([]);
@@ -282,5 +286,10 @@ test("FILT-60, a filter field keeps typed white space when filters echoes the tr
       filters: { name: { kind: "text", text: "beta" } },
     }),
   );
+  // The echo has arrived: the table shows the applied filter as a badge, so the field's value is read after it
+  await expect(
+    page.getByRole("button", { name: /^Clear filter Name/ }),
+    "could not check: the echo did not arrive",
+  ).toHaveCount(1);
   await expect(field).toHaveValue(" beta ");
 });
