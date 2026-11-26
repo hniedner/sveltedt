@@ -36,12 +36,13 @@ async function echoed(page: Page, applied: string) {
   ).toHaveCount(1);
 }
 
-// Opens the dialog of "Filter Name" on the page, `address` setting `searchDelay` and the like, with the clock paused at
-// the start: page time moves only by `at`, so "400 ms" is exact. `filters` is what the application has applied. Returns
-// the field "Filter Name text", `at(ms)` that moves the clock to `ms` after the first key (keys take no time), and
-// `calls()` that reads every `onfilter` argument so far
-async function openName(
+// Opens the dialog of "Filter <label>" on the page, `address` setting `searchDelay` and the like, with the clock paused
+// at the start: page time moves only by `at`, so "400 ms" is exact. `filters` is what the application has applied.
+// Returns the dialog, `at(ms)` that moves the clock to `ms` after the first key (keys take no time), and `calls()` that
+// reads every `onfilter` argument so far
+async function openDialog(
   page: Page,
+  label: string,
   address = "/filter-dialog.html",
   filters = {},
 ) {
@@ -49,13 +50,16 @@ async function openName(
   await page.clock.pauseAt(new Date(START.getTime() + 1000));
   await page.goto(address);
   await setFilters(page, filters);
-  await page.getByRole("button", { name: "Filter Name", exact: true }).click();
-  const field = page
-    .getByRole("dialog", { name: "Name filter", exact: true })
-    .getByLabel("Filter Name text");
+  await page
+    .getByRole("button", { name: `Filter ${label}`, exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: `${label} filter`,
+    exact: true,
+  });
   await expect(
-    field,
-    "could not check: Name's dialog holds no field",
+    dialog,
+    `could not check: ${label}'s dialog did not open`,
   ).toHaveCount(1);
   let elapsed = 0;
   const at = async (ms: number) => {
@@ -67,6 +71,26 @@ async function openName(
   expect(await calls(), "could not check: a call before the first key").toEqual(
     [],
   );
+  return { dialog, at, calls };
+}
+
+// The dialog of "Filter Name", with its field "Filter Name text"
+async function openName(
+  page: Page,
+  address = "/filter-dialog.html",
+  filters = {},
+) {
+  const { dialog, at, calls } = await openDialog(
+    page,
+    "Name",
+    address,
+    filters,
+  );
+  const field = dialog.getByLabel("Filter Name text");
+  await expect(
+    field,
+    "could not check: Name's dialog holds no field",
+  ).toHaveCount(1);
   return { field, at, calls };
 }
 
@@ -615,4 +639,51 @@ test.describe("FILT-16, a key that makes the filter text valid removes the mark 
       await at(400);
       expect(await calls()).toEqual([text("name", row.sent)]);
     });
+});
+
+// @spec("FILT-17", "be1eff7c")
+test.describe("FILT-17, a categorical filter offers its options as checkboxes that show the applied selection", () => {
+  const selected = (...values: string[]) => ({
+    status: { kind: "categorical", selected: values },
+  });
+
+  test("selected inactive: Active not checked, Inactive checked, in that order, no other", async ({
+    page,
+  }) => {
+    const { dialog } = await openDialog(
+      page,
+      "Status",
+      undefined,
+      selected("inactive"),
+    );
+    const boxes = dialog.getByRole("checkbox");
+    await expect(boxes).toHaveCount(2);
+    await expect(boxes.nth(0)).toHaveAccessibleName(/^Active$/);
+    await expect(boxes.nth(0)).not.toBeChecked();
+    await expect(boxes.nth(1)).toHaveAccessibleName(/^Inactive$/);
+    await expect(boxes.nth(1)).toBeChecked();
+  });
+
+  test("a press on Active with filters unchanged leaves it unchecked until filters holds it", async ({
+    page,
+  }) => {
+    const { dialog } = await openDialog(
+      page,
+      "Status",
+      undefined,
+      selected("inactive"),
+    );
+    const active = dialog.getByRole("checkbox", {
+      name: "Active",
+      exact: true,
+    });
+    await expect(
+      active,
+      "could not check: Active is not there or is checked",
+    ).not.toBeChecked();
+    await active.click();
+    await expect(active).not.toBeChecked();
+    await setFilters(page, selected("active", "inactive"));
+    await expect(active).toBeChecked();
+  });
 });

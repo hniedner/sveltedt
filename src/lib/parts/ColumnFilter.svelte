@@ -43,13 +43,17 @@
   // The browser holds whether the dialog is open; this mirrors it from the event that precedes every change, so the
   // fields exist only while it is open and their unsent text and pause go with it
   let open = $state(false);
+  const selected = $derived(
+    applied?.kind === "categorical" ? applied.selected : [],
+  );
 </script>
 
 <!-- Adapted from ontoprism, frontend/src/lib/components/data-table/DataTableFilterPopover.svelte (Apache License 2.0,
      the owner's own project): the dialog named "<label> filter" (FILT-02). The button and its dialog, which follows it
      in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
      opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
-     and class, given this column's applied text (FILT-01) -->
+     and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each, checked
+     while its value is selected (FILT-17) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}
@@ -70,17 +74,33 @@
   aria-label={words.filterDialog(label)}
   onbeforetoggle={(event) => (open = event.newState === "open")}
 >
-  {#if open && filter.kind === "text"}
-    <Search
-      label={words.filterText(label)}
-      {words}
-      search={applied?.kind === "text" ? applied.text : ""}
-      {searchDelay}
-      {searchOnEnter}
-      {maxLength}
-      onsearch={(next: string) =>
-        // Stryker disable next-line OptionalChaining: unreachable fallback, a filter exists only with an onfilter (FILT-32)
-        onfilter?.({ id, state: { kind: "text", text: next } })}
-    />
+  {#if open}
+    {#if filter.kind === "text"}
+      <Search
+        label={words.filterText(label)}
+        {words}
+        search={applied?.kind === "text" ? applied.text : ""}
+        {searchDelay}
+        {searchOnEnter}
+        {maxLength}
+        onsearch={(next: string) =>
+          // Stryker disable next-line OptionalChaining: unreachable fallback, a filter exists only with an onfilter (FILT-32)
+          onfilter?.({ id, state: { kind: "text", text: next } })}
+      />
+    {:else}
+      {#each filter.options as option (option.value)}
+        <label>
+          <input
+            type="checkbox"
+            checked={selected.includes(option.value)}
+            onchange={(event) => {
+              // The box shows the props: a press leaves it as `filters` says until `filters` changes
+              event.currentTarget.checked = selected.includes(option.value);
+            }}
+          />
+          {option.label}
+        </label>
+      {/each}
+    {/if}
   {/if}
 </div>

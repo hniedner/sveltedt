@@ -2836,11 +2836,15 @@ described by one alert for each reason that holds.
 **FILT-17** A categorical filter MUST offer exactly its options (with `emptyOption: true`, also the option of
 FILT-53), as checkboxes named by their labels, in the given
 order (all of them while no find text narrows them, FILT-18), each checked exactly while its value is in `selected`.
-- Example: `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the
-  checkboxes "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
-- Reason: the server accepts only its own vocabulary, so the user picks from it (PRD-B7).
+- Examples (the test runs both):
+  - `filters` holds `status: { kind: 'categorical', selected: ['inactive'] }`: Status's dialog holds the checkboxes
+    "Active" (not checked) and "Inactive" (checked), in that order, and no other checkbox.
+  - Then press "Active" with `filters` unchanged: "Active" is still not checked; once `filters` holds
+    `status: { kind: 'categorical', selected: ['active', 'inactive'] }`, it is checked.
+- Reason: the server accepts only its own vocabulary, so the user picks from it (PRD-B7); the checkboxes show the
+  applied selection, as every control of the table shows its props (PRD-B2), and FILT-04 says what a press emits.
 - Layer: real browser (Chromium, Firefox, WebKit).
-- Traces: PRD-B7.
+- Traces: PRD-B7, PRD-B2.
 
 **FILT-04** Each toggle of a categorical option MUST emit `onfilter` once, at once, with the next selection's values in
 the options' order.
@@ -5472,7 +5476,7 @@ pointer.
 | FILT-03 | PRD-B6 |
 | FILT-15 | PRD-B6, PRD-A1 |
 | FILT-16 | PRD-B6 |
-| FILT-17 | PRD-B7 |
+| FILT-17 | PRD-B7, PRD-B2 |
 | FILT-04 | PRD-B7 |
 | FILT-37 | PRD-B6, PRD-B2 |
 | FILT-05 | PRD-B6 |
@@ -5666,7 +5670,7 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06, THEME-29 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, STATE-29, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, STATE-29, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, FILT-17, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |

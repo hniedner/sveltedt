@@ -23,7 +23,13 @@ const columns: DataTableColumn<Item>[] = [
     id: "status",
     label: "Status",
     value: ({ row }) => row.name,
-    filter: { kind: "categorical", options: [{ value: "a", label: "A" }] },
+    filter: {
+      kind: "categorical",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+      ],
+    },
   },
 ];
 
@@ -85,7 +91,9 @@ async function toggle(
   await tick();
 }
 const fieldOf = (table: { container: HTMLElement }) =>
-  table.container.querySelector<HTMLInputElement>("[popover] input");
+  table.container.querySelector<HTMLInputElement>(
+    '[popover] input[type="search"]',
+  );
 
 describe("FILT-01, a text filter's field in the simulated DOM", () => {
   beforeEach(() => {
@@ -135,7 +143,7 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
   it("shows the applied text of its own column only", async () => {
     const table = mount({
       filters: {
-        status: { kind: "categorical", selected: ["a"] },
+        status: { kind: "categorical", selected: ["active"] },
         name: { kind: "text", text: "beta" },
       },
     });
@@ -197,5 +205,52 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
     // The text column's dialog on the same table does gain its field
     await toggle(table, 0, "open");
     expect(fieldOf(table)).not.toBeNull();
+  });
+});
+
+describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () => {
+  const boxes = (table: { container: HTMLElement }) =>
+    [...table.container.querySelectorAll<HTMLInputElement>("[popover] input")]
+      .filter((box) => box.type === "checkbox")
+      .map((box) => [box.labels?.[0]?.textContent?.trim(), box.checked]);
+  const withSelected = (...selected: string[]) => ({
+    filters: { status: { kind: "categorical" as const, selected } },
+  });
+
+  it("are one per option, in the given order, named by their labels", async () => {
+    const table = mount();
+    await toggle(table, 1, "open");
+    expect(boxes(table)).toEqual([
+      ["Active", false],
+      ["Inactive", false],
+    ]);
+  });
+
+  it("are checked exactly while their value is selected", async () => {
+    const table = mount(withSelected("inactive"));
+    await toggle(table, 1, "open");
+    expect(boxes(table)).toEqual([
+      ["Active", false],
+      ["Inactive", true],
+    ]);
+  });
+
+  it("are absent from a text column's dialog", async () => {
+    const table = mount();
+    await toggle(table, 0, "open");
+    expect(boxes(table)).toEqual([]);
+  });
+
+  it("show the props after a press, and the new props once they change", async () => {
+    const table = mount(withSelected("inactive"));
+    await toggle(table, 1, "open");
+    const active = within(table.container).getByLabelText<HTMLInputElement>(
+      "Active",
+      { exact: true },
+    );
+    await fireEvent.click(active);
+    expect(active.checked).toBe(false);
+    await table.rerender(withSelected("active", "inactive"));
+    expect(active.checked).toBe(true);
   });
 });
