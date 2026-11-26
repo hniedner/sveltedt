@@ -382,3 +382,22 @@ test("FILT-05, a text filter's field keeps newer typing when filters changes", a
     text("name", "melanoma"),
   ]);
 });
+
+// @spec("FILT-13", "69cb5f4e")
+test.describe("FILT-13, under searchOnEnter a text filter's field says Press Enter to apply", () => {
+  test("searchOnEnter true: the description contains the hint", async ({
+    page,
+  }) => {
+    const { field } = await openName(page, "/filter-dialog.html?enter");
+    await expect(field).toHaveAccessibleDescription(/Press Enter to apply\./);
+  });
+
+  test("searchOnEnter false: the description does not contain it", async ({
+    page,
+  }) => {
+    const { field } = await openName(page);
+    await expect(field).not.toHaveAccessibleDescription(
+      /Press Enter to apply\./,
+    );
+  });
+});
