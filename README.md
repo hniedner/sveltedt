@@ -178,7 +178,7 @@ one way, proved by keyboard in Chromium, Firefox and WebKit (`spec/site.md`, sec
   Space press it, and focus stays on it;
 - the panel in the `panels` snippet is a block element, so it takes the table's width, and it stays in the document
   with the `hidden` attribute while closed, so `aria-controls` always names an element;
-- a control inside the panel that closes it moves focus back to the button: otherwise focus falls to the page.
+- a control inside the panel that closes it moves focus back to the button: otherwise the keyboard user loses their place.
 
 ## Documents
 
