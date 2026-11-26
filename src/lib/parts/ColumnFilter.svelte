@@ -46,9 +46,10 @@
 </script>
 
 <!-- Adapted from ontoprism, frontend/src/lib/components/data-table/DataTableFilterPopover.svelte (Apache License 2.0,
-     the owner's own project): the dialog named "<label> filter". The button and its dialog, which follows it in the
-     document (FILT-02). The dialog is a popover: the browser opens it on a press of the button and holds whether it is
-     open. The text filter's field is the search field's part and class, given this column's applied text (FILT-01) -->
+     the owner's own project): the dialog named "<label> filter" (FILT-02). The button and its dialog, which follows it
+     in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
+     opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
+     and class, given this column's applied text (FILT-01) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}

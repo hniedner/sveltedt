@@ -37,7 +37,8 @@ export class SearchText {
       const now = this.#applied();
       if (!this.#newer && now !== this.own?.trim()) this.own = null;
     });
-    // A pause that is still running when the field goes emits nothing (FOOT-05)
+    // A pause that is still running when the field goes emits nothing (FOOT-05, FILT-35: a dialog that closes removes
+    // its field)
     $effect(() => () => clearTimeout(this.#timer));
   }
 
