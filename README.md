@@ -98,10 +98,12 @@ There is nothing to install yet. What is on `main` today:
   filtered column, which opens the column's filter dialog, a popover named "<label> filter". A text filter's field in
   it emits through `onfilter` by the search field's rules (the pause, at once on Enter, on Enter only with
   `searchOnEnter`, outer white space trimmed and the typed text kept; proved in Chromium, Firefox and WebKit on the
-  test site's filter dialog page). The Escape behaviour of the filter field is not settled yet: with the search
-  field's `type="search"`, Chromium and Firefox clear the field on Escape, and WebKit closes the dialog. A clearable badge for each applied filter, "Clear column filters", "Reset
-  table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
-  column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and an invalid filter,
+  test site's filter dialog page). Text typed and not yet sent, within the pause, is dropped when the dialog closes. The
+  Escape behaviour of the filter field is not settled yet: with the search field's `type="search"`, Chromium and Firefox
+  clear the field on Escape, and WebKit closes the dialog. A clearable badge for each applied filter, "Clear column
+  filters", "Reset table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell
+  named by its column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and an
+  invalid filter,
   `search`, `searchDelay` or `maxLength` prop gets the alert;
 - the `panels` snippet, for the application's own panels (an advanced search, batch actions) that a button in its
   `actions` snippet opens: rendered after the toolbar's controls and before the status line, in every state, the
