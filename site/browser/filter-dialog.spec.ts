@@ -187,3 +187,11 @@ test.describe("FILT-28, with searchOnEnter a text filter emits only on Enter", (
     expect(await calls()).toEqual([text("name", "beta")]);
   });
 });
+
+// @spec("FILT-14", "d75ab885")
+test("FILT-14, a text filter's field has autocomplete off", async ({
+  page,
+}) => {
+  const { field } = await openName(page);
+  await expect(field).toHaveAttribute("autocomplete", "off");
+});
