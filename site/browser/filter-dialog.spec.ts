@@ -769,9 +769,7 @@ test.describe("FILT-53, a categorical filter with emptyOption offers one more op
       const boxes = opened.dialog.getByRole("checkbox");
       await expect(boxes).toHaveCount(names.length);
       for (const [index, name] of names.entries()) {
-        await expect(boxes.nth(index)).toHaveAccessibleName(
-          new RegExp(`^${name.replace(/[()]/g, "\\$&")}$`),
-        );
+        await expect(boxes.nth(index)).toHaveAccessibleName(name);
         if (row.checked.includes(name))
           await expect(boxes.nth(index)).toBeChecked();
         else await expect(boxes.nth(index)).not.toBeChecked();
