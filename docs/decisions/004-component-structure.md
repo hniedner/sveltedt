@@ -193,3 +193,18 @@ decision (see Region order).
   b20d582), and that entry, not this record, carries the outcome.
 - **Reopens when:** an adopter needs a built-in part somewhere a snippet cannot cover, the owner decides the
   recommendation otherwise, or design R (PRD-X5, `docs/PRD.md:1577`, `docs/PRD.md:1597`) changes what scrolls.
+
+## Origin of reused code
+
+Three files are adapted from the owner's public repository github.com/hniedner/ontoprism (Apache-2.0, no NOTICE file),
+read at its commit `f22ea174`. Each carries a header comment that names its source and the licence.
+
+- `src/lib/Pagination.svelte`, from `frontend/src/lib/components/Pagination.svelte`: the nav, the step buttons, the
+  number row and its gaps.
+- `src/lib/search.svelte.ts`, from `frontend/src/lib/components/data-table/DataTableFilterPopover.svelte`: the pause
+  timer, its cancel and teardown, and the apply step.
+- `src/lib/parts/ColumnFilter.svelte`, from the same `DataTableFilterPopover.svelte`: the dialog named "<label>
+  filter" (the categorical options follow in a later change).
+
+The code is the owner's own, so `NOTICE` has no entry for it. Where an adaptation differs from its source, the
+statement in `spec/table.md` that asks for the difference is the reason.
