@@ -43,9 +43,8 @@
   // The browser holds whether the dialog is open; this mirrors it from the event that precedes every change, so the
   // fields exist only while it is open and their unsent text and pause go with it
   let open = $state(false);
-  const selected = $derived(
-    applied?.kind === "categorical" ? applied.selected : [],
-  );
+  const isSelected = (value: string) =>
+    applied?.kind === "categorical" && applied.selected.includes(value);
 </script>
 
 <!-- Adapted from ontoprism, frontend/src/lib/components/data-table/DataTableFilterPopover.svelte (Apache License 2.0,
@@ -92,10 +91,10 @@
         <label>
           <input
             type="checkbox"
-            checked={selected.includes(option.value)}
+            checked={isSelected(option.value)}
             onchange={(event) => {
               // The box shows the props: a press leaves it as `filters` says until `filters` changes
-              event.currentTarget.checked = selected.includes(option.value);
+              event.currentTarget.checked = isSelected(option.value);
             }}
           />
           {option.label}
