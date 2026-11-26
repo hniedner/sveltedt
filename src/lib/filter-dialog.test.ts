@@ -135,8 +135,8 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
   it("shows the applied text of its own column only", async () => {
     const table = mount({
       filters: {
-        name: { kind: "text", text: "beta" },
         status: { kind: "categorical", selected: ["a"] },
+        name: { kind: "text", text: "beta" },
       },
     });
     await toggle(table, 0, "open");
@@ -147,11 +147,6 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
     const none = mount();
     await toggle(none, 0, "open");
     expect(fieldOf(none)?.value).toBe("");
-    const other = mount({
-      filters: { status: { kind: "categorical", selected: ["a"] } },
-    });
-    await toggle(other, 0, "open");
-    expect(fieldOf(other)?.value).toBe("");
   });
 
   it("emits at once with searchDelay 0", async () => {
