@@ -143,6 +143,17 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
     expect(fieldOf(table)?.value).toBe("beta");
   });
 
+  it("is empty while its column has no applied text", async () => {
+    const none = mount();
+    await toggle(none, 0, "open");
+    expect(fieldOf(none)?.value).toBe("");
+    const other = mount({
+      filters: { status: { kind: "categorical", selected: ["a"] } },
+    });
+    await toggle(other, 0, "open");
+    expect(fieldOf(other)?.value).toBe("");
+  });
+
   it("emits at once with searchDelay 0", async () => {
     const onfilter = vi.fn();
     const table = mount({ onfilter, searchDelay: 0 });
