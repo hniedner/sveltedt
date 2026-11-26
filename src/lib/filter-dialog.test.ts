@@ -180,11 +180,22 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
     });
     await vi.advanceTimersByTimeAsync(400);
     expect(onfilter).not.toHaveBeenCalled();
+    // The same text within the limit is emitted: the refusal above is the limit's, not a field that never emits
+    const roomy = mount({ onfilter, maxLength: 2 });
+    await toggle(roomy, 0, "open");
+    await fireEvent.input(fieldOf(roomy) as HTMLElement, {
+      target: { value: "ab" },
+    });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(onfilter).toHaveBeenCalledTimes(1);
   });
 
   it("is not shown in a categorical column's dialog", async () => {
     const table = mount();
     await toggle(table, 1, "open");
     expect(fieldOf(table)).toBeNull();
+    // The text column's dialog on the same table does gain its field
+    await toggle(table, 0, "open");
+    expect(fieldOf(table)).not.toBeNull();
   });
 });
