@@ -107,7 +107,7 @@ There is nothing to install yet. What is on `main` today:
   `aria-expanded` and `aria-controls` (the WAI-ARIA disclosure pattern). Limits: inline content sits on the toolbar's
   line, so wrap a panel in a block element; opening or closing a panel moves the status line and the table, as any
   content above them does; with a panel open, Tab reaches "Cancel" only after the panel's controls; the table moves no
-  focus when a panel opens or closes;
+  focus when a panel opens or closes (see "A button that opens a panel" below);
 - the connection helper, exported as `@hniedner/sveltedt/connection`: `createConnection` sends the first request through
   the application's `send({ request, signal })`, maps the answer to rows and totals, and changes page through
   `pager.onpage` with the rows kept while busy. An answer it cannot map (its message names the check that failed), an
@@ -153,8 +153,9 @@ pnpm site:serve
 ```
 
 Then open <http://127.0.0.1:4173>, or <http://127.0.0.1:4173/connection.html> for the page whose rows come from the
-site's route `/api/orders` through the connection helper. The site listens on that address only and sends the strict
-content-security policy (`default-src 'self'; script-src 'self'; style-src 'self'`) with every answer.
+site's route `/api/orders` through the connection helper, or <http://127.0.0.1:4173/panels.html> for a button that opens
+a panel. The site listens on that address only and sends the strict content-security policy (`default-src 'self';
+script-src 'self'; style-src 'self'`) with every answer.
 
 The browser tests open the built site in Chromium, Firefox and WebKit (stop `pnpm site:serve` first: they start the
 server on that address themselves; on Linux, `pnpm exec playwright install --with-deps` also installs the system
@@ -165,6 +166,20 @@ pnpm exec playwright install
 pnpm site:build
 node scripts/check-repo.ts browser
 ```
+
+## A button that opens a panel
+
+The table keeps no open state for its `panels` snippet and moves no focus for it: the application does both. The
+test site's panels page (`/panels.html`, its source in [site/src/PanelsPage.svelte](site/src/PanelsPage.svelte)) shows
+one way, proved by keyboard in Chromium, Firefox and WebKit (`spec/site.md`, section 9):
+
+- the button in the `actions` snippet is a plain `<button type="button">` with `aria-expanded` (`"true"` while the
+  panel shows) and `aria-controls` naming the panel's `id`, as the WAI-ARIA disclosure pattern describes; Enter and
+  Space press it, and focus stays on it;
+- the panel in the `panels` snippet is a block element, so it takes the table's width, and it stays in the document
+  with the `hidden` attribute while closed, so `aria-controls` always names an element;
+- a control inside the panel that closes it moves focus back to the button: without it, focus does not return to the
+  button, and where it goes differs by browser.
 
 ## Documents
 
