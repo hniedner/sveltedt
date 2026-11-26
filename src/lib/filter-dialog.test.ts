@@ -253,4 +253,15 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     await table.rerender(withSelected("active", "inactive"));
     expect(active.checked).toBe(true);
   });
+
+  it("stay checked after a press on a selected one while filters is unchanged", async () => {
+    const table = mount(withSelected("inactive"));
+    await toggle(table, 1, "open");
+    const inactive = within(table.container).getByLabelText<HTMLInputElement>(
+      "Inactive",
+      { exact: true },
+    );
+    await fireEvent.click(inactive);
+    expect(inactive.checked).toBe(true);
+  });
 });
