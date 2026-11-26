@@ -212,10 +212,17 @@ test("FILT-14, a text filter's field has autocomplete off", async ({
   await expect(field).toHaveAttribute("autocomplete", "off");
 });
 
-// Puts `value` into the field with one paste, as a user's paste does, and checks the engine kept every character
+// Puts `value` into the field with one paste from the clipboard, as a user's paste does, and checks the engine kept
+// every character. Not `insertText` or `fill`: Firefox drops U+0001 and U+007F from both. Chromium refuses a clipboard
+// write without a grant; Firefox and WebKit throw on that grant, so only Chromium gets it. Each engine keeps its own
+// clipboard in a headless run (MEASURED on macOS), but a headed run may overwrite the developer's
 async function paste(page: Page, field: Locator, value: string) {
+  const context = page.context();
+  if (context.browser()?.browserType().name() === "chromium")
+    await context.grantPermissions(["clipboard-write"]);
+  await page.evaluate((text) => navigator.clipboard.writeText(text), value);
   await field.focus();
-  await page.keyboard.insertText(value);
+  await page.keyboard.press("ControlOrMeta+V");
   await expect(
     field,
     "could not check: the engine dropped a pasted character",
@@ -400,4 +407,84 @@ test.describe("FILT-13, under searchOnEnter a text filter's field says Press Ent
       /Press Enter to apply\./,
     );
   });
+});
+
+// How a FILT-03 row puts its text into the field, and the address of the page it runs on
+interface Entry {
+  title: string;
+  value: string;
+  pasted: boolean;
+  address?: string;
+}
+const MAX_TEN = "/filter-dialog.html?max=10";
+const REFUSED: Entry[] = [
+  { title: "a, U+0001, b", value: "a\u0001b", pasted: true },
+  { title: "a, U+007F", value: "a\u007f", pasted: true },
+  { title: "a, U+0009, b", value: "a\tb", pasted: true },
+  { title: "a, U+0085", value: "a\u0085", pasted: true },
+  { title: "256 x", value: "x".repeat(256), pasted: false },
+  { title: "256 U+1F600", value: "\u{1F600}".repeat(256), pasted: true },
+  {
+    title: "11 x, maxLength 10",
+    value: "x".repeat(11),
+    pasted: false,
+    address: MAX_TEN,
+  },
+];
+const ACCEPTED: (Entry & { sent: string })[] = [
+  {
+    title: "255 U+1F600",
+    value: "\u{1F600}".repeat(255),
+    sent: "\u{1F600}".repeat(255),
+    pasted: true,
+  },
+  {
+    title: "10 x, maxLength 10",
+    value: "x".repeat(10),
+    sent: "x".repeat(10),
+    pasted: false,
+    address: MAX_TEN,
+  },
+  {
+    title: "255 x and a space",
+    value: `${"x".repeat(255)} `,
+    sent: "x".repeat(255),
+    pasted: true,
+  },
+  { title: "beta, U+0009", value: "beta\t", sent: "beta", pasted: true },
+];
+
+// Puts the row's text into the field and checks it arrived whole
+async function put(page: Page, field: Locator, entry: Entry) {
+  if (entry.pasted) await paste(page, field, entry.value);
+  else await field.pressSequentially(entry.value);
+  await expect(field, "could not check: the text did not arrive").toHaveValue(
+    entry.value,
+  );
+}
+
+// @spec("FILT-03", "c2636ac6")
+test.describe("FILT-03, a text filter emits nothing for text it refuses after trimming", () => {
+  for (const entry of REFUSED)
+    test(`${entry.title}: at 400 ms and on Enter no call`, async ({ page }) => {
+      const { field, at, calls } = await openName(page, entry.address);
+      await put(page, field, entry);
+      await expect(
+        field,
+        "could not check: the text is not refused",
+      ).toHaveAttribute("aria-invalid", "true");
+      await at(400);
+      await field.press("Enter");
+      expect(await calls()).toEqual([]);
+    });
+
+  for (const entry of ACCEPTED)
+    test(`${entry.title}: at 400 ms one call with the trimmed text`, async ({
+      page,
+    }) => {
+      const { field, at, calls } = await openName(page, entry.address);
+      await put(page, field, entry);
+      await at(400);
+      expect(await calls()).toEqual([text("name", entry.sent)]);
+    });
 });

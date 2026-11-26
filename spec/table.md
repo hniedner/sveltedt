@@ -2678,7 +2678,7 @@ every statement here that opens the dialog is tested in a real browser, in Chrom
 moved by fake timers as in the slow-load statements. In the examples, column Name (id `name`) has a text filter
 and column Status (id `status`) a categorical filter with the options `active` "Active" and `inactive` "Inactive",
 in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
-control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
+control character, which no key types, is put in by one paste from the clipboard. Times are counted from the first key
 of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
 (an emoji such as U+1F600 counts 1). The real-browser tests of these statements run on the filter dialog test page,
 `site/filter-dialog.html`, whose columns are those of the examples.
@@ -2773,22 +2773,29 @@ text, and not while typing goes on.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-03** A text filter MUST NOT emit `onfilter` for text it refuses, neither after the pause nor on Enter.
+**FILT-03** A text filter MUST NOT emit `onfilter` while its text, without leading and trailing white space, holds a
+control character (Unicode category Cc) or is longer than `maxLength` characters (code points), neither after the
+pause nor on Enter.
 - Examples (the test runs every row: type, wait 400 ms, press Enter; no call):
 
   | Typed | Refused because |
   |---|---|
   | "a", U+0001, "b" (pasted) | a control character |
   | "a", U+007F (pasted) | a control character |
+  | "a", U+0009, "b" (pasted) | a control character: a tab inside the text is not trimmed |
+  | "a", U+0085 (pasted) | a control character: U+0085 is not white space for `trim` |
   | 256 times "x" | longer than `maxLength` |
   | 256 times U+1F600 (pasted) | longer than `maxLength` |
   | 11 times "x", with `maxLength={10}` | longer than `maxLength` |
 
-  255 times U+1F600 (pasted) is not refused: at 400 ms one call with that text.
+  Not refused, at 400 ms one call with the text without its outer white space: 255 times U+1F600 (pasted); 10 times
+  "x", with `maxLength={10}`; 255 times "x" followed by " " (pasted; the call holds the 255 "x"); "beta", U+0009
+  (pasted; the call holds "beta").
 
   The field accepts the 256th character: it has no `maxlength` attribute, so the user sees the refusal of FILT-15
   instead of keys that do nothing.
-- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+- Reason: the server would refuse the query; the user learns at the field (PRD-B6). The text is trimmed first, so
+  white space around it is never a reason to refuse it (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
