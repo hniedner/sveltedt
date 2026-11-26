@@ -197,7 +197,8 @@ decision (see Region order).
 ## Origin of reused code
 
 Three files are adapted from the owner's public repository github.com/hniedner/ontoprism (Apache-2.0, no NOTICE file),
-read at its commit `f22ea174`. Each carries a header comment that names its source and the licence.
+read at its `main` (`e4f05c25`, as record 001 does). Each carries a header comment that names its source and the
+licence.
 
 - `src/lib/Pagination.svelte`, from `frontend/src/lib/components/Pagination.svelte`: the nav, the step buttons, the
   number row and its gaps.
