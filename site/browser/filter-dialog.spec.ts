@@ -144,3 +144,31 @@ test.describe("FILT-01, a text filter emits once typing pauses", () => {
     expect(await calls()).toEqual([]);
   });
 });
+
+// @spec("FILT-27", "5eb3ec59")
+test.describe("FILT-27, Enter in a text filter's field emits at once", () => {
+  test("type beta; at 100 ms Enter: one call, still one at 600 ms", async ({
+    page,
+  }) => {
+    const { field, at, calls } = await openName(page);
+    await field.pressSequentially("beta");
+    await at(100);
+    expect(await calls()).toEqual([]);
+    await field.press("Enter");
+    expect(await calls()).toEqual([text("name", "beta")]);
+    await at(600);
+    expect(await calls()).toEqual([text("name", "beta")]);
+  });
+
+  test("the text already applied: Enter emits none", async ({ page }) => {
+    const { field, calls } = await openName(page, undefined, {
+      name: { kind: "text", text: "beta" },
+    });
+    await expect(
+      field,
+      "could not check: the field lacks the applied text",
+    ).toHaveValue("beta");
+    await field.press("Enter");
+    expect(await calls()).toEqual([]);
+  });
+});
