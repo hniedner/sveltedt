@@ -38,8 +38,8 @@ async function echoed(page: Page, applied: string) {
 
 // Opens the dialog of "Filter <label>" on the page, `address` setting `searchDelay` and the like, with the clock paused
 // at the start: page time moves only by `at`, so "400 ms" is exact. `filters` is what the application has applied.
-// Returns the dialog, `at(ms)` that moves the clock to `ms` after the first key (keys take no time), and `calls()` that
-// reads every `onfilter` argument so far
+// Returns the dialog, `at(ms)` that moves the clock to `ms` after the dialog opened (keys take no time), and
+// `calls()` that reads every `onfilter` argument so far
 async function openDialog(
   page: Page,
   label: string,
@@ -68,9 +68,7 @@ async function openDialog(
   };
   const calls = () =>
     page.evaluate(() => (window as unknown as DialogWindow).__calls.onfilter);
-  expect(await calls(), "could not check: a call before the first key").toEqual(
-    [],
-  );
+  expect(await calls(), "could not check: a call before any input").toEqual([]);
   return { dialog, at, calls };
 }
 

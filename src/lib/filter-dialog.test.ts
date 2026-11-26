@@ -223,8 +223,7 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(boxes(table)).toEqual([]);
   });
 
-  // This pair is the mutation proof of the reset line in ColumnFilter.svelte: without it one Survived CallExpression
-  // mutant is left there (the browser rows prove the behaviour)
+  // A press on an unselected option leaves it unchecked until filters holds it
   it("show the props after a press, and the new props once they change", async () => {
     const table = mount(withSelected("inactive"));
     await toggle(table, 1, "open");
@@ -238,6 +237,7 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(active.checked).toBe(true);
   });
 
+  // A press on a selected option leaves it checked; an isSelected result of false would show here
   it("stay checked after a press on a selected one while filters is unchanged", async () => {
     const table = mount(withSelected("inactive"));
     await toggle(table, 1, "open");

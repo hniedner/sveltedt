@@ -103,11 +103,10 @@ There is nothing to install yet. What is on `main` today:
   one alert per reason and not emitted; proved in Chromium, Firefox and WebKit on the test site's filter dialog
   page). A categorical filter's dialog offers its options as checkboxes in the given order (with `emptyOption: true`
   one more, "(empty)", last, whose value is `''`), each ticked while `filters` selects it; a press emits the next
-  selection's values in the options' order through `onfilter` and leaves the box as `filters` says, so `onfilter`
-  should update `filters` at once, as the connection helper does. A user who presses a second option before that
-  change reaches `filters` builds the second selection from the old `filters`, so an application with a slow echo
-  should update `filters` at once. Text typed and not yet sent (still within the pause, or not yet confirmed with
-  Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape behaviour of the filter field is not
+  selection's values in the options' order through `onfilter` and leaves the box as `filters` says. A second press made
+  before `filters` has changed builds its selection from the old `filters` and so replaces the first, so update
+  `filters` in `onfilter` at once, as the connection helper does. Text typed and not yet sent (still within the pause,
+  or not yet confirmed with Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape behaviour of the filter field is not
   settled yet (the input type is decided later): with the search field's `type="search"`, Chromium and Firefox clear
   the field on Escape and, after the pause, emit an empty text filter, which removes the applied one, and WebKit
   closes the dialog and emits nothing. A clearable badge for each applied filter, "Clear column filters", "Reset
@@ -147,7 +146,7 @@ There is nothing to install yet. What is on `main` today:
   `/api/orders`, pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in
   Chromium, Firefox and WebKit.
 
-Not yet: the filter dialog's focus, closing and placement (the dialog shows at the
+Not yet: the categorical filter's find field, the filter dialog's focus, closing and placement (the dialog shows at the
 window's top-left corner on a page with Tailwind's base styles, centred without them, with no frame of its own), column
 features, selection, the rest of the connection helper
 (reset; cancel and retry) and the published package. The order is in the

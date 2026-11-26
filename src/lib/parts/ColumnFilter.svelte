@@ -97,7 +97,8 @@
             type="checkbox"
             checked={isSelected(option.value)}
             onchange={(event) => {
-              // The box shows the props: a press leaves it as `filters` says until `filters` changes
+              // The browser has already flipped the box; put it back to what `filters` says. The next change of
+              // `filters` sets it again.
               event.currentTarget.checked = isSelected(option.value);
               // Stryker disable next-line OptionalChaining: unreachable fallback, a filter exists only with an onfilter (FILT-32)
               onfilter?.({
