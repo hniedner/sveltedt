@@ -19,6 +19,8 @@ export const defaultMessages: DataTableMessages = {
   sortableHint: "Column names that are buttons sort the table.",
   emptyOption: "(empty)",
   filterButton: (label) => `Filter ${label}`,
+  filterDialog: (label) => `${label} filter`,
+  filterText: (label) => `Filter ${label} text`,
   badgeText: ({ label, text }) => `${label}: contains “${text}”`,
   badgeOptions: ({ label, options }) => `${label}: ${options.join(", ")}`,
   clearFilter: (words) => `Clear filter ${words}`,

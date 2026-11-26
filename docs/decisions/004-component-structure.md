@@ -21,6 +21,8 @@ decision (see Region order).
 - Added with the global search (#162), measured at 1df7c3b: a third part,
   `src/lib/parts/Search.svelte` (70 lines), and a second state class, `src/lib/search.svelte.ts` (84 lines), built by
   the part, which amends the Fields rule below.
+- Added with the filter dialog (#86): a fourth part, `src/lib/parts/ColumnFilter.svelte`, one per filtered column, which
+  shows a text filter's field with `Search.svelte` and `SearchText`.
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
@@ -39,7 +41,7 @@ decision (see Region order).
   order: the one place the order of the regions is written. A part writes the order inside it, as `Toolbar` writes
   FILT-31's (`src/lib/parts/Toolbar.svelte:33-61`).
 - **Built, at b20d582:** `HeaderCell` (`src/lib/parts/HeaderCell.svelte:38-76`) and `Toolbar`. Expected, each written by
-  the branch that builds it (INFERRED): the filter dialog, the chooser, a body row. Root markup, not parts: the live
+  the branch that builds it (INFERRED): the chooser, a body row. Root markup, not parts: the live
   count, the failed notice, Try again, the hidden sort descriptions and the alert, one element each (Try again's `retry`
   and `bind:this` reference are the root's, `src/lib/DataTable.svelte:112-115`). The loading line (status region,
   Cancel, progress indicator) meets rule (2), but the rule applies from the next feature on and #146 decides the line: a
@@ -86,7 +88,10 @@ decision (see Region order).
     trace-hash test, the other hits are comments).
     This amends the rule above: a field the user types into keeps its unsent text and its pause timer in a class of its
     own, built by the part that shows the field (`src/lib/search.svelte.ts`, #162); `TableView` keeps the table-wide
-    items.
+    items. This amends the rule above for the open dialog of PRD-B2 as well: a column's filter dialog is a popover, and
+    the browser holds whether it is open; its part mirrors that in one `$state` of its own, written only by the
+    dialog's `beforetoggle` event, and shows the dialog's fields only while it is open, so their unsent text and pause
+    go when it closes and come back from the props when it opens (`src/lib/parts/ColumnFilter.svelte`, #86).
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
     `grep -rnE "view\.\w+ =" src/lib` finds nothing). The fields are public and writable in TypeScript; a part that
@@ -188,3 +193,19 @@ decision (see Region order).
   b20d582), and that entry, not this record, carries the outcome.
 - **Reopens when:** an adopter needs a built-in part somewhere a snippet cannot cover, the owner decides the
   recommendation otherwise, or design R (PRD-X5, `docs/PRD.md:1577`, `docs/PRD.md:1597`) changes what scrolls.
+
+## Origin of reused code
+
+Three files are adapted from the owner's public repository github.com/hniedner/ontoprism (Apache-2.0, no NOTICE file),
+read at its `main` (`e4f05c25`, as record 001 does). Each carries a header comment that names its source and the
+licence.
+
+- `src/lib/Pagination.svelte`, from `frontend/src/lib/components/Pagination.svelte`: the nav, the step buttons, the
+  number row and its gaps.
+- `src/lib/search.svelte.ts`, from `frontend/src/lib/components/data-table/DataTableFilterPopover.svelte`: the pause
+  timer, its cancel and teardown, and the apply step.
+- `src/lib/parts/ColumnFilter.svelte`, from the same `DataTableFilterPopover.svelte`: the dialog named "<label>
+  filter" (the categorical options follow in a later change).
+
+The code is the owner's own, so `NOTICE` has no entry for it. Where an adaptation differs from its source, the
+statement in `spec/table.md` that asks for the difference is the reason.

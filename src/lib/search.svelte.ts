@@ -5,9 +5,9 @@
 // Unicode category Cc: U+0000-U+001F and U+007F-U+009F; U+0085 is one, although `trim` does not remove it
 const CONTROL = /\p{Cc}/u;
 
-// The state of the search field: the text as typed, the pause timer (PRD-B2) and the refusals of FILT-42, a control
-// character or too many code points in the trimmed text. Built by the part that shows the field, once, while
-// that part initialises
+// The state of the global search field and of a text filter's field (FILT-01): the text as typed, the pause timer
+// (PRD-B2) and the refusals of FILT-42, a control character or too many code points in the trimmed text. Built by the
+// part that shows the field, once, while that part initialises
 export class SearchText {
   // The field's text as typed; null: it shows the applied search, which is the one source of truth
   own = $state<string | null>(null);
@@ -37,7 +37,8 @@ export class SearchText {
       const now = this.#applied();
       if (!this.#newer && now !== this.own?.trim()) this.own = null;
     });
-    // A pause that is still running when the field goes emits nothing (FOOT-05)
+    // A pause that is still running when the field goes emits nothing (FOOT-05, FILT-35: a dialog that closes removes
+    // its field)
     $effect(() => () => clearTimeout(this.#timer));
   }
 
