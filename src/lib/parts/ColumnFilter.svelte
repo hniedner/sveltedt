@@ -51,8 +51,8 @@
      open. The text filter's field is the search field's part and class, given this column's applied text (FILT-01) -->
 <button
   type="button"
-  popovertarget={dialogId}
   aria-label={words.filterButton(label)}
+  popovertarget={dialogId}
   ><svg
     aria-hidden="true"
     focusable="false"
