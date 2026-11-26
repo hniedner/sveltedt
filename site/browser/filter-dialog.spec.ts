@@ -471,6 +471,8 @@ test.describe("FILT-03, a text filter emits nothing for text it refuses after tr
   for (const entry of REFUSED)
     test(`${entry.title}: at 400 ms and on Enter no call`, async ({ page }) => {
       const { field, at, calls } = await openName(page, entry.address);
+      // The user sees the refusal of FILT-15 instead of keys that do nothing
+      await expect(field).not.toHaveAttribute("maxlength");
       await put(page, field, entry);
       await expect(
         field,
