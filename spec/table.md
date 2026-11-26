@@ -2678,7 +2678,7 @@ every statement here that opens the dialog is tested in a real browser, in Chrom
 moved by fake timers as in the slow-load statements. In the examples, column Name (id `name`) has a text filter
 and column Status (id `status`) a categorical filter with the options `active` "Active" and `inactive` "Inactive",
 in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
-control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
+control character, which no key types, is put in by one paste from the clipboard. Times are counted from the first key
 of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
 (an emoji such as U+1F600 counts 1). The real-browser tests of these statements run on the filter dialog test page,
 `site/filter-dialog.html`, whose columns are those of the examples.
@@ -2773,42 +2773,62 @@ text, and not while typing goes on.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-03** A text filter MUST NOT emit `onfilter` for text it refuses, neither after the pause nor on Enter.
+**FILT-03** A text filter MUST NOT emit `onfilter` while its text, without leading and trailing white space, holds a
+control character (Unicode category Cc) or is longer than `maxLength` characters (code points), neither after the
+pause nor on Enter.
 - Examples (the test runs every row: type, wait 400 ms, press Enter; no call):
 
   | Typed | Refused because |
   |---|---|
   | "a", U+0001, "b" (pasted) | a control character |
   | "a", U+007F (pasted) | a control character |
+  | "a", U+0009, "b" (pasted) | a control character: a tab inside the text is not trimmed |
+  | "a", U+0085 (pasted) | a control character: U+0085 is not white space for `trim` |
   | 256 times "x" | longer than `maxLength` |
   | 256 times U+1F600 (pasted) | longer than `maxLength` |
   | 11 times "x", with `maxLength={10}` | longer than `maxLength` |
 
-  255 times U+1F600 (pasted) is not refused: at 400 ms one call with that text.
+  Not refused, at 400 ms one call with the text without its outer white space: 255 times U+1F600 (pasted); 10 times
+  "x", with `maxLength={10}`; 255 times "x" followed by " " (pasted; the call holds the 255 "x"); "beta", U+0009
+  (pasted; the call holds "beta").
 
   The field accepts the 256th character: it has no `maxlength` attribute, so the user sees the refusal of FILT-15
   instead of keys that do nothing.
-- Reason: the server would refuse the query; the user learns at the field (PRD-B6).
+- Reason: the server would refuse the query; the user learns at the field (PRD-B6). The text is trimmed first, so
+  white space around it is never a reason to refuse it (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-15** While a text filter's field holds refused text, the field MUST be `aria-invalid="true"` and described by
-an alert that says why.
-- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused,
-  before any pause):
+**FILT-15** While a text filter's field holds text it refuses (FILT-03), the field MUST be `aria-invalid="true"` and
+described by one alert for each reason that holds.
+- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused, before
+  any pause, or right after the dialog opens):
 
-  | Typed | Alert text (default) |
+  | Steps | Alerts (default words), in this order |
   |---|---|
-  | "a", U+0001 (pasted) | "Use at most 255 characters without control characters." |
-  | 11 times "x", with `maxLength={10}` | "Use at most 10 characters without control characters." |
+  | paste "a", U+0001 | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." |
+  | paste "a", U+0009, "b" | the same |
+  | paste "a", U+0085 | the same |
+  | type 11 times "x", with `maxLength={10}` | "Use at most 10 characters." |
+  | paste "a", U+0001, then 300 times "x" | the hidden-character alert, then "Use at most 255 characters." |
+  | `filters` holds `name: { kind: 'text', text: 'a' }` with U+0001 after the "a"; open the dialog | the hidden-character alert |
+  | paste "beta", U+0009 | none, and the field is not `aria-invalid`: an outer tab is trimmed (FILT-59) |
 
-- Reason: the user hears why the filter was not applied, at the field (PRD-B6, WCAG 3.3.1).
+- Reason: the user hears why the filter was not applied and what to do, at the field (PRD-B6, WCAG 3.3.1, 3.3.3);
+  each reason has its own words (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-A1.
 
-**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alert.
-- Example: paste "a", U+0001, then press Backspace: the field reads "a", `aria-invalid` is not "true", and no alert is in the
-  dialog; at 400 ms one call with "a".
+**FILT-16** A key that makes the field's text valid again MUST remove the field's invalid mark and its alerts.
+- Examples (the test runs every row; after the key the field is not `aria-invalid`, no alert is in the dialog, and at
+  400 ms one call is made with the text the row says):
+
+  | Steps | Field reads | The call's text |
+  |---|---|---|
+  | paste "a", U+0001, then press Backspace | "a" | "a" |
+  | paste "a", U+0009, "b", then press Backspace | "a", U+0009 | "a" (the tab left at the end is trimmed) |
+  | type 11 times "x", with `maxLength={10}`, then press Backspace | 10 times "x" | 10 times "x" |
+
 - Reason: a stale error misleads (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
@@ -3300,7 +3320,8 @@ for the code the examples below list.
   | `noOptions` | "No options match." | FILT-18 |
   | `emptyOption` | "(empty)" | FILT-53, with Status's `emptyOption: true` |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
-  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
+  | `textHiddenCharacter` | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." | FILT-15 |
+  | `textTooLong` (a function of `maxLength`) | "Use at most 255 characters." for 255; "Use at most 1,000 characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
   The 1000 case runs once more in a browser context with the locale `de-DE`: the test first asserts that
   `(1000).toLocaleString()` gives "1.000" there, and still expects "1,000".
