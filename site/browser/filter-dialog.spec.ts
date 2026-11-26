@@ -1,7 +1,7 @@
 // The statements of the filter dialog and its fields (spec/table.md section 11), against site/filter-dialog.html. The
 // dialog is a popover, and an empty popover has no box, so a test counts the dialog by its role and name and never asks
 // whether it is visible.
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type DialogWindow = Window & {
   __calls: { onfilter: unknown[] };
@@ -194,4 +194,72 @@ test("FILT-14, a text filter's field has autocomplete off", async ({
 }) => {
   const { field } = await openName(page);
   await expect(field).toHaveAttribute("autocomplete", "off");
+});
+
+// Puts `value` into the field with one paste, as a user's paste does, and checks the engine kept every character
+async function paste(page: Page, field: Locator, value: string) {
+  await field.focus();
+  await page.keyboard.insertText(value);
+  await expect(
+    field,
+    "could not check: the engine dropped a pasted character",
+  ).toHaveValue(value);
+}
+
+// @spec("FILT-59", "b7f553dc")
+test.describe("FILT-59, a text filter emits its text without outer white space", () => {
+  test("type ' beta '; at 400 ms one call with beta", async ({ page }) => {
+    const { field, at, calls } = await openName(page);
+    await field.pressSequentially(" beta ");
+    await at(400);
+    expect(await calls()).toEqual([text("name", "beta")]);
+  });
+
+  test("paste beta and a tab; at 400 ms one call with beta", async ({
+    page,
+  }) => {
+    const { field, at, calls } = await openName(page);
+    await paste(page, field, "beta\t");
+    await at(400);
+    expect(await calls()).toEqual([text("name", "beta")]);
+  });
+
+  test("beta applied; type a space; at 400 ms none", async ({ page }) => {
+    const { field, at, calls } = await openName(page, undefined, {
+      name: { kind: "text", text: "beta" },
+    });
+    await field.pressSequentially(" ");
+    await at(400);
+    expect(await calls()).toEqual([]);
+  });
+
+  test("beta applied; the field set to a space; at 400 ms one call with an empty text", async ({
+    page,
+  }) => {
+    const { field, at, calls } = await openName(page, undefined, {
+      name: { kind: "text", text: "beta" },
+    });
+    await field.fill(" ");
+    await at(400);
+    expect(await calls()).toEqual([text("name", "")]);
+  });
+
+  test("type ' beta '; at 100 ms Enter: one call with beta", async ({
+    page,
+  }) => {
+    const { field, at, calls } = await openName(page);
+    await field.pressSequentially(" beta ");
+    await at(100);
+    await field.press("Enter");
+    expect(await calls()).toEqual([text("name", "beta")]);
+  });
+
+  test("paste a quoted phrase; at 400 ms one call keeps its spaces", async ({
+    page,
+  }) => {
+    const { field, at, calls } = await openName(page);
+    await paste(page, field, '" beta "');
+    await at(400);
+    expect(await calls()).toEqual([text("name", '" beta "')]);
+  });
 });
