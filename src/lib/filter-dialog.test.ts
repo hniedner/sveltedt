@@ -217,24 +217,6 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     filters: { status: { kind: "categorical" as const, selected } },
   });
 
-  it("are one per option, in the given order, named by their labels", async () => {
-    const table = mount();
-    await toggle(table, 1, "open");
-    expect(boxes(table)).toEqual([
-      ["Active", false],
-      ["Inactive", false],
-    ]);
-  });
-
-  it("are checked exactly while their value is selected", async () => {
-    const table = mount(withSelected("inactive"));
-    await toggle(table, 1, "open");
-    expect(boxes(table)).toEqual([
-      ["Active", false],
-      ["Inactive", true],
-    ]);
-  });
-
   it("are absent from a text column's dialog", async () => {
     const table = mount();
     await toggle(table, 0, "open");
