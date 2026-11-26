@@ -407,8 +407,15 @@ describe("FILT-43", () => {
     (searchOnEnter, hint) => {
       const table = mount({ searchOnEnter });
       expect(described(table.field)).toEqual(hint);
+      expect(!!screen.queryByText("Press Enter to apply.")).toBe(searchOnEnter);
     },
   );
+
+  it("lists the hint before the message of a refused text", async () => {
+    const table = mount({ searchOnEnter: true });
+    await table.paste("a\u0001");
+    expect(described(table.field)).toEqual(["Press Enter to apply.", HIDDEN]);
+  });
 });
 
 // @spec("FILT-55", "acbb139a")
