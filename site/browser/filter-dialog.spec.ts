@@ -698,14 +698,17 @@ const openStatus = (
     status: { kind: "categorical", selected: before },
   });
 
-// Presses the checkbox `name` once and reads the calls at once (no clock step)
+// Presses the checkbox `name` once, reads the calls at once, then lets a second of page time pass: no call may follow
+// the press, so a delayed second emit is a finding. Returns the calls
 async function pressed(
-  dialog: Locator,
-  calls: () => Promise<unknown[]>,
+  opened: Awaited<ReturnType<typeof openStatus>>,
   name: string,
 ) {
-  await dialog.getByRole("checkbox", { name, exact: true }).click();
-  return calls();
+  await opened.dialog.getByRole("checkbox", { name, exact: true }).click();
+  const first = await opened.calls();
+  await opened.at(1000);
+  expect(await opened.calls(), "a call followed the press").toEqual(first);
+  return first;
 }
 
 // The `onfilter` argument of Status's selection
@@ -725,10 +728,16 @@ test.describe("FILT-04, each toggle of a categorical option emits the next selec
     test(`selected ${JSON.stringify(row.before)}, press ${row.press}`, async ({
       page,
     }) => {
-      const { dialog, calls } = await openStatus(page, undefined, row.before);
-      expect(await pressed(dialog, calls, row.press)).toEqual([
-        statusCall(row.after),
-      ]);
+      const opened = await openStatus(page, undefined, row.before);
+      for (const [name, value] of [
+        ["Active", "active"],
+        ["Inactive", "inactive"],
+      ] as const)
+        await expect(
+          opened.dialog.getByRole("checkbox", { name, exact: true }),
+          `could not check: ${name} is not in the expected state`,
+        ).toBeChecked({ checked: row.before.includes(value) });
+      expect(await pressed(opened, row.press)).toEqual([statusCall(row.after)]);
     });
 });
 
@@ -754,12 +763,12 @@ test.describe("FILT-53, a categorical filter with emptyOption offers one more op
     test(`selected ${JSON.stringify(row.before)}, press ${row.press}`, async ({
       page,
     }) => {
-      const { dialog, calls } = await openStatus(
+      const opened = await openStatus(
         page,
         "/filter-dialog.html?empty",
         row.before,
       );
-      const boxes = dialog.getByRole("checkbox");
+      const boxes = opened.dialog.getByRole("checkbox");
       await expect(boxes).toHaveCount(names.length);
       for (const [index, name] of names.entries()) {
         await expect(boxes.nth(index)).toHaveAccessibleName(
@@ -769,8 +778,6 @@ test.describe("FILT-53, a categorical filter with emptyOption offers one more op
           await expect(boxes.nth(index)).toBeChecked();
         else await expect(boxes.nth(index)).not.toBeChecked();
       }
-      expect(await pressed(dialog, calls, row.press)).toEqual([
-        statusCall(row.after),
-      ]);
+      expect(await pressed(opened, row.press)).toEqual([statusCall(row.after)]);
     });
 });
