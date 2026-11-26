@@ -802,8 +802,8 @@ when it shows, with `aria-expanded` saying which and focus staying on the toggle
 
   - Break that turns it red: "Close" hides the panel without moving focus (focus is then not on the toggle).
 - Reason: a control that hides itself would not return focus to the toggle (where it goes differs by browser), so a
-  keyboard user loses their place (WCAG 2.4.3); the table moves no focus when a panel opens or closes, so the application returns it to the button that
-  opened the panel (PRD-B31, PRD-D4).
+  keyboard user loses their place (WCAG 2.4.3); the table moves no focus when a panel opens or closes, so the
+  application returns it to the button that opened the panel (PRD-B31, PRD-D4).
 - Layer: real browser.
 - Traces: PRD-B31, PRD-D4.
 
