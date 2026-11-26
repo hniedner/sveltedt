@@ -6,12 +6,13 @@
 const CONTROL = /\p{Cc}/u;
 
 // The state of the search field: the text as typed, the pause timer (PRD-B2) and the refusals of FILT-42, a control
-// character or too many code points in the trimmed text. Built by the part that shows the
-// field, once, while that part initialises
+// character or too many code points in the trimmed text. Built by the part that shows the field, once, while
+// that part initialises
 export class SearchText {
   // The field's text as typed; null: it shows the applied search, which is the one source of truth
   own = $state<string | null>(null);
-  // Typed since the last emit; a plain field, so the effect below does not rerun on it (`own` does, via `own?.trim()`)
+  // Typed since the field last took the applied text or applied its own (cleared by an apply that is not refused); a
+  // plain field, so the effect below does not rerun on it (`own` does, via `own?.trim()`)
   #newer = false;
   #timer: ReturnType<typeof setTimeout> | undefined;
   readonly #applied: () => string;

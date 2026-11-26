@@ -88,8 +88,8 @@ There is nothing to install yet. What is on `main` today:
   and before the filter badges and the `panels` snippet. It emits through `onsearch` after the `searchDelay` pause, at
   once on Enter, or on Enter only with `searchOnEnter`, and then says "Press Enter to apply."; the text emitted has no
   leading or trailing white space, while the field keeps what was typed. A text that, trimmed, holds a control
-  character or is longer than `maxLength` (255 by default, counted in code points, not bytes) is not emitted: the field is marked invalid, with a
-  message of its own for each condition. It shows the applied `search`, and keeps newer typing when `search` changes.
+  character or is longer than `maxLength` (255 by default, counted in code points, not bytes) is not emitted: the
+  field is marked invalid, with a message of its own for each condition. It shows the applied `search`, and keeps newer typing when `search` changes.
   An application that wants another field leaves out `onsearch` and renders its own, and then has neither the pause,
   the trimming, the refusal nor the newer-typing rule. Limits: an application that applies `search` only after the
   answer arrives should still pass the new text at once, as the connection helper does; Enter inside the

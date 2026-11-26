@@ -457,7 +457,7 @@ describe("FILT-55", () => {
     if (text) await table.paste(text);
     expect(table.field.labels?.[0]?.textContent).toBe("Suche");
     expect(described(table.field)).toEqual(words);
-    // textContent reads visible words only; "Search" is capitalised, so an attribute value cannot match
+    // Checks the visible text only (textContent); attribute values are covered by the label and describedby assertions
     for (const word of english)
       expect(document.body.textContent).not.toContain(word);
   });
