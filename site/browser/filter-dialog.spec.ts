@@ -215,7 +215,9 @@ test("FILT-14, a text filter's field has autocomplete off", async ({
 // Puts `value` into the field with one paste from the clipboard, as a user's paste does, and checks the engine kept
 // every character. Not `insertText` or `fill`: Firefox drops U+0001 and U+007F from both. Chromium refuses a clipboard
 // write without a grant; Firefox and WebKit throw on that grant, so only Chromium gets it. Each engine keeps its own
-// clipboard in a headless run (MEASURED on macOS), but a headed run may overwrite the developer's
+// clipboard in a headless run (MEASURED on macOS), but a headed run may overwrite the developer's own clipboard: run
+// headless to keep it. The per-row check at the end stays because Chromium's clipboard carries over between tests in
+// one worker, so a failed write would paste the previous test's text
 async function paste(page: Page, field: Locator, value: string) {
   const context = page.context();
   if (context.browser()?.browserType().name() === "chromium")
@@ -301,8 +303,9 @@ test("FILT-60, a filter field keeps typed white space when filters echoes the tr
   await expect(field).toHaveValue(" beta ");
 });
 
-// Opens with "beta" applied, clicks into the field (typing into a field that holds text puts the key at the start unless
-// the caret is placed), types "x" and lets the pause pass: FILT-37's rows 4 to 6 start with the one call "betax"
+// Opens with "beta" applied, clicks into the field, types "x" and lets the pause pass: FILT-37's rows 4 to 6 start with
+// the one call "betax". The click comes first because in Firefox and WebKit typing into a field that holds text puts the
+// key at the start (measured: not even the End key moves it)
 async function sentBetax(page: Page) {
   const opened = await openNameApplied(page);
   await opened.field.click();
@@ -409,7 +412,7 @@ test.describe("FILT-13, under searchOnEnter a text filter's field says Press Ent
   });
 });
 
-// How a FILT-03 row puts its text into the field, and the address of the page it runs on
+// How a row of FILT-03 or FILT-16 puts its text into the field, and the address of the page it runs on
 interface Entry {
   title: string;
   value: string;
