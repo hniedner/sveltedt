@@ -88,7 +88,7 @@ There is nothing to install yet. What is on `main` today:
   and before the filter badges and the `panels` snippet. It emits through `onsearch` after the `searchDelay` pause, at
   once on Enter, or on Enter only with `searchOnEnter`, and then says "Press Enter to apply."; the text emitted has no
   leading or trailing white space, while the field keeps what was typed. A text that, trimmed, holds a control
-  character or is longer than `maxLength` (counted in code points) is not emitted: the field is marked invalid, with a
+  character or is longer than `maxLength` (255 by default, counted in code points, not bytes) is not emitted: the field is marked invalid, with a
   message of its own for each condition. It shows the applied `search`, and keeps newer typing when `search` changes.
   An application that wants another field leaves out `onsearch` and renders its own, and then has neither the pause,
   the trimming, the refusal nor the newer-typing rule. Limits: an application that applies `search` only after the
@@ -97,8 +97,8 @@ There is nothing to install yet. What is on `main` today:
 - the filter controls, driven by the application's `filters`: a button "Filter <label>" in the header cell of each
   filtered column (it does nothing yet), a clearable badge for each applied filter, "Clear column filters", "Reset
   table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
-  column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and invalid filter or
-  search input gets the alert; the filter fields and dialog are not done yet;
+  column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and an invalid filter,
+  `search`, `searchDelay` or `maxLength` prop gets the alert; the filter fields and dialog are not done yet;
 - the `panels` snippet, for the application's own panels (an advanced search, batch actions) that a button in its
   `actions` snippet opens: rendered after the toolbar's controls and before the status line, in every state, the
   invalid-input alert's included, with its elements kept when the state changes (proved by component tests). A block

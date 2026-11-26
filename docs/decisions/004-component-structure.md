@@ -148,12 +148,12 @@ decision (see Region order).
   `spec/table.md:737`; A11Y-23, `spec/table.md:931`). At b20d582, tested: RND-14, FILT-31, STATE-25 and A11Y-23
   (MEASURED: `git grep -l '"<ID>"' b20d582 -- src site test`). Specified and built, no test carrying the id: A11Y-10 and
   A11Y-31 (MEASURED: `git grep "A11Y-10\|A11Y-31" b20d582 -- src site test scripts` is empty). Specified, not built, no
-  test yet: the skip link first (A11Y-36, `spec/table.md:4460`) and its target (A11Y-48, `spec/table.md:4468`); search
-  before the badges (FILT-45, `spec/table.md:3285`); "Columns" (COL-29, `spec/table.md:3323`); the sort summary
-  (SORT-08, `spec/table.md:3439`).
+  test yet: the skip link first (A11Y-36, `spec/table.md:4460`) and its target (A11Y-48, `spec/table.md:4468`);
+  "Columns" (COL-29, `spec/table.md:3323`); the sort summary
+  (SORT-08, `spec/table.md:3439`). Search before the badges (FILT-45) is built and tested (note of 2026-11-25, #262).
 - **Decision (internal structure):**
   - The order is written once, in the root; each part writes its own inner order.
-  - Places no statement gives yet (search relative to `actions`; the sort summary among the toolbar controls) are
+  - Places no statement gives yet (the sort summary among the toolbar controls) are
     written by the statements of the branches that build them, not by this record. The same holds for the status region,
     the live count and the progress indicator: the branch that builds the loading line decides whether they move.
   - The order is pinned where a statement exists, and for the positions under "What pins it" only. PRD-K3's breaking

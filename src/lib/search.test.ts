@@ -455,7 +455,7 @@ describe("FILT-55", () => {
     if (text) await table.paste(text);
     expect(table.field.labels?.[0]?.textContent).toBe("Suche");
     expect(described(table.field)).toEqual(words);
-    // Case-sensitive: type="search" holds the lowercase word
+    // textContent reads visible words only; "Search" is capitalised, so an attribute value cannot match
     for (const word of english)
       expect(document.body.textContent).not.toContain(word);
   });

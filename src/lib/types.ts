@@ -86,7 +86,7 @@ export interface DataTableMessages {
   readonly reset: string;
   // The visible label and the name of the global search field (FILT-40)
   readonly searchLabel: string;
-  // The search field's hint under `searchOnEnter` (FILT-43)
+  // The hint under `searchOnEnter`, for the search field (FILT-43) and a text filter's field (FILT-13)
   readonly pressEnter: string;
   // The search field's refusal of a control character in its text (FILT-48)
   readonly textHiddenCharacter: string;
@@ -146,9 +146,11 @@ export interface DataTableProps<Row> {
   search?: string | null;
   // Milliseconds of typing pause before a filter or the search emits; a whole number, 0 or more (FILT-32)
   searchDelay?: number;
-  // The search field emits only on Enter, not after a pause; default false (FILT-41)
+  // A text filter's field and the search field emit only on Enter, not after a pause; default false (FILT-28,
+  // FILT-41)
   searchOnEnter?: boolean;
-  // The longest text a filter field accepts; a whole number, 1 or more (FILT-32)
+  // The longest text a filter field or the search field accepts, in code points; a whole number, 1 or more (FILT-32,
+  // FILT-42)
   maxLength?: number;
   heading?: Snippet;
   actions?: Snippet;

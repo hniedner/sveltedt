@@ -38,8 +38,8 @@
   );
 </script>
 
-<!-- A plain element, no role and no class: it holds the label and the field, and stands in the toolbar's place in the
-     document order (FILT-45) -->
+<!-- A plain element, no role and no class: it holds the label and the field, and comes after the `actions` snippet and
+     before the toolbar, the `panels` snippet and the region (FILT-45) -->
 <div>
   <label for={id}>{label}</label>
   <input
