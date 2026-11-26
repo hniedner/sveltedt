@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, within } from "@testing-library/svelte";
+import { tick } from "svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -46,7 +47,9 @@ describe("FILT-02, the dialog of each filter button in the simulated DOM", () =>
     const dialogs = table.container.querySelectorAll("[popover]");
     expect(dialogs).toHaveLength(2);
     ["Name", "Status"].forEach((label, index) => {
-      const button = screen.getByRole("button", { name: `Filter ${label}` });
+      const button = within(table.container).getByRole("button", {
+        name: `Filter ${label}`,
+      });
       const dialog = dialogs[index];
       expect(button.nextElementSibling).toBe(dialog);
       expect(button.getAttribute("popovertarget")).toBe(dialog?.id);
@@ -65,5 +68,117 @@ describe("FILT-02, the dialog of each filter button in the simulated DOM", () =>
     expect(
       table.container.querySelector("[popover]")?.getAttribute("aria-label"),
     ).toBe("Choose Name");
+  });
+});
+
+// What a browser sends just before it shows or hides a popover: the simulated DOM never does
+async function toggle(
+  table: { container: HTMLElement },
+  index: number,
+  to: string,
+) {
+  const dialog = table.container.querySelectorAll("[popover]")[index];
+  if (!dialog) throw new Error(`no dialog ${index}`);
+  dialog.dispatchEvent(
+    Object.assign(new Event("beforetoggle"), { newState: to }),
+  );
+  await tick();
+}
+const fieldOf = (table: { container: HTMLElement }) =>
+  table.container.querySelector<HTMLInputElement>("[popover] input");
+
+describe("FILT-01, a text filter's field in the simulated DOM", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("exists only while the dialog is open", async () => {
+    const table = mount();
+    expect(fieldOf(table)).toBeNull();
+    await toggle(table, 0, "open");
+    expect(fieldOf(table)).not.toBeNull();
+    await toggle(table, 0, "closed");
+    expect(fieldOf(table)).toBeNull();
+  });
+
+  it("is labelled by the filterText word", async () => {
+    const table = mount();
+    await toggle(table, 0, "open");
+    expect(within(table.container).getByLabelText("Filter Name text")).toBe(
+      fieldOf(table),
+    );
+    const own = mount({ messages: { filterText: (label) => `Find ${label}` } });
+    await toggle(own, 0, "open");
+    expect(within(own.container).getByLabelText("Find Name")).toBe(
+      fieldOf(own),
+    );
+  });
+
+  it("emits the column's id and the typed text after the pause", async () => {
+    const onfilter = vi.fn();
+    const table = mount({ onfilter });
+    await toggle(table, 0, "open");
+    await fireEvent.input(fieldOf(table) as HTMLElement, {
+      target: { value: "beta" },
+    });
+    await vi.advanceTimersByTimeAsync(399);
+    expect(onfilter).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onfilter.mock.calls).toEqual([
+      [{ id: "name", state: { kind: "text", text: "beta" } }],
+    ]);
+  });
+
+  it("shows the applied text of its own column only", async () => {
+    const table = mount({
+      filters: {
+        name: { kind: "text", text: "beta" },
+        status: { kind: "categorical", selected: ["a"] },
+      },
+    });
+    await toggle(table, 0, "open");
+    expect(fieldOf(table)?.value).toBe("beta");
+  });
+
+  it("emits at once with searchDelay 0", async () => {
+    const onfilter = vi.fn();
+    const table = mount({ onfilter, searchDelay: 0 });
+    await toggle(table, 0, "open");
+    await fireEvent.input(fieldOf(table) as HTMLElement, {
+      target: { value: "a" },
+    });
+    expect(onfilter).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits only on Enter with searchOnEnter", async () => {
+    const onfilter = vi.fn();
+    const table = mount({ onfilter, searchOnEnter: true });
+    await toggle(table, 0, "open");
+    const field = fieldOf(table) as HTMLElement;
+    await fireEvent.input(field, { target: { value: "b" } });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(onfilter).not.toHaveBeenCalled();
+    await fireEvent.keyDown(field, { key: "Enter" });
+    expect(onfilter).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a text longer than the table's maxLength", async () => {
+    const onfilter = vi.fn();
+    const table = mount({ onfilter, maxLength: 1 });
+    await toggle(table, 0, "open");
+    await fireEvent.input(fieldOf(table) as HTMLElement, {
+      target: { value: "ab" },
+    });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(onfilter).not.toHaveBeenCalled();
+  });
+
+  it("is not shown in a categorical column's dialog", async () => {
+    const table = mount();
+    await toggle(table, 1, "open");
+    expect(fieldOf(table)).toBeNull();
   });
 });

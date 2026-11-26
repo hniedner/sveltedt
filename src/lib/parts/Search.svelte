@@ -38,8 +38,9 @@
   );
 </script>
 
-<!-- A plain element, no role and no class: it holds the label and the field, and comes after the `actions` snippet and
-     before the toolbar, the `panels` snippet and the region (FILT-45) -->
+<!-- Shown for the global search and, in a column's filter dialog, for a text filter's field (FILT-01). A plain
+     element, no role and no class: it holds the label and the field, and comes after the `actions` snippet and before
+     the toolbar, the `panels` snippet and the region (FILT-45) -->
 <div>
   <label for={id}>{label}</label>
   <input

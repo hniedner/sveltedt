@@ -2,13 +2,18 @@
   import { sortState } from "../sort.js";
   import type {
     DataTableColumn,
+    DataTableFilterState,
     DataTableMessages,
+    DataTableProps,
     DataTableSortEntry,
     SortDirection,
   } from "../types.js";
   import ColumnFilter from "./ColumnFilter.svelte";
 
-  interface Props {
+  type Props = Pick<
+    DataTableProps<Row>,
+    "searchDelay" | "searchOnEnter" | "maxLength" | "onfilter"
+  > & {
     column: DataTableColumn<Row>;
     order: readonly DataTableSortEntry[];
     // The id of the hidden description of this column's sort button
@@ -18,7 +23,9 @@
     onkeydown: (event: KeyboardEvent) => void;
     onblur: () => void;
     onpress: (event: MouseEvent) => void;
-  }
+    // The filter the application applied to this column
+    applied: DataTableFilterState | undefined;
+  };
 
   const {
     column,
@@ -28,6 +35,11 @@
     onkeydown,
     onblur,
     onpress,
+    applied,
+    searchDelay,
+    searchOnEnter,
+    maxLength,
+    onfilter,
   }: Props = $props();
   // The direction mark of a sorted column (SORT-13)
   const arrow = (direction: SortDirection): string =>
@@ -61,5 +73,15 @@
       >{/if}
   {:else}
     {column.label}
-  {/if}{#if column.filter}<ColumnFilter label={column.label} {words} />{/if}
+  {/if}{#if column.filter}<ColumnFilter
+      id={column.id}
+      label={column.label}
+      filter={column.filter}
+      {applied}
+      {words}
+      {searchDelay}
+      {searchOnEnter}
+      {maxLength}
+      {onfilter}
+    />{/if}
 </th>

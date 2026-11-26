@@ -228,6 +228,11 @@
                 onkeydown={sortKey}
                 onblur={() => (keyShift = null)}
                 onpress={(event: MouseEvent) => press(column, event)}
+                applied={filters?.[column.id]}
+                {searchDelay}
+                {searchOnEnter}
+                {maxLength}
+                {onfilter}
               />
             {/each}
           </tr>
