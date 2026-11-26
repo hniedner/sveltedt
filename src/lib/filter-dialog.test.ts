@@ -287,3 +287,42 @@ describe("FILT-04, a categorical press in the simulated DOM", () => {
     ]);
   });
 });
+
+describe("FILT-53, the option for no value in the simulated DOM", () => {
+  it("is offered last under the emptyOption word and emits ''", async () => {
+    const onfilter = vi.fn();
+    const table = mount({
+      onfilter,
+      messages: { emptyOption: "None" },
+      columns: [
+        ...columns.slice(0, 1),
+        {
+          id: "status",
+          label: "Status",
+          value: ({ row }) => row.name,
+          filter: {
+            kind: "categorical",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+            emptyOption: true,
+          },
+        },
+      ],
+    });
+    await toggle(table, 1, "open");
+    const labels = [...table.container.querySelectorAll("[popover] label")];
+    expect(labels.map((label) => label.textContent?.trim())).toEqual([
+      "Active",
+      "Inactive",
+      "None",
+    ]);
+    await fireEvent.click(
+      within(table.container).getByLabelText("None", { exact: true }),
+    );
+    expect(onfilter.mock.calls).toEqual([
+      [{ id: "status", state: { kind: "categorical", selected: [""] } }],
+    ]);
+  });
+});

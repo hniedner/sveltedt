@@ -5,7 +5,7 @@
     DataTableMessages,
     DataTableProps,
   } from "../types.js";
-  import { toggled } from "../filters.js";
+  import { offered, toggled } from "../filters.js";
   import Search from "./Search.svelte";
 
   type Props = Pick<
@@ -22,6 +22,7 @@
       | "filterButton"
       | "filterDialog"
       | "filterText"
+      | "emptyOption"
       | "pressEnter"
       | "textHiddenCharacter"
       | "textTooLong"
@@ -53,7 +54,7 @@
      in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
      opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
      and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each, checked
-     while its value is selected (FILT-17); a press emits the next selection, in the options' order (FILT-04) -->
+     while its value is selected (FILT-17), with `emptyOption` one more for no value, last (FILT-53); a press emits the next selection, in the options' order (FILT-04) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}
@@ -88,7 +89,8 @@
           onfilter?.({ id, state: { kind: "text", text: next } })}
       />
     {:else}
-      {#each filter.options as option (option.value)}
+      {@const options = offered(filter, words.emptyOption)}
+      {#each options as option (option.value)}
         <label>
           <input
             type="checkbox"
@@ -101,7 +103,7 @@
                 id,
                 state: {
                   kind: "categorical",
-                  selected: toggled(filter.options, isSelected, option.value),
+                  selected: toggled(options, isSelected, option.value),
                 },
               });
             }}
