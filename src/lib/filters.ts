@@ -48,6 +48,20 @@ export function badges<Row>(
   return found;
 }
 
+// The values a categorical filter selects after a press on `pressed`: its options' values in the options' order, each
+// kept while `isSelected` holds it, the pressed one flipped (FILT-04)
+export function toggled(
+  options: readonly { value: string }[],
+  isSelected: (value: string) => boolean,
+  pressed: string,
+): string[] {
+  return options
+    .map((option) => option.value)
+    .filter((value) =>
+      value === pressed ? !isSelected(value) : isSelected(value),
+    );
+}
+
 // "Reset table" shows while `onreset` is given and a column is sortable or has a filter. The alert state keeps it for
 // a fault of SORT-15 or FILT-32, where the columns have passed RND-05's checks (their own sort or filter settings may
 // be the fault): it is the application's way back from a server answer the table cannot show (FILT-30).

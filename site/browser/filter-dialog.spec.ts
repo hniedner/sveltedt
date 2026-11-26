@@ -687,3 +687,30 @@ test.describe("FILT-17, a categorical filter offers its options as checkboxes th
     await expect(active).toBeChecked();
   });
 });
+
+// @spec("FILT-04", "fe910161")
+test.describe("FILT-04, each toggle of a categorical option emits the next selection at once", () => {
+  const rows = [
+    { before: [], press: "Inactive", after: ["inactive"] },
+    { before: ["inactive"], press: "Active", after: ["active", "inactive"] },
+    { before: ["active", "inactive"], press: "Active", after: ["inactive"] },
+  ];
+  for (const row of rows)
+    test(`selected ${JSON.stringify(row.before)}, press ${row.press}`, async ({
+      page,
+    }) => {
+      const { dialog, calls } = await openDialog(page, "Status", undefined, {
+        status: { kind: "categorical", selected: row.before },
+      });
+      await dialog
+        .getByRole("checkbox", { name: row.press, exact: true })
+        .click();
+      // No clock step: the call is made at once
+      expect(await calls()).toEqual([
+        {
+          id: "status",
+          state: { kind: "categorical", selected: row.after },
+        },
+      ]);
+    });
+});

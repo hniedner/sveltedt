@@ -265,3 +265,25 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(inactive.checked).toBe(true);
   });
 });
+
+describe("FILT-04, a categorical press in the simulated DOM", () => {
+  // The real-browser rows say the same; these run where the mutation step can see the code
+  it.each([
+    [[], "Inactive", ["inactive"]],
+    [["inactive"], "Active", ["active", "inactive"]],
+    [["active", "inactive"], "Active", ["inactive"]],
+  ])("from %j, a press on %s emits %j", async (before, press, after) => {
+    const onfilter = vi.fn();
+    const table = mount({
+      onfilter,
+      filters: { status: { kind: "categorical", selected: before } },
+    });
+    await toggle(table, 1, "open");
+    await fireEvent.click(
+      within(table.container).getByLabelText(press, { exact: true }),
+    );
+    expect(onfilter.mock.calls).toEqual([
+      [{ id: "status", state: { kind: "categorical", selected: after } }],
+    ]);
+  });
+});

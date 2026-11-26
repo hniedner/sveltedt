@@ -5,6 +5,7 @@
     DataTableMessages,
     DataTableProps,
   } from "../types.js";
+  import { toggled } from "../filters.js";
   import Search from "./Search.svelte";
 
   type Props = Pick<
@@ -52,7 +53,7 @@
      in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
      opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
      and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each, checked
-     while its value is selected (FILT-17) -->
+     while its value is selected (FILT-17); a press emits the next selection, in the options' order (FILT-04) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}
@@ -95,6 +96,14 @@
             onchange={(event) => {
               // The box shows the props: a press leaves it as `filters` says until `filters` changes
               event.currentTarget.checked = isSelected(option.value);
+              // Stryker disable next-line OptionalChaining: unreachable fallback, a filter exists only with an onfilter (FILT-32)
+              onfilter?.({
+                id,
+                state: {
+                  kind: "categorical",
+                  selected: toggled(filter.options, isSelected, option.value),
+                },
+              });
             }}
           />
           {option.label}
