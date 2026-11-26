@@ -386,8 +386,10 @@ describe("FILT-48", () => {
   it("emits the cleared text once Backspace leaves a text that is accepted", async () => {
     const table = mount();
     await table.paste("a\u0001");
-    await table.backspace();
     await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.backspace();
+    await table.at(800);
     expect(table.onsearch.mock.calls).toEqual([["a"]]);
   });
 
