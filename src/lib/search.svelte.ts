@@ -2,21 +2,30 @@
 // the owner's own project): the pause timer with its cancel and teardown, and the apply step that compares the text
 // with the applied one and emits.
 
-// The state of the search field: the text as typed and the pause timer (PRD-B2). Built by the part that shows the
-// field, once, while that part initialises
+// Unicode category Cc: U+0000-U+001F and U+007F-U+009F; U+0085 is one, although `trim` does not remove it
+const CONTROL = /\p{Cc}/u;
+
+// The state of the search field: the text as typed, the pause timer (PRD-B2) and the refusals of FILT-42, a control
+// character or too many code points in the trimmed text. Built by the part that shows the field, once, while
+// that part initialises
 export class SearchText {
   // The field's text as typed; null: it shows the applied search, which is the one source of truth
   own = $state<string | null>(null);
-  // Typed since the last emit; a plain field, so the effect below does not rerun on it (`own` does, via `own?.trim()`)
+  // Typed since the field last took the applied text or applied its own (cleared by an apply that is not refused); a
+  // plain field, so the effect below does not rerun on it (`own` does, via `own?.trim()`)
   #newer = false;
   #timer: ReturnType<typeof setTimeout> | undefined;
   readonly #applied: () => string;
-  readonly #settings: () => { delay: number; onEnter: boolean };
+  readonly #settings: () => {
+    delay: number;
+    onEnter: boolean;
+    maxLength: number;
+  };
   readonly #emit: (text: string) => void;
 
   constructor(
     applied: () => string,
-    settings: () => { delay: number; onEnter: boolean },
+    settings: () => { delay: number; onEnter: boolean; maxLength: number },
     emit: (text: string) => void,
   ) {
     this.#applied = applied;
@@ -41,6 +50,16 @@ export class SearchText {
     return this.text.trim();
   }
 
+  // The trimmed text holds a control character (FILT-42, FILT-48)
+  get hidden(): boolean {
+    return CONTROL.test(this.trimmed);
+  }
+
+  // The trimmed text is longer than `maxLength` code points (FILT-42, FILT-48)
+  get tooLong(): boolean {
+    return [...this.trimmed].length > this.#settings().maxLength;
+  }
+
   // Every input event: the new text, then the pause. Under searchOnEnter only Enter applies (FILT-28); a delay of 0
   // applies at once (FILT-01)
   input(value: string): void {
@@ -53,10 +72,11 @@ export class SearchText {
     else this.#timer = setTimeout(() => this.apply(), delay);
   }
 
-  // The pause ending or Enter: emits the trimmed text unless it equals the applied one (FILT-27, FILT-57); the pause
-  // then emits nothing more
+  // The pause ending or Enter: emits the trimmed text unless it is refused (FILT-42) or equals the applied one
+  // (FILT-27, FILT-57); the pause then emits nothing more
   apply(): void {
     clearTimeout(this.#timer);
+    if (this.hidden || this.tooLong) return;
     const text = this.trimmed;
     // Cleared before the equality return: a field that holds the applied text has taken it (FILT-44)
     this.#newer = false;

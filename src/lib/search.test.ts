@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import CriteriaTable from "../../test/CriteriaTable.svelte";
 import DataTable from "./DataTable.svelte";
-import type { DataTableProps } from "./types.ts";
+import type { DataTableMessages, DataTableProps } from "./types.ts";
 
 interface Item {
   id: string;
@@ -37,9 +38,7 @@ afterEach(() => {
 function mount(extra: Partial<DataTableProps<Item>> = {}) {
   const onsearch = vi.fn();
   const { rerender } = render(DataTable<Item>, props({ onsearch, ...extra }));
-  const field = screen.getByRole<HTMLInputElement>("searchbox", {
-    name: "Search",
-  });
+  const field = screen.getByRole<HTMLInputElement>("searchbox");
   let now = 0;
   const keys = async (key: string, value: string) => {
     await fireEvent.keyDown(field, { key });
@@ -196,7 +195,7 @@ describe("FILT-44", () => {
   });
 });
 
-// @spec("FILT-49", "6b5336d8")
+// @spec("FILT-49", "5e8bc62f")
 describe("FILT-49", () => {
   it("keeps newer typing when the search changes to the text emitted before it", async () => {
     const table = mount();
@@ -210,6 +209,17 @@ describe("FILT-49", () => {
     expect(table.field.value).toBe("melanoma");
     await table.at(850);
     expect(table.onsearch.mock.calls).toEqual([["mel"], ["melanoma"]]);
+  });
+
+  it("keeps a refused text and its message when the search changes", async () => {
+    const table = mount({ search: "beta" });
+    await table.paste("a\u0001");
+    await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("a\u0001");
+    expect(table.field.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("alert").textContent).toContain("hidden character");
   });
 });
 
@@ -272,5 +282,274 @@ describe("FILT-58", () => {
     // Enter applies the field's text trimmed: equal to the search that reached the component, so no second call
     await table.enter();
     expect(table.onsearch.mock.calls).toEqual([["beta"]]);
+  });
+});
+
+// @spec("FILT-42", "902c2e39")
+describe("FILT-42", () => {
+  const refused: [string, string, Partial<DataTableProps<Item>>?][] = [
+    ["a control character U+0001", "a\u0001"],
+    ["a control character U+007F", "a\u007F"],
+    ["an inner tab", "a\tb"],
+    ["U+0085, which is a control character and not white space", "a\u0085"],
+    ["256 characters", "x".repeat(256)],
+    ["11 characters with maxLength 10", "x".repeat(11), { maxLength: 10 }],
+    ["256 code points", "\u{1F600}".repeat(256)],
+  ];
+
+  it.each(refused)("emits nothing for %s", async (_name, text, extra) => {
+    const table = mount(extra);
+    await table.paste(text);
+    await table.at(400);
+    await table.enter();
+    expect(table.onsearch).not.toHaveBeenCalled();
+  });
+
+  it("emits a text of exactly maxLength characters", async () => {
+    const table = mount({ maxLength: 10 });
+    await table.paste("x".repeat(10));
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x".repeat(10)]]);
+  });
+
+  it("counts code points, not UTF-16 units", async () => {
+    const table = mount();
+    await table.paste("\u{1F600}".repeat(255));
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["\u{1F600}".repeat(255)]]);
+  });
+
+  it("judges the text without its outer white space", async () => {
+    const table = mount();
+    await table.paste(`${"x".repeat(255)} `);
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["x".repeat(255)]]);
+  });
+});
+
+const HIDDEN =
+  "The text contains a hidden character, often from pasted text. Clear the field and type the text again.";
+
+// The texts of the elements the field's aria-describedby names
+function described(field: HTMLElement): string[] {
+  return (field.getAttribute("aria-describedby") ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .map((id) => document.getElementById(id)?.textContent ?? "");
+}
+
+// @spec("FILT-48", "b1827535")
+describe("FILT-48", () => {
+  it.each([
+    ["a control character", "a\u0001", {}, [HIDDEN]],
+    ["U+0085", "a\u0085", {}, [HIDDEN]],
+    [
+      "11 characters with maxLength 10",
+      "x".repeat(11),
+      { maxLength: 10 },
+      ["Use at most 10 characters."],
+    ],
+    [
+      "1001 characters with maxLength 1000, the grouping proved",
+      "x".repeat(1001),
+      { maxLength: 1000 },
+      ["Use at most 1,000 characters."],
+    ],
+    [
+      "a control character and 300 characters",
+      `a\u0001${"x".repeat(300)}`,
+      {},
+      [HIDDEN, "Use at most 255 characters."],
+    ],
+  ] as const)(
+    "marks %s invalid and describes it by one alert per condition",
+    async (_name, text, extra, messages) => {
+      const table = mount(extra);
+      await table.paste(text);
+      expect(table.field.getAttribute("aria-invalid")).toBe("true");
+      expect(described(table.field)).toEqual(messages);
+      expect(
+        screen.getAllByRole("alert").map((alert) => alert.textContent),
+      ).toEqual(messages);
+    },
+  );
+
+  it("marks nothing once Backspace leaves a text that is accepted", async () => {
+    const table = mount();
+    await table.paste("a\u0001");
+    await table.backspace();
+    expect(table.field.getAttribute("aria-invalid")).not.toBe("true");
+    expect(described(table.field)).toEqual([]);
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
+  it("emits the cleared text once Backspace leaves a text that is accepted", async () => {
+    const table = mount();
+    await table.paste("a\u0001");
+    await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.backspace();
+    await table.at(800);
+    expect(table.onsearch.mock.calls).toEqual([["a"]]);
+  });
+
+  it("marks nothing for an outer tab, which is white space", async () => {
+    const table = mount();
+    await table.paste("a\u0009");
+    expect(table.field.getAttribute("aria-invalid")).not.toBe("true");
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
+  it("marks an applied search that the field would refuse", () => {
+    const table = mount({ search: "a\u0001" });
+    expect(table.field.getAttribute("aria-invalid")).toBe("true");
+    expect(described(table.field)).toEqual([HIDDEN]);
+  });
+});
+
+// @spec("FILT-43", "d9a4df9f")
+describe("FILT-43", () => {
+  it.each([
+    [true, ["Press Enter to apply."]],
+    [false, []],
+  ])(
+    "with searchOnEnter %s the field is described by %j",
+    (searchOnEnter, hint) => {
+      const table = mount({ searchOnEnter });
+      expect(described(table.field)).toEqual(hint);
+      expect(!!screen.queryByText("Press Enter to apply.")).toBe(searchOnEnter);
+    },
+  );
+
+  it("lists the hint before the message of a refused text", async () => {
+    const table = mount({ searchOnEnter: true });
+    await table.paste("a\u0001");
+    expect(described(table.field)).toEqual(["Press Enter to apply.", HIDDEN]);
+  });
+});
+
+// @spec("FILT-55", "acbb139a")
+describe("FILT-55", () => {
+  // The four words of the search in another language, each shown by the statement of its row
+  const foreign: Pick<
+    DataTableMessages,
+    "searchLabel" | "pressEnter" | "textHiddenCharacter" | "textTooLong"
+  > = {
+    searchLabel: "Suche",
+    pressEnter: "Mit Enter anwenden.",
+    textHiddenCharacter: "Der Text enthält ein verstecktes Zeichen.",
+    textTooLong: (maxLength) => `Höchstens ${maxLength} Zeichen.`,
+  };
+  const english = ["Search", "Press Enter", "hidden character", "Use at most"];
+
+  it.each([
+    ["searchLabel", {}, "", []],
+    ["pressEnter", { searchOnEnter: true }, "", ["Mit Enter anwenden."]],
+    [
+      "textHiddenCharacter",
+      {},
+      "a\u0001",
+      ["Der Text enthält ein verstecktes Zeichen."],
+    ],
+    ["textTooLong", {}, "x".repeat(256), ["Höchstens 255 Zeichen."]],
+  ] as const)("shows the given %s word", async (_key, extra, text, words) => {
+    const table = mount({ ...extra, messages: foreign });
+    if (text) await table.paste(text);
+    expect(table.field.labels?.[0]?.textContent).toBe("Suche");
+    expect(described(table.field)).toEqual(words);
+    // Checks the visible text only (textContent); attribute values are covered by the label and describedby assertions
+    for (const word of english)
+      expect(document.body.textContent).not.toContain(word);
+  });
+});
+
+// A table with a text filter on Name, applied, and the handlers its filters need (FILT-32); `search` "beta"
+const withFilter = (extra: Partial<DataTableProps<Item>> = {}) => ({
+  columns: [
+    {
+      id: "name",
+      label: "Name",
+      value: ({ row }: { row: Item }) => row.name,
+      filter: { kind: "text" as const },
+    },
+  ],
+  filters: { name: { kind: "text" as const, text: "Gamma" } },
+  onfilter: vi.fn(),
+  onclearfilter: vi.fn(),
+  onclearfilters: vi.fn(),
+  search: "beta",
+  ...extra,
+});
+
+// @spec("FILT-46", "0011d453")
+describe("FILT-46", () => {
+  it("leaves the field's text and calls only onclearfilters", async () => {
+    const onclearfilters = vi.fn();
+    const table = mount(withFilter({ onclearfilters }));
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Clear column filters" }),
+    );
+    expect(onclearfilters).toHaveBeenCalledTimes(1);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    expect(table.field.value).toBe("beta");
+  });
+});
+
+// @spec("FILT-54", "ee45db73")
+describe("FILT-54", () => {
+  it("leaves the field's text until search changes", async () => {
+    const onreset = vi.fn();
+    const table = mount(withFilter({ onreset }));
+    await fireEvent.click(screen.getByRole("button", { name: "Reset table" }));
+    expect(onreset).toHaveBeenCalledTimes(1);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    expect(table.field.value).toBe("beta");
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("gamma");
+  });
+});
+
+// @spec("FILT-45", "263812a7")
+describe("FILT-45", () => {
+  it("puts the field after the actions and before the badges, the panels and the region", () => {
+    const { container } = render(CriteriaTable, {
+      rows: [{ id: "r1", name: "Alpha", code: "A-1", status: "", note: "" }],
+      columns: [
+        {
+          id: "name",
+          label: "Name",
+          value: ({ row }: { row: Item }) => row.name,
+          filter: { kind: "text" },
+        },
+      ],
+      getRowId: ({ row }: { row: Item }) => row.id,
+      caption: "Orders",
+      regionLabel: "Orders table",
+      filters: { name: { kind: "text", text: "Beta" } },
+      onfilter: vi.fn(),
+      onclearfilter: vi.fn(),
+      onclearfilters: vi.fn(),
+      onsearch: vi.fn(),
+      withActions: true,
+      withPanels: true,
+    });
+    // The controls up to the region, which holds the rows
+    const names: string[] = [];
+    for (const element of container.querySelectorAll(
+      'button, input, [role="region"]',
+    )) {
+      if (element.matches('[role="region"]')) break;
+      names.push(
+        element.matches("input") ? "Search" : element.textContent.trim(),
+      );
+    }
+    expect(names).toEqual([
+      "Export",
+      "Search",
+      "Name: contains “Beta”",
+      "Clear my criteria",
+      "Clear column filters",
+      "Apply search",
+    ]);
   });
 });

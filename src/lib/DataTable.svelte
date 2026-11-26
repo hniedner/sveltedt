@@ -151,9 +151,11 @@
   {@render actions?.()}
   {#if onsearch && fault === null}<Search
       label={words.searchLabel}
+      {words}
       {search}
       {searchDelay}
       {searchOnEnter}
+      {maxLength}
       {onsearch}
     />{/if}
   <Toolbar

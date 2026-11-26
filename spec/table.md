@@ -3254,6 +3254,9 @@ for the code the examples below list.
   | Message | English default | Shown by |
   |---|---|---|
   | `searchLabel` | "Search" | FILT-40 |
+  | `pressEnter` | "Press Enter to apply." | FILT-43, with `searchOnEnter` |
+  | `textHiddenCharacter` | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." | FILT-48, with U+0001 pasted |
+  | `textTooLong` (a function of `maxLength`) | "Use at most 255 characters." for 255 | FILT-48, with 256 characters pasted |
 
 - Reason: consumers translate and reword without forking the component (PRD-I1, PRD-B25).
 - Layer: component.
@@ -3286,6 +3289,9 @@ field follows the same rules as a text filter's field (PRD-B6), with `onsearch(t
 not in a dialog, so its statements are tested in the simulated DOM, with time moved by fake timers, counted from the
 first key, keys taking no time and a control character pasted, as in section 11. "Search" is the field found by role
 `searchbox` and that name. What matches the text is the data source's (PRD-B25).
+
+Tested under FOOT-05 and FOOT-02, whose examples do not list the search field: a pending search pause leaves no
+timer after unmount, and the search field adds no `keydown` listener on `window`.
 
 **FILT-40** The table MUST show the search field "Search" exactly while `onsearch` is given and the alert does not
 show.
@@ -3320,26 +3326,37 @@ show.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-42** The search field MUST NOT emit `onsearch` for text it refuses, as FILT-03 says for a text filter.
+**FILT-42** The search field MUST NOT emit `onsearch` while its text, without leading and trailing white space, holds
+a control character (Unicode category Cc) or is longer than `maxLength` characters (code points).
 - Examples (the test runs every row: the steps, then at 400 ms press Enter; no call): paste "a", U+0001; paste "a",
-  U+007F; type 256 times "x"; type 11 times "x", with `maxLength={10}`.
+  U+007F; paste "a", U+0009, "b" (an inner tab); paste "a", U+0085 (next line: a control character, not white
+  space); paste 256 times "x"; paste 11 times "x", with `maxLength={10}`; paste 256 times U+1F600 (one code point
+  each). At the limit the text is emitted, one call at 400 ms: 10 times "x" with `maxLength={10}`, 255 times U+1F600,
+  and 255 times "x" followed by a space (the call holds the 255 "x").
 - Reason: the server would refuse the query (PRD-B6).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
 
-**FILT-48** The search field MUST be `aria-invalid="true"` and described by the alert of FILT-15 exactly while it holds
-text it refuses.
-- Examples (the test runs every row; the checks right after the last step):
+**FILT-48** The search field MUST be `aria-invalid="true"` and described by one message for each refusal of FILT-42
+that holds, exactly while it holds.
+- Examples (the test runs every row; the checks right after the last step; each message is an element with
+  `role="alert"`, and the words are the defaults of FILT-55):
 
   | Steps | `aria-invalid` | Described by |
   |---|---|---|
-  | paste "a", U+0001 | "true" | "Use at most 255 characters without control characters." |
-  | type 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters without control characters." |
-  | paste "a", U+0001, then press Backspace | not "true" | no alert |
-  | mount with `search` "a" followed by U+0001 | "true" | "Use at most 255 characters without control characters." |
+  | paste "a", U+0001 | "true" | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." |
+  | paste "a", U+0085 | "true" | the same |
+  | paste 11 times "x", with `maxLength={10}` | "true" | "Use at most 10 characters." |
+  | paste 1001 times "x", with `maxLength={1000}` | "true" | "Use at most 1,000 characters." (the grouping proved) |
+  | paste "a", U+0001, then 300 times "x" | "true" | both messages, the hidden-character one first |
+  | paste "a", U+0001, then press Backspace | not "true" | no message |
+  | paste "a", U+0009 | not "true" | no message (an outer tab is white space, FILT-57) |
+  | mount with `search` "a" followed by U+0001 | "true" | the hidden-character message |
 
   An applied `search` the field would refuse is no fault (FILT-32): the field shows it and marks it.
-- Reason: the user learns at the field why nothing is applied, and a stale error misleads (PRD-B6, WCAG 3.3.1).
+- Reason: the user learns at the field why nothing is applied and what to do, and a stale error misleads (PRD-B6,
+  WCAG 3.3.1); the English grouping of the number is the table's own (I18N-01), its locale independence left to the
+  filter dialog's German check.
 - Layer: component.
 - Traces: PRD-B25, PRD-B6, PRD-A1.
 
@@ -3370,6 +3387,7 @@ mount standing for the dialog's opening, except as FILT-58 says.
 says for a text filter.
 - Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel": the
   field reads "melanoma"; at 850 ms a second call with "melanoma".
+  A text the field refused (FILT-42) is kept like any newer typing and keeps its message.
 - Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.
@@ -3406,9 +3424,11 @@ its text as typed.
 - Layer: component.
 - Traces: PRD-B8, PRD-B25.
 
-**FILT-45** The search field MUST come before the badges of FILT-31 and before the region, in document order.
-- Example: `onsearch` given, Name's text "Beta" applies: "Search" comes before the badge "Clear filter Name: contains
-  “Beta”", which comes before the region.
+**FILT-45** The search field MUST come after the `actions` snippet, before the badges of FILT-31, before the `panels`
+snippet and before the region, in document order.
+- Example: `onsearch` given, an `actions` snippet holding "Export", Name's text "Beta" applies: "Export" comes before
+  "Search", which comes before the badge "Clear filter Name: contains “Beta”", which comes before the `panels`
+  snippet, which comes before the region.
 - Reason: the search narrows every column, so it leads what narrows the rows (DataTables' default layout puts it at
   the top; WCAG 1.3.2).
 - Layer: component.
