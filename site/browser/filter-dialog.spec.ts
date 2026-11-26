@@ -488,3 +488,75 @@ test.describe("FILT-03, a text filter emits nothing for text it refuses after tr
       expect(await calls()).toEqual([text("name", entry.sent)]);
     });
 });
+
+const HIDDEN =
+  "The text contains a hidden character, often from pasted text. Clear the field and type the text again.";
+// One FILT-15 row: the field after the applied text, the paste and the typing, and the alerts it must show
+interface Alerting {
+  title: string;
+  alerts: string[];
+  applied?: string;
+  pasted?: string;
+  typed?: string;
+  address?: string;
+}
+const REASONS: Alerting[] = [
+  { title: "paste a, U+0001", pasted: "a\u0001", alerts: [HIDDEN] },
+  { title: "paste a, U+0009, b", pasted: "a\tb", alerts: [HIDDEN] },
+  { title: "paste a, U+0085", pasted: "a\u0085", alerts: [HIDDEN] },
+  {
+    title: "type 11 x, maxLength 10",
+    typed: "x".repeat(11),
+    address: MAX_TEN,
+    alerts: ["Use at most 10 characters."],
+  },
+  {
+    title: "paste a, U+0001, then type 300 x",
+    pasted: "a\u0001",
+    typed: "x".repeat(300),
+    alerts: [HIDDEN, "Use at most 255 characters."],
+  },
+  {
+    title: "open with a, U+0001 applied",
+    applied: "a\u0001",
+    alerts: [HIDDEN],
+  },
+  { title: "paste beta, U+0009: none", pasted: "beta\t", alerts: [] },
+];
+
+// @spec("FILT-15", "b19335cf")
+test.describe("FILT-15, refused filter text is marked invalid with one alert per reason", () => {
+  for (const row of REASONS)
+    test(row.title, async ({ page }) => {
+      const { field } = await openName(
+        page,
+        row.address,
+        row.applied === undefined
+          ? {}
+          : { name: { kind: "text", text: row.applied } },
+      );
+      let value = row.applied ?? "";
+      if (row.pasted !== undefined) {
+        await paste(page, field, row.pasted);
+        value = row.pasted;
+      }
+      if (row.typed !== undefined) {
+        await field.pressSequentially(row.typed);
+        value += row.typed;
+      }
+      await expect(
+        field,
+        "could not check: the text did not arrive",
+      ).toHaveValue(value);
+      const invalid = expect(field);
+      if (row.alerts.length)
+        await invalid.toHaveAttribute("aria-invalid", "true");
+      else await invalid.not.toHaveAttribute("aria-invalid", "true");
+      const dialog = page.getByRole("dialog", {
+        name: "Name filter",
+        exact: true,
+      });
+      await expect(dialog.getByRole("alert")).toHaveText(row.alerts);
+      await expect(field).toHaveAccessibleDescription(row.alerts.join(" "));
+    });
+});

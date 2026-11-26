@@ -2799,17 +2799,23 @@ pause nor on Enter.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6.
 
-**FILT-15** While a text filter's field holds refused text, the field MUST be `aria-invalid="true"` and described by
-an alert that says why.
-- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused,
-  before any pause):
+**FILT-15** While a text filter's field holds text it refuses (FILT-03), the field MUST be `aria-invalid="true"` and
+described by one alert for each reason that holds.
+- Examples (the test runs every row; the checks hold right after the key or paste that made the text refused, before
+  any pause, or right after the dialog opens):
 
-  | Typed | Alert text (default) |
+  | Steps | Alerts (default words), in this order |
   |---|---|
-  | "a", U+0001 (pasted) | "Use at most 255 characters without control characters." |
-  | 11 times "x", with `maxLength={10}` | "Use at most 10 characters without control characters." |
+  | paste "a", U+0001 | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." |
+  | paste "a", U+0009, "b" | the same |
+  | paste "a", U+0085 | the same |
+  | type 11 times "x", with `maxLength={10}` | "Use at most 10 characters." |
+  | paste "a", U+0001, then 300 times "x" | the hidden-character alert, then "Use at most 255 characters." |
+  | `filters` holds `name: { kind: 'text', text: 'a' }` with U+0001 after the "a"; open the dialog | the hidden-character alert |
+  | paste "beta", U+0009 | none, and the field is not `aria-invalid`: an outer tab is trimmed (FILT-59) |
 
-- Reason: the user hears why the filter was not applied, at the field (PRD-B6, WCAG 3.3.1).
+- Reason: the user hears why the filter was not applied and what to do, at the field (PRD-B6, WCAG 3.3.1, 3.3.3);
+  each reason has its own words (PRD-B6).
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B6, PRD-A1.
 
@@ -3307,7 +3313,8 @@ for the code the examples below list.
   | `noOptions` | "No options match." | FILT-18 |
   | `emptyOption` | "(empty)" | FILT-53, with Status's `emptyOption: true` |
   | `pressEnter` | "Press Enter to apply." | FILT-13 |
-  | `textRefused` (a function of `maxLength`) | "Use at most 255 characters without control characters." for 255; "Use at most 1,000 characters without control characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
+  | `textHiddenCharacter` | "The text contains a hidden character, often from pasted text. Clear the field and type the text again." | FILT-15 |
+  | `textTooLong` (a function of `maxLength`) | "Use at most 255 characters." for 255; "Use at most 1,000 characters." for 1000, grouped the English way whatever the runtime's locale, as I18N-01 states for its functions | FILT-15 |
 
   The 1000 case runs once more in a browser context with the locale `de-DE`: the test first asserts that
   `(1000).toLocaleString()` gives "1.000" there, and still expects "1,000".
