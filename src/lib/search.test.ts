@@ -383,6 +383,14 @@ describe("FILT-48", () => {
     expect(screen.queryAllByRole("alert")).toEqual([]);
   });
 
+  it("emits the cleared text once Backspace leaves a text that is accepted", async () => {
+    const table = mount();
+    await table.paste("a\u0001");
+    await table.backspace();
+    await table.at(400);
+    expect(table.onsearch.mock.calls).toEqual([["a"]]);
+  });
+
   it("marks nothing for an outer tab, which is white space", async () => {
     const table = mount();
     await table.paste("a\u0009");
