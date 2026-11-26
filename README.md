@@ -101,14 +101,18 @@ There is nothing to install yet. What is on `main` today:
   dialog opens and takes a newer one while nothing new is typed in it; under `searchOnEnter` it is described by "Press
   Enter to apply."; text that, trimmed, holds a control character or is longer than `maxLength` is marked invalid with
   one alert per reason and not emitted; proved in Chromium, Firefox and WebKit on the test site's filter dialog
-  page). Text typed and not yet sent (still within the pause, or not yet confirmed with
-  Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape behaviour of the filter field is not
-  settled yet (the input type is decided later): with the search field's `type="search"`, Chromium and Firefox clear
-  the field on Escape and, after the pause, emit an empty text filter, which removes the applied one, and WebKit
-  closes the dialog and emits nothing. A clearable badge for each applied filter, "Clear column filters", "Reset
-  table" (while `onreset` is given) and the application's own `criteria` snippet, every header cell named by its
-  column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page), and an invalid filter,
-  `search`, `searchDelay` or `maxLength` prop gets the alert;
+  page). A categorical filter's dialog offers its options as checkboxes in the given order (with `emptyOption: true` one
+  more, "(empty)", last, whose value is `''`), each ticked while `filters` selects it; a press emits the next
+  selection's values in the options' order through `onfilter` and leaves the box as `filters` says. A second press made
+  before `filters` has changed builds its selection from the old `filters` and so replaces the first, so, until #274
+  fixes it, update `filters` in `onfilter` at once, as the connection helper does. Text typed and not yet sent (still
+  within the pause, or not yet confirmed with Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape
+  behaviour of the filter field is not settled yet (the input type is decided later): with the search field's
+  `type="search"`, Chromium and Firefox clear the field on Escape and, after the pause, emit an empty text filter, which
+  removes the applied one, and WebKit closes the dialog and emits nothing. A clearable badge for each applied filter,
+  "Clear column filters", "Reset table" (while `onreset` is given) and the application's own `criteria` snippet, every
+  header cell named by its column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page),
+  and an invalid filter, `search`, `searchDelay` or `maxLength` prop gets the alert;
 - the `panels` snippet, for the application's own panels (an advanced search, batch actions) that a button in its
   `actions` snippet opens: rendered after the toolbar's controls and before the status line, in every state, the
   invalid-input alert's included, with its elements kept when the state changes (proved by component tests). A block
@@ -142,11 +146,10 @@ There is nothing to install yet. What is on `main` today:
   `/api/orders`, pages them with `Pagination`, sorts them by the Order column and changes the page size, proved in
   Chromium, Firefox and WebKit.
 
-Not yet: the categorical filter's options, the filter dialog's focus, closing and placement (the dialog shows at the
+Not yet: the categorical filter's find field, the filter dialog's focus, closing and placement (the dialog shows at the
 window's top-left corner on a page with Tailwind's base styles, centred without them, with no frame of its own), column
-features, selection, the rest of the connection helper
-(reset; cancel and retry) and the published package. The order is in the
-[milestones](https://github.com/hniedner/sveltedt/milestones).
+features, selection, the rest of the connection helper (reset; cancel and retry) and the published package. The order is
+in the [milestones](https://github.com/hniedner/sveltedt/milestones).
 
 The install steps arrive with the package files and the consumer project that installs them
 ([spec/package.md](spec/package.md)). Until then the badges above show the Svelte and TypeScript versions the tests run

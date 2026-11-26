@@ -22,7 +22,7 @@ decision (see Region order).
   `src/lib/parts/Search.svelte` (70 lines), and a second state class, `src/lib/search.svelte.ts` (84 lines), built by
   the part, which amends the Fields rule below.
 - Added with the filter dialog (#86): a fourth part, `src/lib/parts/ColumnFilter.svelte`, one per filtered column, which
-  shows a text filter's field with `Search.svelte` and `SearchText`.
+  shows a text filter's field with `Search.svelte` and `SearchText` and a categorical filter's checkboxes (#272).
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
@@ -205,7 +205,8 @@ licence.
 - `src/lib/search.svelte.ts`, from `frontend/src/lib/components/data-table/DataTableFilterPopover.svelte`: the pause
   timer, its cancel and teardown, and the apply step.
 - `src/lib/parts/ColumnFilter.svelte`, from the same `DataTableFilterPopover.svelte`: the dialog named "<label>
-  filter" (the categorical options follow in a later change).
+  filter", and one checkbox per option, checked while its value is selected, a press building the next selection
+  (changed: the options' order, and the box shows `selected` until the props change).
 
 The code is the owner's own, so `NOTICE` has no entry for it. Where an adaptation differs from its source, the
 statement in `spec/table.md` that asks for the difference is the reason.

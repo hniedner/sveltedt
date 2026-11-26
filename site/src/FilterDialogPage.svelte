@@ -7,8 +7,8 @@
 
   // The page of the real-browser filter dialog tests (spec/table.md section 11): Name with a text filter and Status with
   // a categorical one, over synthetic rows. `?delay=`, `?enter` and `?max=` set `searchDelay`, `searchOnEnter` and
-  // `maxLength` at load. A test replaces the applied filters through window.__table.set and reads every `onfilter`
-  // argument from window.__calls.
+  // `maxLength` at load, and `?empty` gives Status `emptyOption: true`. A test replaces the applied filters through
+  // window.__table.set and reads every `onfilter` argument from window.__calls.
   interface Item {
     id: string;
     name: string;
@@ -59,6 +59,7 @@
           { value: "active", label: "Active" },
           { value: "inactive", label: "Inactive" },
         ],
+        emptyOption: query.has("empty"),
       },
     },
   ];

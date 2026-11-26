@@ -9,6 +9,17 @@ import type {
 
 type CategoricalFilter = Extract<DataTableFilter, { kind: "categorical" }>;
 
+// The options a categorical filter offers: its given ones, then with `emptyOption` one more for no value, last, whose
+// value is '' (FILT-53)
+export function offered(
+  filter: CategoricalFilter,
+  emptyLabel: string,
+): { value: string; label: string }[] {
+  return filter.emptyOption
+    ? [...filter.options, { value: "", label: emptyLabel }]
+    : [...filter.options];
+}
+
 // One badge of an applied filter: the column's id and the badge's visible words (FILT-08)
 export interface Badge {
   id: string;
@@ -34,11 +45,12 @@ export function badges<Row>(
       });
     else if (state?.kind === "categorical" && state.selected.length > 0) {
       // An applied categorical state sits on a column whose filter is categorical (FILT-32 refuses the rest)
-      const { options: given } = column.filter as CategoricalFilter;
-      const options = given
+      const options = offered(
+        column.filter as CategoricalFilter,
+        words.emptyOption,
+      )
         .filter((option) => state.selected.includes(option.value))
         .map((option) => option.label);
-      if (state.selected.includes("")) options.push(words.emptyOption);
       found.push({
         id: column.id,
         text: words.badgeOptions({ label: column.label, options }),
@@ -46,6 +58,20 @@ export function badges<Row>(
     }
   }
   return found;
+}
+
+// The values a categorical filter selects after a press on `pressed`: its options' values in the options' order, each
+// kept while `isSelected` holds it, the pressed one flipped (FILT-04)
+export function toggled(
+  options: readonly { value: string }[],
+  isSelected: (value: string) => boolean,
+  pressed: string,
+): string[] {
+  return options
+    .map((option) => option.value)
+    .filter((value) =>
+      value === pressed ? !isSelected(value) : isSelected(value),
+    );
 }
 
 // "Reset table" shows while `onreset` is given and a column is sortable or has a filter. The alert state keeps it for

@@ -23,7 +23,13 @@ const columns: DataTableColumn<Item>[] = [
     id: "status",
     label: "Status",
     value: ({ row }) => row.name,
-    filter: { kind: "categorical", options: [{ value: "a", label: "A" }] },
+    filter: {
+      kind: "categorical",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+      ],
+    },
   },
 ];
 
@@ -85,7 +91,9 @@ async function toggle(
   await tick();
 }
 const fieldOf = (table: { container: HTMLElement }) =>
-  table.container.querySelector<HTMLInputElement>("[popover] input");
+  table.container.querySelector<HTMLInputElement>(
+    '[popover] input[type="search"]',
+  );
 
 describe("FILT-01, a text filter's field in the simulated DOM", () => {
   beforeEach(() => {
@@ -135,7 +143,7 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
   it("shows the applied text of its own column only", async () => {
     const table = mount({
       filters: {
-        status: { kind: "categorical", selected: ["a"] },
+        status: { kind: "categorical", selected: ["active"] },
         name: { kind: "text", text: "beta" },
       },
     });
@@ -197,5 +205,86 @@ describe("FILT-01, a text filter's field in the simulated DOM", () => {
     // The text column's dialog on the same table does gain its field
     await toggle(table, 0, "open");
     expect(fieldOf(table)).not.toBeNull();
+  });
+});
+
+describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () => {
+  const boxes = (table: { container: HTMLElement }) =>
+    [...table.container.querySelectorAll<HTMLInputElement>("[popover] input")]
+      .filter((box) => box.type === "checkbox")
+      .map((box) => [box.labels?.[0]?.textContent?.trim(), box.checked]);
+  const withSelected = (...selected: string[]) => ({
+    filters: { status: { kind: "categorical" as const, selected } },
+  });
+
+  it("are absent from a text column's dialog", async () => {
+    const table = mount();
+    await toggle(table, 0, "open");
+    expect(boxes(table)).toEqual([]);
+  });
+
+  // A press on an unselected option leaves it unchecked until filters holds it
+  it("show the props after a press, and the new props once they change", async () => {
+    const table = mount(withSelected("inactive"));
+    await toggle(table, 1, "open");
+    const active = within(table.container).getByLabelText<HTMLInputElement>(
+      "Active",
+      { exact: true },
+    );
+    await fireEvent.click(active);
+    expect(active.checked).toBe(false);
+    await table.rerender(withSelected("active", "inactive"));
+    expect(active.checked).toBe(true);
+  });
+
+  // A press on a selected option leaves it checked; resetting the box to a constant false would show here
+  it("stay checked after a press on a selected one while filters is unchanged", async () => {
+    const table = mount(withSelected("inactive"));
+    await toggle(table, 1, "open");
+    const inactive = within(table.container).getByLabelText<HTMLInputElement>(
+      "Inactive",
+      { exact: true },
+    );
+    await fireEvent.click(inactive);
+    expect(inactive.checked).toBe(true);
+  });
+});
+
+describe("FILT-53, the option for no value in the simulated DOM", () => {
+  it("is offered last under the emptyOption word and emits ''", async () => {
+    const onfilter = vi.fn();
+    const table = mount({
+      onfilter,
+      messages: { emptyOption: "None" },
+      columns: [
+        ...columns.slice(0, 1),
+        {
+          id: "status",
+          label: "Status",
+          value: ({ row }) => row.name,
+          filter: {
+            kind: "categorical",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+            emptyOption: true,
+          },
+        },
+      ],
+    });
+    await toggle(table, 1, "open");
+    const labels = [...table.container.querySelectorAll("[popover] label")];
+    expect(labels.map((label) => label.textContent?.trim())).toEqual([
+      "Active",
+      "Inactive",
+      "None",
+    ]);
+    await fireEvent.click(
+      within(table.container).getByLabelText("None", { exact: true }),
+    );
+    expect(onfilter.mock.calls).toEqual([
+      [{ id: "status", state: { kind: "categorical", selected: [""] } }],
+    ]);
   });
 });
