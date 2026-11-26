@@ -53,8 +53,9 @@
      the owner's own project): the dialog named "<label> filter" (FILT-02). The button and its dialog, which follows it
      in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
      opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
-     and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each, checked
-     while its value is selected (FILT-17), with `emptyOption` one more for no value, last (FILT-53); a press emits the next selection, in the options' order (FILT-04) -->
+     and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each,
+     checked while its value is selected (FILT-17), with `emptyOption` one more for no value, last (FILT-53); a press
+     emits the next selection, in the options' order (FILT-04) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}

@@ -104,7 +104,9 @@ There is nothing to install yet. What is on `main` today:
   page). A categorical filter's dialog offers its options as checkboxes in the given order (with `emptyOption: true`
   one more, "(empty)", last, whose value is `''`), each ticked while `filters` selects it; a press emits the next
   selection's values in the options' order through `onfilter` and leaves the box as `filters` says, so `onfilter`
-  should update `filters` at once, as the connection helper does. Text typed and not yet sent (still within the pause, or not yet confirmed with
+  should update `filters` at once, as the connection helper does. A user who presses a second option before that
+  change reaches `filters` builds the second selection from the old `filters`, so an application with a slow echo
+  should update `filters` at once. Text typed and not yet sent (still within the pause, or not yet confirmed with
   Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape behaviour of the filter field is not
   settled yet (the input type is decided later): with the search field's `type="search"`, Chromium and Firefox clear
   the field on Escape and, after the pause, emit an empty text filter, which removes the applied one, and WebKit
