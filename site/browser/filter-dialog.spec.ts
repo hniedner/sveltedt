@@ -54,6 +54,18 @@ async function openName(
   return { field, at, calls };
 }
 
+// As openName, with "beta" applied to Name: the field must hold it before a test goes on
+async function openNameApplied(page: Page) {
+  const opened = await openName(page, undefined, {
+    name: { kind: "text", text: "beta" },
+  });
+  await expect(
+    opened.field,
+    "could not check: the field lacks the applied text",
+  ).toHaveValue("beta");
+  return opened;
+}
+
 // @spec("FILT-02", "70479fab")
 test.describe("FILT-02, a press on a filter button opens one named dialog", () => {
   for (const [label, name] of [
@@ -131,13 +143,7 @@ test.describe("FILT-01, a text filter emits once typing pauses", () => {
   test("the text already applied: type x, Backspace; at 400 ms none", async ({
     page,
   }) => {
-    const { field, at, calls } = await openName(page, undefined, {
-      name: { kind: "text", text: "beta" },
-    });
-    await expect(
-      field,
-      "could not check: the field lacks the applied text",
-    ).toHaveValue("beta");
+    const { field, at, calls } = await openNameApplied(page);
     await field.pressSequentially("x");
     await field.press("Backspace");
     await at(400);
@@ -161,13 +167,7 @@ test.describe("FILT-27, Enter in a text filter's field emits at once", () => {
   });
 
   test("the text already applied: Enter emits none", async ({ page }) => {
-    const { field, calls } = await openName(page, undefined, {
-      name: { kind: "text", text: "beta" },
-    });
-    await expect(
-      field,
-      "could not check: the field lacks the applied text",
-    ).toHaveValue("beta");
+    const { field, calls } = await openNameApplied(page);
     await field.press("Enter");
     expect(await calls()).toEqual([]);
   });
@@ -232,13 +232,7 @@ test.describe("FILT-59, a text filter emits its text without outer white space",
   });
 
   test("beta applied; type a space; at 400 ms none", async ({ page }) => {
-    const { field, at, calls } = await openName(page, undefined, {
-      name: { kind: "text", text: "beta" },
-    });
-    await expect(
-      field,
-      "could not check: the field lacks the applied text",
-    ).toHaveValue("beta");
+    const { field, at, calls } = await openNameApplied(page);
     await field.pressSequentially(" ");
     await at(400);
     expect(await calls()).toEqual([]);
@@ -247,9 +241,7 @@ test.describe("FILT-59, a text filter emits its text without outer white space",
   test("beta applied; the field set to a space; at 400 ms one call with an empty text", async ({
     page,
   }) => {
-    const { field, at, calls } = await openName(page, undefined, {
-      name: { kind: "text", text: "beta" },
-    });
+    const { field, at, calls } = await openNameApplied(page);
     await field.fill(" ");
     await at(400);
     expect(await calls()).toEqual([text("name", "")]);
