@@ -2,7 +2,7 @@
 
 - **Name:** the test site in `site/`, a private package that shows SvelteDT on pages a real browser can open. It is
   served by a TypeScript server on Node that uses only `node:http` (PRD section 5.3).
-- **Status:** parts 1 to 6 of the site spec. Later parts add their statements to this file; the trace at the end says
+- **Status:** parts 1 to 7 of the site spec. Later parts add their statements to this file; the trace at the end says
   which requirements the statements so far cover.
 - Field names: no
 - **Scope:** part 1: serving the built site to `GET` requests, the site's imports of SvelteDT, and the list page that
@@ -11,8 +11,9 @@
   (SRV-05 to SRV-07). Part 4: the views by URL parameter for the token set, the density and the variants (PRD-W7, in
   part). Part 5: the full page, in part: the table that `spec/table.md` sections 16 and 18 run on. Part 6:
   the first part of PRD-W2's endpoint (the route of section 7) and the connection page that the connection helper
-  loads through it (section 8). Other request methods (beyond the header SRV-02 puts on every response), the rest of
-  the JSON endpoint, the dataset and the other views of PRD-W7 come with later parts.
+  loads through it (section 8). Part 7: the panels page (section 9), the example of a button that opens a panel in the
+  table's `panels` snippet. Other request methods (beyond the header SRV-02 puts on every response), the rest of the
+  JSON endpoint, the dataset and the other views of PRD-W7 come with later parts.
 
 ## Conventions
 
@@ -757,6 +758,39 @@ shown, with one more route request.
 - Layer: real browser.
 - Traces: PRD-B20, PRD-B9.
 
+## 9. The panels page (PANEL, milestone 4)
+
+- The panels page is the build's `panels.html`, served at `/panels.html`: the example of a button that opens a panel
+  in the `panels` snippet of `spec/table.md` (EXP-04 to EXP-06).
+- It renders `DataTable` (caption "Items", region "Items table", one column "Name", three rows, no filter, no `onreset`
+  and no `onsearch`, so the toolbar holds no control) with:
+  - an `actions` snippet holding the button "Advanced search" (the toggle), with `aria-expanded` and `aria-controls`;
+  - a `panels` snippet holding the element that `aria-controls` names (the panel).
+- The page, not the table, keeps whether the panel shows. "Hidden" means the panel is in the document and not shown, so
+  `aria-controls` names an element in either state; "shown" means it is visible.
+- "The next stop" is where one press of the key that moves focus on lands: Tab, or Option+Tab in WebKit on macOS,
+  where Tab skips buttons under the system's default setting.
+- Layer: real browser, in Chromium, Firefox and WebKit.
+
+**PANEL-01** Pressing the panels page's toggle with Enter or Space MUST show its panel when it is hidden and hide it
+when it shows, with `aria-expanded` saying which and focus staying on the toggle.
+- Examples (the test runs every row; open `/panels.html`, focus on the body; the next stop is the toggle, its
+  `aria-expanded` "false" and its panel hidden; press the key, then press it again):
+
+  | Key | After the first press | After the second press |
+  |---|---|---|
+  | Enter | the panel shown, `aria-expanded` "true", focus on the toggle | the panel hidden, `aria-expanded` "false", focus on the toggle |
+  | Space | as for Enter | as for Enter |
+
+  - Breaks that turn it red: the toggle given `tabindex="-1"` (not the first stop); `aria-expanded` fixed at
+    "false"; the panel's `hidden` fixed at true; the panel rendered only while open (not in the document when hidden).
+- Reason: Enter and Space toggle a disclosure, and its button says with `aria-expanded` whether the content shows and
+  names it with `aria-controls` (WAI-ARIA APG disclosure pattern, FETCHED 2026-11-25; its example moves no focus). The
+  table keeps no open state for its panels (PRD-B31), so the page shows an application doing it with the table's own
+  snippets (PRD-D4).
+- Layer: real browser.
+- Traces: PRD-B31, PRD-D4.
+
 ## Trace
 
 ### Statement -> PRD
@@ -799,6 +833,7 @@ shown, with one more route request.
 | CPAGE-03 | PRD-S1, PRD-W4 |
 | CPAGE-04 | PRD-B20, PRD-B4 |
 | CPAGE-05 | PRD-B20, PRD-B9 |
+| PANEL-01 | PRD-B31, PRD-D4 |
 
 ### PRD must -> statements
 
@@ -814,6 +849,8 @@ shown, with one more route request.
 | PRD-W2 | API-01, API-02, API-03, API-04, API-05 | in part: the route answers the first part of the endpoint, with paging, one ordering column, a refusal of malformed requests and a fixed list; search, column search, further order entries and the query function behind it come with later parts |
 | PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-04, CPAGE-05 | in part: the connection page shows the helper loading, paging, sorting and changing the page size of a fixed list through the route; filters on that page come with the helper's later parts |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
+| PRD-B31 | PANEL-01 | in part: the panels page shows an application's toggle and panel; the slot itself is spec/table.md's EXP-04 to EXP-06 |
+| PRD-D4 | PANEL-01 | in part: the README links the panels page's source; quoting the source waits for a check that holds a quote to its file |
 
 PRD musts of the site left to later parts: PRD-W2 (in part), PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
 PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.
