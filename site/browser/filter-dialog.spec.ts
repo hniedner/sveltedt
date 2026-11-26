@@ -358,3 +358,27 @@ test.describe("FILT-37, a text filter's field takes the applied text and keeps i
     await expect(field).toHaveValue("gamma");
   });
 });
+
+// @spec("FILT-05", "98b7be79")
+test("FILT-05, a text filter's field keeps newer typing when filters changes", async ({
+  page,
+}) => {
+  const { field, at, calls } = await openName(page);
+  await field.pressSequentially("mel");
+  await at(400);
+  expect(await calls()).toEqual([text("name", "mel")]);
+  await at(450);
+  await field.click();
+  await field.pressSequentially("anoma");
+  await at(500);
+  await setFilters(page, { name: { kind: "text", text: "mel" } });
+  await echoed(page, "mel");
+  await expect(field).toHaveValue("melanoma");
+  await at(849);
+  expect(await calls()).toHaveLength(1);
+  await at(850);
+  expect(await calls()).toEqual([
+    text("name", "mel"),
+    text("name", "melanoma"),
+  ]);
+});
