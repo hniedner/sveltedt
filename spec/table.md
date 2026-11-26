@@ -3387,6 +3387,7 @@ mount standing for the dialog's opening, except as FILT-58 says.
 says for a text filter.
 - Example: type "mel"; at 400 ms one call with "mel"; at 450 ms type "anoma"; at 500 ms `search` becomes "mel": the
   field reads "melanoma"; at 850 ms a second call with "melanoma".
+  A text the field refused (FILT-42) is kept like any newer typing and keeps its message.
 - Reason: a slow answer to an earlier query must not erase what the user is typing (PRD-B6).
 - Layer: component.
 - Traces: PRD-B25, PRD-B6.

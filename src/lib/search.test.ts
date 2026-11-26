@@ -195,7 +195,7 @@ describe("FILT-44", () => {
   });
 });
 
-// @spec("FILT-49", "6b5336d8")
+// @spec("FILT-49", "5e8bc62f")
 describe("FILT-49", () => {
   it("keeps newer typing when the search changes to the text emitted before it", async () => {
     const table = mount();
@@ -209,6 +209,17 @@ describe("FILT-49", () => {
     expect(table.field.value).toBe("melanoma");
     await table.at(850);
     expect(table.onsearch.mock.calls).toEqual([["mel"], ["melanoma"]]);
+  });
+
+  it("keeps a refused text and its message when the search changes", async () => {
+    const table = mount({ search: "beta" });
+    await table.paste("a\u0001");
+    await table.at(400);
+    expect(table.onsearch).not.toHaveBeenCalled();
+    await table.setSearch("gamma");
+    expect(table.field.value).toBe("a\u0001");
+    expect(table.field.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("alert").textContent).toContain("hidden character");
   });
 });
 
