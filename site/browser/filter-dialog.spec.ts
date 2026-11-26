@@ -206,13 +206,20 @@ async function paste(page: Page, field: Locator, value: string) {
   ).toHaveValue(value);
 }
 
+// Types " beta " into Name's field and lets the pause pass: FILT-59's first row, and where FILT-60 starts. Asserts the
+// one call, with the text trimmed, and hands back what the test goes on with
+async function typePaddedBeta(page: Page) {
+  const opened = await openName(page);
+  await opened.field.pressSequentially(" beta ");
+  await opened.at(400);
+  expect(await opened.calls()).toEqual([text("name", "beta")]);
+  return opened;
+}
+
 // @spec("FILT-59", "b7f553dc")
 test.describe("FILT-59, a text filter emits its text without outer white space", () => {
   test("type ' beta '; at 400 ms one call with beta", async ({ page }) => {
-    const { field, at, calls } = await openName(page);
-    await field.pressSequentially(" beta ");
-    await at(400);
-    expect(await calls()).toEqual([text("name", "beta")]);
+    await typePaddedBeta(page);
   });
 
   test("paste beta and a tab; at 400 ms one call with beta", async ({
@@ -268,10 +275,7 @@ test.describe("FILT-59, a text filter emits its text without outer white space",
 test("FILT-60, a filter field keeps typed white space when filters echoes the trimmed text", async ({
   page,
 }) => {
-  const { field, at, calls } = await openName(page);
-  await field.pressSequentially(" beta ");
-  await at(400);
-  expect(await calls()).toEqual([text("name", "beta")]);
+  const { field, at } = await typePaddedBeta(page);
   await at(500);
   await page.evaluate(() =>
     (window as unknown as DialogWindow).__table.set({
