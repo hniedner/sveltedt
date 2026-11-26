@@ -85,6 +85,7 @@
   onclearfilter={connection.table.onclearfilter}
   onclearfilters={connection.table.onclearfilters}
   search={connection.table.search}
+  onsearch={connection.table.onsearch}
 />
 {#if connection.pager}
   <Pagination
