@@ -6,6 +6,7 @@
     DataTableSortEntry,
     SortDirection,
   } from "../types.js";
+  import ColumnFilter from "./ColumnFilter.svelte";
 
   interface Props {
     column: DataTableColumn<Row>;
@@ -60,17 +61,5 @@
       >{/if}
   {:else}
     {column.label}
-  {/if}{#if column.filter}
-    <!-- No handler yet: the filter dialog is a later statement -->
-    <button type="button" aria-label={words.filterButton(column.label)}
-      ><svg
-        aria-hidden="true"
-        focusable="false"
-        viewBox="0 0 16 16"
-        width="12"
-        height="12"
-        ><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z" fill="currentColor" /></svg
-      ></button
-    >
-  {/if}
+  {/if}{#if column.filter}<ColumnFilter label={column.label} {words} />{/if}
 </th>

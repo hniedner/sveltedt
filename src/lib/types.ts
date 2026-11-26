@@ -70,6 +70,8 @@ export interface DataTableMessages {
   readonly emptyOption: string;
   // The name of a column's filter button (FILT-29)
   readonly filterButton: (label: string) => string;
+  // The name of a column's filter dialog (FILT-02, FILT-47)
+  readonly filterDialog: (label: string) => string;
   // The visible words of a text filter's badge (FILT-08)
   readonly badgeText: (
     filter: Readonly<{ label: string; text: string }>,

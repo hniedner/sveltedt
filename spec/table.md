@@ -2680,7 +2680,8 @@ and column Status (id `status`) a categorical filter with the options `active` "
 in that order. "Type" means key presses into the open dialog's field, which take no time; a text that holds a
 control character, which no key types, is put in by one paste (`insertText`). Times are counted from the first key
 of the example. "Filter Name text" is the text field of Name's dialog. `maxLength` counts characters as code points
-(an emoji such as U+1F600 counts 1).
+(an emoji such as U+1F600 counts 1). The real-browser tests of these statements run on the filter dialog test page,
+`site/filter-dialog.html`, whose columns are those of the examples.
 
 **FILT-29** A column with a `filter` MUST show the button "Filter <label>" in its header cell.
 - Examples (the test runs every row; columns Name with a text filter and Note without one):
