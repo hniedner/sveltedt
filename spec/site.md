@@ -765,7 +765,7 @@ shown, with one more route request.
 - It renders `DataTable` (caption "Items", region "Items table", one column "Name", three rows, no filter, no `onreset`
   and no `onsearch`, so the toolbar holds no control) with:
   - an `actions` snippet holding the button "Advanced search" (the toggle), with `aria-expanded` and `aria-controls`;
-  - a `panels` snippet holding the element that `aria-controls` names (the panel).
+  - a `panels` snippet holding the element that `aria-controls` names (the panel), which holds a "Close" button.
 - The page, not the table, keeps whether the panel shows. "Hidden" means the panel is in the document and not shown, so
   `aria-controls` names an element in either state; "shown" means it is visible.
 - "The next stop" is where one press of the key that moves focus on lands: Tab, or Option+Tab in WebKit on macOS,
@@ -788,6 +788,22 @@ when it shows, with `aria-expanded` saying which and focus staying on the toggle
   names it with `aria-controls` (WAI-ARIA APG disclosure pattern, FETCHED 2026-11-25; its example moves no focus). The
   table keeps no open state for its panels (PRD-B31), so the page shows an application doing it with the table's own
   snippets (PRD-D4).
+- Layer: real browser.
+- Traces: PRD-B31, PRD-D4.
+
+**PANEL-02** Pressing the panel's "Close" button with Enter or Space MUST hide the panel and put focus on the toggle.
+- Examples (the test runs every row; open `/panels.html`, focus on the body; the next stop is the toggle; Enter shows
+  the panel; the next stop is "Close", since the toolbar holds no control; press the key):
+
+  | Key | Then |
+  |---|---|
+  | Enter | the panel hidden, the toggle's `aria-expanded` "false", focus on the toggle |
+  | Space | as for Enter |
+
+  - Break that turns it red: "Close" hides the panel without moving focus (focus is then not on the toggle).
+- Reason: a control that hides itself would let focus fall to the page, where a keyboard user loses their place (WCAG
+  2.4.3); the table moves no focus when a panel opens or closes, so the application returns it to the button that
+  opened the panel (PRD-B31, PRD-D4).
 - Layer: real browser.
 - Traces: PRD-B31, PRD-D4.
 
@@ -834,6 +850,7 @@ when it shows, with `aria-expanded` saying which and focus staying on the toggle
 | CPAGE-04 | PRD-B20, PRD-B4 |
 | CPAGE-05 | PRD-B20, PRD-B9 |
 | PANEL-01 | PRD-B31, PRD-D4 |
+| PANEL-02 | PRD-B31, PRD-D4 |
 
 ### PRD must -> statements
 
@@ -849,8 +866,8 @@ when it shows, with `aria-expanded` saying which and focus staying on the toggle
 | PRD-W2 | API-01, API-02, API-03, API-04, API-05 | in part: the route answers the first part of the endpoint, with paging, one ordering column, a refusal of malformed requests and a fixed list; search, column search, further order entries and the query function behind it come with later parts |
 | PRD-B20 | CPAGE-01, CPAGE-02, CPAGE-04, CPAGE-05 | in part: the connection page shows the helper loading, paging, sorting and changing the page size of a fixed list through the route; filters on that page come with the helper's later parts |
 | PRD-W9 | SRV-05, SRV-06, SRV-07 | in part, enabling only: SRV-05 to SRV-07 give the real-browser runs one known address; none of W9's own text (the runs, the three engines, CI, the consumer project's journeys, P2) is proven until a statement proves it |
-| PRD-B31 | PANEL-01 | in part: the panels page shows an application's toggle and panel; the slot itself is spec/table.md's EXP-04 to EXP-06 |
-| PRD-D4 | PANEL-01 | in part: the README links the panels page's source; quoting the source waits for a check that holds a quote to its file |
+| PRD-B31 | PANEL-01, PANEL-02 | in part: the panels page shows an application's toggle and panel; the slot itself is spec/table.md's EXP-04 to EXP-06 |
+| PRD-D4 | PANEL-01, PANEL-02 | in part: the README links the panels page's source; quoting the source waits for a check that holds a quote to its file |
 
 PRD musts of the site left to later parts: PRD-W2 (in part), PRD-W3, PRD-W6 and PRD-W7 (in part, see above), PRD-W8,
 PRD-W9 (all of its own text; SRV-05 to SRV-07 only enable it), PRD-W10.

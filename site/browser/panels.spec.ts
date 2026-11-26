@@ -48,3 +48,23 @@ test.describe("PANEL-01, Enter and Space on the toggle show and hide its panel",
       await expect(toggle(page)).toBeFocused();
     });
 });
+
+// @spec("PANEL-02", "c9e8493a")
+test.describe("PANEL-02, the panel's Close puts focus back on the toggle", () => {
+  for (const key of ["Enter", "Space"])
+    test(`${key} on Close`, async ({ page, browserName }) => {
+      await tabToToggle(page, browserName);
+      await page.keyboard.press("Enter");
+      await expect(await panel(page)).toBeVisible();
+      await page.keyboard.press(tabKey(browserName));
+      const close = (await panel(page)).getByRole("button", { name: "Close" });
+      await expect(
+        close,
+        "could not check: Close is not the next stop",
+      ).toBeFocused();
+      await page.keyboard.press(key);
+      await expectHidden(page);
+      await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
+      await expect(toggle(page)).toBeFocused();
+    });
+});
