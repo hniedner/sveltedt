@@ -97,8 +97,10 @@ There is nothing to install yet. What is on `main` today:
 - the filter controls, driven by the application's `filters`: a button "Filter <label>" in the header cell of each
   filtered column, which opens the column's filter dialog, a popover named "<label> filter". A text filter's field in
   it emits through `onfilter` by the search field's rules (the pause, at once on Enter, on Enter only with
-  `searchOnEnter`, outer white space trimmed and the typed text kept; proved in Chromium, Firefox and WebKit on the
-  test site's filter dialog page). Text typed and not yet sent (still within the pause, or not yet confirmed with
+  `searchOnEnter`, outer white space trimmed and the typed text kept; the field shows the applied text when its
+  dialog opens and takes a newer one while nothing new is typed in it; under `searchOnEnter` it is described by "Press
+  Enter to apply."; text that, trimmed, holds a control character or is longer than `maxLength` is marked invalid with
+  one alert per reason and not emitted; proved in Chromium, Firefox and WebKit on the test site's filter dialog page). Text typed and not yet sent (still within the pause, or not yet confirmed with
   Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape behaviour of the filter field is not
   settled yet (the input type is decided later): with the search field's `type="search"`, Chromium and Firefox clear
   the field on Escape and, after the pause, emit an empty text filter, which removes the applied one, and WebKit
