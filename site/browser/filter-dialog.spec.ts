@@ -16,6 +16,26 @@ const text = (id: string, value: string) => ({
   state: { kind: "text", text: value },
 });
 
+// Replaces the filters the application has applied, as a changed `filters` prop does
+async function setFilters(page: Page, filters: object) {
+  await page.evaluate(
+    (next) =>
+      (window as unknown as DialogWindow).__table.set({ filters: next }),
+    filters,
+  );
+}
+
+// Waits until the table shows Name's applied text as a badge: the echo has arrived, so a field is read after it
+async function echoed(page: Page, applied: string) {
+  await expect(
+    page.getByRole("button", {
+      name: `Clear filter Name: contains “${applied}”`,
+      exact: true,
+    }),
+    "could not check: the echo did not arrive",
+  ).toHaveCount(1);
+}
+
 // Opens the dialog of "Filter Name" on the page, `address` setting `searchDelay` and the like, with the clock paused at
 // the start: page time moves only by `at`, so "400 ms" is exact. `filters` is what the application has applied. Returns
 // the field "Filter Name text", `at(ms)` that moves the clock to `ms` after the first key (keys take no time), and
@@ -28,11 +48,7 @@ async function openName(
   await page.clock.install({ time: START });
   await page.clock.pauseAt(new Date(START.getTime() + 1000));
   await page.goto(address);
-  await page.evaluate(
-    (next) =>
-      (window as unknown as DialogWindow).__table.set({ filters: next }),
-    filters,
-  );
+  await setFilters(page, filters);
   await page.getByRole("button", { name: "Filter Name", exact: true }).click();
   const field = page
     .getByRole("dialog", { name: "Name filter", exact: true })
@@ -273,15 +289,72 @@ test("FILT-60, a filter field keeps typed white space when filters echoes the tr
 }) => {
   const { field, at } = await typePaddedBeta(page);
   await at(500);
-  await page.evaluate(() =>
-    (window as unknown as DialogWindow).__table.set({
-      filters: { name: { kind: "text", text: "beta" } },
-    }),
-  );
-  // The echo has arrived: the table shows the applied filter as a badge, so the field's value is read after it
-  await expect(
-    page.getByRole("button", { name: /^Clear filter Name/ }),
-    "could not check: the echo did not arrive",
-  ).toHaveCount(1);
+  await setFilters(page, { name: { kind: "text", text: "beta" } });
+  await echoed(page, "beta");
   await expect(field).toHaveValue(" beta ");
+});
+
+// Opens with "beta" applied, clicks into the field (typing into a field that holds text puts the key at the start unless
+// the caret is placed), types "x" and lets the pause pass: FILT-37's rows 4 to 6 start with the one call "betax"
+async function sentBetax(page: Page) {
+  const opened = await openNameApplied(page);
+  await opened.field.click();
+  await opened.field.pressSequentially("x");
+  await opened.at(400);
+  expect(await opened.calls()).toEqual([text("name", "betax")]);
+  return opened;
+}
+
+// @spec("FILT-37", "d417b14c")
+test.describe("FILT-37, a text filter's field takes the applied text and keeps its own until it is sent", () => {
+  test("beta applied; open the dialog: reads beta", async ({ page }) => {
+    const { field } = await openName(page, undefined, {
+      name: { kind: "text", text: "beta" },
+    });
+    await expect(field).toHaveValue("beta");
+  });
+
+  test("no filter for Name; open the dialog: reads an empty text", async ({
+    page,
+  }) => {
+    const { field } = await openName(page);
+    await expect(field).toHaveValue("");
+  });
+
+  test("beta applied, nothing typed; filters becomes gamma: reads gamma", async ({
+    page,
+  }) => {
+    const { field } = await openNameApplied(page);
+    await setFilters(page, { name: { kind: "text", text: "gamma" } });
+    await echoed(page, "gamma");
+    await expect(field).toHaveValue("gamma");
+  });
+
+  test("beta applied; type x; at 400 ms one call betax; at 450 ms filters unchanged: reads betax", async ({
+    page,
+  }) => {
+    const { field, at } = await sentBetax(page);
+    await at(450);
+    await expect(field).toHaveValue("betax");
+  });
+
+  test("beta applied; type x; at 400 ms one call betax; at 500 ms filters becomes betax: reads betax", async ({
+    page,
+  }) => {
+    const { field, at } = await sentBetax(page);
+    await at(500);
+    await setFilters(page, { name: { kind: "text", text: "betax" } });
+    await echoed(page, "betax");
+    await expect(field).toHaveValue("betax");
+  });
+
+  test("beta applied; type x; at 400 ms one call betax; at 500 ms filters becomes gamma: reads gamma", async ({
+    page,
+  }) => {
+    const { field, at } = await sentBetax(page);
+    await at(500);
+    await setFilters(page, { name: { kind: "text", text: "gamma" } });
+    await echoed(page, "gamma");
+    await expect(field).toHaveValue("gamma");
+  });
 });
