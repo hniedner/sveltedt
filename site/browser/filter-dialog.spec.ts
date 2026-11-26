@@ -172,3 +172,18 @@ test.describe("FILT-27, Enter in a text filter's field emits at once", () => {
     expect(await calls()).toEqual([]);
   });
 });
+
+// @spec("FILT-28", "e81fa6c6")
+test.describe("FILT-28, with searchOnEnter a text filter emits only on Enter", () => {
+  test("type beta; at 1000 ms no call; Enter: one call", async ({ page }) => {
+    const { field, at, calls } = await openName(
+      page,
+      "/filter-dialog.html?enter",
+    );
+    await field.pressSequentially("beta");
+    await at(1000);
+    expect(await calls()).toEqual([]);
+    await field.press("Enter");
+    expect(await calls()).toEqual([text("name", "beta")]);
+  });
+});
