@@ -2861,6 +2861,33 @@ the options' order.
 - Layer: real browser (Chromium, Firefox, WebKit).
 - Traces: PRD-B7.
 
+**FILT-61** While a categorical filter's dialog waits for `filters` to answer its presses, a press MUST toggle the
+pressed option within the selection the last waiting press emitted, not within `selected`. The dialog waits for each
+press from the moment it is made; while the dialog is open, a change of the column's selection in `filters` to the
+selection of an earlier press it waits for answers that press only, and any other change ends the wait for all of
+them; closing the dialog ends it too.
+- Examples (the test runs every row; Status's dialog is opened with `filters` holding
+  `status: { kind: 'categorical', selected: ['inactive'] }`, which changes only where the row says; a call is shown by
+  its `selected`; selections are compared by their values, in any order):
+
+  | Steps | `onfilter` calls |
+  |---|---|
+  | press "Active"; press "Inactive" | `['active', 'inactive']`, then `['active']` |
+  | press "Active"; press "Active" | `['active', 'inactive']`, then `['inactive']` |
+  | press "Active"; press "Inactive"; `filters` becomes `['inactive', 'active']` (the first press's answer); press "Active" | `['active', 'inactive']`, `['active']`, then `[]` |
+  | press "Active"; press "Inactive"; `filters` becomes `['active']` (the last press's answer: the wait ends); press "Active" | `['active', 'inactive']`, `['active']`, then `[]` |
+  | press "Active"; press "Inactive"; `filters` becomes `[]` (no press emitted it); press "Inactive" | `['active', 'inactive']`, `['active']`, then `['inactive']` |
+  | press "Active"; `filters` is given `['inactive']` again (a new object, an equal value: no change); press "Inactive" | `['active', 'inactive']`, then `['active']` |
+  | press "Active"; press "Inactive"; `filters` becomes `['inactive', 'active']` (the first press's answer); press "Filter Status" twice (the dialog closes and opens again); press "Inactive" | `['active', 'inactive']`, `['active']`, then `['active']` |
+  | press "Active"; press "Inactive"; press "Active"; `filters` becomes `['active']` (the second press's answer); press "Inactive" | `['active', 'inactive']`, `['active']`, `[]`, then `['inactive']` |
+
+- Reason: a user who ticks two options before a slow server answers means both; a press built from the old
+  `filters` would replace the first (PRD-B7). An answer to an earlier press says nothing about a later one; any other
+  change is the application's word and wins (PRD-B2); closing the dialog leaves `filters` as it is, as for text
+  (FILT-35).
+- Layer: real browser (Chromium, Firefox, WebKit).
+- Traces: PRD-B7, PRD-B2.
+
 **FILT-37** A text filter's field MUST take the applied text of `filters` when its dialog opens, and when `filters`
 changes while nothing has been typed in it since it last emitted or last took the applied text, except as FILT-60
 says; otherwise it keeps its text.
@@ -5520,6 +5547,7 @@ pointer.
 | FILT-58 | PRD-B25, PRD-B6 |
 | FILT-59 | PRD-B6 |
 | FILT-60 | PRD-B6 |
+| FILT-61 | PRD-B7, PRD-B2 |
 | FILT-46 | PRD-B8, PRD-B25 |
 | COL-01 | PRD-B10, PRD-B2 |
 | COL-24 | PRD-B10 |
@@ -5670,12 +5698,12 @@ state in their own statements.
 | PRD id | Statements | Coverage |
 |---|---|---|
 | PRD-B1 | RND-01, STATE-05, SORT-14, RND-15, RND-16, CHILD-06, THEME-29 | in part: the filter group states in its own statement that given filters still leave the rows unfiltered; an empty or duplicate row or column id is refused by RND-05 (PRD-B16) |
-| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, STATE-29, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, FILT-17, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
+| PRD-B2 | STATE-05, SORT-01, SORT-03, SORT-12, PAGE-01, PAGE-12, PAGE-13, PAGE-14, PAGE-21, PAGE-22, STATE-18, STATE-19, STATE-29, FILT-37, FILT-35, FILT-09, FILT-25, FILT-26, FILT-44, FILT-18, FILT-17, FILT-61, COL-01, COL-05, COL-06, COL-04, COL-09, COL-08, COL-14, COL-22, COL-35, COL-37, SEL-03, SEL-07, SEL-05, CHILD-03, CHILD-04 | in part: the filter, column and selection groups add their one-callback and props-only statements and the rest of the internal-state list |
 | PRD-B3 | RND-02, RND-08, RND-05, RND-07, RND-11, RND-12, SORT-10, SORT-15, STATE-17, STATE-23, FILT-29, FILT-30 | in full |
 | PRD-B4 | SORT-10, SORT-01, SORT-02, SORT-03, SORT-04, SORT-12, SORT-15, SORT-26, SORT-27 | in full |
 | PRD-B5 | SORT-09, SORT-13, SORT-05, SORT-06, SORT-07, SORT-08, A11Y-35, SORT-28 | in full |
 | PRD-B6 | FILT-01, FILT-27, FILT-28, FILT-13, FILT-14, FILT-03, FILT-15, FILT-16, FILT-05, FILT-29, FILT-37, FILT-02, FILT-34, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-35, FILT-36, FILT-32, FILT-41, FILT-42, FILT-43, FILT-44, FILT-48, FILT-49, FILT-57, FILT-58, FILT-59, FILT-60 | in full |
-| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18 | in full for the columns so far |
+| PRD-B7 | FILT-17, FILT-04, FILT-29, FILT-02, FILT-11, FILT-12, FILT-06, FILT-19, FILT-07, FILT-20, FILT-21, FILT-36, FILT-22, FILT-32, FILT-52, FILT-53, FILT-47, FILT-18, FILT-61 | in full for the columns so far |
 | PRD-B10 | COL-01, COL-24, COL-02, COL-05, COL-06, COL-03, COL-04, SORT-07, SORT-26, FILT-23, FILT-51, COL-25, COL-29, COL-26, COL-27, COL-28, SORT-27 | in full |
 | PRD-B11 | COL-09, COL-08, COL-10, COL-11, COL-12, COL-30, COL-25, COL-13, COL-14, COL-15, COL-16, COL-17, COL-18, COL-19, COL-20, SEL-09, STK-07, CHILD-08 | in full |
 | PRD-B12 | COL-21, COL-22, COL-31, COL-32, COL-33, COL-34, COL-35, COL-36, COL-25, COL-37, SEL-12, CHILD-12 | in full |

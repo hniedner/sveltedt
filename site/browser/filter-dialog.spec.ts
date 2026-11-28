@@ -777,3 +777,112 @@ test.describe("FILT-53, a categorical filter with emptyOption offers one more op
       expect(await pressed(opened, row.press)).toEqual([statusCall(row.after)]);
     });
 });
+
+// Presses "Filter Status" twice: the dialog closes, then opens again
+async function reopenStatus(page: Page, dialog: Locator) {
+  const button = page.getByRole("button", {
+    name: "Filter Status",
+    exact: true,
+  });
+  await button.click();
+  await expect(
+    dialog.getByRole("checkbox"),
+    "could not check: the dialog did not close",
+  ).toHaveCount(0);
+  await button.click();
+  await expect(
+    dialog.getByRole("checkbox"),
+    "could not check: the dialog did not open",
+  ).toHaveCount(2);
+}
+
+// Waits until the table shows Status's selection `selected` as a badge, or no Status badge for none: the answer has
+// arrived. The badge names the labels in the options' order
+async function statusShown(page: Page, selected: string[]) {
+  const labels = [
+    ["active", "Active"],
+    ["inactive", "Inactive"],
+  ]
+    .filter(([value]) => selected.includes(value ?? ""))
+    .map(([, label]) => label)
+    .join(", ");
+  await expect(
+    page.getByRole("button", {
+      name: labels ? `Clear filter Status: ${labels}` : "Clear filter Status",
+      exact: labels !== "",
+    }),
+    "could not check: the answer did not arrive",
+  ).toHaveCount(labels ? 1 : 0);
+}
+
+// @spec("FILT-61", "a95a98bf")
+test.describe("FILT-61, a press toggles within the selection the last waiting press emitted", () => {
+  // A step is a checkbox to press, "reopen", or the selection `filters` becomes
+  type Step = string | string[];
+  const a = "active";
+  const i = "inactive";
+  const rows: { steps: Step[]; calls: string[][] }[] = [
+    { steps: ["Active", "Inactive"], calls: [[a, i], [a]] },
+    { steps: ["Active", "Active"], calls: [[a, i], [i]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [], "Inactive"],
+      calls: [[a, i], [a], [i]],
+    },
+    { steps: ["Active", [i], "Inactive"], calls: [[a, i], [a]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "reopen", "Inactive"],
+      calls: [[a, i], [a], [a]],
+    },
+    {
+      steps: ["Active", "Inactive", "Active", [a], "Inactive"],
+      calls: [[a, i], [a], [], [i]],
+    },
+  ];
+  for (const [n, row] of rows.entries())
+    test(`row ${n + 1}: ${row.steps
+      .map((step) =>
+        typeof step === "string"
+          ? step === "reopen"
+            ? step
+            : `press ${step}`
+          : `filters ${JSON.stringify(step)}`,
+      )
+      .join("; ")}`, async ({ page }) => {
+      const opened = await openStatus(page, undefined, [i]);
+      await expect(
+        opened.dialog.getByRole("checkbox"),
+        "could not check: the dialog does not hold two boxes",
+      ).toHaveCount(2);
+      let applied = [i];
+      for (const step of row.steps)
+        if (step === "reopen") await reopenStatus(page, opened.dialog);
+        else if (typeof step === "string")
+          await opened.dialog
+            .getByRole("checkbox", { name: step, exact: true })
+            .click();
+        else {
+          await setFilters(page, {
+            status: { kind: "categorical", selected: step },
+          });
+          // An equal selection given again changes no badge: H-61e is the proof that it arrived
+          if (
+            JSON.stringify([...step].sort()) !==
+            JSON.stringify([...applied].sort())
+          )
+            await statusShown(page, step);
+          applied = step;
+        }
+      const first = await opened.calls();
+      expect(first).toEqual(row.calls.map(statusCall));
+      await opened.at(1000);
+      expect(await opened.calls(), "a call followed the press").toEqual(first);
+    });
+});

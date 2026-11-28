@@ -288,3 +288,60 @@ describe("FILT-53, the option for no value in the simulated DOM", () => {
     ]);
   });
 });
+
+describe("FILT-61, presses a categorical dialog waits on, in the simulated DOM", () => {
+  // A step is a label to press, "reopen", or the selection `filters` becomes
+  type Step = string | string[];
+  const a = "active";
+  const i = "inactive";
+  // FILT-61's rows 3 to 8: rows 1 and 2 kill no mutant the others do not (the browser rows run all eight)
+  const rows: { steps: Step[]; calls: string[][] }[] = [
+    {
+      steps: ["Active", "Inactive", [i, a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [], "Inactive"],
+      calls: [[a, i], [a], [i]],
+    },
+    { steps: ["Active", [i], "Inactive"], calls: [[a, i], [a]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "reopen", "Inactive"],
+      calls: [[a, i], [a], [a]],
+    },
+    {
+      steps: ["Active", "Inactive", "Active", [a], "Inactive"],
+      calls: [[a, i], [a], [], [i]],
+    },
+  ];
+  const filters = (selected: string[]) => ({
+    filters: { status: { kind: "categorical" as const, selected } },
+  });
+
+  it.each(rows.map((row, n) => ({ ...row, n: n + 3 })))(
+    "row $n",
+    async ({ steps, calls }) => {
+      const onfilter = vi.fn();
+      const table = mount({ onfilter, ...filters([i]) });
+      await toggle(table, 1, "open");
+      for (const step of steps)
+        if (step === "reopen") {
+          await toggle(table, 1, "closed");
+          await toggle(table, 1, "open");
+        } else if (typeof step === "string")
+          await fireEvent.click(
+            within(table.container).getByLabelText(step, { exact: true }),
+          );
+        else await table.rerender(filters(step));
+      expect(onfilter.mock.calls).toEqual(
+        calls.map((selected) => [
+          { id: "status", state: { kind: "categorical", selected } },
+        ]),
+      );
+    },
+  );
+});
