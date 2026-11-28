@@ -22,7 +22,8 @@ decision (see Region order).
   `src/lib/parts/Search.svelte` (70 lines), and a second state class, `src/lib/search.svelte.ts` (84 lines), built by
   the part, which amends the Fields rule below.
 - Added with the filter dialog (#86): a fourth part, `src/lib/parts/ColumnFilter.svelte`, one per filtered column, which
-  shows a text filter's field with `Search.svelte` and `SearchText` and a categorical filter's checkboxes (#272).
+  shows a text filter's field with `Search.svelte` and `SearchText` and a categorical filter's checkboxes (#272), whose
+  selection sent and not yet answered is a class of its own, `src/lib/picks.svelte.ts` (#274).
 - Binding rules: PRD-G2 (a) puts logic in `.ts` and `.svelte.ts`, (b) bans `class:`, `style:`, `use:`, `{@attach}`,
   spreads and any `bind:` but `bind:this` (`docs/PRD.md:1297-1299`; ESLint, `eslint.config.mjs:38-84`). PRD-T15 bans a
   `<style>` block and classes other than `sdt`, `sdt-*` or from a hook (`docs/PRD.md:1021-1025`). Enforced: the
@@ -91,7 +92,9 @@ decision (see Region order).
     items. This amends the rule above for the open dialog of PRD-B2 as well: a column's filter dialog is a popover, and
     the browser holds whether it is open; its part mirrors that in one `$state` of its own, written only by the
     dialog's `beforetoggle` event, and shows the dialog's fields only while it is open, so their unsent text and pause
-    go when it closes and come back from the props when it opens (`src/lib/parts/ColumnFilter.svelte`, #86).
+    go when it closes and come back from the props when it opens (`src/lib/parts/ColumnFilter.svelte`, #86). A
+    categorical filter's selection sent and not yet answered is kept the same way, in `Picks`
+    (`src/lib/picks.svelte.ts`, #274), built by the part, its list emptied when the dialog closes.
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
     `grep -rnE "view\.\w+ =" src/lib` finds nothing). The fields are public and writable in TypeScript; a part that
@@ -206,7 +209,7 @@ licence.
   timer, its cancel and teardown, and the apply step.
 - `src/lib/parts/ColumnFilter.svelte`, from the same `DataTableFilterPopover.svelte`: the dialog named "<label>
   filter", and one checkbox per option, checked while its value is selected, a press building the next selection
-  (changed: the options' order, and the box shows `selected` until the props change).
+  (changed: the options' order, and the box shows `selected`, or a press `filters` has not answered (FILT-62)).
 
 The code is the owner's own, so `NOTICE` has no entry for it. Where an adaptation differs from its source, the
 statement in `spec/table.md` that asks for the difference is the reason.
