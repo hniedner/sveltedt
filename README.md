@@ -111,12 +111,12 @@ There is nothing to install yet. What is on `main` today:
   (an application that answers only some presses, after three presses of one box), the boxes may keep showing the quick
   presses until the dialog closes, even after `filters` changes from outside to that earlier selection. Text typed and
   not yet sent (still within the pause, or not yet confirmed with Enter under `searchOnEnter`) is dropped when the
-  dialog closes. The Escape behaviour of the filter field is not settled yet (the input type is decided later): with the search field's
-  `type="search"`, Chromium and Firefox clear the field on Escape and, after the pause, emit an empty text filter, which
-  removes the applied one, and WebKit closes the dialog and emits nothing. A clearable badge for each applied filter,
-  "Clear column filters", "Reset table" (while `onreset` is given) and the application's own `criteria` snippet, every
-  header cell named by its column label alone (proved in Chromium, Firefox and WebKit on the test site's filter page),
-  and an invalid filter, `search`, `searchDelay` or `maxLength` prop gets the alert;
+  dialog closes. The Escape behaviour of the filter field is not settled yet (the input type is decided later): with
+  the search field's `type="search"`, Chromium and Firefox clear the field on Escape and, after the pause, emit an
+  empty text filter, which removes the applied one, and WebKit closes the dialog and emits nothing. A clearable badge
+  for each applied filter, "Clear column filters", "Reset table" (while `onreset` is given) and the application's own
+  `criteria` snippet, every header cell named by its column label alone (proved in Chromium, Firefox and WebKit on the
+  test site's filter page), and an invalid filter, `search`, `searchDelay` or `maxLength` prop gets the alert;
 - the `panels` snippet, for the application's own panels (an advanced search, batch actions) that a button in its
   `actions` snippet opens: rendered after the toolbar's controls and before the status line, in every state, the
   invalid-input alert's included, with its elements kept when the state changes (proved by component tests). A block
