@@ -47,7 +47,7 @@ decision (see Region order).
   and `bind:this` reference are the root's, `src/lib/DataTable.svelte:112-115`). The loading line (status region,
   Cancel, progress indicator) meets rule (2), but the rule applies from the next feature on and #146 decides the line: a
   part would move the Cancel button's `bind:this` and the `ending` hand-off across a part boundary (INFERRED).
-- **Logic:** pure functions in `.ts` beside the parts (`src/lib/sort.ts:18-51`, `src/lib/filters.ts`), reactive logic in
+- **Logic:** pure functions in `.ts` beside the parts (`src/lib/sort.ts:16-52`, `src/lib/filters.ts`), reactive logic in
   `.svelte.ts` (`src/lib/view.svelte.ts`). A new module comes when a function has a statement to test on its own.
 - Today's pattern, not a rule: both parts are `generics="Row"` like the root (`src/lib/DataTable.svelte:1`,
   `src/lib/parts/Toolbar.svelte:1`). A part renders inside `div.sdt`, with no portal (THEME-09,
@@ -146,7 +146,7 @@ decision (see Region order).
   indicator (`src/lib/DataTable.svelte:174`), the region with the table (`src/lib/DataTable.svelte:175-231`), Try again
   (`src/lib/DataTable.svelte:232-236`) and the hidden sort descriptions (`src/lib/DataTable.svelte:238-246`).
 - **In the alert state:** the heading, the actions, the `criteria` snippet, "Reset table" for a sort or filter fault
-  (`src/lib/filters.ts:54-65`), the status region and the live count stay, both live elements empty
+  (`src/lib/filters.ts:94-105`), the status region and the live count stay, both live elements empty
   (`spec/table.md:61-67`). The badges and "Clear column filters" go (FILT-08, `src/lib/parts/Toolbar.svelte:28-30`).
   Cancel goes too (INFERRED, not run: `pending` is false under a fault, `src/lib/DataTable.svelte:103`, so the first
   effect sets `still` false, `src/lib/view.svelte.ts:19-26`, because `still` implies `held` is false,

@@ -7,7 +7,11 @@ import type {
 import { readAnswer } from "./answer.js";
 import type { Answer } from "./answer.ts";
 import { buildRequest, servedIndex, toParams } from "./request.js";
-import type { Connection, ConnectionOptions } from "./types.js";
+import type {
+  Connection,
+  ConnectionOptions,
+  ConnectionRequest,
+} from "./types.js";
 
 // Call it in a component's script: onMount must run while that component initialises, and Svelte does not run it on the
 // server (svelte.dev/docs/svelte/lifecycle-hooks). It sends one request on mount and one more for each `pager.onpage`,
@@ -55,6 +59,15 @@ export function createConnection<Row = unknown>(
       `No column map entry serves the filter's column id ${JSON.stringify(id)}.`,
     );
   }
+  // Sends the request in the connection's form (the object for JSON, else its bracketed or dotted pairs) and returns the
+  // promise of the body
+  const send = (request: ConnectionRequest, signal: AbortSignal) =>
+    options.form === "json"
+      ? options.send({ request, signal })
+      : options.send({
+          request: toParams(request, options.form === "dotted"),
+          signal,
+        });
   function load(): void {
     const refused = refusal(sort, Object.keys(filters));
     if (refused !== undefined) {
@@ -83,14 +96,7 @@ export function createConnection<Row = unknown>(
       options.onerror(reason);
     };
     try {
-      void (
-        options.form === "json"
-          ? options.send({ request, signal })
-          : options.send({
-              request: toParams(request, options.form === "dotted"),
-              signal,
-            })
-      ).then((body) => {
+      void send(request, signal).then((body) => {
         if (signal.aborted) return;
         const read = readAnswer<Row>(body, sent);
         if (read instanceof Error) return fail(read);

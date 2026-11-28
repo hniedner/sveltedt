@@ -1,4 +1,5 @@
 import type { PaginationProps } from "./types.ts";
+import { firstFault, hasDuplicate, isEmpty } from "./checks.js";
 
 // pageNumbers is adapted from vincjo/datatables' createPagesWithEllipsis (src/lib/src/server/
 // AbstractTableHandler.svelte.ts, commit fe6f7bb1), MIT License, Copyright (c) 2020 vincjo (full text in NOTICE).
@@ -41,22 +42,37 @@ export function pagerState(
   total: number,
 ): PagerState {
   const pages = Math.max(1, Math.ceil(total / limit));
-  const past = offset > 0 && offset >= total;
-  const page = past ? pages : Math.floor(offset / limit) + 1;
+  const last = (pages - 1) * limit;
+  // Past the end: the last page, with no current page and no row (PAGE-25, PAGE-37); Previous goes to the last page
+  // (PAGE-26)
+  if (offset > 0 && offset >= total)
+    return {
+      pages,
+      page: pages,
+      current: null,
+      canPrevious: true,
+      canNext: false,
+      previous: last,
+      // Stryker disable next-line ArithmeticOperator: equivalent, Next is disabled past the end (canNext), so its target is never used
+      next: pages * limit,
+      last,
+      firstRow: 0,
+      lastRow: 0,
+    };
+  const page = Math.floor(offset / limit) + 1;
   // No rows are passed in, so the last row is the smaller of offset + limit and total (PAGE-37); with no row on the
-  // page, first and last are 0
-  const lastRow = past ? 0 : Math.min(offset + limit, total);
+  // page (a total of 0), first and last are 0
+  const lastRow = Math.min(offset + limit, total);
   return {
     pages,
     page,
-    current: past ? null : page,
+    current: page,
     canPrevious: offset > 0,
     // The page that holds `offset` ends before `total` (PAGE-05)
-    canNext: !past && page * limit < total,
-    // Past the end, Previous goes to the last page (PAGE-26)
-    previous: past ? (pages - 1) * limit : Math.max(0, (page - 2) * limit),
+    canNext: page * limit < total,
+    previous: Math.max(0, (page - 2) * limit),
     next: page * limit,
-    last: (pages - 1) * limit,
+    last,
     firstRow: lastRow === 0 ? 0 : offset + 1,
     lastRow,
   };
@@ -83,22 +99,26 @@ export function validatePager(input: PaginationProps): PagerFault | null {
   const { offset, limit, total, label, onpage, onsize } = input;
   // sizes given as null is no sizes, as left out (PAGE-15)
   const sizes = input.sizes ?? [];
-  if (!isCount(total)) return "totalInvalid";
-  if (!isCount(offset)) return "offsetInvalid";
-  if (!isSize(limit)) return "limitInvalid";
-  if (typeof label !== "string" || label.trim() === "") return "labelEmpty";
-  if (
-    !Array.isArray(sizes) ||
-    !sizes.every(isSize) ||
-    new Set(sizes).size !== sizes.length
-  )
-    return "sizesInvalid";
-  if (sizes.length > 0 && !sizes.includes(limit)) return "limitNotInSizes";
-  if (typeof onpage !== "function") return "pageHandlerMissing";
-  if (sizes.length > 0 && typeof onsize !== "function")
-    return "sizeHandlerMissing";
-  // unfilteredTotal given as null is not given (PAGE-16)
-  if (input.unfilteredTotal != null && !isCount(input.unfilteredTotal))
-    return "unfilteredTotalInvalid";
-  return null;
+  return firstFault<PagerFault>([
+    ["totalInvalid", () => !isCount(total)],
+    ["offsetInvalid", () => !isCount(offset)],
+    ["limitInvalid", () => !isSize(limit)],
+    ["labelEmpty", () => isEmpty(label)],
+    [
+      "sizesInvalid",
+      () =>
+        !Array.isArray(sizes) || !sizes.every(isSize) || hasDuplicate(sizes),
+    ],
+    ["limitNotInSizes", () => sizes.length > 0 && !sizes.includes(limit)],
+    ["pageHandlerMissing", () => typeof onpage !== "function"],
+    [
+      "sizeHandlerMissing",
+      () => sizes.length > 0 && typeof onsize !== "function",
+    ],
+    // unfilteredTotal given as null is not given (PAGE-16)
+    [
+      "unfilteredTotalInvalid",
+      () => input.unfilteredTotal != null && !isCount(input.unfilteredTotal),
+    ],
+  ]);
 }

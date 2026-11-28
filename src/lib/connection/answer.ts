@@ -38,15 +38,31 @@ function read<Row>(body: unknown, sent: number): Answer<Row> | Error {
     };
   if (error) return failure("The answer reports an error.", error_code);
   if (!Array.isArray(data)) return mismatch("data is not a list", error_code);
+  return counted(
+    data as readonly Row[],
+    { draw, recordsFiltered, recordsTotal },
+    sent,
+    error_code,
+  );
+}
+
+// The answer, or the mismatch when a count is not a count or a `draw` that is given is not the one `sent`
+function counted<Row>(
+  rows: readonly Row[],
+  counts: { draw: unknown; recordsFiltered: unknown; recordsTotal: unknown },
+  sent: number,
+  code: unknown,
+): Answer<Row> | Error {
+  const { draw, recordsFiltered, recordsTotal } = counts;
   const total = readCount(recordsFiltered);
   if (total === undefined)
-    return mismatch("recordsFiltered is not a count", error_code);
+    return mismatch("recordsFiltered is not a count", code);
   const unfilteredTotal = readCount(recordsTotal);
   if (unfilteredTotal === undefined)
-    return mismatch("recordsTotal is not a count", error_code);
+    return mismatch("recordsTotal is not a count", code);
   if (draw !== undefined && readCount(draw) !== sent)
-    return mismatch("draw is not the one sent", error_code);
-  return { rows: data as readonly Row[], total, unfilteredTotal };
+    return mismatch("draw is not the one sent", code);
+  return { rows, total, unfilteredTotal };
 }
 
 // An answer body read as given: its `data` is the rows, the list itself, each count is read by `readCount`, and a

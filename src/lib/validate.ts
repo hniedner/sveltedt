@@ -1,18 +1,6 @@
+import { firstFault, hasDuplicate, isEmpty } from "./checks.js";
 import type { TableFault } from "./faults.ts";
 import type { DataTableProps } from "./types.ts";
-
-function firstDuplicate(values: readonly string[]): string | undefined {
-  const seen = new Set<string>();
-  for (const value of values) {
-    if (seen.has(value)) return value;
-    seen.add(value);
-  }
-  return undefined;
-}
-
-// A text that is not a string counts as empty: callers the type does not reach can pass one (RND-05)
-const isEmpty = (text: unknown): boolean =>
-  typeof text !== "string" || text.trim() === "";
 
 // undefined never reaches here: DataTable.svelte defaults status to 'ready' first; null does, and is refused (RND-05)
 const STATUSES: readonly unknown[] = ["loading", "ready", "failed", "stopped"];
@@ -50,72 +38,82 @@ export function validateTable<Row>(
   > & { emptyOption: string },
 ): TableFault | null {
   const { rows, columns, getRowId, caption, regionLabel, status } = input;
-  if (isEmpty(caption)) return "captionEmpty";
-  if (isEmpty(regionLabel)) return "regionLabelEmpty";
-  if (!isList(columns) || columns.length === 0) return "noColumns";
-  // A column that is not an object has no id (RND-05)
-  if (
-    columns.some((column) =>
-      isEmpty((column as Partial<typeof column> | null)?.id),
-    )
-  )
-    return "columnIdEmpty";
-  const duplicateId = firstDuplicate(columns.map((column) => column.id));
-  if (duplicateId !== undefined) return "columnIdDuplicate";
-  if (columns.some((column) => isEmpty(column.label)))
-    return "columnLabelEmpty";
-  // Every label is a string here: isEmpty above refused the rest
-  const duplicateLabel = firstDuplicate(
-    columns.map((column) => column.label.trim()),
-  );
-  if (duplicateLabel !== undefined) return "columnLabelDuplicate";
-  // A cell snippet is a function too
-  if (
-    columns.some(
-      (column) =>
-        typeof column.value !== "function" && typeof column.cell !== "function",
-    )
-  )
-    return "columnContentMissing";
-  if (!STATUSES.includes(status)) return "statusUnknown";
-  // Only with status ready are rows that are not a list a fault; with loading, failed or stopped they are not
-  // (STATE-08, STATE-22), and a sort fault still counts
-  if (!isList(rows)) {
-    if (status === "ready") return "rowsNotList";
-  } else {
-    const fault = rowFault(rows, getRowId);
-    if (fault) return fault;
-  }
   // The sort faults come after every fault of RND-05's table (SORT-15), the filter faults after those (FILT-32)
   return (
+    firstFault<TableFault>([
+      ["captionEmpty", () => isEmpty(caption)],
+      ["regionLabelEmpty", () => isEmpty(regionLabel)],
+      ["noColumns", () => !isList(columns) || columns.length === 0],
+      // A column that is not an object has no id (RND-05)
+      [
+        "columnIdEmpty",
+        () =>
+          columns.some((column) =>
+            isEmpty((column as Partial<typeof column> | null)?.id),
+          ),
+      ],
+      [
+        "columnIdDuplicate",
+        () => hasDuplicate(columns.map((column) => column.id)),
+      ],
+      [
+        "columnLabelEmpty",
+        () => columns.some((column) => isEmpty(column.label)),
+      ],
+      // Every label is a string here: isEmpty above refused the rest
+      [
+        "columnLabelDuplicate",
+        () => hasDuplicate(columns.map((column) => column.label.trim())),
+      ],
+      // A cell snippet is a function too
+      [
+        "columnContentMissing",
+        () =>
+          columns.some(
+            (column) =>
+              typeof column.value !== "function" &&
+              typeof column.cell !== "function",
+          ),
+      ],
+      ["statusUnknown", () => !STATUSES.includes(status)],
+      // Only with status ready are rows that are not a list a fault; with loading, failed or stopped they are not
+      // (STATE-08, STATE-22), and a sort fault still counts
+      ["rowsNotList", () => !isList(rows) && status === "ready"],
+    ]) ??
+    rowFault(rows, getRowId) ??
     sortFault(input.columns, input.sort, input.onsort) ??
     filterFault(input) ??
     searchFault(input)
   );
 }
 
-// An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table
+// A row's id in its text form, so the number 1 and the string "1" are one id; null when it cannot be read
+function readId<Row>(
+  getRowId: (context: { readonly row: Row }) => unknown,
+  row: Row,
+): string | null {
+  try {
+    const id: unknown = getRowId({ row });
+    return typeof id === "string" || Number.isFinite(id) ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+// An unreadable row id is reported last: an empty or shared id in another row comes first in RND-05's table. Rows
+// that are not a list have no ids to check.
 function rowFault<Row>(
   rows: readonly Row[],
   getRowId: (context: { readonly row: Row }) => unknown,
 ): TableFault | null {
-  const rowIds: string[] = [];
-  let unreadable = false;
-  for (const row of rows) {
-    try {
-      const id: unknown = getRowId({ row });
-      // Compared by text form, so the number 1 and the string "1" are one id
-      if (typeof id === "string" || Number.isFinite(id))
-        rowIds.push(String(id));
-      else unreadable = true;
-    } catch {
-      unreadable = true;
-    }
-  }
-  if (rowIds.some(isEmpty)) return "rowIdEmpty";
-  const duplicateRowId = firstDuplicate(rowIds);
-  if (duplicateRowId !== undefined) return "rowIdDuplicate";
-  return unreadable ? "rowIdUnreadable" : null;
+  if (!isList(rows)) return null;
+  const ids = Array.from(rows, (row) => readId(getRowId, row));
+  const read = ids.filter((id) => id !== null);
+  return firstFault<TableFault>([
+    ["rowIdEmpty", () => read.some(isEmpty)],
+    ["rowIdDuplicate", () => hasDuplicate(read)],
+    ["rowIdUnreadable", () => read.length < ids.length],
+  ]);
 }
 
 // The first row of SORT-15's table that applies; each row is checked across all columns or entries before the next
@@ -134,32 +132,39 @@ function sortFault<Row>(
   const sortables = columns.filter(
     (column) => (column.sortable ?? undefined) !== undefined,
   );
-  if (sortables.some((column) => invalid(column.sortable)))
-    return "sortableInvalid";
-  if (sortables.length > 0 && typeof onsort !== "function")
-    return "sortHandlerMissing";
-  if (
-    sort !== undefined &&
-    sort !== null &&
-    (!isList(sort) || !(sort as unknown[]).every(isSortEntry))
-  )
-    return "sortInvalid";
   const order = sort ?? [];
   const columnOf = (id: string) => columns.find((column) => column.id === id);
-  if (order.some((entry) => !columnOf(entry.id))) return "sortColumnUnknown";
-  if (order.some((entry) => !columnOf(entry.id)?.sortable))
-    return "sortColumnNotSortable";
-  // Stryker disable OptionalChaining: the two checks above leave every entry a known, sortable column
-  if (
-    order.some(
-      (entry) => !columnOf(entry.id)?.sortable?.includes(entry.direction),
-    )
-  )
-    return "sortDirectionNotAllowed";
-  // Stryker restore OptionalChaining
-  return firstDuplicate(order.map((entry) => entry.id)) === undefined
-    ? null
-    : "sortColumnDuplicate";
+  return firstFault<TableFault>([
+    [
+      "sortableInvalid",
+      () => sortables.some((column) => invalid(column.sortable)),
+    ],
+    [
+      "sortHandlerMissing",
+      () => sortables.length > 0 && typeof onsort !== "function",
+    ],
+    [
+      "sortInvalid",
+      () =>
+        sort != null &&
+        (!isList(sort) || !(sort as unknown[]).every(isSortEntry)),
+    ],
+    ["sortColumnUnknown", () => order.some((entry) => !columnOf(entry.id))],
+    // Stryker disable OptionalChaining: the row above leaves every entry a known column, the next row a sortable one
+    [
+      "sortColumnNotSortable",
+      () => order.some((entry) => !columnOf(entry.id)?.sortable),
+    ],
+    [
+      "sortDirectionNotAllowed",
+      () =>
+        order.some(
+          (entry) => !columnOf(entry.id)?.sortable?.includes(entry.direction),
+        ),
+    ],
+    // Stryker restore OptionalChaining
+    ["sortColumnDuplicate", () => hasDuplicate(order.map((entry) => entry.id))],
+  ]);
 }
 
 // The props the filter checks read, as unknown: callers the types do not reach can pass anything
@@ -190,44 +195,51 @@ function optionValues(filter: Record<string, unknown>): string[] {
 // One filter as its type says (the filterInvalid rows of FILT-32); the label of FILT-53's option counts for the duplicate check
 function filterShapeFault(filter: unknown, emptyLabel: string): boolean {
   // Not null here; a filter that is no object has no kind, and is refused with the kinds that are none of the two
-  const { kind, emptyOption } = filter as Record<string, unknown>;
+  const { kind, emptyOption, options } = filter as Record<string, unknown>;
   if (kind === "text") return emptyOption === true;
-  if (kind !== "categorical") return true;
-  const options = (filter as Record<string, unknown>)["options"];
-  if (!isList(options) || (options as unknown[]).length === 0) return true;
-  const given = options as unknown[];
-  if (
-    given.some(
-      (option) =>
-        !isObject(option) ||
-        isEmpty(option["value"]) ||
-        isEmpty(option["label"]),
-    )
-  )
-    return true;
-  if (emptyOption != null && typeof emptyOption !== "boolean") return true;
-  const labels = (given as { label: string }[]).map((option) =>
-    option.label.trim(),
-  );
-  if (emptyOption === true) labels.push(emptyLabel.trim());
-  return (
-    firstDuplicate(optionValues({ options: given })) !== undefined ||
-    firstDuplicate(labels) !== undefined
-  );
+  const given = options as { value: unknown; label: unknown }[];
+  return [
+    // Neither a text nor a categorical filter
+    () => kind !== "categorical",
+    // No options, or not a list
+    () => !isList(options) || given.length === 0,
+    // An option that is no object, or has an empty value or label
+    () =>
+      given.some(
+        (option) =>
+          !isObject(option) ||
+          isEmpty(option["value"]) ||
+          isEmpty(option["label"]),
+      ),
+    // An emptyOption that is neither a boolean nor left out
+    () => emptyOption != null && typeof emptyOption !== "boolean",
+    // Two options with one value
+    () => hasDuplicate(given.map((option) => option.value)),
+    // Two options with one label, the option of FILT-53 included; every label is a string here (the option row above)
+    () => {
+      const labels = (given as { label: string }[]).map((option) =>
+        option.label.trim(),
+      );
+      return hasDuplicate(
+        emptyOption === true ? [...labels, emptyLabel.trim()] : labels,
+      );
+    },
+  ].some((holds) => holds());
 }
+
+// A categorical entry's selection as its filter allows: a list of its option values, none twice
+const selectionFault = (selected: unknown, allowed: string[]): boolean =>
+  !isList(selected) ||
+  (selected as string[]).some((value) => !allowed.includes(value)) ||
+  hasDuplicate(selected as string[]);
 
 // An applied entry as its column's filter allows (FILT-32, filterStateInvalid)
 function entryFault(entry: unknown, filter: unknown): boolean {
   if (!isObject(entry) || !isObject(filter) || entry["kind"] !== filter["kind"])
     return true;
-  if (entry["kind"] === "text") return typeof entry["text"] !== "string";
-  const selected = entry["selected"];
-  if (!isList(selected)) return true;
-  const allowed = optionValues(filter);
-  return (
-    (selected as string[]).some((value) => !allowed.includes(value)) ||
-    firstDuplicate(selected as string[]) !== undefined
-  );
+  return entry["kind"] === "text"
+    ? typeof entry["text"] !== "string"
+    : selectionFault(entry["selected"], optionValues(filter));
 }
 
 // The filter faults of FILT-32's table, the first row that applies; a filter given as null is no filter, as left out
@@ -236,21 +248,32 @@ function filterFault(input: FilterInput): TableFault | null {
   const filtered = columns.filter(
     (column) => (column.filter ?? undefined) !== undefined,
   );
-  if (filtered.some((column) => filterShapeFault(column.filter, emptyOption)))
-    return "filterInvalid";
-  if (
-    filtered.length > 0 &&
-    [input.onfilter, input.onclearfilter, input.onclearfilters].some(
-      (handler) => typeof handler !== "function",
-    )
-  )
-    return "filterHandlerMissing";
-  if (filters === undefined || filters === null) return null;
-  if (!isObject(filters)) return "filterStateInvalid";
-  const bad = Object.entries(filters).some(([id, entry]) =>
-    entryFault(entry, columns.find((column) => column.id === id)?.filter),
-  );
-  return bad ? "filterStateInvalid" : null;
+  return firstFault<TableFault>([
+    [
+      "filterInvalid",
+      () =>
+        filtered.some((column) => filterShapeFault(column.filter, emptyOption)),
+    ],
+    [
+      "filterHandlerMissing",
+      () =>
+        filtered.length > 0 &&
+        [input.onfilter, input.onclearfilter, input.onclearfilters].some(
+          (handler) => typeof handler !== "function",
+        ),
+    ],
+    // `filters` given and not an object
+    ["filterStateInvalid", () => filters != null && !isObject(filters)],
+    // An entry that is not as its column's filter allows
+    [
+      "filterStateInvalid",
+      () =>
+        isObject(filters) &&
+        Object.entries(filters).some(([id, entry]) =>
+          entryFault(entry, columns.find((column) => column.id === id)?.filter),
+        ),
+    ],
+  ]);
 }
 
 // A whole number of at least `min`; Number.isInteger refuses everything that is no number, NaN and Infinity included
@@ -260,11 +283,15 @@ const wholeFrom = (value: unknown, min: number): boolean =>
 // The search, its delay and its length limit; the application sets the last two, so null is a fault for them
 function searchFault(input: FilterInput): TableFault | null {
   const { search, searchDelay, maxLength } = input;
-  if (search !== undefined && search !== null && typeof search !== "string")
-    return "searchInvalid";
-  if (searchDelay !== undefined && !wholeFrom(searchDelay, 0))
-    return "searchDelayInvalid";
-  if (maxLength !== undefined && !wholeFrom(maxLength, 1))
-    return "maxLengthInvalid";
-  return null;
+  return firstFault<TableFault>([
+    ["searchInvalid", () => search != null && typeof search !== "string"],
+    [
+      "searchDelayInvalid",
+      () => searchDelay !== undefined && !wholeFrom(searchDelay, 0),
+    ],
+    [
+      "maxLengthInvalid",
+      () => maxLength !== undefined && !wholeFrom(maxLength, 1),
+    ],
+  ]);
 }

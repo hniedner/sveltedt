@@ -71,6 +71,11 @@ export function buildRequest(
   };
 }
 
+// The key of the entry `k` of the value at `key`: `k` itself at the top, else `[k]`, or `.k` when `dot` (dotted, and the
+// value is no list: a list index is always `[i]`)
+const below = (key: string, k: string, dot: boolean): string =>
+  key === "" ? k : dot ? `${key}.${k}` : `${key}[${k}]`;
+
 // The pairs of a request, bracketed or dotted: a list index is always written as `[i]`, an object key below the top as
 // `[key]` or `.key`
 export function toParams(
@@ -81,12 +86,8 @@ export function toParams(
   const walk = (value: unknown, key: string): void => {
     // Stryker disable next-line ConditionalExpression: equivalent, no value of a request is null
     if (typeof value === "object" && value !== null) {
-      const listed = Array.isArray(value);
-      for (const [k, v] of Object.entries(value))
-        walk(
-          v,
-          key === "" ? k : dotted && !listed ? `${key}.${k}` : `${key}[${k}]`,
-        );
+      const dot = dotted && !Array.isArray(value);
+      for (const [k, v] of Object.entries(value)) walk(v, below(key, k, dot));
     } else params.set(key, String(value));
   };
   walk(request, "");
