@@ -1,6 +1,7 @@
 import { fireEvent, render, within } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AnswerProbe from "../../test/AnswerProbe.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -223,8 +224,8 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(boxes(table)).toEqual([]);
   });
 
-  // A press on an unselected option leaves it unchecked until filters holds it
-  it("show the props after a press, and the new props once they change", async () => {
+  // A press on an unselected option checks it at once, while filters is unchanged (FILT-62)
+  it("show a press on an unselected option at once", async () => {
     const table = mount(withSelected("inactive"));
     await toggle(table, 1, "open");
     const active = within(table.container).getByLabelText<HTMLInputElement>(
@@ -232,21 +233,19 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
       { exact: true },
     );
     await fireEvent.click(active);
-    expect(active.checked).toBe(false);
-    await table.rerender(withSelected("active", "inactive"));
     expect(active.checked).toBe(true);
   });
 
-  // A press on a selected option leaves it checked; resetting the box to a constant false would show here
-  it("stay checked after a press on a selected one while filters is unchanged", async () => {
-    const table = mount(withSelected("inactive"));
-    await toggle(table, 1, "open");
-    const inactive = within(table.container).getByLabelText<HTMLInputElement>(
-      "Inactive",
+  // The application answers inside `onfilter`, with no `flushSync`; only a reset of the box before the emit shows here
+  it("show the selection an answer inside onfilter gives, not the press", async () => {
+    const table = render(AnswerProbe, { answer: [] });
+    await toggle(table, 0, "open");
+    const active = within(table.container).getByLabelText<HTMLInputElement>(
+      "Active",
       { exact: true },
     );
-    await fireEvent.click(inactive);
-    expect(inactive.checked).toBe(true);
+    await fireEvent.click(active);
+    expect(active.checked).toBe(false);
   });
 });
 
