@@ -3,6 +3,7 @@ import type { TableFault } from "./faults.ts";
 import type {
   DataTableColumn,
   DataTableFilter,
+  DataTableFilterState,
   DataTableMessages,
   DataTableProps,
 } from "./types.ts";
@@ -33,31 +34,44 @@ export interface Badge {
 export function badges<Row>(
   columns: readonly DataTableColumn<Row>[],
   filters: DataTableProps<Row>["filters"],
-  words: Pick<DataTableMessages, "badgeText" | "badgeOptions" | "emptyOption">,
+  words: BadgeWords,
 ): Badge[] {
   const found: Badge[] = [];
   for (const column of columns) {
-    const state = filters?.[column.id];
-    if (state?.kind === "text" && state.text.trim() !== "")
-      found.push({
-        id: column.id,
-        text: words.badgeText({ label: column.label, text: state.text }),
-      });
-    else if (state?.kind === "categorical" && state.selected.length > 0) {
-      // An applied categorical state sits on a column whose filter is categorical (FILT-32 refuses the rest)
-      const options = offered(
-        column.filter as CategoricalFilter,
-        words.emptyOption,
-      )
-        .filter((option) => state.selected.includes(option.value))
-        .map((option) => option.label);
-      found.push({
-        id: column.id,
-        text: words.badgeOptions({ label: column.label, options }),
-      });
-    }
+    const badge = badgeText(column, filters?.[column.id], words);
+    if (badge !== null) found.push(badge);
   }
   return found;
+}
+
+type BadgeWords = Pick<
+  DataTableMessages,
+  "badgeText" | "badgeOptions" | "emptyOption"
+>;
+
+// A column's badge, or null while its state applies nothing
+function badgeText<Row>(
+  column: DataTableColumn<Row>,
+  state: DataTableFilterState | undefined,
+  words: BadgeWords,
+): Badge | null {
+  if (state === undefined) return null;
+  if (state.kind === "text")
+    return state.text.trim() === ""
+      ? null
+      : {
+          id: column.id,
+          text: words.badgeText({ label: column.label, text: state.text }),
+        };
+  if (state.selected.length === 0) return null;
+  // An applied categorical state sits on a column whose filter is categorical (FILT-32 refuses the rest)
+  const options = offered(column.filter as CategoricalFilter, words.emptyOption)
+    .filter((option) => state.selected.includes(option.value))
+    .map((option) => option.label);
+  return {
+    id: column.id,
+    text: words.badgeOptions({ label: column.label, options }),
+  };
 }
 
 // The values a categorical filter selects after a press on `pressed`: its options' values in the options' order, each
