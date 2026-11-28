@@ -858,16 +858,6 @@ async function play(page: Page, steps: Step[]) {
   return opened;
 }
 
-// One test for each row: plays its steps, then lets `check` read the result
-function eachRow<Row extends { steps: Step[] }>(
-  rows: Row[],
-  check: (opened: Awaited<ReturnType<typeof play>>, row: Row) => Promise<void>,
-) {
-  for (const [n, row] of rows.entries())
-    test(`row ${n + 1}: ${titled(row.steps)}`, async ({ page }) =>
-      check(await play(page, row.steps), row));
-}
-
 // @spec("FILT-61", "a95a98bf")
 test.describe("FILT-61, a press toggles within the selection the last waiting press emitted", () => {
   const rows: { steps: Step[]; calls: string[][] }[] = [
@@ -895,12 +885,14 @@ test.describe("FILT-61, a press toggles within the selection the last waiting pr
       calls: [[a, i], [a], [], [i]],
     },
   ];
-  eachRow(rows, async (opened, row) => {
-    const first = await opened.calls();
-    expect(first).toEqual(row.calls.map(statusCall));
-    await opened.at(1000);
-    expect(await opened.calls(), "a call followed the press").toEqual(first);
-  });
+  for (const [n, row] of rows.entries())
+    test(`row ${n + 1}: ${titled(row.steps)}`, async ({ page }) => {
+      const opened = await play(page, row.steps);
+      const first = await opened.calls();
+      expect(first).toEqual(row.calls.map(statusCall));
+      await opened.at(1000);
+      expect(await opened.calls(), "a call followed the press").toEqual(first);
+    });
 });
 
 // @spec("FILT-62", "d37be37d")
@@ -916,15 +908,18 @@ test.describe("FILT-62, the boxes show the selection the last waiting press emit
     },
     { steps: ["Active", [i]], checked: ["Active", "Inactive"] },
   ];
-  eachRow(rows, async (opened, row) => {
-    const shown = async () => {
-      for (const name of ["Active", "Inactive"])
-        await expect(
-          opened.dialog.getByRole("checkbox", { name, exact: true }),
-        ).toBeChecked({ checked: row.checked.includes(name) });
-    };
-    await shown();
-    await opened.at(1000);
-    await shown();
-  });
+  rows.forEach((row, n) =>
+    test(`row ${n + 1}: ${titled(row.steps)}`, async ({ page }) => {
+      const opened = await play(page, row.steps);
+      const shown = async () => {
+        for (const name of ["Active", "Inactive"])
+          await expect(
+            opened.dialog.getByRole("checkbox", { name, exact: true }),
+          ).toBeChecked({ checked: row.checked.includes(name) });
+      };
+      await shown();
+      await opened.at(1000);
+      await shown();
+    }),
+  );
 });
