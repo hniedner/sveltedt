@@ -71,7 +71,8 @@ export function buildRequest(
   };
 }
 
-// The key of the entry `k` of the value at `key`: `k` itself at the top, else `[k]`, or `.k` when dotted
+// The key of the entry `k` of the value at `key`: `k` itself at the top, else `[k]`, or `.k` when `dot` (dotted, and the
+// value is no list: a list index is always `[i]`)
 const below = (key: string, k: string, dot: boolean): string =>
   key === "" ? k : dot ? `${key}.${k}` : `${key}[${k}]`;
 

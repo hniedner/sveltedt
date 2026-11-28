@@ -1,5 +1,6 @@
-// The fault tables of the validators (RND-05, SORT-15, FILT-32, PAGE-16): each lists its rows in the order of its
-// spec table, and the first row whose test holds names the fault.
+// The fault tables of validate.ts and pager.ts: each lists its rows in the order of its spec table (RND-05, SORT-15,
+// FILT-32, PAGE-16), and the first row whose test holds names the fault.
+
 // A row of a fault table: the fault, and the test that finds it
 type Check<Fault> = readonly [Fault, () => boolean];
 

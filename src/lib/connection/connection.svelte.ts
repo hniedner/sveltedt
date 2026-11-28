@@ -59,7 +59,8 @@ export function createConnection<Row = unknown>(
       `No column map entry serves the filter's column id ${JSON.stringify(id)}.`,
     );
   }
-  // The request in the connection's form: the object for JSON, else its bracketed or dotted pairs
+  // Sends the request in the connection's form (the object for JSON, else its bracketed or dotted pairs) and returns the
+  // promise of the body
   const send = (request: ConnectionRequest, signal: AbortSignal) =>
     options.form === "json"
       ? options.send({ request, signal })

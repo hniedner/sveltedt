@@ -61,7 +61,7 @@ export function pagerState(
     };
   const page = Math.floor(offset / limit) + 1;
   // No rows are passed in, so the last row is the smaller of offset + limit and total (PAGE-37); with no row on the
-  // page, first and last are 0
+  // page (a total of 0), first and last are 0
   const lastRow = Math.min(offset + limit, total);
   return {
     pages,

@@ -46,7 +46,7 @@ function read<Row>(body: unknown, sent: number): Answer<Row> | Error {
   );
 }
 
-// The answer with its two counts, once each reads as a count and a `draw` that is given reads to `sent`
+// The answer, or the mismatch when a count is not a count or a `draw` that is given is not the one `sent`
 function counted<Row>(
   rows: readonly Row[],
   counts: { draw: unknown; recordsFiltered: unknown; recordsTotal: unknown },

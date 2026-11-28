@@ -215,7 +215,7 @@ function filterShapeFault(filter: unknown, emptyLabel: string): boolean {
     () => emptyOption != null && typeof emptyOption !== "boolean",
     // Two options with one value
     () => hasDuplicate(given.map((option) => option.value)),
-    // Two options with one label, the option of FILT-53 included; every label is a string here (the row above)
+    // Two options with one label, the option of FILT-53 included; every label is a string here (the option row above)
     () => {
       const labels = (given as { label: string }[]).map((option) =>
         option.label.trim(),
@@ -262,7 +262,9 @@ function filterFault(input: FilterInput): TableFault | null {
           (handler) => typeof handler !== "function",
         ),
     ],
+    // `filters` given and not an object
     ["filterStateInvalid", () => filters != null && !isObject(filters)],
+    // An entry that is not as its column's filter allows
     [
       "filterStateInvalid",
       () =>
