@@ -1,4 +1,4 @@
-import { firstFault, hasDuplicate, isEmpty } from "./checks.ts";
+import { firstFault, hasDuplicate, isEmpty } from "./checks.js";
 import type { TableFault } from "./faults.ts";
 import type { DataTableProps } from "./types.ts";
 

@@ -1,5 +1,5 @@
 import type { PaginationProps } from "./types.ts";
-import { firstFault, hasDuplicate, isEmpty } from "./checks.ts";
+import { firstFault, hasDuplicate, isEmpty } from "./checks.js";
 
 // pageNumbers is adapted from vincjo/datatables' createPagesWithEllipsis (src/lib/src/server/
 // AbstractTableHandler.svelte.ts, commit fe6f7bb1), MIT License, Copyright (c) 2020 vincjo (full text in NOTICE).
