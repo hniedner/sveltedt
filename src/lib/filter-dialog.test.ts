@@ -1,6 +1,7 @@
 import { fireEvent, render, within } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AnswerProbe from "../../test/AnswerProbe.svelte";
 import DataTable from "./DataTable.svelte";
 import type { DataTableColumn, DataTableProps } from "./types.ts";
 
@@ -223,8 +224,8 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
     expect(boxes(table)).toEqual([]);
   });
 
-  // A press on an unselected option leaves it unchecked until filters holds it
-  it("show the props after a press, and the new props once they change", async () => {
+  // A press on an unselected option checks it at once, while filters is unchanged (FILT-62)
+  it("show a press on an unselected option at once", async () => {
     const table = mount(withSelected("inactive"));
     await toggle(table, 1, "open");
     const active = within(table.container).getByLabelText<HTMLInputElement>(
@@ -232,21 +233,19 @@ describe("FILT-17, a categorical filter's checkboxes in the simulated DOM", () =
       { exact: true },
     );
     await fireEvent.click(active);
-    expect(active.checked).toBe(false);
-    await table.rerender(withSelected("active", "inactive"));
     expect(active.checked).toBe(true);
   });
 
-  // A press on a selected option leaves it checked; resetting the box to a constant false would show here
-  it("stay checked after a press on a selected one while filters is unchanged", async () => {
-    const table = mount(withSelected("inactive"));
-    await toggle(table, 1, "open");
-    const inactive = within(table.container).getByLabelText<HTMLInputElement>(
-      "Inactive",
+  // The application answers inside `onfilter`, with no `flushSync`; only a reset of the box before the emit shows here
+  it("show the selection an answer inside onfilter gives, not the press", async () => {
+    const table = render(AnswerProbe, { answer: [] });
+    await toggle(table, 0, "open");
+    const active = within(table.container).getByLabelText<HTMLInputElement>(
+      "Active",
       { exact: true },
     );
-    await fireEvent.click(inactive);
-    expect(inactive.checked).toBe(true);
+    await fireEvent.click(active);
+    expect(active.checked).toBe(false);
   });
 });
 
@@ -287,4 +286,61 @@ describe("FILT-53, the option for no value in the simulated DOM", () => {
       [{ id: "status", state: { kind: "categorical", selected: [""] } }],
     ]);
   });
+});
+
+describe("FILT-61, presses a categorical dialog waits on, in the simulated DOM", () => {
+  // A step is a label to press, "reopen", or the selection `filters` becomes
+  type Step = string | string[];
+  const a = "active";
+  const i = "inactive";
+  // FILT-61's rows 3 to 8: rows 1 and 2 kill no mutant the others do not (the browser rows run all eight)
+  const rows: { steps: Step[]; calls: string[][] }[] = [
+    {
+      steps: ["Active", "Inactive", [i, a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [], "Inactive"],
+      calls: [[a, i], [a], [i]],
+    },
+    { steps: ["Active", [i], "Inactive"], calls: [[a, i], [a]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "reopen", "Inactive"],
+      calls: [[a, i], [a], [a]],
+    },
+    {
+      steps: ["Active", "Inactive", "Active", [a], "Inactive"],
+      calls: [[a, i], [a], [], [i]],
+    },
+  ];
+  const filters = (selected: string[]) => ({
+    filters: { status: { kind: "categorical" as const, selected } },
+  });
+
+  it.each(rows.map((row, n) => ({ ...row, n: n + 3 })))(
+    "row $n",
+    async ({ steps, calls }) => {
+      const onfilter = vi.fn();
+      const table = mount({ onfilter, ...filters([i]) });
+      await toggle(table, 1, "open");
+      for (const step of steps)
+        if (step === "reopen") {
+          await toggle(table, 1, "closed");
+          await toggle(table, 1, "open");
+        } else if (typeof step === "string")
+          await fireEvent.click(
+            within(table.container).getByLabelText(step, { exact: true }),
+          );
+        else await table.rerender(filters(step));
+      expect(onfilter.mock.calls).toEqual(
+        calls.map((selected) => [
+          { id: "status", state: { kind: "categorical", selected } },
+        ]),
+      );
+    },
+  );
 });

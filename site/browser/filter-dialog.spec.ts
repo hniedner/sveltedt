@@ -639,8 +639,8 @@ test.describe("FILT-16, a key that makes the filter text valid removes the mark 
     });
 });
 
-// @spec("FILT-17", "be1eff7c")
-test.describe("FILT-17, a categorical filter offers its options as checkboxes that show the applied selection", () => {
+// @spec("FILT-17", "4a8b17f8")
+test.describe("FILT-17, a categorical filter offers its options as checkboxes that show the selection `filters` holds", () => {
   const selected = (...values: string[]) => ({
     status: { kind: "categorical", selected: values },
   });
@@ -662,7 +662,7 @@ test.describe("FILT-17, a categorical filter offers its options as checkboxes th
     await expect(boxes.nth(1)).toBeChecked();
   });
 
-  test("a press on Active with filters unchanged leaves it unchecked until filters holds it", async ({
+  test("with no press, filters becoming active and inactive checks Active", async ({
     page,
   }) => {
     const { dialog } = await openDialog(
@@ -679,8 +679,6 @@ test.describe("FILT-17, a categorical filter offers its options as checkboxes th
       active,
       "could not check: Active is not there or is checked",
     ).not.toBeChecked();
-    await active.click();
-    await expect(active).not.toBeChecked();
     await setFilters(page, selected("active", "inactive"));
     await expect(active).toBeChecked();
   });
@@ -776,4 +774,153 @@ test.describe("FILT-53, a categorical filter with emptyOption offers one more op
       }
       expect(await pressed(opened, row.press)).toEqual([statusCall(row.after)]);
     });
+});
+
+// Presses "Filter Status" twice: the dialog closes, then opens again
+async function reopenStatus(page: Page, dialog: Locator) {
+  const button = page.getByRole("button", {
+    name: "Filter Status",
+    exact: true,
+  });
+  await button.click();
+  await expect(
+    dialog.getByRole("checkbox"),
+    "could not check: the dialog did not close",
+  ).toHaveCount(0);
+  await button.click();
+  await expect(
+    dialog.getByRole("checkbox"),
+    "could not check: the dialog did not open",
+  ).toHaveCount(2);
+}
+
+// Waits until the table shows Status's selection `selected` as a badge, or no Status badge for none: the answer has
+// arrived. The badge names the labels in the options' order
+async function statusShown(page: Page, selected: string[]) {
+  const labels = [
+    ["active", "Active"],
+    ["inactive", "Inactive"],
+  ]
+    .filter(([value]) => selected.includes(value ?? ""))
+    .map(([, label]) => label)
+    .join(", ");
+  await expect(
+    page.getByRole("button", {
+      name: labels ? `Clear filter Status: ${labels}` : "Clear filter Status",
+      exact: labels !== "",
+    }),
+    "could not check: the answer did not arrive",
+  ).toHaveCount(labels ? 1 : 0);
+}
+
+// A step is a checkbox to press, "reopen", or the selection `filters` becomes
+type Step = string | string[];
+const a = "active";
+const i = "inactive";
+
+// A row's title from its steps
+const titled = (steps: Step[]) =>
+  steps
+    .map((step) =>
+      typeof step === "string"
+        ? step === "reopen"
+          ? step
+          : `press ${step}`
+        : `filters ${JSON.stringify(step)}`,
+    )
+    .join("; ");
+
+// Opens Status's dialog with "inactive" applied and plays the steps in it; returns what `openStatus` does
+async function play(page: Page, steps: Step[]) {
+  const opened = await openStatus(page, undefined, [i]);
+  await expect(
+    opened.dialog.getByRole("checkbox"),
+    "could not check: the dialog does not hold two boxes",
+  ).toHaveCount(2);
+  let applied = [i];
+  for (const step of steps)
+    if (step === "reopen") await reopenStatus(page, opened.dialog);
+    else if (typeof step === "string")
+      await opened.dialog
+        .getByRole("checkbox", { name: step, exact: true })
+        .click();
+    else {
+      await setFilters(page, {
+        status: { kind: "categorical", selected: step },
+      });
+      // An equal selection given again changes no badge, so there is nothing to wait for (FILT-61 row 6, FILT-62 row 6).
+      // `applied` is this runner's own record: the test page never answers a press, so only `setFilters` changes `filters`
+      if (
+        JSON.stringify([...step].sort()) !== JSON.stringify([...applied].sort())
+      )
+        await statusShown(page, step);
+      applied = step;
+    }
+  return opened;
+}
+
+// @spec("FILT-61", "a95a98bf")
+test.describe("FILT-61, a press toggles within the selection the last waiting press emitted", () => {
+  const rows: { steps: Step[]; calls: string[][] }[] = [
+    { steps: ["Active", "Inactive"], calls: [[a, i], [a]] },
+    { steps: ["Active", "Active"], calls: [[a, i], [i]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [a], "Active"],
+      calls: [[a, i], [a], []],
+    },
+    {
+      steps: ["Active", "Inactive", [], "Inactive"],
+      calls: [[a, i], [a], [i]],
+    },
+    { steps: ["Active", [i], "Inactive"], calls: [[a, i], [a]] },
+    {
+      steps: ["Active", "Inactive", [i, a], "reopen", "Inactive"],
+      calls: [[a, i], [a], [a]],
+    },
+    {
+      steps: ["Active", "Inactive", "Active", [a], "Inactive"],
+      calls: [[a, i], [a], [], [i]],
+    },
+  ];
+  for (const [n, row] of rows.entries())
+    test(`row ${n + 1}: ${titled(row.steps)}`, async ({ page }) => {
+      const opened = await play(page, row.steps);
+      const first = await opened.calls();
+      expect(first).toEqual(row.calls.map(statusCall));
+      await opened.at(1000);
+      expect(await opened.calls(), "a call followed the press").toEqual(first);
+    });
+});
+
+// @spec("FILT-62", "d37be37d")
+test.describe("FILT-62, the boxes show the selection the last waiting press emitted", () => {
+  const rows: { steps: Step[]; checked: string[] }[] = [
+    { steps: ["Active"], checked: ["Active", "Inactive"] },
+    { steps: ["Active", "Inactive", [a, i]], checked: ["Active"] },
+    { steps: ["Active", "Inactive", [a]], checked: ["Active"] },
+    { steps: ["Active", []], checked: [] },
+    {
+      steps: ["Active", "Inactive", [i, a], "reopen"],
+      checked: ["Active", "Inactive"],
+    },
+    { steps: ["Active", [i]], checked: ["Active", "Inactive"] },
+  ];
+  rows.forEach((row, n) =>
+    test(`row ${n + 1}: ${titled(row.steps)}`, async ({ page }) => {
+      const opened = await play(page, row.steps);
+      const shown = async () => {
+        for (const name of ["Active", "Inactive"])
+          await expect(
+            opened.dialog.getByRole("checkbox", { name, exact: true }),
+          ).toBeChecked({ checked: row.checked.includes(name) });
+      };
+      await shown();
+      await opened.at(1000);
+      await shown();
+    }),
+  );
 });

@@ -6,6 +6,7 @@
     DataTableProps,
   } from "../types.js";
   import { offered, toggled } from "../filters.js";
+  import { Picks } from "../picks.svelte.js";
   import Search from "./Search.svelte";
 
   type Props = Pick<
@@ -45,8 +46,13 @@
   // The browser holds whether the dialog is open; this mirrors it from the event that precedes every change, so the
   // fields exist only while it is open and their unsent text and pause go with it
   let open = $state(false);
-  const isSelected = (value: string) =>
-    applied?.kind === "categorical" && applied.selected.includes(value);
+  // What the dialog shows and works from: the applied selection, or the last press `filters` has not answered (FILT-61)
+  const picks = new Picks(
+    // Stryker disable next-line ArrayDeclaration: a value that is no option is never shown or emitted (toggled keeps option values)
+    () => (applied?.kind === "categorical" ? applied.selected : []),
+    () => open,
+  );
+  const isSelected = (value: string) => picks.selected.includes(value);
 </script>
 
 <!-- Adapted from ontoprism, frontend/src/lib/components/data-table/DataTableFilterPopover.svelte (Apache License 2.0,
@@ -54,8 +60,9 @@
      in the document (the intro of the filter dialog section of spec/table.md). The dialog is a popover: the browser
      opens it on a press of the button and holds whether it is open. The text filter's field is the search field's part
      and class, given this column's applied text (FILT-01). A categorical filter's options are one checkbox each,
-     checked while its value is selected (FILT-17), with `emptyOption` one more for no value, last (FILT-53); a press
-     emits the next selection, in the options' order (FILT-04) -->
+     checked while its value is selected, or while a press `filters` has not answered selects it (FILT-17, FILT-62),
+     with `emptyOption` one more for no value, last (FILT-53); a press emits the next selection, in the options' order
+     (FILT-04); a press toggles within the selection a press `filters` has not answered (FILT-61) -->
 <button
   type="button"
   aria-label={words.filterButton(label)}
@@ -97,15 +104,18 @@
             type="checkbox"
             checked={isSelected(option.value)}
             onchange={(event) => {
-              // The browser has already flipped the box; put it back to what `filters` says. The next change of
-              // `filters` sets it again.
+              // The browser has already flipped the box; put it back to what the dialog showed, the value Svelte wrote
+              // last: Svelte skips a write equal to that one, so the render after the press, or after an answer
+              // `onfilter` gives at once, sets the box (FILT-62)
               event.currentTarget.checked = isSelected(option.value);
+              const next = toggled(options, isSelected, option.value);
+              picks.press(next);
               // Stryker disable next-line OptionalChaining: unreachable fallback, a filter exists only with an onfilter (FILT-32)
               onfilter?.({
                 id,
                 state: {
                   kind: "categorical",
-                  selected: toggled(options, isSelected, option.value),
+                  selected: next,
                 },
               });
             }}

@@ -54,6 +54,9 @@
   have endorsed and approved"; the advisor's recommendation 1): PRD-B31, a `panels` snippet between the toolbar and the
   table, and PRD-X7, an advanced-search builder as a separate optional component, on the Later list; the slot's place
   after the toolbar and before the status line, and its showing in every state, decided by the reviewer (#263).
+  Amended by the owner (2026-11-27 about 17:0x PST, relayed by sveltedt-reviewer: "Yes, held and shown"): PRD-B2's
+  internal state gains a categorical filter's selection sent and not yet answered, shown until `filters` answers or
+  the dialog closes (#274).
   Order: PRD (approved) -> spec -> plan -> tests -> code. Order of work (owner): first perfect SvelteDT with its test
   site, only then move on; the first app starts on 1.0.
 - **Date:** 2026-11-17.
@@ -170,7 +173,9 @@ header cell and cells.
 #### PRD-B2
 
 Each user action emits exactly one callback, and the table shows only what its props say. Internal state is only: the
-open dialog and its trigger; unsent filter and search text, its error and its pause timer (PRD-B6); the find text of an
+open dialog and its trigger; unsent filter and search text, its error and its pause timer (PRD-B6); a categorical
+filter's selection its dialog sent and `filters` has not answered yet, shown on its checkboxes until `filters`
+answers or the dialog closes (PRD-B7); the find text of an
 open filter dialog (PRD-B29); which rows of the page are added so far (PRD-P6); whether the chooser is open; an active
 drag and its preview; the measured header height and sticky offsets, whether the header is sticky now (B14) and whether
 the region overflows; the text of the last column-move announcement; whether the progress indicator is shown, its delay
