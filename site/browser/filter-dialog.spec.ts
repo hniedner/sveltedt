@@ -848,7 +848,8 @@ async function play(page: Page, steps: Step[]) {
       await setFilters(page, {
         status: { kind: "categorical", selected: step },
       });
-      // An equal selection given again changes no badge: H-61e is the proof that it arrived
+      // An equal selection given again changes no badge, so there is nothing to wait for (FILT-61 row 6, FILT-62 row 6).
+      // `applied` is this runner's own record: the test page never answers a press, so only `setFilters` changes `filters`
       if (
         JSON.stringify([...step].sort()) !== JSON.stringify([...applied].sort())
       )

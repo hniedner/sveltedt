@@ -109,10 +109,9 @@ There is nothing to install yet. What is on `main` today:
   dialog closes. An application that refuses a press, by giving the old selection back or by leaving `filters` as it is,
   leaves the press shown until the dialog closes. When an answer equals a selection pressed earlier than the last one
   (an application that answers only some presses, after three presses of one box), the boxes may keep showing the quick
-  presses until the dialog closes, even after `filters` changes from outside to that earlier selection.
-  Text typed and not yet sent (still
-  within the pause, or not yet confirmed with Enter under `searchOnEnter`) is dropped when the dialog closes. The Escape
-  behaviour of the filter field is not settled yet (the input type is decided later): with the search field's
+  presses until the dialog closes, even after `filters` changes from outside to that earlier selection. Text typed and
+  not yet sent (still within the pause, or not yet confirmed with Enter under `searchOnEnter`) is dropped when the
+  dialog closes. The Escape behaviour of the filter field is not settled yet (the input type is decided later): with the search field's
   `type="search"`, Chromium and Firefox clear the field on Escape and, after the pause, emit an empty text filter, which
   removes the applied one, and WebKit closes the dialog and emits nothing. A clearable badge for each applied filter,
   "Clear column filters", "Reset table" (while `onreset` is given) and the application's own `criteria` snippet, every

@@ -93,8 +93,9 @@ decision (see Region order).
     the browser holds whether it is open; its part mirrors that in one `$state` of its own, written only by the
     dialog's `beforetoggle` event, and shows the dialog's fields only while it is open, so their unsent text and pause
     go when it closes and come back from the props when it opens (`src/lib/parts/ColumnFilter.svelte`, #86). A
-    categorical filter's selection sent and not yet answered is kept the same way, in `Picks`
-    (`src/lib/picks.svelte.ts`, #274), built by the part, its list emptied when the dialog closes.
+    categorical filter's selection sent and not yet answered is kept in `Picks` (`src/lib/picks.svelte.ts`, #274), a
+    class of its own built by the part: written by a press, trimmed or emptied when `filters` changes, and emptied
+    when the dialog closes.
   - **Writers:** only `TableView`'s own effects write its fields; the root reads `still` and `shown`
     (`src/lib/DataTable.svelte:111`, `src/lib/DataTable.svelte:159`, `src/lib/DataTable.svelte:174`; MEASURED:
     `grep -rnE "view\.\w+ =" src/lib` finds nothing). The fields are public and writable in TypeScript; a part that
